@@ -64,12 +64,6 @@ export function buildAdminNavGroups(
       id: "content-ip",
       title: "Nội dung & IP",
       items: [
-        {
-          href: "#",
-          label: "Danh mục",
-          disabled: true,
-          disabledReason: "Đang phát triển"
-        },
         { href: "/admin/originals", label: "Originals / IP", disabled: !canFinance },
         { href: "/admin/campaigns", label: "Chiến dịch", disabled: !canFinance }
       ]
@@ -181,7 +175,6 @@ export function buildAdminShortcutGroups(
       title: "Nội dung & thương mại IP",
       description: "Originals, thưởng tác giả và chiến dịch.",
       links: [
-        { label: "Danh mục / thể loại", href: "#", ...disabled() },
         {
           label: "Originals / thỏa thuận IP",
           href: "/admin/originals",

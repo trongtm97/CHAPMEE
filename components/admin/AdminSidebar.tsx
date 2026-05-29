@@ -90,12 +90,15 @@ function NavGroup({
   group: AdminNavGroup;
   activePath: string;
 }) {
+  const items = group.items.filter((item) => item.href !== "#");
+  if (items.length === 0) return null;
+
   return (
     <div className="space-y-1">
       <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
         {group.title}
       </p>
-      {group.items.map((item) => (
+      {items.map((item) => (
         <NavItem active={isActive(activePath, item.href)} item={item} key={item.href + item.label} />
       ))}
     </div>
