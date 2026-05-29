@@ -64,7 +64,6 @@ export function buildAdminNavGroups(
       id: "content-ip",
       title: "Nội dung & IP",
       items: [
-        { href: "/admin/content", label: "Truyện / chương" },
         {
           href: "#",
           label: "Danh mục",
@@ -182,7 +181,6 @@ export function buildAdminShortcutGroups(
       title: "Nội dung & thương mại IP",
       description: "Originals, thưởng tác giả và chiến dịch.",
       links: [
-        { label: "Truyện / chương", href: "/admin/content" },
         { label: "Danh mục / thể loại", href: "#", ...disabled() },
         {
           label: "Originals / thỏa thuận IP",

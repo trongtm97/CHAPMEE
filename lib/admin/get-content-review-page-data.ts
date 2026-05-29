@@ -83,7 +83,7 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
       supabase
         .from("community_posts")
         .select(
-          "id, title, content, created_at, status, profiles(display_name, username)"
+          "id, title, content, created_at, status, profiles!community_posts_user_id_fkey(display_name, username)"
         )
         .eq("status", "pending")
         .order("created_at", { ascending: true })
