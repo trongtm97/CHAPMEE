@@ -1,0 +1,19 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#0b1016"/>
+  <rect x="48" y="48" width="1104" height="534" rx="48" fill="url(#bg)"/>
+  <circle cx="980" cy="140" r="160" fill="#f97316" fill-opacity="0.12"/>
+  <circle cx="200" cy="500" r="200" fill="#ec4899" fill-opacity="0.1"/>
+  <text x="120" y="280" fill="url(#brand)" font-family="Arial, Helvetica, sans-serif" font-size="88" font-weight="800">ChapMee</text>
+  <text x="120" y="340" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="28">Đọc, viết và khám phá truyện — Swipe, cộng đồng và Studio.</text>
+  <text x="120" y="400" fill="#e2e8f0" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">Đọc nhanh. Viết dễ. Kết nối cộng đồng.</text>
+  <defs>
+    <linearGradient id="bg" x1="48" y1="48" x2="1152" y2="582" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111827"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="120" y1="220" x2="620" y2="300" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fb923c"/>
+      <stop offset="1" stop-color="#ec4899"/>
+    </linearGradient>
+  </defs>
+</svg>

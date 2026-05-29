@@ -1,0 +1,525 @@
+import { createClient } from "@/lib/supabase/server";
+import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
+import { getStudioStoryGroups } from "@/lib/studio/get-studio-story-groups";
+import type {
+  StudioCommentFilter,
+  StudioCommentInboxItem,
+  StudioCommentInboxStatus,
+  StudioCommentsPageData
+} from "@/types/comments";
+
+const INBOX_LIMIT = 80;
+const PER_SOURCE_LIMIT = 50;
+
+type StoryCommentRow = {
+  id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  status: string;
+  is_pinned: boolean;
+  story_id: string;
+  episode_id: string | null;
+  profiles:
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+      }
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+      }[]
+    | null;
+  stories:
+    | { title: string; slug: string }
+    | { title: string; slug: string }[]
+    | null;
+  episodes:
+    | { episode_number: number; title: string | null }
+    | { episode_number: number; title: string | null }[]
+    | null;
+};
+
+type CommunityCommentRow = {
+  id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  status: string;
+  is_pinned: boolean;
+  community_post_id: string;
+  profiles:
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+      }
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+      }[]
+    | null;
+  community_posts:
+    | {
+        id: string;
+        title: string;
+        story_id: string | null;
+        stories: { title: string; slug: string } | { title: string; slug: string }[] | null;
+      }
+    | {
+        id: string;
+        title: string;
+        story_id: string | null;
+        stories: { title: string; slug: string } | { title: string; slug: string }[] | null;
+      }[]
+    | null;
+};
+
+function firstRelation<T>(relation: T | T[] | null | undefined) {
+  return Array.isArray(relation) ? (relation[0] ?? null) : (relation ?? null);
+}
+
+function buildStoryContextHref(storySlug: string, episodeNumber: number | null) {
+  if (episodeNumber != null) {
+    return `/stories/${storySlug}/episodes/${episodeNumber}`;
+  }
+
+  return `/stories/${storySlug}`;
+}
+
+function buildStoryContextLabel(
+  storyTitle: string,
+  episodeNumber: number | null,
+  episodeTitle: string | null
+) {
+  if (episodeNumber != null) {
+    const chapterLabel = episodeTitle
+      ? `Ch. ${episodeNumber}: ${episodeTitle}`
+      : `Chương ${episodeNumber}`;
+    return `${storyTitle} · ${chapterLabel}`;
+  }
+
+  return storyTitle;
+}
+
+function resolveInboxStatus(options: {
+  isHidden: boolean;
+  hasOpenReport: boolean;
+  hasAuthorReply: boolean;
+}): StudioCommentInboxStatus {
+  if (options.isHidden) {
+    return "hidden";
+  }
+
+  if (options.hasOpenReport) {
+    return "reported";
+  }
+
+  if (options.hasAuthorReply) {
+    return "replied";
+  }
+
+  return "new";
+}
+
+export function normalizeStudioCommentFilter(
+  value: string | undefined
+): StudioCommentFilter {
+  const allowed: StudioCommentFilter[] = [
+    "all",
+    "unreplied",
+    "replied",
+    "pinned",
+    "reported",
+    "hidden"
+  ];
+
+  if (value && allowed.includes(value as StudioCommentFilter)) {
+    return value as StudioCommentFilter;
+  }
+
+  return "all";
+}
+
+async function getOwnedCommunityPostIds(
+  creatorProfile: CreatorProfile,
+  storyIds: string[],
+  storyFilter?: string
+) {
+  const supabase = await createClient();
+  const postIdSet = new Map<string, { title: string; storyId: string | null }>();
+
+  let byCreator = supabase
+    .from("community_posts")
+    .select("id, title, story_id")
+    .eq("creator_id", creatorProfile.id)
+    .neq("status", "rejected");
+
+  if (storyFilter) {
+    byCreator = byCreator.eq("story_id", storyFilter);
+  }
+
+  const { data: creatorPosts } = await byCreator.limit(100);
+
+  for (const post of creatorPosts ?? []) {
+    postIdSet.set(post.id, { title: post.title, storyId: post.story_id });
+  }
+
+  const scopedStoryIds = storyFilter ? [storyFilter] : storyIds;
+
+  if (scopedStoryIds.length > 0) {
+    const { data: storyPosts } = await supabase
+      .from("community_posts")
+      .select("id, title, story_id")
+      .in("story_id", scopedStoryIds)
+      .eq("status", "approved")
+      .limit(100);
+
+    for (const post of storyPosts ?? []) {
+      postIdSet.set(post.id, { title: post.title, storyId: post.story_id });
+    }
+  }
+
+  return postIdSet;
+}
+
+async function enrichCommentMeta(
+  commentIds: string[],
+  creatorUserId: string
+) {
+  const repliedSet = new Set<string>();
+  const reportedSet = new Set<string>();
+
+  if (commentIds.length === 0) {
+    return { repliedSet, reportedSet };
+  }
+
+  const supabase = await createClient();
+  const [{ data: replies }, { data: reports }] = await Promise.all([
+    supabase
+      .from("comments")
+      .select("parent_id")
+      .in("parent_id", commentIds)
+      .eq("user_id", creatorUserId)
+      .neq("status", "deleted"),
+    supabase
+      .from("reports")
+      .select("target_id")
+      .eq("target_type", "comment")
+      .in("target_id", commentIds)
+      .in("status", ["pending", "reviewing", "open"])
+  ]);
+
+  for (const reply of replies ?? []) {
+    if (reply.parent_id) {
+      repliedSet.add(reply.parent_id);
+    }
+  }
+
+  for (const report of reports ?? []) {
+    if (report.target_id) {
+      reportedSet.add(report.target_id);
+    }
+  }
+
+  return { repliedSet, reportedSet };
+}
+
+function applyFilters(
+  items: StudioCommentInboxItem[],
+  filter: StudioCommentFilter,
+  search: string
+) {
+  let filtered = items;
+
+  if (filter === "unreplied") {
+    filtered = filtered.filter((item) => item.status === "new" && !item.isHidden);
+  } else if (filter === "replied") {
+    filtered = filtered.filter((item) => item.status === "replied");
+  } else if (filter === "reported") {
+    filtered = filtered.filter((item) => item.hasOpenReport);
+  }
+
+  if (search) {
+    filtered = filtered.filter((item) => {
+      return (
+        item.content.toLowerCase().includes(search) ||
+        item.authorDisplayName?.toLowerCase().includes(search) ||
+        item.contextLabel.toLowerCase().includes(search) ||
+        item.storyTitle?.toLowerCase().includes(search) ||
+        item.communityPostTitle?.toLowerCase().includes(search)
+      );
+    });
+  }
+
+  return filtered
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, INBOX_LIMIT);
+}
+
+export async function getStudioComments(
+  creatorProfile: CreatorProfile,
+  creatorUserId: string,
+  options: {
+    filter?: StudioCommentFilter;
+    storyId?: string;
+    q?: string;
+  } = {}
+): Promise<StudioCommentsPageData> {
+  const filter = options.filter ?? "all";
+  const supabase = await createClient();
+
+  const { data: storyRows, error: storiesError } = await supabase
+    .from("stories")
+    .select("id, title")
+    .eq("creator_id", creatorProfile.id)
+    .order("title", { ascending: true });
+
+  if (storiesError) {
+    return {
+      comments: [],
+      stories: [],
+      storyGroups: [],
+      error: storiesError.message
+    };
+  }
+
+  const stories = (storyRows ?? []).map((row) => ({
+    id: row.id,
+    title: row.title
+  }));
+
+  const storyIds = stories.map((row) => row.id);
+
+  if (options.storyId && !storyIds.includes(options.storyId)) {
+    return {
+      comments: [],
+      stories,
+      storyGroups: await getStudioStoryGroups(creatorProfile),
+      error: null
+    };
+  }
+
+  const scopedStoryIds = options.storyId ? [options.storyId] : storyIds;
+  const search = options.q?.trim().toLowerCase() ?? "";
+  const items: StudioCommentInboxItem[] = [];
+
+  if (scopedStoryIds.length > 0) {
+    const buildStoryQuery = (excludeCommunityPostComments: boolean) => {
+      let storyQuery = supabase
+        .from("comments")
+        .select(
+          `
+          id,
+          user_id,
+          content,
+          created_at,
+          status,
+          is_pinned,
+          story_id,
+          episode_id,
+          profiles(display_name, username, avatar_url),
+          stories!inner(title, slug),
+          episodes(episode_number, title)
+        `
+        )
+        .in("story_id", scopedStoryIds)
+        .is("parent_id", null)
+        .neq("status", "deleted")
+        .order("created_at", { ascending: false })
+        .limit(PER_SOURCE_LIMIT);
+
+      if (excludeCommunityPostComments) {
+        storyQuery = storyQuery.is("community_post_id", null);
+      }
+
+      if (filter === "hidden") {
+        storyQuery = storyQuery.eq("status", "hidden");
+      } else if (filter !== "all" && filter !== "reported") {
+        storyQuery = storyQuery.eq("status", "visible");
+      }
+
+      if (filter === "pinned") {
+        storyQuery = storyQuery.eq("is_pinned", true);
+      }
+
+      return storyQuery;
+    };
+
+    let { data: storyCommentRows, error: storyCommentsError } = await buildStoryQuery(true);
+
+    if (
+      storyCommentsError?.message.includes("community_post_id") ||
+      storyCommentsError?.message.includes("does not exist")
+    ) {
+      ({ data: storyCommentRows, error: storyCommentsError } = await buildStoryQuery(false));
+    }
+
+    if (storyCommentsError) {
+      return {
+        comments: [],
+        stories,
+        storyGroups: await getStudioStoryGroups(creatorProfile),
+        error: storyCommentsError.message
+      };
+    }
+
+    const rows = (storyCommentRows ?? []) as unknown as StoryCommentRow[];
+    const { repliedSet, reportedSet } = await enrichCommentMeta(
+      rows.map((row) => row.id),
+      creatorUserId
+    );
+
+    for (const row of rows) {
+      const profile = firstRelation(row.profiles);
+      const story = firstRelation(row.stories);
+      const episode = firstRelation(row.episodes);
+      const episodeNumber = episode?.episode_number ?? null;
+      const storyTitle = story?.title ?? "Truyện";
+      const storySlug = story?.slug ?? "";
+      const isHidden = row.status === "hidden";
+      const hasOpenReport = reportedSet.has(row.id);
+      const hasAuthorReply = repliedSet.has(row.id);
+
+      items.push({
+        id: row.id,
+        content: row.content,
+        createdAt: row.created_at,
+        status: resolveInboxStatus({ isHidden, hasOpenReport, hasAuthorReply }),
+        source: "story",
+        isPinned: Boolean(row.is_pinned),
+        isHidden,
+        hasOpenReport,
+        authorUserId: row.user_id,
+        authorDisplayName: profile?.display_name ?? profile?.username ?? "Độc giả",
+        authorAvatarUrl: profile?.avatar_url ?? null,
+        storyId: row.story_id,
+        storyTitle,
+        storySlug,
+        episodeId: row.episode_id,
+        episodeNumber,
+        episodeTitle: episode?.title ?? null,
+        communityPostId: null,
+        communityPostTitle: null,
+        contextLabel: buildStoryContextLabel(
+          storyTitle,
+          episodeNumber,
+          episode?.title ?? null
+        ),
+        contextHref: buildStoryContextHref(storySlug, episodeNumber)
+      });
+    }
+  }
+
+  const ownedPosts = await getOwnedCommunityPostIds(
+    creatorProfile,
+    storyIds,
+    options.storyId
+  );
+  const communityPostIds = [...ownedPosts.keys()];
+
+  if (communityPostIds.length > 0) {
+    let communityQuery = supabase
+      .from("comments")
+      .select(
+        `
+        id,
+        user_id,
+        content,
+        created_at,
+        status,
+        is_pinned,
+        community_post_id,
+        profiles(display_name, username, avatar_url),
+        community_posts!inner(id, title, story_id, stories(title, slug))
+      `
+      )
+      .in("community_post_id", communityPostIds)
+      .is("parent_id", null)
+      .neq("status", "deleted")
+      .order("created_at", { ascending: false })
+      .limit(PER_SOURCE_LIMIT);
+
+    if (filter === "hidden") {
+      communityQuery = communityQuery.eq("status", "hidden");
+    } else if (filter !== "all" && filter !== "reported") {
+      communityQuery = communityQuery.eq("status", "visible");
+    }
+
+    if (filter === "pinned") {
+      communityQuery = communityQuery.eq("is_pinned", true);
+    }
+
+    const { data: communityRows, error: communityError } = await communityQuery;
+
+    if (communityError) {
+      const missingColumn = communityError.message.includes("community_post_id");
+      if (!missingColumn) {
+        return {
+          comments: [],
+          stories,
+          storyGroups: await getStudioStoryGroups(creatorProfile),
+          error: communityError.message
+        };
+      }
+    } else {
+      const rows = (communityRows ?? []) as unknown as CommunityCommentRow[];
+      const existingIds = new Set(items.map((item) => item.id));
+      const newRows = rows.filter((row) => !existingIds.has(row.id));
+      const { repliedSet, reportedSet } = await enrichCommentMeta(
+        newRows.map((row) => row.id),
+        creatorUserId
+      );
+
+      for (const row of newRows) {
+        const profile = firstRelation(row.profiles);
+        const post = firstRelation(row.community_posts);
+        const story = firstRelation(post?.stories ?? null);
+        const postTitle = post?.title ?? "Bài cộng đồng";
+        const storyTitle = story?.title ?? null;
+        const isHidden = row.status === "hidden";
+        const hasOpenReport = reportedSet.has(row.id);
+        const hasAuthorReply = repliedSet.has(row.id);
+
+        const contextLabel = storyTitle
+          ? `Bài cộng đồng · ${postTitle} · ${storyTitle}`
+          : `Bài cộng đồng · ${postTitle}`;
+
+        items.push({
+          id: row.id,
+          content: row.content,
+          createdAt: row.created_at,
+          status: resolveInboxStatus({ isHidden, hasOpenReport, hasAuthorReply }),
+          source: "community_post",
+          isPinned: Boolean(row.is_pinned),
+          isHidden,
+          hasOpenReport,
+          authorUserId: row.user_id,
+          authorDisplayName:
+            profile?.display_name ?? profile?.username ?? "Độc giả",
+          authorAvatarUrl: profile?.avatar_url ?? null,
+          storyId: post?.story_id ?? null,
+          storyTitle,
+          storySlug: story?.slug ?? null,
+          episodeId: null,
+          episodeNumber: null,
+          episodeTitle: null,
+          communityPostId: row.community_post_id,
+          communityPostTitle: postTitle,
+          contextLabel,
+          contextHref: `/community/${row.community_post_id}#comments`
+        });
+      }
+    }
+  }
+
+  return {
+    comments: applyFilters(items, filter, search),
+    stories,
+    storyGroups: await getStudioStoryGroups(creatorProfile),
+    error: null
+  };
+}

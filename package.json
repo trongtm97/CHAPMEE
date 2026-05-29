@@ -1,0 +1,39 @@
+{
+  "name": "chapchap",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack",
+    "dev:clean": "node scripts/clean-next-cache.mjs && next dev --webpack",
+    "dev:turbo": "next dev --turbopack",
+    "dev:turbo:clean": "node scripts/clean-next-cache.mjs && next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test:rbac:setup": "node scripts/rbac-setup-test-users.mjs",
+    "test:rbac": "node scripts/rbac-run-matrix.mjs"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.106.2",
+    "next": "^16.2.6",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-easy-crop": "^5.5.7",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "autoprefixer": "latest",
+    "eslint": "latest",
+    "eslint-config-next": "^16.2.6",
+    "postcss": "latest",
+    "prettier": "latest",
+    "tailwindcss": "^3.4.17",
+    "typescript": "latest"
+  }
+}

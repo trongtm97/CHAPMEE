@@ -1,0 +1,169 @@
+export type AnalyticsEventName =
+  | "app_opened"
+  | "session_started"
+  | "session_ended"
+  | "page_viewed"
+  | "onboarding_started"
+  | "onboarding_role_selected"
+  | "onboarding_genres_selected"
+  | "onboarding_completed"
+  | "onboarding_skipped"
+  | "swipe_feed_viewed"
+  | "swipe_item_viewed"
+  | "swipe_item_changed"
+  | "swipe_read_more_clicked"
+  | "swipe_like_clicked"
+  | "swipe_save_clicked"
+  | "swipe_comment_opened"
+  | "swipe_share_clicked"
+  | "swipe_follow_author_clicked"
+  | "story_viewed"
+  | "chapter_opened"
+  | "chapter_completed"
+  | "next_chapter_clicked"
+  | "reading_time_tracked"
+  | "reaction_submitted"
+  | "comment_created"
+  | "comment_replied"
+  | "comment_liked"
+  | "comment_pinned"
+  | "author_followed"
+  | "story_saved"
+  | "story_liked"
+  | "share_clicked"
+  | "share_copied"
+  | "share_image_downloaded"
+  | "creator_dashboard_viewed"
+  | "story_created"
+  | "story_published"
+  | "chapter_created"
+  | "chapter_published"
+  | "challenge_joined"
+  | "challenge_entry_submitted"
+  | "sponsored_campaign_viewed"
+  | "sponsored_campaign_clicked"
+  | "sponsored_challenge_viewed"
+  | "sponsored_challenge_joined"
+  | "sponsored_challenge_entry_submitted"
+  | "tip_clicked"
+  | "paid_unlock_clicked"
+  | "paid_chapter_gate_viewed"
+  | "paid_chapter_unlock_clicked"
+  | "paid_chapter_unlocked"
+  | "paid_chapter_unlock_failed"
+  | "paid_chapter_insufficient_coin"
+  | "early_access_gate_viewed"
+  | "early_access_unlock_clicked"
+  | "early_access_unlocked"
+  | "early_access_wait_for_free_clicked"
+  | "early_access_unlock_failed"
+  | "fan_club_viewed"
+  | "fan_club_join_clicked"
+  | "fan_club_joined"
+  | "fan_club_join_failed"
+  | "fan_club_membership_expired"
+  | "rewarded_ad_offer_viewed"
+  | "rewarded_ad_started"
+  | "rewarded_ad_completed"
+  | "rewarded_ad_rewarded"
+  | "rewarded_ad_failed"
+  | "rewarded_ad_limit_reached"
+  | "payout_requested"
+  | "payout_approved"
+  | "payout_rejected"
+  | "payout_completed"
+  | "risk_event_created"
+  | "payout_blocked_by_risk"
+  | "transaction_flagged"
+  | "fraud_review_action_taken"
+  | "creator_bonus_pool_created"
+  | "creator_bonus_calculated"
+  | "creator_bonus_approved"
+  | "creator_bonus_credited"
+  | "purchase_started"
+  | "purchase_completed"
+  | "purchase_failed"
+  | "notification_permission_prompted"
+  | "notification_permission_granted"
+  | "notification_clicked"
+  | "referral_link_copied"
+  | "referral_link_opened"
+  | "referral_signup_completed"
+  | "content_reported"
+  | "report_submitted"
+  | "moderation_action_taken"
+  | "open_story"
+  | "start_reading"
+  | "scroll_25"
+  | "scroll_50"
+  | "scroll_75"
+  | "complete_chap"
+  | "next_chap_click"
+  | "feed_impression"
+  | "feed_skip"
+  | "feed_dwell_time"
+  | "feed_read_more"
+  | "feed_save"
+  | "feed_follow"
+  | "feed_comment"
+  | "feed_share"
+  | "save_story"
+  | "unsave_story"
+  | "follow_creator"
+  | "unfollow_creator"
+  | "comment_deleted"
+  | "report_created"
+  | "experiment_exposed"
+  | "experiment_converted";
+
+export type AnalyticsEventCategory =
+  | "app"
+  | "onboarding"
+  | "swipe"
+  | "reading"
+  | "social"
+  | "creator"
+  | "monetization"
+  | "retention"
+  | "referral"
+  | "moderation"
+  | "feed"
+  | "experiment";
+
+export type AnalyticsTargetType =
+  | "story"
+  | "episode"
+  | "chapter"
+  | "comment"
+  | "community_post"
+  | "creator"
+  | "feed"
+  | "challenge"
+  | "page"
+  | "user";
+
+export type AnalyticsMetadataValue =
+  | string
+  | number
+  | boolean
+  | null
+  | AnalyticsMetadataValue[]
+  | { [key: string]: AnalyticsMetadataValue };
+
+export type AnalyticsMetadata = Record<string, AnalyticsMetadataValue>;
+
+type TrackEventNameInput =
+  | { eventName: AnalyticsEventName; event_name?: never }
+  | { eventName?: never; event_name: AnalyticsEventName };
+
+export type TrackEventInput = TrackEventNameInput & {
+  targetType?: AnalyticsTargetType;
+  target_type?: AnalyticsTargetType;
+  targetId?: string | null;
+  target_id?: string | null;
+  metadata?: AnalyticsMetadata;
+  sessionId?: string | null;
+  session_id?: string | null;
+  category?: AnalyticsEventCategory;
+  category_name?: AnalyticsEventCategory;
+};

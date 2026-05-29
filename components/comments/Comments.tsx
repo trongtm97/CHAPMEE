@@ -1,0 +1,48 @@
+import Link from "next/link";
+import { CommentForm } from "@/components/comments/CommentForm";
+import { CommentList } from "@/components/comments/CommentList";
+import { Card, ErrorState, SectionHeader } from "@/components/ui";
+import { getComments, type CommentTarget } from "@/lib/comments/getComments";
+
+type CommentsProps = {
+  target: CommentTarget;
+  returnTo: string;
+  title?: string;
+};
+
+export async function Comments({
+  returnTo,
+  target,
+  title = "Bình luận"
+}: CommentsProps) {
+  const { comments, currentUserId, error } = await getComments(target);
+
+  return (
+    <section className="space-y-4" id="comments">
+      <SectionHeader title={title} />
+      {error ? (
+        <ErrorState message={error} title="Could not load comments" />
+      ) : null}
+      {currentUserId ? (
+        <CommentForm
+          episodeId={target.episodeId}
+          returnTo={returnTo}
+          storyId={target.storyId}
+        />
+      ) : (
+        <Card className="space-y-3">
+          <p className="text-sm leading-6 text-zinc-300">
+            Đăng nhập để tham gia bình luận cùng độc giả khác.
+          </p>
+          <Link
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-zinc-950"
+            href={`/login?next=${encodeURIComponent(returnTo)}`}
+          >
+            Đăng nhập để bình luận
+          </Link>
+        </Card>
+      )}
+      <CommentList comments={comments} returnTo={returnTo} />
+    </section>
+  );
+}

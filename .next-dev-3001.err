@@ -1,0 +1,8 @@
+⨯ Another next dev server is already running.
+
+- Local:        http://localhost:3000
+- PID:          4332
+- Dir:          D:\PROGRAM-TRONG\CHAPCHAP
+- Log:          .next\dev\logs\next-development.log
+
+Run taskkill /PID 4332 /F to stop it.

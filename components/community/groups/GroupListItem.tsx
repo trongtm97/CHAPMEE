@@ -1,0 +1,81 @@
+import Link from "next/link";
+import { getStoryImageForUsage } from "@/lib/images/get-story-image";
+import {
+  STORY_IMAGE_PLACEHOLDER_GRADIENT_CLASS,
+  getStoryPlaceholderInitial
+} from "@/lib/images/placeholders";
+import type { CommunityGroupItem } from "@/types/community-group";
+
+const badgeLabel: Record<NonNullable<CommunityGroupItem["badge"]>, string> = {
+  hot: "HOT",
+  new_chapter: "Có chương mới",
+  author_reply: "Tác giả trả lời"
+};
+
+type GroupListItemProps = {
+  group: CommunityGroupItem;
+  cta?: "join" | "follow";
+};
+
+export function GroupListItem({ group, cta = "join" }: GroupListItemProps) {
+  const cover = getStoryImageForUsage(
+    { title: group.name, coverUrl: group.coverUrl },
+    "communityCard"
+  );
+  const meta =
+    group.postCount > 0
+      ? `${group.newCommentCount} bình luận mới`
+      : `${group.memberCount.toLocaleString("vi-VN")} thành viên`;
+
+  return (
+    <article className="flex gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
+      <Link
+        className="relative h-[3.25rem] w-[4.75rem] shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-cyan-500/20 to-fuchsia-600/20"
+        href={`/community/groups/${group.id}`}
+      >
+        {cover.src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            alt=""
+            className="h-full w-full object-cover"
+            loading="lazy"
+            src={cover.src}
+            style={{ objectPosition: cover.objectPosition }}
+          />
+        ) : (
+          <span
+            className={`flex h-full items-center justify-center text-lg font-black text-white/70 ${STORY_IMAGE_PLACEHOLDER_GRADIENT_CLASS}`}
+          >
+            {getStoryPlaceholderInitial(group.name)}
+          </span>
+        )}
+      </Link>
+
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex items-start justify-between gap-2">
+          <Link className="min-w-0" href={`/community/groups/${group.id}`}>
+            <h3 className="line-clamp-2 text-sm font-bold leading-5 text-zinc-50">{group.name}</h3>
+          </Link>
+          {group.badge ? (
+            <span className="shrink-0 rounded-full bg-cyan-300/15 px-2 py-0.5 text-[0.6rem] font-black uppercase text-cyan-200">
+              {badgeLabel[group.badge]}
+            </span>
+          ) : null}
+        </div>
+
+        <p className="line-clamp-1 text-[0.68rem] text-zinc-400">
+          {meta}
+          {group.genreName ? ` · ${group.genreName}` : null}
+        </p>
+        <p className="line-clamp-1 text-[0.68rem] text-zinc-500">{group.statusLine}</p>
+
+        <Link
+          className="inline-flex h-8 items-center rounded-lg border border-cyan-300/35 bg-cyan-300/10 px-3 text-xs font-bold text-cyan-100 transition hover:bg-cyan-300/20"
+          href={`/community/groups/${group.id}`}
+        >
+          {cta === "follow" ? "Theo dõi" : "Vào nhóm"}
+        </Link>
+      </div>
+    </article>
+  );
+}
