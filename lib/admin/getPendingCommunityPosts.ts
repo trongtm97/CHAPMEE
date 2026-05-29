@@ -48,7 +48,7 @@ export async function getPendingCommunityPosts(
     const { data, error } = await supabase
       .from("community_posts")
       .select(
-        "id, type, title, content, created_at, status, profiles(display_name, username), stories(title, slug)"
+        "id, type, title, content, created_at, status, profiles!community_posts_user_id_fkey(display_name, username), stories(title, slug)"
       )
       .eq("status", status)
       .order("created_at", { ascending: true })

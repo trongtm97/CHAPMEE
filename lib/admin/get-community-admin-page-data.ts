@@ -130,9 +130,9 @@ export async function getCommunityAdminPageData(
     const todayStart = startOfTodayIso();
 
     const postSelectFull =
-      "id, type, title, content, created_at, status, report_count, risk_level, is_pinned, is_featured, comments_locked, auto_decision, auto_decision_reason_codes, story_id, creator_id, episode_id, user_id, profiles(display_name, username, role), stories(title, slug), creator_profiles(pen_name), episodes(episode_number, title)";
+      "id, type, title, content, created_at, status, report_count, risk_level, is_pinned, is_featured, comments_locked, auto_decision, auto_decision_reason_codes, story_id, creator_id, episode_id, user_id, profiles!community_posts_user_id_fkey(display_name, username, role), stories(title, slug), creator_profiles(pen_name), episodes(episode_number, title)";
     const postSelectMinimal =
-      "id, type, title, content, created_at, status, auto_decision, auto_decision_reason_codes, story_id, creator_id, user_id, profiles(display_name, username, role), stories(title, slug), creator_profiles(pen_name)";
+      "id, type, title, content, created_at, status, auto_decision, auto_decision_reason_codes, story_id, creator_id, user_id, profiles!community_posts_user_id_fkey(display_name, username, role), stories(title, slug), creator_profiles(pen_name)";
 
     const [
       pendingRes,

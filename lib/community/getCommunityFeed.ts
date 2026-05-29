@@ -90,7 +90,7 @@ export async function getCommunityFeed(): Promise<CommunityFeedData> {
     const { data, error } = await supabase
       .from("community_posts")
       .select(
-        "id, type, title, content, created_at, story_id, profiles(display_name, username), stories(title, slug, creator_id, creator_profiles(id, pen_name))"
+        "id, type, title, content, created_at, story_id, profiles!community_posts_user_id_fkey(display_name, username), stories(title, slug, creator_id, creator_profiles(id, pen_name))"
       )
       .eq("status", "approved")
       .in("type", ["discussion", "review", "poll_placeholder", "challenge"])

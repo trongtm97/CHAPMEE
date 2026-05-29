@@ -30,7 +30,7 @@ export async function getCommunityPost(
     const { data, error } = await supabase
       .from("community_posts")
       .select(
-        "id, type, title, content, created_at, story_id, profiles(display_name, username), stories(title, slug)"
+        "id, type, title, content, created_at, story_id, profiles!community_posts_user_id_fkey(display_name, username), stories(title, slug)"
       )
       .eq("id", postId)
       .eq("status", "approved")
