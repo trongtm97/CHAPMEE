@@ -7,6 +7,7 @@ type EpisodeListProps = {
   episodes: CreatorEpisode[];
   storyId: string;
   storySlug: string;
+  storyPublicCode: string;
   basePath?: string;
 };
 
@@ -14,7 +15,8 @@ export function EpisodeList({
   basePath = "/studio",
   episodes,
   storyId,
-  storySlug
+  storySlug,
+  storyPublicCode
 }: EpisodeListProps) {
   if (episodes.length === 0) {
     return (
@@ -41,6 +43,7 @@ export function EpisodeList({
           episode={episode}
           key={episode.id}
           storyId={storyId}
+          storyPublicCode={storyPublicCode}
           storySlug={storySlug}
         />
       ))}

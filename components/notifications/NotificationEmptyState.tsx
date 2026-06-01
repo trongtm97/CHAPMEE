@@ -5,7 +5,7 @@ export function NotificationEmptyState() {
     <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center">
       <p className="text-sm font-semibold text-zinc-200">Chưa có thông báo</p>
       <p className="mx-auto mt-2 max-w-xs text-xs leading-5 text-zinc-500">
-        Khi có cập nhật từ truyện, tác giả hoặc ví coin, bạn sẽ thấy tại đây.
+        Khi có cập nhật từ truyện, tài khoản hoặc thông báo nền tảng, bạn sẽ thấy tại đây.
       </p>
       <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
         <Link

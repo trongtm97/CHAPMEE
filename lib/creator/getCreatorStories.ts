@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 
 export type CreatorStoryStatus =
@@ -20,6 +21,7 @@ export type CreatorStory = {
   id: string;
   title: string;
   slug: string;
+  publicCode: string;
   hook: string | null;
   status: CreatorStoryStatus;
   genreName: string | null;
@@ -37,10 +39,10 @@ type StoryRow = {
   id: string;
   title: string;
   slug: string;
+  public_code: string;
   hook: string | null;
   status: CreatorStoryStatus;
   updated_at: string;
-  genres: { name: string | null } | { name: string | null }[] | null;
 };
 
 type EpisodeRow = {
@@ -102,7 +104,7 @@ export async function getCreatorStories(
 
     const { data, error } = await supabase
       .from("stories")
-      .select("id, title, slug, hook, status, updated_at, genres(name)")
+      .select("id, title, slug, public_code, hook, status, updated_at")
       .eq("creator_id", creatorProfile.id)
       .order("updated_at", { ascending: false });
 
@@ -112,6 +114,7 @@ export async function getCreatorStories(
 
     const rows = (data ?? []) as unknown as StoryRow[];
     const storyIds = rows.map((story) => story.id);
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
     const episodeCountByStory = new Map<string, number>();
 
     if (storyIds.length > 0) {
@@ -138,20 +141,17 @@ export async function getCreatorStories(
     return {
       counts: countByFilter(rows),
       error: null,
-      stories: filteredRows.map((story) => {
-        const genre = firstRelation(story.genres);
-
-        return {
+      stories: filteredRows.map((story) => ({
           id: story.id,
           title: story.title,
           slug: story.slug,
+          publicCode: story.public_code,
           hook: story.hook,
           status: story.status,
-          genreName: genre?.name ?? null,
+          genreName: taxonomyByStory.get(story.id)?.mainGenreName ?? null,
           episodeCount: episodeCountByStory.get(story.id) ?? 0,
           updatedAt: story.updated_at
-        };
-      })
+        }))
     };
   } catch (error) {
     return {

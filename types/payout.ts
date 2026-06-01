@@ -23,7 +23,10 @@ export type CreatorPayoutAccount = {
   account_holder_name: string | null;
   bank_name: string | null;
   bank_account_number_masked: string | null;
+  bank_branch?: string | null;
   wallet_phone_masked: string | null;
+  withdrawal_locked_until?: string | null;
+  email_verified_at?: string | null;
   metadata: Record<string, unknown> | null;
   is_default: boolean;
   verification_status: PayoutVerificationStatus;

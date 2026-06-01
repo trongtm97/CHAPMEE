@@ -7,7 +7,7 @@ import { trackServerEvent } from "@/lib/analytics/trackServerEvent";
 import { getMonetizationConfig } from "@/lib/monetization/config";
 import { calculateCreatorRevenue } from "@/lib/monetization/creator-revenue";
 import { getPurchaseUiPolicyForRequest } from "@/lib/payments/purchase-mode";
-import { getCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
+import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
 import {
   createEarlyAccessUnlock,
   getChapterEarlyAccessSetting,
@@ -143,13 +143,9 @@ export async function unlockEarlyAccessAction(input: {
     return { ok: false, error: "Chapter đã miễn phí, không cần unlock." };
   }
 
-  const creatorProfile = await getCreatorMonetizationProfile(setting.data.creator_user_id);
-  if (
-    !creatorProfile.data ||
-    creatorProfile.data.status !== "approved" ||
-    !creatorProfile.data.monetization_enabled
-  ) {
-    return { ok: false, error: "Creator chưa đủ điều kiện kiếm tiền." };
+  const creatorCanEarn = await isCreatorMonetizationAllowed(setting.data.creator_user_id);
+  if (!creatorCanEarn) {
+    return { ok: false, error: "Kiếm tiền đang bị tắt bởi ChapMee cho tác giả này." };
   }
 
   const supabase = await createClient();
@@ -319,6 +315,21 @@ export async function unlockEarlyAccessAction(input: {
       coin_price: coinPrice
     }
   });
+
+  try {
+    const { trackTaxonomyStoryPurchaseServer } = await import(
+      "@/lib/analytics/track-taxonomy-server"
+    );
+    await trackTaxonomyStoryPurchaseServer({
+      storyId: input.storyId,
+      chapterId: input.chapterId,
+      revenueCoin: coinPrice,
+      userId: user.id,
+      sourceSurface: "catalog"
+    });
+  } catch {
+    // Non-blocking taxonomy analytics
+  }
 
   return { ok: true, alreadyUnlocked: false, error: null };
 }

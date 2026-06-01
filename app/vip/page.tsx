@@ -4,7 +4,7 @@ import { Card, SectionHeader } from "@/components/ui";
 import { VipPurchasePanel } from "@/components/vip/VipPurchasePanel";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { getVipLandingData } from "@/lib/monetization/vip";
+import { getVipPageData } from "@/lib/monetization/vip";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +15,8 @@ export default async function VipPage() {
   ]);
   if (!user) redirect("/login?next=/vip");
 
-  const landing = await getVipLandingData(user.id);
-  if (!landing.enabled) {
+  const vipData = await getVipPageData(user.id);
+  if (!vipData.enabled) {
     return (
       <section className="space-y-4">
         <SectionHeader title="VIP" />
@@ -36,16 +36,16 @@ export default async function VipPage() {
         <h1 className="mt-3 text-3xl font-bold tracking-normal">ChapMee VIP</h1>
       </div>
 
-      {landing.vipStatus?.isActive ? (
+      {vipData.vipStatus?.isActive ? (
         <Card className="space-y-2">
           <p className="text-base font-semibold text-white">Bạn đang là VIP</p>
           <p className="text-sm text-zinc-300">
-            Gói: {landing.vipStatus.plan?.name ?? "VIP"}
+            Gói: {vipData.vipStatus.plan?.name ?? "VIP"}
           </p>
           <p className="text-sm text-zinc-300">
             Hết hạn:{" "}
-            {landing.vipStatus.subscription?.expires_at
-              ? new Date(landing.vipStatus.subscription.expires_at).toLocaleString()
+            {vipData.vipStatus.subscription?.expires_at
+              ? new Date(vipData.vipStatus.subscription.expires_at).toLocaleString()
               : "N/A"}
           </p>
         </Card>
@@ -53,7 +53,7 @@ export default async function VipPage() {
 
       <VipPurchasePanel
         mockPurchaseEnabled={Boolean(config.settings["vip_subscription.mock_purchase_enabled"])}
-        plans={landing.plans}
+        plans={vipData.plans}
         testMode={Boolean(config.settings["monetization.test_mode"])}
       />
     </section>

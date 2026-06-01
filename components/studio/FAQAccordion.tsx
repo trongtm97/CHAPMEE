@@ -1,55 +1,45 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Input } from "@/components/ui";
 import type { StudioHelpFaqItem } from "@/lib/content/studio-help";
+import { filterFaqItems } from "@/lib/content/studio-help";
 
 type FAQAccordionProps = {
   items: StudioHelpFaqItem[];
+  /** Khi có, dùng search toàn trang thay vì ô tìm riêng */
+  externalQuery?: string;
 };
 
-function normalize(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase();
-}
-
-export function FAQAccordion({ items }: FAQAccordionProps) {
-  const [query, setQuery] = useState("");
+export function FAQAccordion({ externalQuery, items }: FAQAccordionProps) {
+  const [internalQuery, setInternalQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(items[0]?.id ?? null);
 
-  const filtered = useMemo(() => {
-    const q = normalize(query.trim());
+  const query = externalQuery !== undefined ? externalQuery : internalQuery;
 
-    if (!q) {
-      return items;
-    }
-
-    return items.filter((item) => {
-      const haystack = normalize(
-        [item.question, item.answer, ...item.keywords].join(" ")
-      );
-      return haystack.includes(q);
-    });
-  }, [items, query]);
+  const filtered = useMemo(() => filterFaqItems(items, query), [items, query]);
 
   return (
-    <section className="space-y-4" id="faq">
+    <section className="scroll-mt-24 space-y-4" id="faq">
       <div>
         <h2 className="text-lg font-bold text-white">Câu hỏi thường gặp</h2>
         <p className="mt-1 text-sm text-zinc-400">
-          Gõ từ khóa để lọc nhanh (ví dụ: rút tiền, import, Swipe).
+          {externalQuery !== undefined
+            ? "Kết quả được lọc theo tìm kiếm ở đầu trang."
+            : "Gõ từ khóa để lọc nhanh (ví dụ: rút tiền, nhập, Reels)."}
         </p>
       </div>
 
-      <Input
-        aria-label="Tìm trong FAQ"
-        name="faq_search"
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder="Tìm câu hỏi…"
-        value={query}
-      />
+      {externalQuery === undefined ? (
+        <input
+          aria-label="Tìm trong FAQ"
+          className="min-h-11 w-full rounded-xl border border-white/10 bg-zinc-950 px-4 text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
+          name="faq_search"
+          onChange={(event) => setInternalQuery(event.target.value)}
+          placeholder="Tìm câu hỏi…"
+          type="search"
+          value={internalQuery}
+        />
+      ) : null}
 
       {filtered.length === 0 ? (
         <p className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-zinc-400">
@@ -67,7 +57,7 @@ export function FAQAccordion({ items }: FAQAccordionProps) {
               >
                 <button
                   aria-expanded={open}
-                  className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-white hover:bg-white/[0.04]"
+                  className="flex w-full min-h-11 items-start justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-white hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-cyan-300"
                   onClick={() => setOpenId(open ? null : item.id)}
                   type="button"
                 >

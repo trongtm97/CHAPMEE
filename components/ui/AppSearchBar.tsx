@@ -11,13 +11,15 @@ type AppSearchBarProps = {
   /** GET form action — dùng khi cần submit server (vd. kèm hidden filter). */
   action?: string;
   hiddenFields?: Record<string, string | undefined>;
-  /** Mặc định: chuyển tới /truyen?q=...&page=1 */
+  /** Mặc định: chuyển tới /search?q=... */
   catalogNavigation?: boolean;
   onSearch?: (query: string) => void;
+  autoFocus?: boolean;
 };
 
 export function AppSearchBar({
   action,
+  autoFocus = false,
   catalogNavigation,
   className = "",
   defaultValue = "",
@@ -47,7 +49,7 @@ export function AppSearchBar({
         router.push("/truyen?page=1");
         return;
       }
-      router.push(`/truyen?q=${encodeURIComponent(query)}&page=1`);
+      router.push(`/search?q=${encodeURIComponent(query)}`);
     }
   }
 
@@ -56,7 +58,11 @@ export function AppSearchBar({
       {Object.entries(hiddenFields).map(([fieldName, fieldValue]) =>
         fieldValue ? <input key={fieldName} name={fieldName} type="hidden" value={fieldValue} /> : null
       )}
-      <AppSearchField defaultValue={defaultValue} placeholder={placeholder} />
+      <AppSearchField
+        autoFocus={autoFocus}
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+      />
     </form>
   );
 }

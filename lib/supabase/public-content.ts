@@ -1,3 +1,5 @@
+import { CREATOR_PROFILE_PUBLIC_SELECT } from "@/lib/creator/supabase-selects";
+import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
 import { PERMANENTLY_HIDDEN_QUALITY_STATUS } from "@/lib/content-quality/public-visibility";
 import { createPublicClient } from "@/lib/supabase/public-client";
 import { logSupabaseError, withSupabaseFallback } from "@/lib/supabase/safe-query";
@@ -15,7 +17,6 @@ export type PublicStoryRow = {
     | { id: string; pen_name: string | null; profiles: { username: string | null; avatar_url: string | null } | null }
     | { id: string; pen_name: string | null; profiles: { username: string | null; avatar_url: string | null } | null }[]
     | null;
-  genres: { name: string | null; slug: string | null } | { name: string | null; slug: string | null }[] | null;
 };
 
 export type PublicStoryPreview = {
@@ -37,8 +38,22 @@ type StoryPreviewRow = {
   hook: string | null;
   cover_url: string | null;
   published_at: string | null;
-  creator_profiles: { pen_name: string | null } | { pen_name: string | null }[] | null;
-  genres: { name: string | null; slug: string | null } | { name: string | null; slug: string | null }[] | null;
+  creator_profiles:
+    | {
+        pen_name: string | null;
+        profiles?:
+          | { display_name: string | null; username: string | null }
+          | { display_name: string | null; username: string | null }[]
+          | null;
+      }
+    | {
+        pen_name: string | null;
+        profiles?:
+          | { display_name: string | null; username: string | null }
+          | { display_name: string | null; username: string | null }[]
+          | null;
+      }[]
+    | null;
 };
 
 export async function getPublicStoryBySlug(slug: string) {
@@ -47,7 +62,7 @@ export async function getPublicStoryBySlug(slug: string) {
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, title, slug, hook, short_description, long_description, cover_url, published_at, creator_profiles(id, pen_name, profiles(username, avatar_url)), genres(name, slug)"
+        `id, title, slug, hook, short_description, long_description, cover_url, published_at, creator_profiles(${CREATOR_PROFILE_PUBLIC_SELECT})`
       )
       .eq("slug", slug)
       .eq("visibility", "public")
@@ -71,28 +86,16 @@ function firstRelation<T>(relation: T | T[] | null | undefined) {
 export async function getPublicGenresWithContent() {
   return withSupabaseFallback("getPublicGenresWithContent", async () => {
     const supabase = createPublicClient();
-    const { data, error } = await supabase.rpc("get_public_genres_with_story_counts");
+    const { getPublicMainGenresWithStoryCounts, hasTaxonomyMainGenres } =
+      await import("@/lib/taxonomy/public-genres");
 
-    if (!error && Array.isArray(data)) {
-      return data as Array<{ slug: string; name: string; story_count: number }>;
-    }
+  if (await hasTaxonomyMainGenres(supabase)) {
+    const taxonomyGenres = await getPublicMainGenresWithStoryCounts(supabase);
+    return taxonomyGenres;
+  }
 
-    const { data: genreRows, error: genreError } = await supabase
-      .from("genres")
-      .select("slug, name")
-      .order("name");
-
-    if (genreError) {
-      logSupabaseError("getPublicGenresWithContent", genreError);
-      return [];
-    }
-
-    return (genreRows ?? []).map((genre) => ({
-      slug: String(genre.slug),
-      name: String(genre.name),
-      story_count: 0
-    }));
-  }, []);
+  return [];
+}, []);
 }
 
 export async function getPublicStories(limit = 6): Promise<PublicStoryPreview[]> {
@@ -100,7 +103,9 @@ export async function getPublicStories(limit = 6): Promise<PublicStoryPreview[]>
     const supabase = createPublicClient();
     const { data, error } = await supabase
       .from("stories")
-      .select("id, title, slug, hook, cover_url, published_at, creator_profiles(pen_name), genres(name, slug)")
+      .select(
+        `id, title, slug, hook, cover_url, published_at, creator_profiles(${CREATOR_PROFILE_PUBLIC_SELECT})`
+      )
       .eq("visibility", "public")
       .in("status", ["published", "approved"])
       .neq("quality_status", PERMANENTLY_HIDDEN_QUALITY_STATUS)
@@ -112,18 +117,29 @@ export async function getPublicStories(limit = 6): Promise<PublicStoryPreview[]>
       return [];
     }
 
-    return ((data ?? []) as StoryPreviewRow[]).map((row) => {
+    const rows = (data ?? []) as StoryPreviewRow[];
+    const { loadMainGenreLabelsByStoryIds, pickMainGenreFromLabels } = await import(
+      "@/lib/taxonomy/story-genre-labels"
+    );
+    const taxonomyByStory = await loadMainGenreLabelsByStoryIds(
+      supabase,
+      rows.map((row) => row.id)
+    );
+
+    return rows.map((row) => {
       const creator = firstRelation(row.creator_profiles);
-      const genre = firstRelation(row.genres);
+      const picked = pickMainGenreFromLabels(taxonomyByStory.get(row.id));
       return {
         id: row.id,
         title: row.title,
         slug: row.slug,
         hook: row.hook,
         coverUrl: row.cover_url,
-        creatorName: creator?.pen_name ?? null,
-        genreName: genre?.name ?? null,
-        genreSlug: genre?.slug ?? null,
+        creatorName: creator
+          ? resolvePublicDisplayName(firstRelation(creator.profiles), creator)
+          : null,
+        genreName: picked.genreName,
+        genreSlug: picked.genreSlug,
         publishedAt: row.published_at
       };
     });

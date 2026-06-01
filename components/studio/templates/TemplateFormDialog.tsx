@@ -151,6 +151,17 @@ export function TemplateFormDialog({
             value={body}
           />
 
+          <p className="text-xs text-zinc-500">
+            Gợi ý placeholder: {"{ten_truyen}"}, {"{ten_chuong}"}, {"{ten_nhan_vat}"},{" "}
+            {"{cta}"}
+          </p>
+
+          {body.trim().length > 0 && body.trim().length < 20 ? (
+            <p className="text-xs text-amber-300/90">
+              Nội dung hơi ngắn — cân nhắc bổ sung thêm chi tiết.
+            </p>
+          ) : null}
+
           {error ? (
             <p className="rounded-xl border border-rose-400/30 bg-rose-400/10 p-3 text-sm text-rose-100">
               {error}

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   CoinType,
   CreatorRevenueStatus,
@@ -208,7 +209,7 @@ export async function applyCreatorRevenueLedgerRecord(input: {
 }
 
 export async function processCoinPurchaseCheckoutRecord(sessionId: string) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase.rpc("process_coin_purchase_checkout", {
     input_session_id: sessionId
   });

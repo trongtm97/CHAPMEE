@@ -40,15 +40,16 @@ export async function CreatorRevenuePolicyBox({ creatorUserId }: CreatorRevenueP
           </li>
         ) : null}
         <li>
-          Bạn nhận khoảng{" "}
+          Bạn nhận{" "}
           <span className="font-semibold text-white">
             {resolved.creatorRevenueSharePercent}%
           </span>{" "}
-          trên phần doanh thu áp dụng (sau quy tắc tính của nền tảng).
+          trên doanh thu gộp mỗi giao dịch.
         </li>
         <li>
-          Phí nền tảng tham chiếu:{" "}
+          ChapMee giữ{" "}
           <span className="font-semibold text-white">{resolved.platformFeePercent}%</span>
+          {" "}(hai tỉ lệ cộng lại = 100%).
         </li>
         {resolved.publicNote ? (
           <li className="list-none pl-0">
@@ -59,7 +60,7 @@ export async function CreatorRevenuePolicyBox({ creatorUserId }: CreatorRevenueP
         ) : null}
       </ul>
       <p className="mt-3 text-xs text-sky-200/60">
-        Giao dịch đã phát sinh giữ nguyên tỷ lệ đã ghi nhận tại thời điểm thanh toán.
+        Không còn phí ẩn — chỉ tỉ lệ ăn chia. Giao dịch cũ giữ nguyên tỷ lệ đã ghi nhận.
       </p>
     </section>
   );

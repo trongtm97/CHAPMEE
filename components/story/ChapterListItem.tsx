@@ -5,6 +5,7 @@ import type { StoryChapterMeta } from "@/types/chapter";
 type ChapterListItemProps = {
   chapter: StoryChapterMeta;
   storySlug: string;
+  storyPublicCode: string;
   status?: "reading" | "read" | "new" | null;
 };
 
@@ -27,11 +28,19 @@ function isRecentlyPublished(value: string | null) {
   return published >= weekAgo;
 }
 
-export function ChapterListItem({ chapter, status, storySlug }: ChapterListItemProps) {
+export function ChapterListItem({
+  chapter,
+  status,
+  storySlug,
+  storyPublicCode
+}: ChapterListItemProps) {
   const isNew = status !== "reading" && status !== "read" && isRecentlyPublished(chapter.publishedAt);
-  const href = getStoryChapterHref(storySlug, chapter.episodeNumber);
+  const href = getStoryChapterHref(
+    { slug: storySlug, public_code: storyPublicCode },
+    { slug: chapter.slug, public_code: chapter.publicCode }
+  );
 
-  if (!chapter.episodeNumber || !storySlug) {
+  if (!chapter.episodeNumber || !storySlug || !storyPublicCode) {
     return null;
   }
 

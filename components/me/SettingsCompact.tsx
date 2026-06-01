@@ -63,6 +63,12 @@ export function SettingsCompact({ unreadNotificationCount }: SettingsCompactProp
               </Link>
               <Link
                 className="block text-sm text-zinc-400 transition hover:text-zinc-200"
+                href="/chinh-sach"
+              >
+                Chính sách & điều khoản
+              </Link>
+              <Link
+                className="block text-sm text-zinc-400 transition hover:text-zinc-200"
                 href="/community-guidelines"
               >
                 Quy định cộng đồng

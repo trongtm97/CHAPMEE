@@ -174,9 +174,9 @@ export function getStoryImageSet(
 }
 
 /**
- * Swipe full-bleed background: story landscape → episode bg → blur (never original).
+ * Reels full-bleed background: story landscape → episode bg → blur (never original).
  */
-export function getSwipeBackgroundSrc(item: {
+export function getReelsBackgroundSrc(item: {
   title: string;
   storyCoverUrl?: string | null;
   episodeBackgroundUrl?: string | null;

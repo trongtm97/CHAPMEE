@@ -170,6 +170,7 @@ function commentToFeedItem(row: CommentRow): CommunityFeedItem {
     id: `comment-feed-${row.id}`,
     kind: "story_comment_highlight",
     authorName,
+    authorUsername: author?.username?.trim().toLowerCase() ?? null,
     authorRole: "reader",
     createdAt: row.created_at,
     title: null,

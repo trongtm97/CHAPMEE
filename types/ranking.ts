@@ -19,6 +19,7 @@ export type StoryRankingItem = {
   rank: number;
   title: string;
   slug: string;
+  publicCode: string;
   hook: string | null;
   shortDescription: string | null;
   genreName: string | null;
@@ -31,7 +32,8 @@ export type AuthorRankingItem = {
   id: string;
   rank: number;
   userId: string;
-  penName: string;
+  username: string | null;
+  displayName: string;
   avatarUrl: string | null;
   followerCount: number;
   totalReads: number;
@@ -53,7 +55,8 @@ export type EarningAuthorRankingItem = {
   id: string;
   rank: number;
   userId: string;
-  penName: string;
+  username: string | null;
+  displayName: string;
   avatarUrl: string | null;
   grossRevenue: number;
   supporterCount: number;

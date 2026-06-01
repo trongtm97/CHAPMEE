@@ -1,4 +1,6 @@
+import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
 import { createClient } from "@/lib/supabase/server";
+import { getStoryUrl } from "@/lib/urls/paths";
 import type { ReaderProfileData } from "@/lib/profile/getReaderProfile";
 import type { PersonalActivityItem } from "@/types/me-page";
 import type { AuthorThankYouView } from "@/types/thank-you";
@@ -7,22 +9,31 @@ type CommentRow = {
   id: string;
   content: string;
   created_at: string;
-  stories: { title: string; slug: string } | { title: string; slug: string }[] | null;
+  stories: { title: string; slug: string; public_code: string } | { title: string; slug: string; public_code: string }[] | null;
 };
 
 type FollowRow = {
   id: string;
+  creator_id: string | null;
   created_at: string;
   creator_profiles:
-    | { pen_name: string; user_id: string }
-    | { pen_name: string; user_id: string }[]
+    | {
+        pen_name: string;
+        user_id: string;
+        profiles?: { display_name: string | null; username: string | null } | null;
+      }
+    | {
+        pen_name: string;
+        user_id: string;
+        profiles?: { display_name: string | null; username: string | null } | null;
+      }[]
     | null;
 };
 
 type BookshelfRow = {
   id: string;
   updated_at: string;
-  stories: { title: string; slug: string } | { title: string; slug: string }[] | null;
+  stories: { title: string; slug: string; public_code: string } | { title: string; slug: string; public_code: string }[] | null;
 };
 
 function firstRelation<T>(relation: T | T[] | null | undefined) {
@@ -50,21 +61,23 @@ export async function getPersonalActivity(
     const [commentsResult, followsResult, savesResult] = await Promise.all([
       supabase
         .from("comments")
-        .select("id, content, created_at, stories(title, slug)")
+        .select("id, content, created_at, stories(title, slug, public_code)")
         .eq("user_id", userId)
         .eq("status", "visible")
         .order("created_at", { ascending: false })
         .limit(5),
       supabase
         .from("follows")
-        .select("id, created_at, creator_profiles(pen_name, user_id)")
+        .select(
+          "id, creator_id, created_at, creator_profiles(pen_name, user_id, profiles!creator_profiles_user_id_fkey(display_name, username))"
+        )
         .eq("follower_id", userId)
         .not("creator_id", "is", null)
         .order("created_at", { ascending: false })
         .limit(5),
       supabase
         .from("bookshelf_items")
-        .select("id, updated_at, stories(title, slug)")
+        .select("id, updated_at, stories(title, slug, public_code)")
         .eq("user_id", userId)
         .eq("status", "saved")
         .order("updated_at", { ascending: false })
@@ -80,7 +93,7 @@ export async function getPersonalActivity(
         id: `comment-${row.id}`,
         type: "comment",
         message: `Bạn đã bình luận trong «${story.title}»`,
-        href: `/stories/${story.slug}`,
+        href: getStoryUrl({ slug: story.slug, public_code: story.public_code }),
         createdAt: row.created_at
       });
     }
@@ -90,11 +103,14 @@ export async function getPersonalActivity(
       if (!creator) {
         continue;
       }
+      const profile = firstRelation(creator.profiles);
+      const name = resolvePublicDisplayName(profile, creator);
+      const username = profile?.username?.trim();
       items.push({
         id: `follow-${row.id}`,
         type: "follow",
-        message: `Bạn đã theo dõi tác giả ${creator.pen_name}`,
-        href: `/author/${creator.user_id}`,
+        message: `Bạn đã theo dõi tác giả ${name}`,
+        href: username ? `/@${username}` : "/discover",
         createdAt: row.created_at
       });
     }
@@ -108,7 +124,7 @@ export async function getPersonalActivity(
         id: `save-${row.id}`,
         type: "save",
         message: `Bạn đã lưu truyện «${story.title}»`,
-        href: `/stories/${story.slug}`,
+        href: getStoryUrl({ slug: story.slug, public_code: story.public_code }),
         createdAt: row.updated_at
       });
     }

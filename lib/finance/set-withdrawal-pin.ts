@@ -1,6 +1,7 @@
 "use server";
 
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import { consumeVerifiedFinanceEmailCode, sendFinanceEmailCode } from "@/lib/finance/finance-email-code";
 import {
   getCreatorWithdrawalSecurity,
   upsertCreatorWithdrawalSecurity
@@ -15,6 +16,7 @@ import {
 export async function setWithdrawalPin(input: {
   pin: string;
   confirmPin: string;
+  emailCode: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const { profile } = await getCurrentUser();
   if (!profile?.id) {
@@ -22,10 +24,21 @@ export async function setWithdrawalPin(input: {
   }
 
   if (!isValidWithdrawalPin(input.pin)) {
-    return { ok: false, error: "Mã PIN phải gồm 6 chữ số." };
+    return {
+      ok: false,
+      error: "Mã PIN phải gồm 6 chữ số và không được quá đơn giản."
+    };
   }
   if (input.pin !== input.confirmPin) {
     return { ok: false, error: "Mã PIN xác nhận không khớp." };
+  }
+
+  const codeCheck = await consumeVerifiedFinanceEmailCode({
+    purpose: "setup_pin",
+    code: input.emailCode
+  });
+  if (!codeCheck.ok) {
+    return { ok: false, error: codeCheck.error ?? "Mã xác nhận email không hợp lệ." };
   }
 
   const existing = await getCreatorWithdrawalSecurity(profile.id);
@@ -58,6 +71,7 @@ export async function changeWithdrawalPin(input: {
   currentPin: string;
   newPin: string;
   confirmPin: string;
+  emailCode: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const { profile } = await getCurrentUser();
   if (!profile?.id) {
@@ -70,10 +84,21 @@ export async function changeWithdrawalPin(input: {
   }
 
   if (!isValidWithdrawalPin(input.newPin)) {
-    return { ok: false, error: "Mã PIN mới phải gồm 6 chữ số." };
+    return {
+      ok: false,
+      error: "Mã PIN mới phải gồm 6 chữ số và không được quá đơn giản."
+    };
   }
   if (input.newPin !== input.confirmPin) {
     return { ok: false, error: "Mã PIN xác nhận không khớp." };
+  }
+
+  const codeCheck = await consumeVerifiedFinanceEmailCode({
+    purpose: "change_pin",
+    code: input.emailCode
+  });
+  if (!codeCheck.ok) {
+    return { ok: false, error: codeCheck.error ?? "Mã xác nhận email không hợp lệ." };
   }
 
   const updated = await upsertCreatorWithdrawalSecurity({
@@ -94,4 +119,64 @@ export async function changeWithdrawalPin(input: {
   });
 
   return { ok: true };
+}
+
+export async function resetWithdrawalPin(input: {
+  emailCode: string;
+  newPin: string;
+  confirmPin: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { profile } = await getCurrentUser();
+  if (!profile?.id) {
+    return { ok: false, error: "Bạn cần đăng nhập." };
+  }
+
+  if (!isValidWithdrawalPin(input.newPin)) {
+    return {
+      ok: false,
+      error: "Mã PIN mới phải gồm 6 chữ số và không được quá đơn giản."
+    };
+  }
+  if (input.newPin !== input.confirmPin) {
+    return { ok: false, error: "Mã PIN xác nhận không khớp." };
+  }
+
+  const codeCheck = await consumeVerifiedFinanceEmailCode({
+    purpose: "reset_pin",
+    code: input.emailCode
+  });
+  if (!codeCheck.ok) {
+    return { ok: false, error: codeCheck.error ?? "Mã xác nhận email không hợp lệ." };
+  }
+
+  const updated = await upsertCreatorWithdrawalSecurity({
+    creatorUserId: profile.id,
+    pinHash: hashWithdrawalPin(input.newPin),
+    pinSetAt: new Date().toISOString(),
+    failedAttempts: 0,
+    lockedUntil: null
+  });
+
+  if (updated.error) {
+    return { ok: false, error: updated.error };
+  }
+
+  await logFinanceSecurityEvent({
+    creatorUserId: profile.id,
+    eventType: "withdrawal_pin_reset"
+  });
+
+  return { ok: true };
+}
+
+export async function requestSetupPinEmailCode() {
+  return sendFinanceEmailCode({ purpose: "setup_pin" });
+}
+
+export async function requestChangePinEmailCode() {
+  return sendFinanceEmailCode({ purpose: "change_pin" });
+}
+
+export async function requestResetPinEmailCode() {
+  return sendFinanceEmailCode({ purpose: "reset_pin" });
 }

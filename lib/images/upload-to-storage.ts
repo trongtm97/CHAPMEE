@@ -1,4 +1,5 @@
 import { getStoryImageStorageObjectPath } from "@/lib/images/get-current-story-image";
+import { registerStorageAsset } from "@/lib/storage/asset-service";
 import { STORY_IMAGE_STORAGE_BUCKET } from "@/types/story-images";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -26,6 +27,21 @@ export async function uploadStoryImageOriginal(
   }
 
   const { data } = supabase.storage.from(STORY_IMAGE_STORAGE_BUCKET).getPublicUrl(path);
+  await registerStorageAsset(supabase, {
+    bucket: STORY_IMAGE_STORAGE_BUCKET,
+    isOriginal: true,
+    isPublic: true,
+    linkedEntityId: storyId,
+    linkedEntityType: "story",
+    linkedField: "story_image_original",
+    metadata: { imageId, module: "story_cover" },
+    mimeType: "image/webp",
+    path,
+    publicUrl: data.publicUrl,
+    sizeBytes: buffer.byteLength,
+    extension: "webp",
+    usageType: "story_cover"
+  });
 
   return {
     path,

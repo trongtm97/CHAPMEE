@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge, Card } from "@/components/ui";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import type { CreatorStoryFormStory } from "@/lib/creator/getStoryFormData";
 
 type StoryFormSidePanelProps = {
@@ -52,7 +53,14 @@ export function StoryFormSidePanel({
           {canViewPublicPage(story) ? (
             <Link
               className="inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-300 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-200"
-              href={`/stories/${story?.slug ?? ""}`}
+              href={
+                story?.slug && story.publicCode
+                  ? getStoryDetailHref({
+                      slug: story.slug,
+                      public_code: story.publicCode
+                    })
+                  : "#"
+              }
             >
               View Public Page
             </Link>

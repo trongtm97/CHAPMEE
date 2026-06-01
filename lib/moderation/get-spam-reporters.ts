@@ -47,7 +47,8 @@ export async function getSpamSuspectedReporters(): Promise<
       spamSuspected: true,
       accuracyPercent:
         submitted > 0 ? Math.round((valid / submitted) * 100) : null,
-      displayName: profile?.display_name ?? profile?.username ?? null
+      displayName: profile?.display_name ?? profile?.username ?? null,
+      username: profile?.username?.trim().toLowerCase() ?? null
     };
   });
 }

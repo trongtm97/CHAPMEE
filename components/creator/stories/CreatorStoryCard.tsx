@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge, Card } from "@/components/ui";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import type { CreatorStory } from "@/lib/creator/getCreatorStories";
 
 type CreatorStoryCardProps = {
@@ -65,7 +66,10 @@ export function CreatorStoryCard({
         {canViewPublicPage(story.status) ? (
           <Link
             className="inline-flex min-h-10 items-center justify-center rounded-lg bg-cyan-300 px-3 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-200"
-            href={`/stories/${story.slug}`}
+            href={getStoryDetailHref({
+              slug: story.slug,
+              public_code: story.publicCode
+            })}
           >
             View public page
           </Link>

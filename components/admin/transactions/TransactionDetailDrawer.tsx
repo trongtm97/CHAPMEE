@@ -200,6 +200,37 @@ export function TransactionDetailDrawer({
                 </p>
               </section>
 
+              {detail.feePolicyInfo ? (
+                <section className="space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-zinc-500">
+                    Chính sách phí (snapshot)
+                  </h3>
+                  <dl className="grid gap-2 sm:grid-cols-2">
+                    <DetailItem
+                      label="Loại policy"
+                      value={
+                        detail.feePolicyInfo.appliedPolicyType === "custom"
+                          ? "Custom"
+                          : "Mặc định"
+                      }
+                    />
+                    <DetailItem
+                      label="Tỷ lệ tác giả / nền tảng"
+                      value={
+                        detail.feePolicyInfo.authorPercent != null
+                          ? `${detail.feePolicyInfo.authorPercent}% / ${detail.feePolicyInfo.platformPercent ?? "—"}%`
+                          : "—"
+                      }
+                    />
+                    <DetailItem label="Policy ID" value={detail.feePolicyInfo.policyId ?? "—"} />
+                    <DetailItem
+                      label="Tên policy"
+                      value={detail.feePolicyInfo.policyName ?? "—"}
+                    />
+                  </dl>
+                </section>
+              ) : null}
+
               {(detail.story_id || detail.chapter_id || detail.relatedContent) && (
                 <section className="space-y-3">
                   <h3 className="text-xs font-bold uppercase tracking-wide text-zinc-500">

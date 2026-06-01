@@ -1,7 +1,7 @@
 import {
   DISPLAY_NAME_MAX_LENGTH,
   DISPLAY_NAME_MIN_LENGTH
-} from "@/lib/username/validate-display-name";
+} from "@/lib/username/display-name-limits";
 import {
   USERNAME_MAX_LENGTH,
   USERNAME_MIN_LENGTH,

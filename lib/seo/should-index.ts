@@ -1,5 +1,7 @@
 import { canViewPublicEpisode, canViewPublicStory } from "@/lib/visibility/contentVisibility";
 
+export { STUDIO_NOINDEX_ROBOTS, buildRobotsMeta } from "@/lib/seo/noindex";
+
 export function shouldIndexStory(input: {
   status?: string | null;
   visibility?: string | null;
@@ -18,8 +20,3 @@ export function shouldIndexEpisode(input: {
     input.storyVisibility
   );
 }
-
-export const STUDIO_NOINDEX_ROBOTS = {
-  follow: false,
-  index: false
-} as const;

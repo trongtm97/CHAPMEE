@@ -1,45 +1,55 @@
 "use client";
 
 import { EmptyState, ErrorState, SectionHeader } from "@/components/ui";
-import { StoryRankingCard } from "@/components/rankings/StoryRankingCard";
-import { AuthorRankingCard } from "@/components/rankings/AuthorRankingCard";
-import { FanRankingCard } from "@/components/rankings/FanRankingCard";
+import { RankingBoardCard } from "@/components/rankings/RankingBoardCard";
+import { RankingPagination } from "@/components/rankings/RankingPagination";
 import { RankingSkeleton } from "@/components/rankings/RankingSkeleton";
-import { useRankings } from "@/hooks/useRankings";
-import {
-  RANKING_TABS,
-  TIME_PERIODS,
-  type RankingCategory
-} from "@/types/ranking";
+import { useRankingBoard, type GenreOption } from "@/hooks/useRankingBoard";
+import type { RankingUiTabId } from "@/types/ranking-board";
 
-export function RankingTabs() {
+type RankingTabsProps = {
+  initialTabId?: RankingUiTabId;
+  initialGenreSlug?: string | null;
+  genres?: GenreOption[];
+};
+
+export function RankingTabs({
+  initialTabId = "week",
+  initialGenreSlug = null,
+  genres = []
+}: RankingTabsProps) {
   const {
+    tabs,
+    activeTabId,
     activeTab,
     setActiveTab,
-    timePeriod,
-    setTimePeriod,
-    data,
+    genreSlug,
+    setGenreSlug,
+    page,
+    setPage,
+    items,
+    totalPages,
+    totalCount,
+    snapshotAt,
     loading,
     error
-  } = useRankings();
-
-  const currentTabMeta = RANKING_TABS.find((t) => t.id === activeTab);
+  } = useRankingBoard(initialTabId, initialGenreSlug);
 
   return (
     <div className="space-y-6">
       <section>
         <p className="page-kicker">Bảng xếp hạng</p>
-        <h1 className="page-title">Ai đang dẫn đầu?</h1>
+        <h1 className="page-title">Bảng xếp hạng</h1>
         <p className="page-copy">
-          Khám phá truyện hot, truyện mới nổi, tác giả nổi bật và Top Fan đang
-          tạo nhịp cho ChapMee.
+          Nhiều bảng xếp hạng theo thời gian và thể loại — ưu tiên chất lượng đọc,
+          không chỉ lượt xem tổng.
         </p>
       </section>
 
       <div className="overflow-x-auto -mx-4 px-4">
         <div className="flex gap-2 min-w-max pb-1">
-          {RANKING_TABS.map((tab) => {
-            const active = activeTab === tab.id;
+          {tabs.map((tab) => {
+            const active = activeTabId === tab.id;
             return (
               <button
                 className={`tap-highlight whitespace-nowrap rounded-full border px-4 py-2 text-sm font-bold transition ${
@@ -58,34 +68,32 @@ export function RankingTabs() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {TIME_PERIODS.filter(
-          (period) => activeTab !== "top_fans" || period.id === "all"
-        ).map((period) => {
-          const active = timePeriod === period.id;
-          return (
-            <button
-              className={`tap-highlight rounded-full border px-3 py-1.5 text-xs font-bold transition ${
-                active
-                  ? "border-white/20 bg-white/10 text-white"
-                  : "border-white/8 bg-white/[0.03] text-zinc-400 hover:border-white/15 hover:text-zinc-200"
-              }`}
-              key={period.id}
-              onClick={() => setTimePeriod(period.id)}
-              type="button"
-            >
-              {period.label}
-            </button>
-          );
-        })}
-      </div>
+      {activeTab.showGenreFilter && genres.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          <GenreChip
+            active={!genreSlug}
+            label="Tất cả thể loại"
+            onClick={() => setGenreSlug(null)}
+          />
+          {genres.map((genre) => (
+            <GenreChip
+              active={genreSlug === genre.slug}
+              key={genre.slug}
+              label={genre.name}
+              onClick={() => setGenreSlug(genre.slug)}
+            />
+          ))}
+        </div>
+      ) : null}
 
-      {currentTabMeta && (
-        <SectionHeader
-          subtitle={currentTabMeta.description}
-          title={currentTabMeta.label}
-        />
-      )}
+      <SectionHeader
+        subtitle={
+          snapshotAt
+            ? `${activeTab.description} · Cập nhật ${formatSnapshotTime(snapshotAt)} · ${totalCount} mục`
+            : activeTab.description
+        }
+        title={activeTab.label}
+      />
 
       {error ? (
         <ErrorState
@@ -95,81 +103,62 @@ export function RankingTabs() {
         />
       ) : loading ? (
         <RankingSkeleton count={5} />
-      ) : (
-        <RankingList
-          activeTab={activeTab}
-          data={data}
-          currentTabMeta={currentTabMeta}
+      ) : items.length === 0 ? (
+        <EmptyState
+          description="Hệ thống đang tổng hợp snapshot xếp hạng. Vui lòng quay lại sau vài phút."
+          title="Chưa có dữ liệu"
         />
+      ) : (
+        <>
+          <div className="space-y-3">
+            {items.map((item) => (
+              <RankingBoardCard item={item} key={`${item.itemType}-${item.id}`} />
+            ))}
+          </div>
+          <RankingPagination
+            onPageChange={setPage}
+            page={page}
+            totalPages={totalPages}
+          />
+        </>
       )}
     </div>
   );
 }
 
-type RankingListProps = {
-  activeTab: RankingCategory;
-  data: ReturnType<typeof useRankings>["data"];
-  currentTabMeta: (typeof RANKING_TABS)[number] | undefined;
-};
-
-function RankingList({ activeTab, data, currentTabMeta }: RankingListProps) {
-  switch (activeTab) {
-    case "hot_stories":
-      return renderList(
-        data.hotStories,
-        currentTabMeta,
-        (item) => (
-          <StoryRankingCard item={item} key={item.id} />
-        )
-      );
-
-    case "rising_stories":
-      return renderList(
-        data.risingStories,
-        currentTabMeta,
-        (item) => (
-          <StoryRankingCard item={item} key={item.id} />
-        )
-      );
-
-    case "top_authors":
-      return renderList(
-        data.topAuthors,
-        currentTabMeta,
-        (item) => (
-          <AuthorRankingCard item={item} key={item.id} />
-        )
-      );
-
-    case "top_fans":
-      return renderList(
-        data.topFans,
-        currentTabMeta,
-        (item) => (
-          <FanRankingCard item={item} key={item.id} />
-        )
-      );
-
-    default:
-      return null;
-  }
+function GenreChip({
+  label,
+  active,
+  onClick
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`tap-highlight rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+        active
+          ? "border-white/20 bg-white/10 text-white"
+          : "border-white/8 bg-white/[0.03] text-zinc-400 hover:border-white/15 hover:text-zinc-200"
+      }`}
+      onClick={onClick}
+      type="button"
+    >
+      {label}
+    </button>
+  );
 }
 
-function renderList<T>(
-  items: T[],
-  currentTabMeta: (typeof RANKING_TABS)[number] | undefined,
-  renderItem: (item: T) => React.ReactNode
-) {
-  if (items.length === 0) {
-    return (
-      <EmptyState
-        description={
-          currentTabMeta?.emptyDescription ?? "Chưa có dữ liệu cho bảng xếp hạng này."
-        }
-        title={currentTabMeta?.emptyTitle ?? "Chưa có dữ liệu"}
-      />
-    );
+function formatSnapshotTime(iso: string) {
+  try {
+    return new Intl.DateTimeFormat("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    }).format(new Date(iso));
+  } catch {
+    return "";
   }
-
-  return <div className="space-y-3">{items.map(renderItem)}</div>;
 }

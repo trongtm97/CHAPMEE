@@ -1,10 +1,10 @@
 import type { PaymentProviderAdapter } from "@/lib/payments/types";
-import { getSePayConfig } from "@/lib/payments/sepay-config";
+import { generateSepayQrUrl, getSePayRuntimeConfig } from "@/lib/payments/sepay-config";
 
 export const sepayProvider: PaymentProviderAdapter = {
   key: "sepay",
   async createCheckout(checkout) {
-    const { config, ready, missing } = getSePayConfig();
+    const { config, ready, missing } = await getSePayRuntimeConfig();
     if (!ready) {
       return {
         ok: false,
@@ -12,20 +12,13 @@ export const sepayProvider: PaymentProviderAdapter = {
       };
     }
 
-    const qrParams = new URLSearchParams({
-      bank: config.bankCode,
-      account: config.bankAccountNumber,
-      amount: String(Math.round(checkout.gross_amount_vnd)),
-      content: checkout.transfer_content ?? "",
-      accountName: config.bankAccountName
+    const qrUrl = generateSepayQrUrl({
+      accountNumber: config.bankAccountNumber,
+      bankCode: config.bankCode,
+      amountVnd: checkout.gross_amount_vnd,
+      description: checkout.transfer_content ?? "",
+      qrBaseUrl: config.qrBaseUrl
     });
-    const qrUrl = config.qrBaseUrl
-      ? `${config.qrBaseUrl}?${qrParams.toString()}`
-      : `https://img.vietqr.io/image/${config.bankCode}-${config.bankAccountNumber}-compact2.png?amount=${Math.round(
-          checkout.gross_amount_vnd
-        )}&addInfo=${encodeURIComponent(checkout.transfer_content ?? "")}&accountName=${encodeURIComponent(
-          config.bankAccountName
-        )}`;
 
     return {
       ok: true,

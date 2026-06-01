@@ -7,10 +7,12 @@ import { ContentQualityDetailPanel } from "@/components/studio/ContentQualityDet
 import { QUALITY_TAB_LABELS } from "@/lib/content-quality/labels";
 import type { AuthorContentHealthResult } from "@/lib/content-quality/get-author-content-health";
 import type { ContentQualityDetail, ContentQualityListTab } from "@/types/content-quality";
+import type { CreatorAlgorithmInsight } from "@/types/algorithm-explanation";
 
 type ContentHealthPageProps = {
   data: AuthorContentHealthResult;
   initialDetail: ContentQualityDetail | null;
+  algorithmInsights?: CreatorAlgorithmInsight | null;
 };
 
 const TABS: ContentQualityListTab[] = [
@@ -21,7 +23,11 @@ const TABS: ContentQualityListTab[] = [
   "permanently_hidden"
 ];
 
-export function ContentHealthPage({ data, initialDetail }: ContentHealthPageProps) {
+export function ContentHealthPage({
+  data,
+  initialDetail,
+  algorithmInsights = null
+}: ContentHealthPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeTab = (searchParams.get("tab") as ContentQualityListTab) || "all";
@@ -97,6 +103,7 @@ export function ContentHealthPage({ data, initialDetail }: ContentHealthPageProp
 
       {detail ? (
         <ContentQualityDetailPanel
+          algorithmInsights={algorithmInsights}
           detail={detail}
           onClose={() => {
             setDetail(null);

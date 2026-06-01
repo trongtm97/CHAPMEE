@@ -1,4 +1,7 @@
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { resolveCreatorRowName } from "@/lib/creator/resolve-creator-row-name";
 import { createClient } from "@/lib/supabase/server";
+import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import type { ContinueReadingEnriched } from "@/types/library";
 
 type ProgressRow = {
@@ -11,9 +14,9 @@ type ProgressRow = {
         id: string;
         title: string;
         slug: string;
+        public_code: string;
         hook: string | null;
         cover_url: string | null;
-        genres: { name: string | null } | { name: string | null }[] | null;
         creator_profiles:
           | { pen_name: string | null }
           | { pen_name: string | null }[]
@@ -23,9 +26,9 @@ type ProgressRow = {
         id: string;
         title: string;
         slug: string;
+        public_code: string;
         hook: string | null;
         cover_url: string | null;
-        genres: { name: string | null } | { name: string | null }[] | null;
         creator_profiles:
           | { pen_name: string | null }
           | { pen_name: string | null }[]
@@ -37,11 +40,15 @@ type ProgressRow = {
         id: string;
         episode_number: number;
         title: string;
+        slug: string;
+        public_code: string;
       }
     | {
         id: string;
         episode_number: number;
         title: string;
+        slug: string;
+        public_code: string;
       }[]
     | null;
 };
@@ -84,7 +91,7 @@ export async function getContinueReadingForLibrary(
     const { data, error, count } = await supabase
       .from("reading_progress")
       .select(
-        "id, progress_percent, updated_at, story_id, stories(id, title, slug, hook, cover_url, genres(name), creator_profiles(pen_name)), episodes(id, episode_number, title)",
+        `id, progress_percent, updated_at, story_id, stories(id, title, slug, public_code, hook, cover_url, ${CREATOR_PROFILE_STORY_JOIN}), episodes(id, episode_number, title, slug, public_code)`,
         { count: "exact" }
       )
       .eq("user_id", userId)
@@ -99,13 +106,13 @@ export async function getContinueReadingForLibrary(
     const storyIds = [
       ...new Set(rows.map((row) => row.story_id).filter(Boolean))
     ] as string[];
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
     const latestEpisodeByStory = await getLatestEpisodeNumbers(storyIds);
 
-    const items: ContinueReadingEnriched[] = rows
-      .map((row) => {
+    const items = rows
+      .map((row): ContinueReadingEnriched | null => {
         const story = firstRelation(row.stories);
         const episode = firstRelation(row.episodes);
-        const genre = firstRelation(story?.genres);
         const creator = firstRelation(story?.creator_profiles);
 
         if (!story || !episode) {
@@ -129,19 +136,22 @@ export async function getContinueReadingForLibrary(
             id: story.id,
             title: story.title,
             slug: story.slug,
+            publicCode: story.public_code,
             hook: story.hook,
-            genreName: genre?.name ?? null,
-            creatorName: creator?.pen_name ?? null,
+            genreName: taxonomyByStory.get(story.id)?.mainGenreName ?? null,
+            creatorName: resolveCreatorRowName(creator),
             coverUrl: story.cover_url ?? null
           },
           episode: {
             id: episode.id,
             episodeNumber: episode.episode_number,
-            title: episode.title
+            title: episode.title,
+            slug: episode.slug,
+            publicCode: episode.public_code
           }
         };
       })
-      .filter((item): item is ContinueReadingEnriched => Boolean(item));
+      .filter((item): item is ContinueReadingEnriched => item !== null);
 
     return {
       items,

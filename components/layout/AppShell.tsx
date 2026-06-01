@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
@@ -9,6 +9,8 @@ import { EarlyFanToast } from "@/components/layout/EarlyFanToast";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
 import { ResponsivePageContainer, type PageContainerVariant } from "@/components/layout/ResponsivePageContainer";
+import { AdSenseProvider } from "@/components/ads/AdSenseContext";
+import { AdSenseScriptLoader } from "@/components/ads/AdSenseScriptLoader";
 import { MessageUnreadProvider } from "@/components/messages/message-unread-context";
 
 type AppShellProps = Readonly<{
@@ -43,8 +45,15 @@ function shouldHideMobileTopBar(pathname: string) {
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+
+  const adShell = (content: React.ReactNode) => (
+    <AdSenseProvider>
+      <AdSenseScriptLoader />
+      {content}
+    </AdSenseProvider>
+  );
   const isStudioRoute = pathname.startsWith("/studio");
-  const isSwipeRoute = pathname.startsWith("/swipe");
+  const isReelsRoute = pathname === "/" || pathname.startsWith("/reels");
   const isAdminRoute = pathname.startsWith("/admin");
   const isReaderRoute = pathname.startsWith("/stories/") || pathname.startsWith("/chapter/");
   const isDiscoverRoute = pathname.startsWith("/discover");
@@ -62,25 +71,25 @@ export function AppShell({ children }: AppShellProps) {
   const hideMobileTopBar = shouldHideMobileTopBar(pathname);
   const mobileTopBarVariant =
     isDiscoverRoute || isCatalogRoute || isMeRoute ? "compact" : "default";
-  const isHomeRoute =
-    pathname === "/" || pathname.startsWith("/discover") || pathname.startsWith("/community") || isCatalogRoute;
+  const isFeedRoute =
+    pathname.startsWith("/discover") || pathname.startsWith("/community") || isCatalogRoute;
 
-  const containerVariant: PageContainerVariant = isSwipeRoute
-    ? "swipe"
+  const containerVariant: PageContainerVariant = isReelsRoute
+    ? "reels"
     : isAdminRoute
       ? "admin"
       : isReaderRoute
         ? "reader"
-        : isHomeRoute
-          ? "home"
+        : isFeedRoute
+          ? "feed"
           : "default";
 
   if (isStudioRoute) {
-    return <div className="min-h-screen text-zinc-50">{children}</div>;
+    return adShell(<div className="min-h-screen text-zinc-50">{children}</div>);
   }
 
-  if (isSwipeRoute) {
-    return (
+  if (isReelsRoute) {
+    return adShell(
       <MessageUnreadProvider>
       <div className="h-[100dvh] overflow-hidden bg-[#06090d] text-zinc-50">
         <DesktopHeader />
@@ -88,7 +97,7 @@ export function AppShell({ children }: AppShellProps) {
           <DesktopSidebar />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {hideMobileTopBar ? null : <MobileTopBar />}
-            <main className="relative z-0 flex-1 overflow-hidden pb-[calc(5.7rem+env(safe-area-inset-bottom))] pt-0 md:pb-8 lg:pb-0">
+            <main className="relative z-0 flex-1 overflow-hidden pb-[calc(4.5rem+env(safe-area-inset-bottom))] pt-0 md:pb-8 lg:pb-0">
               <div className="h-full w-full overflow-hidden">
                 <ResponsivePageContainer className="h-full" variant="full">
                   {children}
@@ -103,7 +112,7 @@ export function AppShell({ children }: AppShellProps) {
     );
   }
 
-  return (
+  return adShell(
     <MessageUnreadProvider>
     <div className="min-h-screen text-zinc-50">
       <DesktopHeader />
@@ -117,7 +126,7 @@ export function AppShell({ children }: AppShellProps) {
                 ? "px-0 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-0 md:pt-4"
                 : hideMobileBottomNav
                   ? "pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-[calc(env(safe-area-inset-top)+0.5rem)] md:pt-6"
-                  : "pb-[calc(6.6rem+env(safe-area-inset-bottom))] pt-5 md:pt-6"
+                  : "pb-[calc(5.25rem+env(safe-area-inset-bottom))] pt-5 md:pt-6"
             } ${isMeRoute && !hideMobileBottomNav && !isEpisodeReader ? "pt-3" : ""}`}
           >
             <ResponsivePageContainer

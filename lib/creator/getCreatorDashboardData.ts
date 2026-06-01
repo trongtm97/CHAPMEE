@@ -3,6 +3,7 @@ import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 import type { MilestoneViewItem } from "@/types/milestone";
 import type { TopFanPerson } from "@/types/fan";
 import { toMilestoneViewItems, getUserMilestones } from "@/lib/supabase/milestones";
+import { normalizeStoryStructureType } from "@/lib/stories/story-structure";
 
 export type DashboardStatCard = {
   label: string;
@@ -22,6 +23,7 @@ export type StoryDashboardItem = {
   comments: number;
   saves: number;
   episodeCount: number;
+  structureType: "chaptered" | "standalone";
 };
 
 export type DashboardHighlight = {
@@ -57,7 +59,7 @@ type StoryRow = {
   slug: string;
   hook: string | null;
   status: string;
-  genres: { name: string | null } | { name: string | null }[] | null;
+  structure_type?: string | null;
 };
 
 type StoryEngagementRow = {
@@ -80,7 +82,7 @@ export async function getCreatorDashboard(
       await Promise.all([
         supabase
           .from("stories")
-          .select("id, title, slug, hook, status, genres(name)")
+          .select("id, title, slug, hook, status, structure_type")
           .eq("creator_id", creatorId)
           .in("status", ["approved", "published", "draft", "pending"])
           .order("updated_at", { ascending: false }),
@@ -317,7 +319,8 @@ export async function getCreatorDashboard(
         likes: engagement?.likes ?? 0,
         comments: engagement?.comments ?? 0,
         saves: engagement?.saves ?? 0,
-        episodeCount: engagementByStory.get(story.id)?.reads ?? 0
+        episodeCount: 0,
+        structureType: normalizeStoryStructureType(story.structure_type)
       };
     });
 

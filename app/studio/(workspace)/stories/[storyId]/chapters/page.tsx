@@ -1,18 +1,18 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { StudioChapterList } from "@/components/studio/StudioChapterList";
-import { StudioManagerTabs } from "@/components/studio/StudioManagerTabs";
-import { StudioPagination } from "@/components/studio/StudioPagination";
-import { StudioStatusBadge } from "@/components/studio/StudioStatusBadge";
-import { Button, ErrorState, Input, SectionHeader } from "@/components/ui";
+import { PresentationStoryHint } from "@/components/studio/presentation/PresentationStoryHint";
+import { ChapterManagerAlerts } from "@/components/studio/chapters/manager/ChapterManagerAlerts";
+import { ChapterManagerHeader } from "@/components/studio/chapters/manager/ChapterManagerHeader";
+import { ChapterManagerWorkspace } from "@/components/studio/chapters/manager/ChapterManagerWorkspace";
+import { StandaloneStoryManagerPanel } from "@/components/studio/chapters/manager/StandaloneStoryManagerPanel";
+import { ErrorState, SectionHeader } from "@/components/ui";
 import { getStudioAccess } from "@/lib/creator/getStudioAccess";
 import {
   getStudioChapterSearch,
   getStudioChaptersPage,
   normalizeStudioChapterFilter,
+  normalizeStudioChapterPageSize,
   normalizeStudioChapterSort
 } from "@/lib/studio/get-studio-chapters";
-import { buildStudioManagerHref } from "@/lib/studio/manager-url";
 import { studioPath } from "@/lib/studio/constants";
 import type { StudioChapterListFilter } from "@/types/studio";
 
@@ -20,33 +20,17 @@ type StudioChaptersPageProps = {
   params: Promise<{ storyId: string }>;
   searchParams: Promise<{
     imported?: string;
+    page?: string;
+    pageSize?: string;
     q?: string;
+    reorder?: string;
     skipped?: string;
     sort?: string;
     status?: string;
-    page?: string;
   }>;
 };
 
-const CHAPTER_TABS: Array<{ label: string; value: StudioChapterListFilter }> = [
-  { label: "Tất cả", value: "all" },
-  { label: "Nháp", value: "draft" },
-  { label: "Đã lên lịch", value: "scheduled" },
-  { label: "Đã đăng", value: "published" },
-  { label: "Cần sửa", value: "rejected" },
-  { label: "Đã ẩn", value: "hidden" }
-];
-
 export const dynamic = "force-dynamic";
-
-function canViewPublicStory(
-  status: string,
-  visibility: "public" | "private"
-) {
-  return (
-    (status === "published" || status === "approved") && visibility === "public"
-  );
-}
 
 export default async function StudioChaptersPage({
   params,
@@ -62,12 +46,15 @@ export default async function StudioChaptersPage({
         ? `Đã nhập ${importedCount} chương vào nháp. ${skippedCount} chương bị bỏ qua do lỗi.`
         : `Đã nhập ${importedCount} chương vào nháp.`
       : null;
+
   const activeFilter = normalizeStudioChapterFilter(queryParams.status);
   const search = getStudioChapterSearch(queryParams.q);
   const activeSort = normalizeStudioChapterSort(queryParams.sort);
+  const pageSize = normalizeStudioChapterPageSize(queryParams.pageSize);
   const basePath = studioPath(`/stories/${storyId}/chapters`);
   const query = {
     page: queryParams.page,
+    pageSize: pageSize === 25 ? undefined : String(pageSize),
     q: search || undefined,
     sort: activeSort === "number_asc" ? undefined : activeSort,
     status: activeFilter === "all" ? undefined : activeFilter
@@ -87,6 +74,7 @@ export default async function StudioChaptersPage({
   const data = await getStudioChaptersPage(creatorProfile, storyId, {
     filter: activeFilter,
     page: queryParams.page,
+    pageSize: queryParams.pageSize,
     search,
     sort: activeSort
   });
@@ -98,7 +86,7 @@ export default async function StudioChaptersPage({
   if (!data.story) {
     return (
       <section className="space-y-6">
-        <ErrorState message={data.error} title="Không tải được danh sách chương" />
+        <ErrorState message={data.error} title="Không thể tải danh sách chương" />
       </section>
     );
   }
@@ -107,119 +95,66 @@ export default async function StudioChaptersPage({
   const hasActiveFilters =
     Boolean(search) ||
     activeFilter !== "all" ||
-    Boolean(queryParams.page);
-  const publicHref = `/stories/${story.slug}`;
+    Boolean(queryParams.page) ||
+    pageSize !== 25;
+
+  if (story.structureType === "standalone") {
+    return (
+      <section className="space-y-6">
+        <StandaloneStoryManagerPanel story={story} storyId={storyId} />
+      </section>
+    );
+  }
 
   return (
-    <section className="space-y-6">
-      <Link
-        className="text-sm font-semibold text-sky-300 hover:text-sky-200"
-        href={studioPath("/stories")}
-      >
-        ← Truyện của tôi
-      </Link>
+    <section className="space-y-6 pb-24 lg:pb-6">
+      <ChapterManagerHeader
+        importNotice={importNotice}
+        stats={data.stats}
+        story={story}
+        storyId={storyId}
+      />
 
-      {importNotice ? (
-        <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-sm text-emerald-100">
-          {importNotice} Bạn có thể kiểm tra và chỉnh sửa trước khi đăng.
+      <PresentationStoryHint presentationMode={story.presentationMode} storyId={storyId} />
+
+      <ChapterManagerAlerts stats={data.stats} story={story} storyId={storyId} />
+
+      {queryParams.reorder === "1" && data.stats?.orderDiagnostics ? (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-sm text-zinc-300">
+          <p className="font-semibold text-white">Kiểm tra thứ tự chương</p>
+          <p className="mt-2">
+            {data.stats.orderDiagnostics.duplicateNumbers.length > 0
+              ? `Trùng số: ${data.stats.orderDiagnostics.duplicateNumbers.join(", ")}. `
+              : "Không có số trùng. "}
+            {data.stats.orderDiagnostics.missingNumbers.length > 0
+              ? `Thiếu số: ${data.stats.orderDiagnostics.missingNumbers.slice(0, 20).join(", ")}${data.stats.orderDiagnostics.missingNumbers.length > 20 ? "…" : ""}.`
+              : "Dãy số liên tục."}
+          </p>
+          <p className="mt-2 text-xs text-zinc-500">
+            Tính năng kéo thả và tự đánh lại số chương sẽ có trong bản cập nhật tiếp theo. Hiện
+            tại hãy sửa số chương từng mục trong editor.
+          </p>
         </div>
       ) : null}
-
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 space-y-2">
-          <h1 className="line-clamp-2 text-2xl font-black text-white sm:text-3xl">
-            {story.title}
-          </h1>
-          <StudioStatusBadge kind="story" status={story.displayStatus} />
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <Link
-            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-300 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-200"
-            href={studioPath(`/stories/${storyId}/chapters/new`)}
-          >
-            Viết chương mới
-          </Link>
-          <Link
-            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-white/10"
-            href={studioPath(`/stories/${storyId}/import`)}
-          >
-            Nhập hàng loạt
-          </Link>
-          {canViewPublicStory(story.status, story.visibility) ? (
-            <Link
-              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-white/10"
-              href={publicHref}
-            >
-              Xem trang truyện
-            </Link>
-          ) : null}
-        </div>
-      </div>
-
-      <form
-        action={basePath}
-        className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 lg:grid-cols-[minmax(0,1fr)_10rem_auto_auto]"
-        method="get"
-      >
-        <Input
-          defaultValue={search}
-          label="Tìm kiếm"
-          name="q"
-          placeholder="Tìm chương..."
-        />
-        <label className="block space-y-2 text-sm">
-          <span className="font-semibold text-zinc-200">Sắp xếp</span>
-          <select
-            className="min-h-11 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 text-sm text-zinc-100"
-            defaultValue={activeSort === "number_asc" ? "number_asc" : activeSort}
-            name="sort"
-          >
-            <option value="number_asc">Số chương tăng dần</option>
-            <option value="number_desc">Số chương giảm dần</option>
-            <option value="updated">Cập nhật gần nhất</option>
-            <option value="scheduled">Lịch đăng gần nhất</option>
-          </select>
-        </label>
-        {activeFilter !== "all" ? (
-          <input name="status" type="hidden" value={activeFilter} />
-        ) : null}
-        <div className="flex items-end gap-2">
-          <Button className="flex-1" type="submit">
-            Tìm
-          </Button>
-          <Link
-            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-white/10"
-            href={basePath}
-          >
-            Xóa lọc
-          </Link>
-        </div>
-      </form>
 
       {data.error ? (
         <ErrorState message={data.error} title="Không tải được danh sách chương" />
       ) : null}
 
-      <StudioManagerTabs
-        active={activeFilter}
+      <ChapterManagerWorkspace
+        activeFilter={activeFilter as StudioChapterListFilter}
+        activeSort={activeSort}
         basePath={basePath}
-        counts={data.counts}
-        query={query}
-        tabs={CHAPTER_TABS}
-      />
-
-      <StudioChapterList
         chapters={data.chapters}
+        counts={data.counts}
         hasActiveFilters={hasActiveFilters}
-        storyId={storyId}
-        storySlug={story.slug}
-      />
-
-      <StudioPagination
-        buildHref={(page) =>
-          buildStudioManagerHref(basePath, { ...query, page: String(page) })
-        }
         page={data.page}
+        pageSize={data.pageSize}
+        query={query}
+        search={search}
+        stats={data.stats}
+        story={story}
+        storyId={storyId}
         totalPages={data.totalPages}
       />
     </section>

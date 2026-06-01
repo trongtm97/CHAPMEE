@@ -1,3 +1,4 @@
+import { getStoryCardMeta } from "@/lib/stories/story-structure";
 import Link from "next/link";
 import { Badge, Card, EmptyState, SectionHeader } from "@/components/ui";
 import type { StudioDashboardStory } from "@/lib/studio/getStudioDashboard";
@@ -33,11 +34,22 @@ export function RecentStories({ basePath = "/studio", stories }: RecentStoriesPr
             <span>Truyện</span>
             <span>Trạng thái</span>
             <span>Cập nhật</span>
-            <span>Chap</span>
+            <span>Nội dung</span>
             <span>Hành động</span>
           </div>
           <div className="divide-y divide-white/10">
-            {stories.map((story) => (
+            {stories.map((story) => {
+              const cardMeta = getStoryCardMeta({
+                structureType: story.structureType,
+                standaloneReadingTimeMinutes: story.standaloneReadingTimeMinutes,
+                episodeCount: story.episodeCount
+              });
+              const contentLabel =
+                story.structureType === "standalone"
+                  ? cardMeta.secondaryLabel ?? cardMeta.primaryLabel
+                  : String(story.episodeCount);
+
+              return (
               <div
                 className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.8fr)_8rem_10rem_6rem_10rem] md:items-center"
                 key={story.id}
@@ -55,7 +67,7 @@ export function RecentStories({ basePath = "/studio", stories }: RecentStoriesPr
                   {formatDate(story.updatedAt)}
                 </p>
                 <p className="text-sm font-semibold text-zinc-200">
-                  {story.episodeCount}
+                  {contentLabel}
                 </p>
                 <Link
                   className="inline-flex min-h-11 items-center justify-center rounded-xl bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-white/10"
@@ -64,7 +76,8 @@ export function RecentStories({ basePath = "/studio", stories }: RecentStoriesPr
                   Tiếp tục sửa
                 </Link>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : (

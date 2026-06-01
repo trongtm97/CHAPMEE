@@ -13,8 +13,8 @@ type CommunityPostRow = {
     | { display_name: string | null; username: string | null }[]
     | null;
   stories:
-    | { title: string | null; slug: string | null }
-    | { title: string | null; slug: string | null }[]
+    | { title: string | null; slug: string | null; public_code: string | null }
+    | { title: string | null; slug: string | null; public_code: string | null }[]
     | null;
 };
 
@@ -30,7 +30,7 @@ export async function getCommunityPost(
     const { data, error } = await supabase
       .from("community_posts")
       .select(
-        "id, type, title, content, created_at, story_id, profiles!community_posts_user_id_fkey(display_name, username), stories(title, slug)"
+        "id, type, title, content, created_at, story_id, profiles!community_posts_user_id_fkey(display_name, username), stories(title, slug, public_code)"
       )
       .eq("id", postId)
       .eq("status", "approved")
@@ -57,11 +57,14 @@ export async function getCommunityPost(
           contentPreview: row.content,
           authorName:
             author?.display_name ?? author?.username ?? "Độc giả ChapMee",
+          authorUsername: author?.username?.trim().toLowerCase() ?? null,
           relatedStoryTitle: story?.title ?? null,
           relatedStorySlug: story?.slug ?? null,
+          relatedStoryPublicCode: story?.public_code ?? null,
           storyId: row.story_id,
           creatorId: null,
           creatorName: null,
+          creatorUsername: null,
           createdAt: row.created_at,
           commentCount: 0
         }

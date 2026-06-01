@@ -1,5 +1,6 @@
 "use server";
 
+import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
 import { assertAnyPermission } from "@/lib/auth/require-permission";
 import { createClient } from "@/lib/supabase/server";
 import { summaryCardToFilterPatch } from "@/lib/admin/parse-creator-dashboard-filters";
@@ -168,13 +169,7 @@ export async function listAdminCreators(filters: CreatorDashboardFilters): Promi
         .from("profiles")
         .select("id")
         .or(`username.ilike.%${trimmed}%,display_name.ilike.%${trimmed}%`);
-      const profileIds = (profileMatches ?? []).map((p) => p.id as string);
-      const penMatches = await supabase
-        .from("creator_profiles")
-        .select("user_id")
-        .ilike("pen_name", `%${trimmed}%`);
-      const penUserIds = (penMatches.data ?? []).map((r) => r.user_id as string);
-      const ids = [...new Set([...profileIds, ...penUserIds])];
+      const ids = (profileMatches ?? []).map((p) => p.id as string);
       if (!ids.length) {
         return { creators: [], total: 0, page, pageSize, error: null };
       }
@@ -339,7 +334,7 @@ export async function listAdminCreators(filters: CreatorDashboardFilters): Promi
       username: profile.username,
       email: emailMap.get(userId) ?? null,
       avatarUrl: profile.avatar_url,
-      studioName: row.pen_name as string,
+      studioName: resolvePublicDisplayName(profile),
       studioStatus,
       monetizationStatus: (mon?.status as CreatorMonetizationStatus) ?? "none",
       monetizationEnabled: Boolean(mon?.monetization_enabled),

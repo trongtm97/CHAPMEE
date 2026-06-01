@@ -46,6 +46,8 @@ export const REPORT_REASON_OPTIONS: Array<{ code: ReportReasonCode | string; lab
   { code: "illegal_content", label: "Nội dung bất hợp pháp" },
   { code: "low_quality_or_misleading", label: "Chất lượng thấp / gây hiểu nhầm" },
   { code: "wrong_age_rating", label: "Sai độ tuổi" },
+  { code: "wrong_taxonomy_tag", label: "Sai thể loại / tag" },
+  { code: "missing_content_warning", label: "Thiếu cảnh báo nội dung" },
   { code: "other", label: "Khác" }
 ];
 

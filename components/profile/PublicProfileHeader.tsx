@@ -6,6 +6,10 @@ import { UserFollowButton } from "@/components/profile/UserFollowButton";
 import { StartMessageButton } from "@/components/messages/StartMessageButton";
 import { VerifiedName } from "@/components/profile/VerifiedBadge";
 import type { PublicProfilePageData } from "@/types/public-profile";
+import {
+  getProfileUrlOrFallback,
+  getPublicProfileSharePath
+} from "@/lib/profile/profile-url";
 import { getShareUrl } from "@/lib/share/getShareUrl";
 
 type PublicProfileHeaderProps = {
@@ -13,7 +17,9 @@ type PublicProfileHeaderProps = {
 };
 
 export function PublicProfileHeader({ data }: PublicProfileHeaderProps) {
-  const shareUrl = getShareUrl(`/profile/${data.user.username}`);
+  const profilePath = getProfileUrlOrFallback(data.user.username);
+  const publicSharePath = getPublicProfileSharePath(data.user.username);
+  const shareUrl = publicSharePath ? getShareUrl(publicSharePath) : "";
 
   return (
     <Card className="overflow-hidden p-0">
@@ -49,14 +55,16 @@ export function PublicProfileHeader({ data }: PublicProfileHeaderProps) {
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <ProfileShareButton
-              shareText={data.user.bio ?? data.user.displayName}
-              shareUrl={shareUrl}
-              title={data.user.displayName}
-            />
+            {shareUrl ? (
+              <ProfileShareButton
+                shareText={data.user.bio ?? data.user.displayName}
+                shareUrl={shareUrl}
+                title={data.user.displayName}
+              />
+            ) : null}
             <ProfileActionMenu
               isOwner={data.viewer.isOwner}
-              returnTo={`/profile/${data.user.username}`}
+              returnTo={profilePath}
               targetUserId={data.user.id}
             />
           </div>
@@ -83,7 +91,7 @@ export function PublicProfileHeader({ data }: PublicProfileHeaderProps) {
             isFollowing={data.viewer.isFollowing}
             isLoggedIn={Boolean(data.viewer.userId)}
             isOwner={data.viewer.isOwner}
-            returnTo={getShareUrl(`/profile/${data.user.username}`)}
+            returnTo={shareUrl}
             username={data.user.username}
           />
           {!data.viewer.isOwner ? (
@@ -94,7 +102,7 @@ export function PublicProfileHeader({ data }: PublicProfileHeaderProps) {
               mode={data.messaging.mode}
               reason={data.messaging.reason}
               recipientId={data.user.id}
-              returnTo={getShareUrl(`/profile/${data.user.username}`)}
+              returnTo={shareUrl}
             />
           ) : null}
         </div>

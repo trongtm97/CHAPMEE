@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { createAdminAuditLog } from "@/lib/admin/create-audit-log";
 import {
+  buildPolicyUpdatePayload,
   mapCreatorFeePolicyRow,
   resolveInitialPolicyStatus,
   validateCreatorFeePolicyInput
 } from "@/lib/admin/creator-fee-policy-shared";
-import { requireWalletAdjustAccess } from "@/lib/auth/finance-guards";
+import { requireCreatorFeeUpdateAccess } from "@/lib/auth/creator-fee-guards";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
 import type { CreatorFeePolicyInput } from "@/types/creator-fee-policy";
@@ -17,9 +18,9 @@ export type UpdateCreatorFeePolicyInput = CreatorFeePolicyInput & {
 };
 
 export async function updateCreatorFeePolicyAction(input: UpdateCreatorFeePolicyInput) {
-  const access = await requireWalletAdjustAccess();
+  const access = await requireCreatorFeeUpdateAccess();
   if (!access.ok) {
-    return { ok: false, error: access.error ?? "Không có quyền quản lý chính sách phí." };
+    return { ok: false, error: access.error ?? "Không có quyền sửa chính sách phí." };
   }
 
   const ctx = await getCurrentAuthContext();
@@ -47,37 +48,48 @@ export async function updateCreatorFeePolicyAction(input: UpdateCreatorFeePolicy
   const before = mapCreatorFeePolicyRow(existing as Record<string, unknown>);
   const startsAt = input.startsAt ? new Date(input.startsAt) : new Date(before.starts_at);
   const status = resolveInitialPolicyStatus(startsAt, input.status);
+  const endsAtIso = input.endsAt ? new Date(input.endsAt).toISOString() : null;
+
+  if ((status === "active" || status === "scheduled") && !input.confirmOverlap) {
+    const { data: overlaps } = await supabase
+      .from("creator_fee_policies")
+      .select("id")
+      .eq("creator_id", before.creator_id)
+      .in("status", ["active", "scheduled"])
+      .neq("id", input.policyId)
+      .lte("starts_at", endsAtIso ?? "9999-12-31")
+      .or(`ends_at.is.null,ends_at.gte.${startsAt.toISOString()}`);
+
+    if ((overlaps?.length ?? 0) > 0) {
+      return {
+        ok: false,
+        needsConfirm: true,
+        error: "Chính sách chồng thời gian với policy khác. Xác nhận để tiếp tục."
+      };
+    }
+  }
 
   if (status === "active" || status === "scheduled") {
     const now = new Date().toISOString();
     await supabase
       .from("creator_fee_policies")
-      .update({ status: "expired", ends_at: now, updated_at: now })
+      .update({ status: "expired", ends_at: now, updated_at: now, updated_by: ctx.userId })
       .eq("creator_id", before.creator_id)
       .in("status", ["active", "scheduled"])
       .neq("id", input.policyId);
   }
 
+  const updatePayload = {
+    ...buildPolicyUpdatePayload(input, ctx.userId),
+    status,
+    starts_at: startsAt.toISOString(),
+    ends_at: endsAtIso
+  };
+  delete (updatePayload as Record<string, unknown>).creator_id;
+
   const { data, error } = await supabase
     .from("creator_fee_policies")
-    .update({
-      policy_name: input.policyName.trim(),
-      creator_revenue_share_percent: input.creatorRevenueSharePercent ?? null,
-      platform_fee_percent: input.platformFeePercent ?? null,
-      payment_processing_fee_percent: input.paymentProcessingFeePercent ?? null,
-      payment_processing_fixed_fee: input.paymentProcessingFixedFee ?? null,
-      tip_platform_fee_percent: input.tipPlatformFeePercent ?? null,
-      min_withdraw_amount_override: input.minWithdrawAmountOverride ?? null,
-      allowed_price_steps_override: input.allowedPriceStepsOverride?.length
-        ? input.allowedPriceStepsOverride
-        : null,
-      note: input.note?.trim() || null,
-      public_note: input.publicNote?.trim() || null,
-      show_details_to_creator: input.showDetailsToCreator !== false,
-      status,
-      starts_at: startsAt.toISOString(),
-      ends_at: input.endsAt ? new Date(input.endsAt).toISOString() : null
-    })
+    .update(updatePayload)
     .eq("id", input.policyId)
     .select("*")
     .single();
@@ -86,22 +98,27 @@ export async function updateCreatorFeePolicyAction(input: UpdateCreatorFeePolicy
     if (error?.message?.includes("overlapping_creator_fee_policy")) {
       return {
         ok: false,
+        needsConfirm: true,
         error: "Chính sách chồng thời gian với policy khác của cùng tác giả."
       };
     }
-    return { ok: false, error: error?.message ?? "Không thể cập nhật chính sách." };
+    return { ok: false, error: "Không thể cập nhật chính sách." };
   }
 
   const after = mapCreatorFeePolicyRow(data as Record<string, unknown>);
 
   await createAdminAuditLog({
-    action: "creator_fee_policy_update",
+    action: "creator_fee_policy.update",
     targetType: "creator_fee_policy",
     targetId: after.id,
     note: input.note?.trim() || null,
     before: before as unknown as Record<string, unknown>,
     after: after as unknown as Record<string, unknown>,
-    metadata: { creator_id: before.creator_id, admin_id: ctx.userId }
+    metadata: {
+      creator_id: before.creator_id,
+      actor_user_id: ctx.userId,
+      reason: input.note?.trim() || null
+    }
   });
 
   revalidatePath("/admin/creator-fee-policies");

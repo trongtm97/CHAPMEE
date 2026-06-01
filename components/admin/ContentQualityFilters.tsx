@@ -5,6 +5,7 @@ import type { AdminContentQualityTab, ContentQualityRiskLevel } from "@/types/ad
 export type ContentQualityFilterState = {
   search: string;
   targetType: "story" | "chapter" | "all";
+  structureType: "all" | "chaptered" | "standalone";
   riskLevel: ContentQualityRiskLevel | "all";
   attempt: "all" | "1" | "2" | "3";
   status: AdminContentQualityTab | "all";
@@ -62,6 +63,23 @@ export function ContentQualityFilters({
               <option value="all">Tất cả</option>
               <option value="story">Truyện</option>
               <option value="chapter">Chương</option>
+            </select>
+          </label>
+
+          <label className="block space-y-1 text-xs text-zinc-500">
+            Cấu trúc truyện
+            <select
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm text-zinc-200"
+              onChange={(e) =>
+                onChange({
+                  structureType: e.target.value as ContentQualityFilterState["structureType"]
+                })
+              }
+              value={filters.structureType}
+            >
+              <option value="all">Tất cả</option>
+              <option value="chaptered">Nhiều chương</option>
+              <option value="standalone">Một phần</option>
             </select>
           </label>
 

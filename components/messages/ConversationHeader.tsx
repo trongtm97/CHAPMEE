@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AvatarFallback } from "@/components/ui";
+import { getProfileUrlOrFallback } from "@/lib/profile/profile-url";
 import { ConversationActionMenu } from "@/components/messages/ConversationActionMenu";
 
 type ConversationHeaderProps = {
@@ -40,7 +41,7 @@ export function ConversationHeader({
         <BackIcon />
       </Link>
       {username ? (
-        <Link className="shrink-0" href={`/profile/${username}`}>
+        <Link className="shrink-0" href={getProfileUrlOrFallback(username)}>
           <AvatarFallback className="!size-10" name={displayName} size="sm" src={avatarUrl} />
         </Link>
       ) : (
@@ -53,7 +54,7 @@ export function ConversationHeader({
       )}
       <div className="min-w-0 flex-1 overflow-hidden">
         {username ? (
-          <Link className="block min-w-0" href={`/profile/${username}`}>
+          <Link className="block min-w-0" href={getProfileUrlOrFallback(username)}>
             <p className="truncate text-sm font-bold text-white">{displayName}</p>
             <p className="truncate text-xs text-zinc-500">
               {statusLabel ? (

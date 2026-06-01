@@ -9,10 +9,14 @@ import { upsertChapterMonetizationSetting } from "@/lib/supabase/chapter-monetiz
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
 import { createClient } from "@/lib/supabase/server";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { getCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
+import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
 import { upsertChapterEarlyAccessSetting } from "@/lib/supabase/early-access";
 import { resolveReturnBasePath } from "@/lib/creator/resolveReturnBasePath";
 import { linkChapterImagesFromDraft } from "@/lib/images/upload-chapter-image";
+import { generateNumericPublicCode } from "@/lib/urls/public-code";
+import { resolveContentSlug } from "@/lib/urls/slug";
+import { getChapterUrl } from "@/lib/urls/paths";
+import { resolveComposerEpisodePersistFields } from "@/lib/creator/resolve-composer-episode-persist";
 
 export type EpisodeFormActionState = {
   error: string | null;
@@ -54,10 +58,72 @@ export async function createEpisodeAction(
 
   const supabase = await createClient();
   await assertCreatorOwnsStory(creatorProfile, storyId);
-  const [config, creatorMonetization] = await Promise.all([
+  const [config, creatorCanEarn] = await Promise.all([
     getMonetizationConfig({ includePrivate: true }),
-    getCreatorMonetizationProfile(creatorProfile.user_id)
+    isCreatorMonetizationAllowed(creatorProfile.user_id)
   ]);
+
+  const { data: storyRow } = await supabase
+    .from("stories")
+    .select("slug, public_code")
+    .eq("id", storyId)
+    .maybeSingle();
+
+  if (!storyRow?.public_code) {
+    return { error: "Truyện chưa có mã public URL." };
+  }
+
+  const { data: storyMeta } = await supabase
+    .from("stories")
+    .select("content_warnings_confirmed")
+    .eq("id", storyId)
+    .maybeSingle();
+
+  const strictPublish = parsed.values.status === "pending";
+  const composerPersist = await resolveComposerEpisodePersistFields(supabase, {
+    content: parsed.values.content,
+    contentFormat: parsed.values.contentFormat,
+    presentationMode: parsed.values.presentationMode,
+    structuredContent: parsed.values.structuredContent,
+    storyId,
+    strictPublish,
+    storyContentWarningsConfirmed: Boolean(storyMeta?.content_warnings_confirmed),
+    previewViewed: formData.get("composer_preview_viewed") === "1"
+  });
+
+  if (
+    strictPublish &&
+    parsed.values.contentFormat === "structured_blocks" &&
+    composerPersist.validation_status === "invalid"
+  ) {
+    return {
+      error:
+        composerPersist.validation_errors[0]?.message ??
+        "Nội dung Composer chưa hợp lệ — sửa lỗi trước khi gửi duyệt."
+    };
+  }
+
+  if (
+    strictPublish &&
+    parsed.values.contentFormat === "structured_blocks" &&
+    composerPersist.validation_status === "warnings" &&
+    formData.get("composer_warnings_ack") !== "on"
+  ) {
+    return {
+      error: "Vui lòng xác nhận đã xem các cảnh báo Composer trước khi gửi duyệt."
+    };
+  }
+
+  const chapterPublicCode = await generateNumericPublicCode(supabase, "chapter");
+  const chapterSlug = resolveContentSlug(
+    parsed.values.title,
+    "chapter",
+    chapterPublicCode
+  );
+  const canonicalPath = getChapterUrl(
+    { slug: storyRow.slug, public_code: storyRow.public_code },
+    { slug: chapterSlug, public_code: chapterPublicCode }
+  );
 
   const { data: episode, error } = await supabase
     .from("episodes")
@@ -65,13 +131,25 @@ export async function createEpisodeAction(
       story_id: storyId,
       episode_number: parsed.values.episodeNumber,
       title: parsed.values.title,
-      content: parsed.values.content,
+      slug: chapterSlug,
+      public_code: chapterPublicCode,
+      canonical_path: canonicalPath,
+      content: composerPersist.content,
       excerpt: parsed.values.excerpt,
       word_count: parsed.values.wordCount,
       seo_description: parsed.values.seoDescription,
       seo_keywords: parsed.values.seoKeywords,
       seo_title: parsed.values.seoTitle,
-      status: parsed.values.status
+      status: parsed.values.status,
+      presentation_mode: parsed.values.chapterPresentationMode,
+      structured_content: parsed.values.structuredContent,
+      content_format: parsed.values.contentFormat,
+      validation_status: composerPersist.validation_status,
+      validation_errors: composerPersist.validation_errors,
+      last_validated_at: composerPersist.last_validated_at,
+      ...(composerPersist.composer_version
+        ? { composer_version: composerPersist.composer_version }
+        : {})
     })
     .select("id")
     .single();
@@ -106,9 +184,7 @@ export async function createEpisodeAction(
     Boolean(config.settings["monetization.enabled"]) &&
     Boolean(config.settings["creator_monetization.enabled"]) &&
     Boolean(config.settings["paid_chapters.enabled"]);
-  const creatorApproved =
-    creatorMonetization.data?.status === "approved" &&
-    Boolean(creatorMonetization.data?.monetization_enabled);
+  const creatorApproved = creatorCanEarn;
   const freeRequired = Number(config.settings["paid_chapters.free_chapters_required"] ?? 0);
   const allowCustomPrice = Boolean(
     config.settings["paid_chapters.allow_creator_custom_price"]

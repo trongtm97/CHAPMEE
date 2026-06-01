@@ -26,6 +26,7 @@ export type ProfileAchievement = {
 export type ProfileStoryItem = {
   id: string;
   slug: string;
+  publicCode: string;
   title: string;
   coverUrl: string | null;
   subtitle: string | null;

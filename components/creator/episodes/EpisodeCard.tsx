@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge, Button, Card } from "@/components/ui";
+import { getStoryChapterHref } from "@/lib/stories/story-routes";
 import type { CreatorEpisode } from "@/lib/creator/getCreatorStoryEpisodes";
 import { submitEpisodeForReviewAction } from "@/lib/creator/submitEpisodeForReview";
 
@@ -7,6 +8,7 @@ type EpisodeCardProps = {
   episode: CreatorEpisode;
   storyId: string;
   storySlug: string;
+  storyPublicCode: string;
   basePath?: string;
 };
 
@@ -22,7 +24,8 @@ export function EpisodeCard({
   basePath = "/studio",
   episode,
   storyId,
-  storySlug
+  storySlug,
+  storyPublicCode
 }: EpisodeCardProps) {
   return (
     <Card className="space-y-4">
@@ -62,7 +65,10 @@ export function EpisodeCard({
         </Link>
         <Link
           className="inline-flex min-h-10 items-center justify-center rounded-lg bg-zinc-800 px-3 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-700"
-          href={`/stories/${storySlug}/episodes/${episode.episode_number}`}
+          href={getStoryChapterHref(
+            { slug: storySlug, public_code: storyPublicCode },
+            { slug: episode.slug, public_code: episode.publicCode }
+          )}
         >
           Preview reader
         </Link>

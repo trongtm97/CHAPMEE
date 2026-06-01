@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { StudioDashboard } from "@/components/studio/StudioDashboard";
+import { CreatorStudioCampaignCard } from "@/components/campaigns/CreatorStudioCampaignCard";
 import { PageViewTracker } from "@/components/analytics/PageViewTracker";
 import { ErrorState } from "@/components/ui";
 import { analyticsEvents } from "@/lib/analytics/events";
 import { trackEvent } from "@/lib/analytics/trackEvent";
 import { getCreatorStudioDashboard } from "@/lib/creator/get-creator-dashboard";
+import { loadCreatorStudioCampaign } from "@/lib/campaigns/load-public-campaigns";
 import { getStudioAccess } from "@/lib/creator/getStudioAccess";
 import { buildCanonicalUrl } from "@/lib/seo/metadata";
 import { STUDIO_BASE_PATH, STUDIO_FULL_NAME } from "@/lib/studio/constants";
@@ -34,7 +36,10 @@ export default async function StudioOverviewPage() {
     );
   }
 
-  const dashboard = await getCreatorStudioDashboard(creatorProfile);
+  const [dashboard, creatorCampaign] = await Promise.all([
+    getCreatorStudioDashboard(creatorProfile),
+    loadCreatorStudioCampaign()
+  ]);
 
   void trackEvent({
     eventName: analyticsEvents.creatorDashboardViewed,
@@ -44,13 +49,18 @@ export default async function StudioOverviewPage() {
   });
 
   return (
-    <section className="mx-auto w-full max-w-3xl px-1 sm:max-w-4xl sm:px-0">
+    <section className="w-full min-w-0">
       <PageViewTracker
         eventName={analyticsEvents.creatorDashboardViewed}
         pageLabel="studio_overview"
         targetId={creatorProfile.id}
         targetType="creator"
       />
+      {creatorCampaign ? (
+        <div className="mb-6">
+          <CreatorStudioCampaignCard campaign={creatorCampaign} />
+        </div>
+      ) : null}
       <StudioDashboard
         basePath={STUDIO_BASE_PATH}
         creatorProfile={creatorProfile}

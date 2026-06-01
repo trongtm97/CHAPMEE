@@ -1,23 +1,28 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { AdSlotBudgetProvider } from "@/components/ads/AdSlotBudgetContext";
+import { RankingSectionsAdInset } from "@/components/ads/RankingSectionsAdInset";
 import { RankingTabs } from "@/components/rankings/RankingTabs";
 import { RankingsSupportersSection } from "@/components/rankings/RankingsSupportersSection";
 import { RankingSkeleton } from "@/components/rankings/RankingSkeleton";
+import { fetchPublicGenres } from "@/lib/ranking/eligible-content";
 import { buildCanonicalUrl } from "@/lib/seo/metadata";
+import { createClient } from "@/lib/supabase/server";
+import { findRankingTabBySlug } from "@/types/ranking-board";
 
 export const revalidate = 120;
 
 export const metadata: Metadata = {
   title: "Bảng xếp hạng ChapMee",
   description:
-    "Khám phá truyện hot, truyện mới nổi, tác giả nổi bật và Top Fan trên ChapMee.",
+    "Khám phá bảng xếp hạng truyện, tác giả mới, Reels kéo đọc và top theo thể loại trên ChapMee.",
   alternates: {
     canonical: buildCanonicalUrl("/bang-xep-hang")
   },
   openGraph: {
     title: "Bảng xếp hạng ChapMee",
     description:
-      "Khám phá truyện hot, truyện mới nổi, tác giả nổi bật và Top Fan trên ChapMee.",
+      "Khám phá bảng xếp hạng truyện, tác giả mới, Reels kéo đọc và top theo thể loại trên ChapMee.",
     type: "website",
     url: buildCanonicalUrl("/bang-xep-hang") ?? undefined
   },
@@ -25,7 +30,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "Bảng xếp hạng ChapMee",
     description:
-      "Khám phá truyện hot, truyện mới nổi, tác giả nổi bật và Top Fan trên ChapMee."
+      "Khám phá bảng xếp hạng truyện, tác giả mới, Reels kéo đọc và top theo thể loại trên ChapMee."
   }
 };
 
@@ -38,13 +43,50 @@ function SupportersFallback() {
   );
 }
 
-export default function RankingsPage() {
+export default async function RankingsPage() {
+  const supabase = await createClient();
+  const genres = await fetchPublicGenres(supabase).catch(() => []);
+
   return (
-    <div className="space-y-6">
-      <RankingTabs />
-      <Suspense fallback={<SupportersFallback />}>
-        <RankingsSupportersSection />
-      </Suspense>
-    </div>
+    <AdSlotBudgetProvider>
+      <div className="space-y-6">
+        <RankingTabs
+          genres={genres.map((genre) => ({ slug: genre.slug, name: genre.name }))}
+          initialTabId="week"
+        />
+        <RankingSectionsAdInset />
+        <Suspense fallback={<SupportersFallback />}>
+          <RankingsSupportersSection />
+        </Suspense>
+      </div>
+    </AdSlotBudgetProvider>
+  );
+}
+
+export async function RankingsPageByType({
+  typeSlug,
+  initialGenreSlug = null
+}: {
+  typeSlug: string;
+  initialGenreSlug?: string | null;
+}) {
+  const tab = findRankingTabBySlug(typeSlug);
+  const supabase = await createClient();
+  const genres = await fetchPublicGenres(supabase).catch(() => []);
+
+  return (
+    <AdSlotBudgetProvider>
+      <div className="space-y-6">
+        <RankingTabs
+          genres={genres.map((genre) => ({ slug: genre.slug, name: genre.name }))}
+          initialGenreSlug={initialGenreSlug}
+          initialTabId={tab.id}
+        />
+        <RankingSectionsAdInset />
+        <Suspense fallback={<SupportersFallback />}>
+          <RankingsSupportersSection />
+        </Suspense>
+      </div>
+    </AdSlotBudgetProvider>
   );
 }

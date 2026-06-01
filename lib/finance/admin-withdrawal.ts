@@ -7,7 +7,7 @@ import {
   updatePayoutRequestStatus
 } from "@/lib/supabase/payouts";
 import { insertCreatorWalletLedgerEntry } from "@/lib/supabase/creator-finance";
-import { getCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
+import { getCreatorAccessStatus } from "@/lib/creator-access";
 import { createClient } from "@/lib/supabase/server";
 import type { PayoutRequestStatus } from "@/types/payout";
 
@@ -34,19 +34,19 @@ async function appendLedgerForRequest(input: {
 
 export async function validateWithdrawalCanApprove(creatorUserId: string) {
   const supabase = await createClient();
-  const [{ data: profile }, monetization] = await Promise.all([
+  const [{ data: profile }, access] = await Promise.all([
     supabase.from("profiles").select("status").eq("id", creatorUserId).maybeSingle(),
-    getCreatorMonetizationProfile(creatorUserId)
+    getCreatorAccessStatus(creatorUserId)
   ]);
 
   if (profile?.status === "banned" || profile?.status === "suspended") {
     return { ok: false, error: "Tài khoản bị hạn chế, không thể duyệt rút tiền." };
   }
-  if (!monetization.data || monetization.data.status === "suspended") {
-    return { ok: false, error: "Monetization bị tạm dừng, không thể duyệt." };
-  }
-  if (!monetization.data.monetization_enabled || !monetization.data.payout_enabled) {
-    return { ok: false, error: "Tác giả chưa được bật rút tiền." };
+  if (!access.withdrawalEnabled) {
+    return {
+      ok: false,
+      error: access.withdrawalDisabledReason ?? "Quyền rút tiền đang bị tắt cho tác giả này."
+    };
   }
   return { ok: true, error: null };
 }

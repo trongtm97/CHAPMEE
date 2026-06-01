@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+﻿import { notFound } from "next/navigation";
 import { StudioEpisodePreview } from "@/components/studio/preview/StudioEpisodePreview";
 import { ErrorState, SectionHeader } from "@/components/ui";
 import { getCreatorEpisodeFormData } from "@/lib/creator/getCreatorEpisodeById";
@@ -24,7 +24,9 @@ export default async function StudioEpisodePreviewPage({
   const { episodeId, storyId } = await params;
   const resolvedSearchParams = await searchParams;
   const initialMode =
-    resolvedSearchParams?.mode === "swipe" ? "swipe" : "reader";
+    resolvedSearchParams?.mode === "reels"
+      ? "reels"
+      : "reader";
   const { creatorProfile, error } = await getStudioAccess(
     `/studio/stories/${storyId}/episodes/${episodeId}/preview`
   );
@@ -54,7 +56,9 @@ export default async function StudioEpisodePreviewPage({
         <StudioEpisodePreview
           backHref={`/studio/stories/${storyId}/chapters/${episodeId}/edit`}
           content={data.episode.content}
-          creatorName={creatorProfile.pen_name}
+          presentationMode={data.story.presentationMode}
+          structuredContent={data.episode.structured_content ?? null}
+          creatorName={creatorProfile.display_name}
           episodeNumber={data.episode.episode_number}
           episodeStatus={data.episode.status}
           episodeTitle={data.episode.title}

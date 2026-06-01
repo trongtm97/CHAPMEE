@@ -2,7 +2,7 @@ export type OnboardingRolePreference = "reader" | "author" | "both";
 
 export type OnboardingGoal =
   | "discover_short_stories"
-  | "swipe_like_tiktok"
+  | "reels_like_tiktok"
   | "follow_authors"
   | "comment_vote"
   | "save_for_later"
@@ -20,17 +20,5 @@ export type OnboardingState = {
   goals: OnboardingGoal[];
 };
 
-export const ONBOARDING_GENRES = [
-  "Ngôn tình",
-  "Học đường",
-  "Tổng tài",
-  "Drama gia đình",
-  "Kinh dị",
-  "Trinh thám",
-  "Xuyên không",
-  "Trọng sinh",
-  "Tu tiên/fantasy",
-  "BL/GL",
-  "Chữa lành",
-  "Chat story"
-] as const;
+/** Stored in profile.favorite_genres — taxonomy main_genre slugs or legacy names. */
+export type OnboardingFavoriteGenre = string;

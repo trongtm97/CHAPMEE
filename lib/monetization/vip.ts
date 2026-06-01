@@ -143,7 +143,7 @@ export async function purchaseVipMockAction(planId: string) {
   return { ok: true, error: null };
 }
 
-export async function getVipLandingData(userId: string | null) {
+export async function getVipPageData(userId: string | null) {
   const enabled = await isVipModuleEnabled();
   if (!enabled) return { enabled: false, plans: [], vipStatus: null };
 

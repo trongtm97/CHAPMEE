@@ -44,12 +44,29 @@ export async function getTopEarningAuthors(
     }
 
     const rows = data as unknown as EarningAuthorRow[];
+    const userIds = rows.map((row) => row.user_id).filter(Boolean);
+    const usernameByUserId = new Map<string, string>();
+
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, username")
+        .in("id", userIds);
+
+      for (const profile of profiles ?? []) {
+        const username = (profile.username as string | null)?.trim().toLowerCase();
+        if (username) {
+          usernameByUserId.set(profile.id as string, username);
+        }
+      }
+    }
 
     return rows.map((row, index) => ({
       id: row.author_id,
       rank: index + 1,
       userId: row.user_id,
-      penName: row.pen_name,
+      username: usernameByUserId.get(row.user_id) ?? null,
+      displayName: row.pen_name,
       avatarUrl: row.avatar_url,
       grossRevenue: Number(row.gross_revenue),
       supporterCount: Number(row.supporter_count),

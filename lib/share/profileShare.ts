@@ -48,7 +48,7 @@ export function buildAuthorProfileSharePayload(input: {
 }): ShareCardPayload {
   return {
     kind: "profile",
-    title: input.creatorProfile.pen_name,
+    title: input.creatorProfile.display_name,
     text: input.creatorProfile.bio ?? "Theo dõi tác giả trên ChapMee",
     url: input.url,
     creatorId: input.creatorProfile.id,

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getStoryChapterHref } from "@/lib/stories/story-routes";
 import { StoryImageThumb } from "@/components/common/StoryImageView";
 import type { ContinueReadingItem } from "@/lib/reading/getContinueReading";
 
@@ -15,7 +16,10 @@ export function ContinueReadingCard({
 }: ContinueReadingCardProps) {
   return (
     <Link
-      href={`/stories/${item.story.slug}/episodes/${item.episode.episodeNumber}`}
+      href={getStoryChapterHref(
+        { slug: item.story.slug, public_code: item.story.publicCode },
+        { slug: item.episode.slug, public_code: item.episode.publicCode }
+      )}
     >
       <div
         className={`flex gap-2.5 rounded-[0.9rem] border p-2 transition hover:border-cyan-300/20 hover:bg-white/[0.03] ${

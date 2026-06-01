@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getStoryUrl } from "@/lib/urls/paths";
 import { awardMilestone } from "@/lib/supabase/milestones";
 import { createNotification } from "@/lib/notifications/create-notification";
 import {
@@ -152,7 +153,7 @@ export async function recordFanScoreAction(input: RecordFanScoreInput) {
     const supabase = await createClient();
     const [topFansResult, storyResult] = await Promise.all([
       getStoryTopFans(input.storyId, input.userId, 1),
-      supabase.from("stories").select("id, title, slug").eq("id", input.storyId).maybeSingle()
+      supabase.from("stories").select("id, title, slug, public_code").eq("id", input.storyId).maybeSingle()
     ]);
 
     const topFan = topFansResult[0];
@@ -172,7 +173,9 @@ export async function recordFanScoreAction(input: RecordFanScoreInput) {
 
       if (!previousStoryTopFan || previousStoryTopFan.id !== input.userId) {
         await createNotification(input.userId, "became_top_fan", {
-          actionUrl: storyRow.slug ? `/stories/${storyRow.slug}` : "/notifications",
+          actionUrl: storyRow.slug && storyRow.public_code
+            ? getStoryUrl({ slug: storyRow.slug, public_code: storyRow.public_code })
+            : "/notifications",
           body: `Bạn vừa vươn lên Top Fan #1 của "${storyRow.title}".`,
           dedupeWindowMinutes: 720,
           metadata: {
@@ -197,7 +200,9 @@ export async function recordFanScoreAction(input: RecordFanScoreInput) {
     ) {
       await createNotification(previousStoryTopFan.id, "top_fan_updated", {
         actorUserId: input.userId,
-        actionUrl: storyRow.slug ? `/stories/${storyRow.slug}` : "/notifications",
+        actionUrl: storyRow.slug && storyRow.public_code
+          ? getStoryUrl({ slug: storyRow.slug, public_code: storyRow.public_code })
+          : "/notifications",
         body: `Bảng xếp hạng Top Fan của "${storyRow.title}" vừa thay đổi.`,
         dedupeWindowMinutes: 120,
         metadata: {

@@ -1,4 +1,13 @@
+import { resolveEffectivePresentationMode } from "@/lib/presentation/resolve-mode";
+import { stringifyStructuredTemplate } from "@/lib/presentation/template-json";
+import {
+  getPresentationTemplates,
+  getStoryPresentationSettings
+} from "@/lib/taxonomy/presentation";
+import { loadStoryCatalogDisplayLabels } from "@/lib/taxonomy/story-genre-labels";
 import { createClient } from "@/lib/supabase/server";
+import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import type { PresentationMode } from "@/types/presentation";
 import { getEpisodePoll } from "@/lib/supabase/polls";
 import { getChapterMonetizationSetting } from "@/lib/supabase/chapter-monetization";
 import { getChapterEarlyAccessSetting } from "@/lib/supabase/early-access";
@@ -9,10 +18,14 @@ export type CreatorEpisodeFormStory = {
   id: string;
   title: string;
   slug: string;
+  publicCode: string | null;
   status: CreatorStoryStatus;
   visibility: "public" | "private";
   genreName: string | null;
   tagNames: string[];
+  presentationMode: PresentationMode;
+  formatTemplateExampleJson: string | null;
+  contentWarningsConfirmed: boolean;
 };
 
 export type CreatorEpisodeFormData = {
@@ -28,6 +41,17 @@ export type CreatorEpisodeFormData = {
     seo_description: string | null;
     seo_keywords: string[] | null;
     word_count: number;
+    presentation_mode: string | null;
+    structured_content: unknown | null;
+    content_format: string | null;
+    composer_version: number | null;
+    validation_status: string | null;
+    validation_errors: Array<{
+      code: string;
+      message: string;
+      blockId?: string;
+      severity: "error" | "warning";
+    }> | null;
     poll: {
       question: string;
       status: "active" | "closed";
@@ -60,7 +84,7 @@ export async function getCreatorEpisodeFormData(
     const supabase = await createClient();
     const { data: story, error: storyError } = await supabase
       .from("stories")
-      .select("id, title, slug, status, visibility, genre_id, genres(name)")
+      .select("id, title, slug, public_code, status, visibility, content_warnings_confirmed")
       .eq("id", storyId)
       .eq("creator_id", creatorProfile.id)
       .maybeSingle();
@@ -92,20 +116,32 @@ export async function getCreatorEpisodeFormData(
     let episode = null;
 
     if (episodeId) {
-      const { data, error } = await supabase
+      const episodeSelectFull =
+        "id, episode_number, title, content, excerpt, status, word_count, seo_title, seo_description, seo_keywords, presentation_mode, structured_content, content_format, composer_version, validation_status, validation_errors";
+      const episodeSelectLegacy =
+        "id, episode_number, title, content, excerpt, status, word_count, seo_title, seo_description, seo_keywords, presentation_mode, structured_content, content_format";
+
+      let episodeResult = await supabase
         .from("episodes")
-        .select(
-          "id, episode_number, title, content, excerpt, status, word_count, seo_title, seo_description, seo_keywords"
-        )
+        .select(episodeSelectFull)
         .eq("id", episodeId)
         .eq("story_id", story.id)
         .maybeSingle();
 
-      if (error) {
-        throw error;
+      if (episodeResult.error && isMissingSchemaError(episodeResult.error)) {
+        episodeResult = await supabase
+          .from("episodes")
+          .select(episodeSelectLegacy)
+          .eq("id", episodeId)
+          .eq("story_id", story.id)
+          .maybeSingle();
       }
 
-      episode = data;
+      if (episodeResult.error) {
+        throw episodeResult.error;
+      }
+
+      episode = episodeResult.data;
     }
 
     const [poll, monetization, earlyAccess] = episodeId
@@ -116,35 +152,43 @@ export async function getCreatorEpisodeFormData(
         ])
       : [null, { data: null, error: null }, { data: null, error: null }];
 
-    const { data: storyTagRows } = await supabase
-      .from("story_tags")
-      .select("tags(name)")
-      .eq("story_id", story.id);
+    const catalogDisplay = await loadStoryCatalogDisplayLabels(supabase, story.id);
+    const genreName = catalogDisplay.genreName;
+    const tagNames = catalogDisplay.tagNames;
 
-    const tagNames = ((storyTagRows ?? []) as Array<{
-      tags: { name: string } | { name: string }[] | null;
-    }>)
-      .map((row) => {
-        const tag = Array.isArray(row.tags) ? row.tags[0] : row.tags;
-        return tag?.name ?? "";
-      })
-      .filter(Boolean);
+    const presentationSettings = await getStoryPresentationSettings(story.id);
+    const presentationMode = resolveEffectivePresentationMode({
+      storyMode: presentationSettings.data?.mode ?? null
+    });
 
-    const genreRelation = (story as { genres?: { name: string } | { name: string }[] | null })
-      .genres;
-    const genreName = Array.isArray(genreRelation)
-      ? genreRelation[0]?.name ?? null
-      : genreRelation?.name ?? null;
+    let formatTemplateExampleJson: string | null = null;
+    const templateId = presentationSettings.data?.template_id;
+    if (templateId) {
+      const templates = await getPresentationTemplates(presentationMode);
+      const match = templates.data.find((row) => row.id === templateId);
+      if (match?.example_json && Object.keys(match.example_json).length > 0) {
+        formatTemplateExampleJson = stringifyStructuredTemplate(
+          presentationMode,
+          match.example_json
+        );
+      }
+    }
 
       return {
       story: {
         genreName,
         id: story.id,
+        publicCode: (story as { public_code?: string | null }).public_code ?? null,
         slug: story.slug,
         status: story.status as CreatorStoryStatus,
         tagNames,
         title: story.title,
-        visibility: story.visibility as "public" | "private"
+        visibility: story.visibility as "public" | "private",
+        presentationMode,
+        formatTemplateExampleJson,
+        contentWarningsConfirmed: Boolean(
+          (story as { content_warnings_confirmed?: boolean }).content_warnings_confirmed
+        )
       } satisfies CreatorEpisodeFormStory,
       episode: episode
         ? {

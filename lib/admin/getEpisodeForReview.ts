@@ -1,3 +1,4 @@
+import { ADMIN_CREATOR_JOIN, resolveAdminCreatorName } from "@/lib/admin/creator-display";
 import { createClient } from "@/lib/supabase/server";
 
 export type EpisodeForReview = {
@@ -37,17 +38,11 @@ type EpisodeRow = {
   stories:
     | {
         title: string | null;
-        creator_profiles:
-          | { pen_name: string | null }
-          | { pen_name: string | null }[]
-          | null;
+        creator_profiles: unknown;
       }
     | Array<{
         title: string | null;
-        creator_profiles:
-          | { pen_name: string | null }
-          | { pen_name: string | null }[]
-          | null;
+        creator_profiles: unknown;
       }>
     | null;
 };
@@ -64,7 +59,7 @@ export async function getEpisodeForReview(
     const { data, error } = await supabase
       .from("episodes")
       .select(
-        "id, story_id, episode_number, title, content, excerpt, word_count, status, created_at, updated_at, published_at, stories(title, creator_profiles(pen_name))"
+        `id, story_id, episode_number, title, content, excerpt, word_count, status, created_at, updated_at, published_at, stories(title, ${ADMIN_CREATOR_JOIN})`
       )
       .eq("id", episodeId)
       .maybeSingle();
@@ -93,7 +88,7 @@ export async function getEpisodeForReview(
         content: episode.content,
         excerpt: episode.excerpt,
         wordCount: episode.word_count,
-        creatorName: creator?.pen_name ?? null,
+        creatorName: resolveAdminCreatorName(creator),
         status: episode.status,
         createdAt: episode.created_at,
         updatedAt: episode.updated_at,

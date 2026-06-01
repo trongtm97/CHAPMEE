@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ErrorState, SectionHeader } from "@/components/ui";
+import { ErrorState } from "@/components/ui";
 import { MobileBackHeader } from "@/components/me/MobileBackHeader";
-import { StudioStoryForm } from "@/components/studio/stories/StudioStoryForm";
+import { StudioStoryCreateWizard } from "@/components/studio/stories/create/StudioStoryCreateWizard";
 import { createStoryAction } from "@/lib/creator/createStory";
 import { getStoryFormData } from "@/lib/creator/getStoryFormData";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
@@ -16,7 +16,7 @@ export default async function StudioNewStoryPage() {
   if (error || !creatorProfile) {
     return (
       <section className="space-y-6">
-        <SectionHeader title="Viết truyện mới" />
+        <h1 className="text-xl font-bold text-white">Viết truyện mới</h1>
         <ErrorState message={error} title="Không tải được quyền truy cập Studio" />
       </section>
     );
@@ -29,29 +29,33 @@ export default async function StudioNewStoryPage() {
     : null;
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4 pb-8">
       <MobileBackHeader fallbackHref="/me?tab=writing" title="Viết truyện mới" />
-      <Link
-        className="text-sm font-semibold text-sky-300 hover:text-sky-200"
-        href="/studio/stories"
-      >
-        Trở về danh sách truyện
-      </Link>
-      <SectionHeader
-        subtitle="Tạo bản nháp trước, rồi gửi duyệt khi sẵn sàng."
-        title="Viết truyện mới"
-      />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-white sm:text-2xl">Tạo truyện mới</h1>
+          <p className="mt-1 text-sm text-zinc-500">
+            Bốn bước: thông tin → phân loại → composer → SEO & xuất bản.
+          </p>
+        </div>
+        <Link
+          className="text-sm font-semibold text-cyan-300 hover:text-cyan-200"
+          href="/studio/stories"
+        >
+          Danh sách truyện
+        </Link>
+      </div>
       {formData.error ? (
         <ErrorState message={formData.error} title="Không tải được form truyện" />
       ) : (
-        <StudioStoryForm
+        <StudioStoryCreateWizard
           action={createStoryAction}
-          authorPenName={creatorProfile.pen_name}
+          authorDisplayName={creatorProfile.display_name}
+          authorUsername={profile?.username ?? null}
           basePath="/studio"
-          genres={formData.genres}
           profileId={profile?.id ?? ""}
           savedDraft={savedDraft}
-          tags={formData.tags}
+          taxonomy={formData.taxonomy}
         />
       )}
     </section>

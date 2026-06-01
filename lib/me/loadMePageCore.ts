@@ -9,6 +9,8 @@ import { getMyCollections } from "@/lib/supabase/collections";
 import { getMyThankYous } from "@/lib/supabase/thank-yous";
 import { getUnreadNotificationCount } from "@/lib/supabase/notifications";
 import { getLifecycleNudgeForUser } from "@/lib/supabase/lifecycle";
+import { ensureProfileUsername } from "@/lib/profile/ensure-profile-username";
+import { getPublicProfileSharePath } from "@/lib/profile/profile-url";
 import { getShareUrl } from "@/lib/share/getShareUrl";
 import { buildAchievementPreview } from "@/lib/me/buildAchievementPreview";
 import { buildProfileHandle } from "@/lib/profile/buildProfileHandle";
@@ -28,7 +30,16 @@ export async function loadMePageCore({
   refreshError,
   user
 }: LoadMePageCoreParams): Promise<MePageData> {
-  const profileFallback = profile ?? {
+  const ensuredUsername = await ensureProfileUsername(
+    user.id,
+    profile?.display_name
+  );
+  const profileWithUsername =
+    profile && ensuredUsername
+      ? { ...profile, username: ensuredUsername }
+      : profile;
+
+  const profileFallback = profileWithUsername ?? {
     id: user.id,
     username: null,
     display_name: null,
@@ -82,10 +93,13 @@ export async function loadMePageCore({
   };
 
   const displayName =
-    profile?.display_name ?? profile?.username ?? user.email ?? "Độc giả ChapMee";
+    profileWithUsername?.display_name ??
+    profileWithUsername?.username ??
+    user.email ??
+    "Độc giả ChapMee";
   const handle = buildProfileHandle({
-    username: profile?.username,
-    displayName: profile?.display_name,
+    username: profileWithUsername?.username,
+    displayName: profileWithUsername?.display_name,
     userId: user.id
   });
   const currentReadingCount = currentlyReading.length;
@@ -99,15 +113,19 @@ export async function loadMePageCore({
     ? [{ label: "VIP", tone: "success" as const }, ...readerProfile.badges]
     : readerProfile.badges;
 
+  const publicSharePath = getPublicProfileSharePath(
+    ensuredUsername ?? profileWithUsername?.username
+  );
+
   return {
     user: {
       id: user.id,
       email: user.email ?? null,
       displayName,
       handle,
-      bio: profile?.bio ?? null,
-      avatarUrl: profile?.avatar_url ?? null,
-      role: profile?.role ?? "user"
+      bio: profileWithUsername?.bio ?? null,
+      avatarUrl: profileWithUsername?.avatar_url ?? null,
+      role: profileWithUsername?.role ?? "user"
     },
     stats,
     profileBadges,
@@ -132,9 +150,7 @@ export async function loadMePageCore({
     accountNotice,
     permissionFlags,
     refreshError: refreshError ?? readerProfile.error,
-    shareUrl: profile?.username
-      ? getShareUrl(`/profile/${profile.username}`)
-      : getShareUrl(`/me/${user.id}`),
+    shareUrl: publicSharePath ? getShareUrl(publicSharePath) : "",
     contactSettings: contactSettingsResult.settings,
     monetization
   };

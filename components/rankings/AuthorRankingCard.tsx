@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getProfileUrlOrFallback } from "@/lib/profile/profile-url";
 import { Card, Badge, AvatarFallback } from "@/components/ui";
 import type { AuthorRankingItem } from "@/types/ranking";
 
@@ -22,7 +23,10 @@ export function AuthorRankingCard({ item }: AuthorRankingCardProps) {
       : "bg-white/[0.04] border-white/8";
 
   return (
-    <Link className="tap-highlight block" href={`/creators/${item.userId}`}>
+    <Link
+      className="tap-highlight block"
+      href={getProfileUrlOrFallback(item.username)}
+    >
       <Card className="space-y-3 transition hover:-translate-y-0.5 hover:border-cyan-300/30 hover:bg-[var(--surface-soft)]">
         <div className="flex items-start gap-3">
           <div
@@ -34,13 +38,13 @@ export function AuthorRankingCard({ item }: AuthorRankingCardProps) {
           </div>
           <AvatarFallback
             className="ring-1 ring-white/10"
-            name={item.penName}
+            name={item.displayName}
             size="md"
             src={item.avatarUrl}
           />
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-base font-black tracking-normal text-white">
-              {item.penName}
+              {item.displayName}
             </h3>
             <p className="mt-1 truncate text-xs font-medium text-zinc-400">
               {item.storyCount} truyện · {formatCount(item.followerCount)} người theo dõi

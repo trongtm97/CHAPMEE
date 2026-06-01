@@ -16,7 +16,7 @@ export function CreatorDashboardHeader({
             ChapMee Studio
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-normal text-white">
-            {creatorProfile.pen_name}
+            {creatorProfile.display_name}
           </h1>
         </div>
         <Badge variant="success">{creatorProfile.status}</Badge>

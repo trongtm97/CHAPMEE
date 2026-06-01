@@ -10,7 +10,7 @@ export async function toggleCommentLike(commentId: string) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { loginUrl: "/login?next=/swipe", ok: false };
+    return { loginUrl: "/login?next=/reels", ok: false };
   }
 
   const { data: existing } = await supabase

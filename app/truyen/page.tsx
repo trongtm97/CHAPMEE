@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { StoryCatalogPage } from "@/components/stories/StoryCatalogPage";
+import { catalogHasDeepFilters, parseCatalogSearchParams } from "@/lib/discovery/catalog-url";
+import { getCatalogFilterOptionsCached } from "@/lib/discovery/catalog-filter-options-cached";
 import { getPublicStoriesCatalogCached } from "@/lib/stories/getPublicStoriesCatalogCached";
 import {
   DEFAULT_CATALOG_PAGE_SIZE,
@@ -9,19 +11,11 @@ import {
   clampPageSize
 } from "@/lib/stories/story-catalog-query";
 import { buildCanonicalUrl } from "@/lib/seo/metadata";
-import type { StoryCatalogSort, StoryCatalogStatus } from "@/types/story";
 
 export const revalidate = 60;
 
 type StoriesIndexPageProps = {
-  searchParams: Promise<{
-    q?: string;
-    genre?: string;
-    sort?: string;
-    status?: string;
-    page?: string;
-    pageSize?: string;
-  }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 };
 
 function isMobileUserAgent(userAgent: string) {
@@ -35,10 +29,16 @@ function resolveCatalogPageSize(requestedPageSize: string | undefined, userAgent
   return isMobileUserAgent(userAgent) ? DEFAULT_CATALOG_PAGE_SIZE : DESKTOP_CATALOG_PAGE_SIZE;
 }
 
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateMetadata({
+  searchParams
+}: StoriesIndexPageProps): Promise<Metadata> {
+  const params = await searchParams;
+  const filters = parseCatalogSearchParams(params);
+  const deepFilters = catalogHasDeepFilters(filters);
   const canonical = buildCanonicalUrl("/truyen");
   return {
     title: "Danh mục truyện ChapMee",
+    robots: deepFilters ? { index: false, follow: true } : undefined,
     description:
       "Khám phá toàn bộ truyện ngắn, truyện chat, drama, ngôn tình, kinh dị và nhiều thể loại khác trên ChapMee.",
     alternates: canonical ? { canonical } : undefined,
@@ -62,19 +62,21 @@ export default async function StoriesIndexPage({ searchParams }: StoriesIndexPag
   const params = await searchParams;
   const headerStore = await headers();
   const userAgent = headerStore.get("user-agent") ?? "";
-  const page = clampPage(Number(params.page ?? "1"));
-  const sort = (params.sort ?? "updated") as StoryCatalogSort;
-  const status = (params.status ?? "all") as StoryCatalogStatus;
-  const pageSize = resolveCatalogPageSize(params.pageSize, userAgent);
+  const filters = parseCatalogSearchParams(params);
+  const page = clampPage(filters.page ?? 1);
+  const pageSize = resolveCatalogPageSize(
+    filters.pageSize ? String(filters.pageSize) : undefined,
+    userAgent
+  );
 
-  const data = await getPublicStoriesCatalogCached({
-    q: params.q,
-    genre: params.genre,
-    sort,
-    status,
-    page,
-    pageSize
-  });
+  const [data, filterOptions] = await Promise.all([
+    getPublicStoriesCatalogCached({
+      ...filters,
+      page,
+      pageSize
+    }),
+    getCatalogFilterOptionsCached()
+  ]);
 
-  return <StoryCatalogPage {...data} />;
+  return <StoryCatalogPage {...data} filterOptions={filterOptions} />;
 }

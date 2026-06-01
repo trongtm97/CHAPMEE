@@ -9,7 +9,7 @@ type AnalyticsRangeTabsProps = {
 const RANGES: Array<{ label: string; value: StudioAnalyticsRange }> = [
   { label: "7 ngày", value: "7d" },
   { label: "30 ngày", value: "30d" },
-  { label: "90 ngày", value: "90d" },
+  { label: "Tháng này", value: "month" },
   { label: "Tất cả", value: "all" }
 ];
 

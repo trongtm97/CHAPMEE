@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { buildCanonicalUrl, getDefaultOgImage } from "@/lib/seo/metadata";
+import { REELS_PUBLIC_PATH } from "@/lib/routes/reels-paths";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "ChapChat chapter preview",
     description: "Đọc thử chapter trên ChapMee.",
     robots: { index: false, follow: false },
-    alternates: { canonical: buildCanonicalUrl("/swipe") },
+    alternates: { canonical: buildCanonicalUrl(REELS_PUBLIC_PATH) },
     openGraph: {
       title: "ChapChat chapter preview",
       description: "Đọc thử chapter trên ChapMee.",

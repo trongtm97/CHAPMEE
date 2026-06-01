@@ -115,4 +115,12 @@ export type AdminTransactionDetail = AdminTransactionListRow & {
   };
   refundInfo: TransactionRefundInfo;
   auditLog: TransactionAuditEntry[];
+  feePolicyInfo?: {
+    appliedPolicyType: string | null;
+    authorPercent: number | null;
+    platformPercent: number | null;
+    policyId: string | null;
+    policyName: string | null;
+    revenueSource: string | null;
+  } | null;
 };

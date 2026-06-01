@@ -7,7 +7,7 @@ import { CommunityPostMenu } from "@/components/community/CommunityPostMenu";
 import {
   buildContextLine,
   ctaForItem,
-  headerMetaLine,
+  authorMetaSuffix,
   kindLabel,
   primaryBody,
   shouldShowSecondaryComment,
@@ -15,7 +15,9 @@ import {
   threadHref
 } from "@/components/community/feed-card-utils";
 import { SpoilerContent } from "@/components/community/SpoilerContent";
+import { AuthorNameLink } from "@/components/profile/AuthorNameLink";
 import { AvatarFallback } from "@/components/ui";
+import { getProfileUrl } from "@/lib/profile/profile-url";
 import type { CommunityFeedItem } from "@/types/community";
 
 type CommunityFeedCardProps = {
@@ -30,13 +32,28 @@ export function CommunityFeedCard({ item, onHide }: CommunityFeedCardProps) {
   const contextLine = buildContextLine(item);
   const href = threadHref(item);
   const showSecondaryComment = shouldShowSecondaryComment(item);
+  const authorProfileHref = getProfileUrl(item.authorUsername);
 
   return (
     <article className="chap-card space-y-2 p-3">
       <header className="flex items-start gap-2.5">
-        <AvatarFallback className="size-9 shrink-0" name={item.authorName} size="sm" />
+        {authorProfileHref ? (
+          <Link className="shrink-0" href={authorProfileHref}>
+            <AvatarFallback className="size-9" name={item.authorName} size="sm" />
+          </Link>
+        ) : (
+          <AvatarFallback className="size-9 shrink-0" name={item.authorName} size="sm" />
+        )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs text-zinc-400">{headerMetaLine(item)}</p>
+          <p className="truncate text-xs text-zinc-400">
+            <AuthorNameLink
+              className="text-zinc-400"
+              name={item.authorName}
+              nameClassName="font-medium text-zinc-300"
+              username={item.authorUsername}
+            />
+            <span className="text-zinc-500"> · {authorMetaSuffix(item)}</span>
+          </p>
           <p className="mt-0.5 text-[0.65rem] font-medium text-zinc-500">
             {kindLabel[item.kind]}
             {item.isSpoiler ? " · Spoiler" : null}

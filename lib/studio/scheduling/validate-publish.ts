@@ -1,6 +1,6 @@
 import { formatBlockingErrors } from "@/lib/publish/checklist-utils";
 import { validateChapterBeforePublishFromDb } from "@/lib/publish/validate-chapter-before-publish";
-import { validateStoryBeforePublishFromDb } from "@/lib/publish/validate-story-before-publish";
+import { validateStoryBeforePublishFromDb } from "@/lib/publish/validate-story-before-publish-server";
 import type { PublishChecklistResult } from "@/types/publish-checklist";
 import type { SupabaseClient } from "@supabase/supabase-js";
 

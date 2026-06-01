@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { analyticsEvents } from "@/lib/analytics/events";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { trackServerEvent } from "@/lib/analytics/trackServerEvent";
+import { trackServerReport } from "@/lib/tracking/track-server";
+import { mapReportTargetToTrackingItemType } from "@/lib/tracking/resolve-reels-context";
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
 import { reasonCodeToPolicyArea } from "@/lib/moderation/moderation-rules";
 import {
@@ -34,6 +36,8 @@ const allowedReasons = new Set<ReportReasonCode>([
   "copyright",
   "impersonation_scam",
   "wrong_age_rating",
+  "wrong_taxonomy_tag",
+  "missing_content_warning",
   "illegal_content",
   "other"
 ]);
@@ -181,6 +185,48 @@ export async function createReportAction(
     targetId,
     targetType: targetType as "story" | "chapter" | "comment" | "user"
   });
+
+  const trackingItemType = mapReportTargetToTrackingItemType(targetType);
+  await trackServerReport({
+    userId: user.id,
+    targetType,
+    targetId,
+    reasonCode,
+    storyId: trackingItemType === "story" ? targetId : null,
+    chapterId: trackingItemType === "chapter" ? targetId : null
+  });
+
+  try {
+    const { syncTaxonomyReportToQualityFlag } = await import(
+      "@/lib/content-taxonomy-quality/sync-report-flags"
+    );
+    await syncTaxonomyReportToQualityFlag(
+      supabase,
+      targetType,
+      targetId,
+      reasonCode,
+      String(report.id)
+    );
+  } catch {
+    // Non-blocking — report vẫn được tạo nếu bảng taxonomy quality chưa migrate
+  }
+
+  if (
+    targetType === "story" &&
+    (reasonCode === "wrong_taxonomy_tag" || reasonCode === "missing_content_warning")
+  ) {
+    try {
+      const { trackTaxonomyReportServer } = await import(
+        "@/lib/analytics/track-taxonomy-server"
+      );
+      await trackTaxonomyReportServer({
+        storyId: targetId,
+        reasonCode
+      });
+    } catch {
+      // Non-blocking analytics
+    }
+  }
 
   return {
     error: null,

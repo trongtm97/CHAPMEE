@@ -1,15 +1,29 @@
 import { createClient } from "@/lib/supabase/server";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
+import { getStoryUrl, getChapterUrl } from "@/lib/urls/paths";
 import { getStudioStoryGroups } from "@/lib/studio/get-studio-story-groups";
+import { paginateList, parseStudioPage } from "@/lib/studio/pagination";
+import {
+  computeCommentStats,
+  computeCommentTabCounts,
+  filterCommentsBySearch,
+  filterCommentsByTab,
+  hasActiveCommentFilters,
+  matchesCommentTimeFilter,
+  parseCommentPageSize,
+  sortStudioComments
+} from "@/lib/studio/comments-query";
 import type {
+  CommentListPageSize,
   StudioCommentFilter,
   StudioCommentInboxItem,
   StudioCommentInboxStatus,
-  StudioCommentsPageData
+  StudioCommentSort,
+  StudioCommentsPageData,
+  StudioCommentTimeFilter
 } from "@/types/comments";
 
-const INBOX_LIMIT = 80;
-const PER_SOURCE_LIMIT = 50;
+const PER_SOURCE_LIMIT = 80;
 
 type StoryCommentRow = {
   id: string;
@@ -33,12 +47,12 @@ type StoryCommentRow = {
       }[]
     | null;
   stories:
-    | { title: string; slug: string }
-    | { title: string; slug: string }[]
+    | { title: string; slug: string; public_code: string }
+    | { title: string; slug: string; public_code: string }[]
     | null;
   episodes:
-    | { episode_number: number; title: string | null }
-    | { episode_number: number; title: string | null }[]
+    | { slug: string; public_code: string; episode_number: number; title: string | null }
+    | { slug: string; public_code: string; episode_number: number; title: string | null }[]
     | null;
 };
 
@@ -82,12 +96,15 @@ function firstRelation<T>(relation: T | T[] | null | undefined) {
   return Array.isArray(relation) ? (relation[0] ?? null) : (relation ?? null);
 }
 
-function buildStoryContextHref(storySlug: string, episodeNumber: number | null) {
-  if (episodeNumber != null) {
-    return `/stories/${storySlug}/episodes/${episodeNumber}`;
+function buildStoryContextHref(
+  story: { slug: string; public_code: string },
+  episode: { slug: string; public_code: string } | null
+) {
+  if (episode) {
+    return getChapterUrl(story, episode);
   }
 
-  return `/stories/${storySlug}`;
+  return getStoryUrl(story);
 }
 
 function buildStoryContextLabel(
@@ -125,24 +142,7 @@ function resolveInboxStatus(options: {
   return "new";
 }
 
-export function normalizeStudioCommentFilter(
-  value: string | undefined
-): StudioCommentFilter {
-  const allowed: StudioCommentFilter[] = [
-    "all",
-    "unreplied",
-    "replied",
-    "pinned",
-    "reported",
-    "hidden"
-  ];
-
-  if (value && allowed.includes(value as StudioCommentFilter)) {
-    return value as StudioCommentFilter;
-  }
-
-  return "all";
-}
+export { normalizeStudioCommentFilter } from "@/lib/studio/comments-query";
 
 async function getOwnedCommunityPostIds(
   creatorProfile: CreatorProfile,
@@ -192,26 +192,39 @@ async function enrichCommentMeta(
 ) {
   const repliedSet = new Set<string>();
   const reportedSet = new Set<string>();
+  const replyCountById = new Map<string, number>();
+  const likeCountById = new Map<string, number>();
 
   if (commentIds.length === 0) {
-    return { repliedSet, reportedSet };
+    return { repliedSet, reportedSet, replyCountById, likeCountById };
   }
 
   const supabase = await createClient();
-  const [{ data: replies }, { data: reports }] = await Promise.all([
-    supabase
-      .from("comments")
-      .select("parent_id")
-      .in("parent_id", commentIds)
-      .eq("user_id", creatorUserId)
-      .neq("status", "deleted"),
-    supabase
-      .from("reports")
-      .select("target_id")
-      .eq("target_type", "comment")
-      .in("target_id", commentIds)
-      .in("status", ["pending", "reviewing", "open"])
-  ]);
+  const [{ data: replies }, { data: reports }, { data: childComments }, { data: reactions }] =
+    await Promise.all([
+      supabase
+        .from("comments")
+        .select("parent_id")
+        .in("parent_id", commentIds)
+        .eq("user_id", creatorUserId)
+        .neq("status", "deleted"),
+      supabase
+        .from("reports")
+        .select("target_id")
+        .eq("target_type", "comment")
+        .in("target_id", commentIds)
+        .in("status", ["pending", "reviewing", "open"]),
+      supabase
+        .from("comments")
+        .select("parent_id")
+        .in("parent_id", commentIds)
+        .neq("status", "deleted"),
+      supabase
+        .from("reactions")
+        .select("target_id")
+        .eq("target_type", "comment")
+        .in("target_id", commentIds)
+    ]);
 
   for (const reply of replies ?? []) {
     if (reply.parent_id) {
@@ -225,39 +238,25 @@ async function enrichCommentMeta(
     }
   }
 
-  return { repliedSet, reportedSet };
-}
-
-function applyFilters(
-  items: StudioCommentInboxItem[],
-  filter: StudioCommentFilter,
-  search: string
-) {
-  let filtered = items;
-
-  if (filter === "unreplied") {
-    filtered = filtered.filter((item) => item.status === "new" && !item.isHidden);
-  } else if (filter === "replied") {
-    filtered = filtered.filter((item) => item.status === "replied");
-  } else if (filter === "reported") {
-    filtered = filtered.filter((item) => item.hasOpenReport);
-  }
-
-  if (search) {
-    filtered = filtered.filter((item) => {
-      return (
-        item.content.toLowerCase().includes(search) ||
-        item.authorDisplayName?.toLowerCase().includes(search) ||
-        item.contextLabel.toLowerCase().includes(search) ||
-        item.storyTitle?.toLowerCase().includes(search) ||
-        item.communityPostTitle?.toLowerCase().includes(search)
+  for (const child of childComments ?? []) {
+    if (child.parent_id) {
+      replyCountById.set(
+        child.parent_id,
+        (replyCountById.get(child.parent_id) ?? 0) + 1
       );
-    });
+    }
   }
 
-  return filtered
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, INBOX_LIMIT);
+  for (const reaction of reactions ?? []) {
+    if (reaction.target_id) {
+      likeCountById.set(
+        reaction.target_id,
+        (likeCountById.get(reaction.target_id) ?? 0) + 1
+      );
+    }
+  }
+
+  return { repliedSet, reportedSet, replyCountById, likeCountById };
 }
 
 export async function getStudioComments(
@@ -267,9 +266,18 @@ export async function getStudioComments(
     filter?: StudioCommentFilter;
     storyId?: string;
     q?: string;
+    time?: StudioCommentTimeFilter;
+    sort?: StudioCommentSort;
+    page?: string;
+    pageSize?: CommentListPageSize;
   } = {}
 ): Promise<StudioCommentsPageData> {
   const filter = options.filter ?? "all";
+  const time = options.time ?? "all";
+  const sort = options.sort ?? "newest";
+  const page = parseStudioPage(options.page);
+  const pageSize = options.pageSize ?? parseCommentPageSize();
+  const search = options.q?.trim() ?? "";
   const supabase = await createClient();
 
   const { data: storyRows, error: storiesError } = await supabase
@@ -279,12 +287,7 @@ export async function getStudioComments(
     .order("title", { ascending: true });
 
   if (storiesError) {
-    return {
-      comments: [],
-      stories: [],
-      storyGroups: [],
-      error: storiesError.message
-    };
+    return emptyPageData(storiesError.message);
   }
 
   const stories = (storyRows ?? []).map((row) => ({
@@ -295,16 +298,37 @@ export async function getStudioComments(
   const storyIds = stories.map((row) => row.id);
 
   if (options.storyId && !storyIds.includes(options.storyId)) {
+    const storyGroups = await getStudioStoryGroups(creatorProfile);
     return {
       comments: [],
       stories,
-      storyGroups: await getStudioStoryGroups(creatorProfile),
+      storyGroups: storyGroups.slice(0, 5),
+      stats: { newRecent: 0, unreplied: 0, reported: 0, pinned: 0 },
+      tabCounts: {
+        all: 0,
+        unreplied: 0,
+        replied: 0,
+        pinned: 0,
+        reported: 0,
+        hidden: 0
+      },
+      filteredIds: [],
+      total: 0,
+      page: 1,
+      pageSize,
+      totalPages: 1,
+      hasActiveFilters: hasActiveCommentFilters({
+        filter,
+        q: search,
+        sort,
+        storyId: options.storyId,
+        time
+      }),
       error: null
     };
   }
 
   const scopedStoryIds = options.storyId ? [options.storyId] : storyIds;
-  const search = options.q?.trim().toLowerCase() ?? "";
   const items: StudioCommentInboxItem[] = [];
 
   if (scopedStoryIds.length > 0) {
@@ -322,8 +346,8 @@ export async function getStudioComments(
           story_id,
           episode_id,
           profiles(display_name, username, avatar_url),
-          stories!inner(title, slug),
-          episodes(episode_number, title)
+          stories!inner(title, slug, public_code),
+          episodes(slug, public_code, episode_number, title)
         `
         )
         .in("story_id", scopedStoryIds)
@@ -338,12 +362,12 @@ export async function getStudioComments(
 
       if (filter === "hidden") {
         storyQuery = storyQuery.eq("status", "hidden");
-      } else if (filter !== "all" && filter !== "reported") {
-        storyQuery = storyQuery.eq("status", "visible");
+      } else {
+        storyQuery = storyQuery.in("status", ["visible", "hidden", "pending"]);
       }
 
       if (filter === "pinned") {
-        storyQuery = storyQuery.eq("is_pinned", true);
+        storyQuery = storyQuery.eq("is_pinned", true).eq("status", "visible");
       }
 
       return storyQuery;
@@ -359,19 +383,15 @@ export async function getStudioComments(
     }
 
     if (storyCommentsError) {
-      return {
-        comments: [],
-        stories,
-        storyGroups: await getStudioStoryGroups(creatorProfile),
-        error: storyCommentsError.message
-      };
+      return emptyPageData(storyCommentsError.message, stories);
     }
 
     const rows = (storyCommentRows ?? []) as unknown as StoryCommentRow[];
-    const { repliedSet, reportedSet } = await enrichCommentMeta(
-      rows.map((row) => row.id),
-      creatorUserId
-    );
+    const { repliedSet, reportedSet, replyCountById, likeCountById } =
+      await enrichCommentMeta(
+        rows.map((row) => row.id),
+        creatorUserId
+      );
 
     for (const row of rows) {
       const profile = firstRelation(row.profiles);
@@ -393,6 +413,7 @@ export async function getStudioComments(
         isPinned: Boolean(row.is_pinned),
         isHidden,
         hasOpenReport,
+        hasAuthorReply,
         authorUserId: row.user_id,
         authorDisplayName: profile?.display_name ?? profile?.username ?? "Độc giả",
         authorAvatarUrl: profile?.avatar_url ?? null,
@@ -409,7 +430,17 @@ export async function getStudioComments(
           episodeNumber,
           episode?.title ?? null
         ),
-        contextHref: buildStoryContextHref(storySlug, episodeNumber)
+        contextHref:
+          story?.slug && story.public_code
+            ? buildStoryContextHref(
+                { slug: story.slug, public_code: story.public_code },
+                episode?.slug && episode.public_code
+                  ? { slug: episode.slug, public_code: episode.public_code }
+                  : null
+              )
+            : "#",
+        likeCount: likeCountById.get(row.id) ?? 0,
+        replyCount: replyCountById.get(row.id) ?? 0
       });
     }
   }
@@ -445,12 +476,12 @@ export async function getStudioComments(
 
     if (filter === "hidden") {
       communityQuery = communityQuery.eq("status", "hidden");
-    } else if (filter !== "all" && filter !== "reported") {
-      communityQuery = communityQuery.eq("status", "visible");
+    } else {
+      communityQuery = communityQuery.in("status", ["visible", "hidden", "pending"]);
     }
 
     if (filter === "pinned") {
-      communityQuery = communityQuery.eq("is_pinned", true);
+      communityQuery = communityQuery.eq("is_pinned", true).eq("status", "visible");
     }
 
     const { data: communityRows, error: communityError } = await communityQuery;
@@ -458,21 +489,17 @@ export async function getStudioComments(
     if (communityError) {
       const missingColumn = communityError.message.includes("community_post_id");
       if (!missingColumn) {
-        return {
-          comments: [],
-          stories,
-          storyGroups: await getStudioStoryGroups(creatorProfile),
-          error: communityError.message
-        };
+        return emptyPageData(communityError.message, stories);
       }
     } else {
       const rows = (communityRows ?? []) as unknown as CommunityCommentRow[];
       const existingIds = new Set(items.map((item) => item.id));
       const newRows = rows.filter((row) => !existingIds.has(row.id));
-      const { repliedSet, reportedSet } = await enrichCommentMeta(
-        newRows.map((row) => row.id),
-        creatorUserId
-      );
+      const { repliedSet, reportedSet, replyCountById, likeCountById } =
+        await enrichCommentMeta(
+          newRows.map((row) => row.id),
+          creatorUserId
+        );
 
       for (const row of newRows) {
         const profile = firstRelation(row.profiles);
@@ -497,6 +524,7 @@ export async function getStudioComments(
           isPinned: Boolean(row.is_pinned),
           isHidden,
           hasOpenReport,
+          hasAuthorReply,
           authorUserId: row.user_id,
           authorDisplayName:
             profile?.display_name ?? profile?.username ?? "Độc giả",
@@ -510,16 +538,82 @@ export async function getStudioComments(
           communityPostId: row.community_post_id,
           communityPostTitle: postTitle,
           contextLabel,
-          contextHref: `/community/${row.community_post_id}#comments`
+          contextHref: `/community/${row.community_post_id}#comments`,
+          likeCount: likeCountById.get(row.id) ?? 0,
+          replyCount: replyCountById.get(row.id) ?? 0
         });
       }
     }
   }
 
+  const tabCounts = computeCommentTabCounts(items);
+  const stats = computeCommentStats(items);
+
+  let filtered = filterCommentsByTab(items, filter);
+  filtered = filterCommentsBySearch(filtered, search);
+  filtered = filtered.filter((item) => matchesCommentTimeFilter(item.createdAt, time));
+  filtered = sortStudioComments(filtered, sort);
+
+  const { items: pageItems, total, totalPages, page: safePage } = paginateList(
+    filtered,
+    page,
+    pageSize
+  );
+
+  const storyGroups = await getStudioStoryGroups(creatorProfile);
+
   return {
-    comments: applyFilters(items, filter, search),
+    comments: pageItems,
     stories,
-    storyGroups: await getStudioStoryGroups(creatorProfile),
+    storyGroups: storyGroups.slice(0, 5),
+    stats,
+    tabCounts,
+    filteredIds: filtered.map((item) => item.id),
+    total,
+    page: safePage,
+    pageSize,
+    totalPages,
+    hasActiveFilters: hasActiveCommentFilters({
+      filter,
+      q: search,
+      sort,
+      storyId: options.storyId,
+      time
+    }),
     error: null
   };
 }
+
+function emptyPageData(
+  error: string,
+  stories: StudioCommentsPageData["stories"] = []
+): StudioCommentsPageData {
+  return {
+    comments: [],
+    stories,
+    storyGroups: [],
+    stats: { newRecent: 0, unreplied: 0, reported: 0, pinned: 0 },
+    tabCounts: {
+      all: 0,
+      unreplied: 0,
+      replied: 0,
+      pinned: 0,
+      reported: 0,
+      hidden: 0
+    },
+    filteredIds: [],
+    total: 0,
+    page: 1,
+    pageSize: parseCommentPageSize(),
+    totalPages: 1,
+    hasActiveFilters: false,
+    error
+  };
+}
+
+export {
+  normalizeStudioCommentSort,
+  normalizeStudioCommentTimeFilter,
+  parseCommentPageSize,
+  buildCommentsQuery
+} from "@/lib/studio/comments-query";

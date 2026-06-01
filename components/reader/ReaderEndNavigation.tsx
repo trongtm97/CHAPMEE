@@ -9,12 +9,8 @@ type ReaderEndNavigationProps = {
   analyticsContext: ReaderAnalyticsContext;
 };
 
-function episodeHref(slug: string, episodeNumber: number) {
-  return `/stories/${slug}/episodes/${episodeNumber}`;
-}
-
 export function ReaderEndNavigation({ analyticsContext, data }: ReaderEndNavigationProps) {
-  const storyHref = `/stories/${data.story.slug}`;
+  const storyHref = data.storyHref;
 
   return (
     <section className={`${readerSectionDivider} space-y-3`}>
@@ -22,7 +18,7 @@ export function ReaderEndNavigation({ analyticsContext, data }: ReaderEndNavigat
         <TrackedNextChapterLink
           className="tap-highlight flex min-h-11 w-full items-center justify-center rounded-full bg-cyan-300 px-5 text-sm font-bold text-zinc-950 shadow-[0_10px_24px_rgba(103,232,249,0.16)]"
           context={analyticsContext}
-          href={episodeHref(data.story.slug, data.nextEpisodeNumber)}
+          href={data.nextChapterHref ?? storyHref}
           nextEpisodeNumber={data.nextEpisodeNumber}
         >
           Đọc chương tiếp
@@ -49,7 +45,7 @@ export function ReaderEndNavigation({ analyticsContext, data }: ReaderEndNavigat
           <>
             <Link
               className="font-medium text-zinc-500 hover:text-zinc-200"
-              href={episodeHref(data.story.slug, data.previousEpisodeNumber)}
+              href={data.previousChapterHref ?? storyHref}
             >
               Chương trước
             </Link>

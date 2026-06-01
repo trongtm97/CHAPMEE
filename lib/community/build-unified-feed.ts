@@ -53,10 +53,10 @@ const highlightQuotes = [
 ];
 
 const defaultPollOptions: PollOption[] = [
-  { id: "a", label: "Kinh dị", votes: 24 },
-  { id: "b", label: "Drama", votes: 31 },
-  { id: "c", label: "Chữa lành", votes: 18 },
-  { id: "d", label: "Chat story", votes: 22 }
+  { id: "a", label: "Cuốn, đọc tiếp", votes: 24 },
+  { id: "b", label: "Hay nhưng chậm", votes: 31 },
+  { id: "c", label: "Muốn thử thêm", votes: 18 },
+  { id: "d", label: "Chưa hợp gu", votes: 22 }
 ];
 
 function pollOptionsForPost(postId: string): PollOption[] {
@@ -98,6 +98,7 @@ function baseItemFromPost(post: CommunityPost): Omit<CommunityFeedItem, "id" | "
 
   return {
     authorName: post.authorName ?? "Độc giả ChapMee",
+    authorUsername: post.authorUsername ?? null,
     authorRole,
     createdAt: post.createdAt,
     title: post.title,
@@ -189,6 +190,7 @@ export function buildFeedItemsFromPosts(
         id: `author-reply-${post.id}`,
         kind: "author_reply",
         authorName,
+        authorUsername: post.creatorUsername ?? null,
         authorRole: "creator",
         title: null,
         body:
@@ -213,6 +215,7 @@ export function buildFeedItemsFromPosts(
       id: `highlight-fallback-${group.storyId}`,
       kind: "story_comment_highlight",
       authorName: "Độc giả ChapMee",
+      authorUsername: null,
       authorRole: "reader",
       createdAt: new Date().toISOString(),
       title: null,
@@ -331,9 +334,12 @@ export function enrichCommunityPosts(
       title: post.title,
       contentPreview: post.contentPreview,
       authorName: base.authorName,
+      authorUsername: post.authorUsername ?? null,
+      creatorUsername: post.creatorUsername ?? null,
       authorRole: base.authorRole,
       relatedStoryTitle: post.relatedStoryTitle,
       relatedStorySlug: post.relatedStorySlug,
+      relatedStoryPublicCode: post.relatedStoryPublicCode ?? null,
       storyId: post.storyId,
       createdAt: post.createdAt,
       commentCount: post.commentCount,

@@ -22,7 +22,7 @@ export function CreatorStudioEntry({
                   Hồ sơ tác giả đã bật
                 </p>
                 <p className="mt-1 text-sm text-zinc-400">
-                  {creatorProfile.pen_name}
+                  {creatorProfile.display_name}
                 </p>
               </div>
               <Badge>{creatorProfile.status}</Badge>

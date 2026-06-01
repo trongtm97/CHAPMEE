@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { DiscoverAuthorLine } from "@/components/discover/DiscoverAuthorLine";
 import type { DiscoverStory } from "@/lib/discover/getDiscoverData";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 
 type UpdatedStoriesCompactListProps = {
   stories: DiscoverStory[];
@@ -32,18 +34,25 @@ export function UpdatedStoriesCompactList({ stories }: UpdatedStoriesCompactList
           <li key={story.id}>
             <Link
               className="flex items-center gap-2.5 rounded-xl px-2 py-2 transition hover:bg-white/[0.04]"
-              href={`/truyen/${story.slug}`}
+              href={getStoryDetailHref({
+                slug: story.slug,
+                public_code: story.publicCode
+              })}
             >
               <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-gradient-to-br from-cyan-300/30 to-indigo-500/30 text-sm font-black text-white">
                 {story.title.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="line-clamp-1 text-sm font-semibold text-zinc-100">{story.title}</p>
-                <p className="mt-0.5 truncate text-[11px] text-zinc-400">
-                  {story.creatorName ?? "Tác giả ChapMee"}
-                  <span className="text-zinc-600"> · </span>
-                  {story.genreName ?? "Truyện"}
-                </p>
+                <div className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[11px] text-zinc-400">
+                  <DiscoverAuthorLine
+                    className="min-w-0 truncate text-[11px] text-zinc-400"
+                    creatorName={story.creatorName}
+                    creatorUsername={story.creatorUsername}
+                  />
+                  <span className="shrink-0 text-zinc-600">·</span>
+                  <span className="truncate">{story.genreName ?? "Truyện"}</span>
+                </div>
               </div>
               <span className="shrink-0 text-[10px] font-semibold text-zinc-500">{formatUpdated(story.publishedAt)}</span>
             </Link>

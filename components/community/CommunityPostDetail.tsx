@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { CommunityPollCard } from "@/components/community/CommunityPollCard";
 import { CommunityPostMenu } from "@/components/community/CommunityPostMenu";
 import { SpoilerContent } from "@/components/community/SpoilerContent";
-import { VerifiedName } from "@/components/profile/VerifiedBadge";
+import { AuthorNameLink } from "@/components/profile/AuthorNameLink";
 import { AvatarFallback, Badge } from "@/components/ui";
 import { createCommunityPostCommentAction } from "@/lib/comments/community-post-comment-actions";
 import type { CommentView } from "@/lib/comments/getComments";
@@ -55,7 +56,12 @@ export function CommunityPostDetail({
         <header className="flex items-start gap-3">
           <AvatarFallback name={enriched.authorName} size="sm" />
           <div className="min-w-0 flex-1">
-            <p className="font-bold text-white">{enriched.authorName}</p>
+            <p className="font-bold text-white">
+              <AuthorNameLink
+                name={enriched.authorName}
+                username={enriched.authorUsername}
+              />
+            </p>
             <p className="text-xs text-zinc-500">
               {new Date(enriched.createdAt).toLocaleString("vi-VN")}
             </p>
@@ -63,10 +69,15 @@ export function CommunityPostDetail({
           <CommunityPostMenu postId={enriched.id} />
         </header>
 
-        {enriched.relatedStoryTitle && enriched.relatedStorySlug ? (
+        {enriched.relatedStoryTitle &&
+        enriched.relatedStorySlug &&
+        enriched.relatedStoryPublicCode ? (
           <Link
             className="inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/8 px-2.5 py-1 text-xs font-semibold text-cyan-100"
-            href={`/stories/${enriched.relatedStorySlug}`}
+            href={getStoryDetailHref({
+              slug: enriched.relatedStorySlug,
+              public_code: enriched.relatedStoryPublicCode
+            })}
           >
             {enriched.relatedStoryTitle}
           </Link>
@@ -167,9 +178,10 @@ function CommentRow({ comment }: { comment: CommentView }) {
           <AvatarFallback name={comment.displayName ?? "Độc giả"} size="sm" />
           <div>
             <p className="text-sm font-bold text-white">
-              <VerifiedName
+              <AuthorNameLink
                 badge={comment.verification}
                 name={comment.displayName ?? "Độc giả"}
+                username={comment.username}
               />
             </p>
             {comment.isVip ? (

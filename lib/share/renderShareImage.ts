@@ -1,11 +1,16 @@
 import { BRAND_NAME } from "@/lib/brand/constants";
+import {
+  isReelsShareKind,
+  REELS_SHARE_CTA_LABEL,
+  REELS_SHARE_IMAGE_KICKER
+} from "@/lib/routes/reels-paths";
 import type { ShareCardPayload } from "@/types/share";
 
 const IMAGE_WIDTH = 1080;
 const IMAGE_HEIGHT = 1920;
 
 function getPalette(kind: ShareCardPayload["kind"]) {
-  if (kind === "swipe") {
+  if (isReelsShareKind(kind)) {
     return ["#04070d", "#0f1724", "#181f2f"];
   }
 
@@ -156,8 +161,8 @@ export async function exportCardToImage(payload: ShareCardPayload) {
   context.fillStyle = "rgba(255, 255, 255, 0.78)";
   context.font = "600 28px Arial, sans-serif";
   context.fillText(
-    payload.kind === "swipe"
-      ? "LƯỚT TRUYỆN"
+    isReelsShareKind(payload.kind)
+      ? REELS_SHARE_IMAGE_KICKER
       : payload.kind === "profile"
         ? "HỒ SƠ"
         : "THÀNH TÍCH",
@@ -169,7 +174,7 @@ export async function exportCardToImage(payload: ShareCardPayload) {
   context.font = "900 72px Arial, sans-serif";
   const titleMaxWidth = 912;
   const titleLines = wrapText(context, payload.title, titleMaxWidth).slice(0, 3);
-  let cursorY = payload.kind === "swipe" ? 940 : 900;
+  let cursorY = isReelsShareKind(payload.kind) ? 940 : 900;
   for (const line of titleLines) {
     context.fillText(line, 84, cursorY);
     cursorY += 82;
@@ -189,14 +194,14 @@ export async function exportCardToImage(payload: ShareCardPayload) {
   }
 
   const bodyText =
-    payload.kind === "swipe"
+    isReelsShareKind(payload.kind)
       ? payload.excerpt ?? payload.text
       : payload.hook ?? payload.text;
   if (bodyText) {
     context.fillStyle = "rgba(246, 250, 255, 0.94)";
     context.font = "500 40px Arial, sans-serif";
     const lines = wrapText(context, bodyText, 912).slice(0, 6);
-    let textY = payload.kind === "swipe" ? 1090 : 1040;
+    let textY = isReelsShareKind(payload.kind) ? 1090 : 1040;
     for (const line of lines) {
       context.fillText(line, 84, textY);
       textY += 56;
@@ -219,8 +224,8 @@ export async function exportCardToImage(payload: ShareCardPayload) {
   context.font = "700 28px Arial, sans-serif";
   const cta =
     payload.ctaLabel ??
-    (payload.kind === "swipe"
-      ? `Lướt truyện này trên ${BRAND_NAME}`
+    (isReelsShareKind(payload.kind)
+      ? REELS_SHARE_CTA_LABEL
       : `Đọc tiếp trên ${BRAND_NAME}`);
   context.fillText(cta, 84, 1820);
 

@@ -7,11 +7,11 @@ import { createExcerpt } from "@/lib/text/createExcerpt";
 
 export const SITE_NAME = BRAND_NAME;
 
-/** Title mặc định trang chủ / root layout. */
+/** Title mặc định root layout / Reels. */
 export const DEFAULT_SITE_TITLE = `${BRAND_NAME} - Nền tảng giải trí truyện thế hệ mới`;
 
 /** Meta description mặc định (OG, Twitter, fallback trang). */
-export const DEFAULT_SITE_DESCRIPTION = `${BRAND_NAME} là nền tảng đọc, viết và khám phá truyện theo phong cách hiện đại, kết hợp Swipe, cộng đồng và công cụ Studio cho tác giả.`;
+export const DEFAULT_SITE_DESCRIPTION = `${BRAND_NAME} là nền tảng đọc, viết và khám phá truyện theo phong cách hiện đại, kết hợp Reels, cộng đồng và công cụ Studio cho tác giả.`;
 
 /** Mô tả ngắn cho PWA manifest. */
 export const PWA_MANIFEST_DESCRIPTION = `Đọc, viết và khám phá truyện trên ${BRAND_NAME}.`;
@@ -108,8 +108,8 @@ export function buildEpisodeDescription(data: EpisodeReaderData) {
   );
 }
 
-export function buildAuthorDescription(input: { penName: string; bio?: string | null }) {
-  return trimDescription(joinDescription(input.bio, `Khám phá ${input.penName} trên ChapMee.`));
+export function buildAuthorDescription(input: { displayName: string; bio?: string | null }) {
+  return trimDescription(joinDescription(input.bio, `Khám phá ${input.displayName} trên ChapMee.`));
 }
 
 export function buildDefaultMetadata(): Metadata {
@@ -149,6 +149,28 @@ export function buildDefaultMetadata(): Metadata {
 export function buildCanonicalUrl(pathname: string) {
   return toAbsoluteUrl(pathname) ?? undefined;
 }
+
+export function buildPageTitle(baseTitle: string, suffix = SITE_NAME) {
+  const title = cleanText(baseTitle);
+  if (!title) {
+    return suffix;
+  }
+
+  if (title.toLowerCase().includes(suffix.toLowerCase())) {
+    return title;
+  }
+
+  return `${title} | ${suffix}`;
+}
+
+export function buildMetaDescription(
+  input: string | null | undefined,
+  fallback?: string | null
+) {
+  return trimDescription(cleanText(input) || cleanText(fallback) || DEFAULT_DESCRIPTION);
+}
+
+export { buildRobotsMeta } from "@/lib/seo/noindex";
 
 export function getDefaultOgImage() {
   return DEFAULT_OG_IMAGE;

@@ -12,7 +12,6 @@ type StoryRow = {
   hook: string | null;
   short_description: string | null;
   long_description: string | null;
-  genre_id: string | null;
 };
 
 type EpisodeRow = {
@@ -161,7 +160,11 @@ async function fetchReadingSignals(supabase: SupabaseClient, storyId: string) {
   };
 }
 
-function completenessForStory(story: StoryRow, config: ContentQualityConfig) {
+function completenessForStory(
+  story: StoryRow,
+  config: ContentQualityConfig,
+  hasMainGenre: boolean
+) {
   const issues: string[] = [];
   const description =
     story.short_description?.trim() ||
@@ -179,8 +182,8 @@ function completenessForStory(story: StoryRow, config: ContentQualityConfig) {
     issues.push("Mô tả quá ngắn");
   }
 
-  if (!story.genre_id) {
-    issues.push("Chưa chọn danh mục");
+  if (!hasMainGenre) {
+    issues.push("Chưa chọn thể loại");
   }
 
   return issues;
@@ -234,14 +237,25 @@ export async function calculateQualitySignals(input: {
   let completenessIssues: string[] = [];
 
   if (input.targetType === "story") {
-    const { data: story } = await input.supabase
-      .from("stories")
-      .select("id, title, hook, short_description, long_description, genre_id")
-      .eq("id", input.storyId)
-      .maybeSingle();
+    const [{ data: story }, { count: mainGenreCount }] = await Promise.all([
+      input.supabase
+        .from("stories")
+        .select("id, title, hook, short_description, long_description")
+        .eq("id", input.storyId)
+        .maybeSingle(),
+      input.supabase
+        .from("story_taxonomy_terms")
+        .select("id", { count: "exact", head: true })
+        .eq("story_id", input.storyId)
+        .eq("type", "main_genre")
+    ]);
 
     if (story) {
-      completenessIssues = completenessForStory(story as StoryRow, config);
+      completenessIssues = completenessForStory(
+        story as StoryRow,
+        config,
+        (mainGenreCount ?? 0) > 0
+      );
     }
   } else {
     const { data: episode } = await input.supabase

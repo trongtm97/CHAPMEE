@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   CheckoutPlatform,
   CheckoutSession,
@@ -6,6 +6,7 @@ import type {
   PaymentChannel,
   PaymentProviderKey
 } from "@/types/payment";
+import type { TopupPackagePaymentSnapshot } from "@/types/topup-package";
 
 function toNumber(value: unknown) {
   const parsed = typeof value === "number" ? value : Number(value);
@@ -45,6 +46,8 @@ function mapCheckoutSession(row: Record<string, unknown>): CheckoutSession {
     transfer_content: (row.transfer_content as string | null) ?? null,
     qr_url: (row.qr_url as string | null) ?? null,
     provider_payload: (row.provider_payload as Record<string, unknown> | null) ?? null,
+    package_snapshot_json:
+      (row.package_snapshot_json as TopupPackagePaymentSnapshot | null) ?? null,
     expires_at: (row.expires_at as string | null) ?? null,
     paid_at: (row.paid_at as string | null) ?? null,
     created_at: String(row.created_at),
@@ -71,9 +74,10 @@ export async function createCheckoutSessionRecord(input: {
   transferContent?: string | null;
   qrUrl?: string | null;
   providerPayload?: Record<string, unknown>;
+  packageSnapshotJson?: TopupPackagePaymentSnapshot | null;
   expiresAt?: string | null;
 }) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("checkout_sessions")
     .insert({
@@ -98,6 +102,7 @@ export async function createCheckoutSessionRecord(input: {
       transfer_content: input.transferContent ?? null,
       qr_url: input.qrUrl ?? null,
       provider_payload: input.providerPayload ?? {},
+      package_snapshot_json: input.packageSnapshotJson ?? null,
       expires_at: input.expiresAt ?? null
     })
     .select("*")
@@ -114,7 +119,7 @@ export async function createCheckoutSessionRecord(input: {
 }
 
 export async function getCheckoutSessionById(sessionId: string) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("checkout_sessions")
     .select("*")
@@ -129,7 +134,7 @@ export async function getCheckoutSessionById(sessionId: string) {
 }
 
 export async function getCheckoutSessionByProviderReference(providerReference: string) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("checkout_sessions")
     .select("*")
@@ -151,7 +156,7 @@ export async function findGooglePlayCheckoutByPurchaseKeys(input: {
   orderId?: string | null;
   productId: string;
 }) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("checkout_sessions")
     .select("*")
@@ -200,7 +205,7 @@ export async function listCheckoutSessionsForAdmin(
     userId?: string;
   }
 ) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   let query = supabase
     .from("checkout_sessions")
     .select("*")
@@ -223,7 +228,7 @@ export async function listCheckoutSessionsForAdmin(
 }
 
 export async function listCheckoutSessionsForUser(userId: string, limit = 20) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("checkout_sessions")
     .select("*")
@@ -252,7 +257,7 @@ export async function updateCheckoutSessionStatus(input: {
   transferContent?: string | null;
   qrUrl?: string | null;
 }) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("checkout_sessions")
     .update({

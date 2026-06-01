@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Button, Card, ErrorState, SectionHeader } from "@/components/ui";
+import { Card, ErrorState, SectionHeader } from "@/components/ui";
+import { TopupPackageList } from "@/components/coin/TopupPackageList";
 import { WalletPageHeader } from "@/components/wallet/WalletPageHeader";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { getSePayConfig, maskAccountNumber } from "@/lib/payments/sepay-config";
+import { getSePayRuntimeConfig, maskAccountNumber } from "@/lib/payments/sepay-config";
 import { createCheckoutForCurrentUserAction } from "@/lib/payments/actions";
-import { getActiveCoinPacks } from "@/lib/supabase/coin-packs";
+import { getActiveTopupPackages } from "@/lib/topup-packages/read";
 import { listCheckoutSessionsForUser } from "@/lib/supabase/checkout-sessions";
 import { getEnabledPaymentProviderSettings } from "@/lib/supabase/payment-provider-settings";
 import { UserCoinWalletHistory } from "@/components/wallet/UserCoinWalletPage";
@@ -76,13 +77,13 @@ export default async function WalletPage() {
     );
   }
 
-  const [walletResult, packs, providers, checkoutSessions] = await Promise.all([
+  const [walletResult, packagesResult, providers, checkoutSessions] = await Promise.all([
     getOrCreateUserWallet(user.id),
-    getActiveCoinPacks(),
+    getActiveTopupPackages(),
     getEnabledPaymentProviderSettings(),
     listCheckoutSessionsForUser(user.id, 12)
   ]);
-  const sepay = getSePayConfig();
+  const sepay = await getSePayRuntimeConfig();
   const sepayEnabledByFlags = Boolean(settings["payments.provider_sepay_enabled"]);
   const sepayProvider = providers.data.find(
     (provider) => provider.provider_key === "sepay" && provider.enabled
@@ -104,9 +105,9 @@ export default async function WalletPage() {
         </p>
       </div>
 
-      {walletResult.error || packs.error || providers.error ? (
+      {walletResult.error || packagesResult.error || providers.error ? (
         <ErrorState
-          message={walletResult.error ?? packs.error ?? providers.error}
+          message={walletResult.error ?? packagesResult.error ?? providers.error}
           title="Could not load wallet data"
         />
       ) : null}
@@ -141,34 +142,20 @@ export default async function WalletPage() {
       ) : null}
 
       <Card className="space-y-4">
-        <SectionHeader subtitle="Chon pack coin va tao checkout." title="Coin packs" />
+        <SectionHeader
+          subtitle="Chọn gói nạp từ cấu hình admin. Không nhập số tiền tùy ý."
+          title="Gói nạp Coin"
+        />
         {purchasePolicy.showSePayTopUp ? (
-          packs.data.length === 0 ? (
-            <p className="text-sm text-zinc-400">Chua co coin pack active.</p>
-          ) : (
-            <div className="grid gap-3 lg:grid-cols-2">
-              {packs.data.map((pack) => (
-                <form
-                  action={submitCheckout}
-                  className="space-y-2 rounded-xl border border-white/10 p-4"
-                  key={pack.id}
-                >
-                  <input name="coin_pack_id" type="hidden" value={pack.id} />
-                  <input name="provider" type="hidden" value="sepay" />
-                  <p className="text-base font-black text-white">{pack.name}</p>
-                  <p className="text-sm text-zinc-300">
-                    Tong {pack.total_coin_amount.toLocaleString("vi-VN")} coin
-                  </p>
-                  <p className="text-sm text-zinc-300">
-                    {pack.price_vnd.toLocaleString("vi-VN")} VND
-                  </p>
-                  <Button disabled={!canUseSePay} type="submit">
-                    Nap coin
-                  </Button>
-                </form>
-              ))}
-            </div>
-          )
+          <TopupPackageList
+            canSubmit={canUseSePay}
+            disabledReason={
+              canUseSePay ? null : "SePay chưa sẵn sàng. Kiểm tra env + provider settings."
+            }
+            formAction={submitCheckout}
+            packages={packagesResult.data}
+            submitLabel="Nạp coin"
+          />
         ) : purchasePolicy.showStoreBilling ? (
           <p className="text-sm text-zinc-300">
             Nap coin se duoc xu ly qua in-app billing tren cua hang ung dung.

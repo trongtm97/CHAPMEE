@@ -29,7 +29,7 @@ export function StudioOverview({ basePath = "/studio", data }: StudioOverviewPro
                 Tổng quan
               </p>
               <h2 className="mt-2 text-3xl font-black tracking-normal text-white">
-                Chào mừng, {formatGreetingName(data.creatorProfile.pen_name)}
+                Chào mừng, {formatGreetingName(data.creatorProfile.display_name)}
               </h2>
               <p className="mt-2 max-w-3xl text-sm leading-7 text-zinc-400">
                 Studio này giữ mọi thứ ở một nơi: truyện đang viết, chap chờ

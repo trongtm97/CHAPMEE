@@ -5,6 +5,7 @@ import {
   getStoryPlaceholderInitial
 } from "@/lib/images/placeholders";
 import { Card, EmptyState, SectionHeader } from "@/components/ui";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import type { ProfileStoryItem } from "@/types/profile";
 
 type BookshelfPreviewProps = {
@@ -37,7 +38,13 @@ export function BookshelfPreview({
             const cover = getStoryImageForUsage(item, "libraryCard");
 
             return (
-            <Link href={`/stories/${item.slug}`} key={item.id}>
+            <Link
+              href={getStoryDetailHref({
+                slug: item.slug,
+                public_code: item.publicCode
+              })}
+              key={item.id}
+            >
               <Card className="p-3 transition hover:border-cyan-300/25 hover:bg-white/[0.05]">
                 <div className="grid grid-cols-[4.5rem_1fr] gap-3">
                   <div className="relative aspect-[2/3] overflow-hidden rounded-[1rem] border border-white/10 bg-[linear-gradient(135deg,rgba(103,232,249,0.18),rgba(17,24,39,0.95))]">

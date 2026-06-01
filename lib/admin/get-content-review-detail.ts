@@ -1,5 +1,6 @@
 "use server";
 
+import { ADMIN_CREATOR_JOIN, resolveAdminCreatorName } from "@/lib/admin/creator-display";
 import { createClient } from "@/lib/supabase/server";
 import type { ContentReviewDetail, ContentReviewQueueItem } from "@/types/admin-content-review";
 
@@ -44,7 +45,7 @@ export async function getContentReviewDetail(
       const { data, error } = await supabase
         .from("stories")
         .select(
-          "id, title, slug, hook, short_description, long_description, cover_url, visibility, status, genres(name), creator_profiles(pen_name, user_id, profiles(username, display_name, is_verified))"
+          `id, title, slug, hook, short_description, long_description, cover_url, visibility, status, ${ADMIN_CREATOR_JOIN}`
         )
         .eq("id", item.id)
         .maybeSingle();
@@ -54,7 +55,6 @@ export async function getContentReviewDetail(
       }
 
       const creator = firstRelation<{
-        pen_name: string | null;
         user_id: string;
         profiles: {
           username: string | null;
@@ -72,7 +72,8 @@ export async function getContentReviewDetail(
       const detail: ContentReviewDetail = {
         item: {
           ...item,
-          creatorName: creator?.pen_name ?? profile?.display_name ?? item.creatorName,
+          creatorName:
+            resolveAdminCreatorName(creator) ?? item.creatorName,
           creatorUsername: profile?.username ?? item.creatorUsername
         },
         hook: data.hook as string | null,

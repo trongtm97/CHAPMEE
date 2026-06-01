@@ -8,6 +8,8 @@ import {
   getStoryPlaceholderInitial
 } from "@/lib/images/placeholders";
 import { EmptyState } from "@/components/ui";
+import { getStoryCardMeta } from "@/lib/stories/story-structure";
+import { getStoryChapterHref, getStoryDetailHref } from "@/lib/stories/story-routes";
 import type {
   PublicCreatorFeaturedEpisode,
   PublicCreatorStory
@@ -103,10 +105,23 @@ export function CreatorStoriesGrid({
 
       {tab === "stories" ? (
         <div className="grid grid-cols-1 gap-4">
-          {stories.map((story) => (
+          {stories.map((story) => {
+            const cardMeta = getStoryCardMeta({
+              structureType: story.structureType,
+              standaloneReadingTimeMinutes: story.standaloneReadingTimeMinutes,
+              episodeCount: story.episodeCount
+            });
+            const metaLine = cardMeta.secondaryLabel
+              ? `${cardMeta.primaryLabel} · ${cardMeta.secondaryLabel}`
+              : cardMeta.primaryLabel;
+
+            return (
             <Link
               className="rounded-[1.6rem] border border-white/10 bg-white/[0.04] p-3 transition hover:border-cyan-300/35 hover:bg-white/[0.06]"
-              href={`/stories/${story.slug}`}
+              href={getStoryDetailHref({
+                slug: story.slug,
+                public_code: story.publicCode
+              })}
               key={story.id}
             >
               <div className="grid grid-cols-[6.5rem,1fr] gap-3">
@@ -117,7 +132,7 @@ export function CreatorStoriesGrid({
                       {story.genreName ?? "ChapMee"}
                     </span>
                     <span className="text-[0.72rem] font-medium text-zinc-400">
-                      {story.episodeCount} chap
+                      {metaLine}
                     </span>
                   </div>
                   <h2 className="mt-3 text-lg font-black leading-6 text-white">
@@ -131,7 +146,8 @@ export function CreatorStoriesGrid({
                 </div>
               </div>
             </Link>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <section className="space-y-3">
@@ -145,7 +161,16 @@ export function CreatorStoriesGrid({
             {featuredEpisodes.map((episode) => (
               <Link
                 className="block rounded-[1.35rem] border border-white/10 bg-white/[0.04] p-4 transition hover:border-cyan-300/35 hover:bg-white/[0.06]"
-                href={`/stories/${episode.storySlug}/episodes/${episode.episodeNumber}`}
+                href={getStoryChapterHref(
+                  {
+                    slug: episode.storySlug,
+                    public_code: episode.storyPublicCode
+                  },
+                  {
+                    slug: episode.episodeSlug,
+                    public_code: episode.episodePublicCode
+                  }
+                )}
                 key={episode.id}
               >
                 <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-cyan-200">

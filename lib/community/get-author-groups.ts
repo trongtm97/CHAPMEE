@@ -77,6 +77,7 @@ export async function getAuthorGroups(): Promise<{
       return {
         id: `author-group-${row.id}`,
         authorId: row.id,
+        authorUsername: profile?.username?.trim().toLowerCase() ?? null,
         name,
         avatarUrl: profile?.avatar_url ?? null,
         storyCount,

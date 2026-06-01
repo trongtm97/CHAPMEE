@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { revalidatePublicProfilePaths } from "@/lib/profile/revalidate-public-profile";
+import { registerStorageAsset, unlinkStorageAssetFromEntity } from "@/lib/storage/asset-service";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -62,11 +64,29 @@ export async function uploadAvatarAction(dataUrl: string): Promise<UploadAvatarR
 
   const { data: publicData } = supabase.storage.from("avatars").getPublicUrl(filePath);
   const avatarUrl = publicData.publicUrl;
+  await registerStorageAsset(supabase, {
+    bucket: "avatars",
+    isOriginal: true,
+    isPublic: true,
+    linkedEntityId: user.id,
+    linkedEntityType: "profile",
+    linkedField: "avatar_url",
+    metadata: { module: "avatar" },
+    mimeType: parsed.mimeType,
+    ownerId: user.id,
+    path: filePath,
+    publicUrl: avatarUrl,
+    sizeBytes: parsed.buffer.byteLength,
+    extension: parsed.extension,
+    usageType: "avatar"
+  });
 
-  const { error: profileError } = await supabase
+  const { data: profileRow, error: profileError } = await supabase
     .from("profiles")
     .update({ avatar_url: avatarUrl })
-    .eq("id", user.id);
+    .eq("id", user.id)
+    .select("username")
+    .maybeSingle();
 
   if (profileError) {
     return { error: profileError.message, avatarUrl: null };
@@ -74,7 +94,53 @@ export async function uploadAvatarAction(dataUrl: string): Promise<UploadAvatarR
 
   revalidatePath("/me");
   revalidatePath("/me/settings");
-  revalidatePath(`/me/${user.id}`);
+  revalidatePath("/studio/settings");
+  revalidatePublicProfilePaths(profileRow?.username, { userId: user.id });
 
   return { error: null, avatarUrl };
+}
+
+export async function clearAvatarAction(): Promise<UploadAvatarResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: userError
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    redirect("/login?next=/studio/settings");
+  }
+
+  const { data: currentProfile } = await supabase
+    .from("profiles")
+    .select("avatar_url")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const { data: profileRow, error: profileError } = await supabase
+    .from("profiles")
+    .update({ avatar_url: null })
+    .eq("id", user.id)
+    .select("username")
+    .maybeSingle();
+
+  if (profileError) {
+    return { error: profileError.message, avatarUrl: null };
+  }
+
+  if (currentProfile?.avatar_url) {
+    await unlinkStorageAssetFromEntity(supabase, {
+      entityId: user.id,
+      entityType: "profile",
+      field: "avatar_url",
+      publicUrl: currentProfile.avatar_url
+    });
+  }
+
+  revalidatePath("/me");
+  revalidatePath("/me/settings");
+  revalidatePath("/studio/settings");
+  revalidatePublicProfilePaths(profileRow?.username, { userId: user.id });
+
+  return { error: null, avatarUrl: null };
 }

@@ -77,15 +77,20 @@ export function buildContextLine(item: CommunityFeedItem): string | null {
   return null;
 }
 
-export function headerMetaLine(item: CommunityFeedItem) {
-  const role =
-    item.authorRole === "creator"
-      ? roleLabel.creator
-      : item.authorRole === "mod"
-        ? roleLabel.mod
-        : roleLabel.reader;
+function authorRoleLabel(item: CommunityFeedItem) {
+  return item.authorRole === "creator"
+    ? roleLabel.creator
+    : item.authorRole === "mod"
+      ? roleLabel.mod
+      : roleLabel.reader;
+}
 
-  return `${item.authorName} · ${role} · ${formatRelativeTime(item.createdAt)}`;
+export function authorMetaSuffix(item: CommunityFeedItem) {
+  return `${authorRoleLabel(item)} · ${formatRelativeTime(item.createdAt)}`;
+}
+
+export function headerMetaLine(item: CommunityFeedItem) {
+  return `${item.authorName} · ${authorMetaSuffix(item)}`;
 }
 
 export function shouldShowSecondaryComment(item: CommunityFeedItem) {

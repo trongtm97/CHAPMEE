@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { Card, EmptyState, SectionHeader } from "@/components/ui";
+import { getStoryCardMeta } from "@/lib/stories/story-structure";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import type { PublicCreatorStory } from "@/lib/creators/getPublicCreatorProfile";
 
 type CreatorStoryListProps = {
@@ -12,12 +14,28 @@ export function CreatorStoryList({ stories }: CreatorStoryListProps) {
       <SectionHeader title="Truyện công khai" />
       {stories.length ? (
         <div className="space-y-3">
-          {stories.map((story) => (
-            <Link href={`/stories/${story.slug}`} key={story.id}>
+          {stories.map((story) => {
+            const cardMeta = getStoryCardMeta({
+              structureType: story.structureType,
+              standaloneReadingTimeMinutes: story.standaloneReadingTimeMinutes,
+              episodeCount: story.episodeCount
+            });
+            const metaLine = cardMeta.secondaryLabel
+              ? `${cardMeta.primaryLabel} · ${cardMeta.secondaryLabel}`
+              : cardMeta.primaryLabel;
+
+            return (
+            <Link
+              href={getStoryDetailHref({
+                slug: story.slug,
+                public_code: story.publicCode
+              })}
+              key={story.id}
+            >
               <Card className="space-y-3 transition hover:border-cyan-300/60 hover:bg-zinc-800">
                 <div>
                   <p className="text-sm text-zinc-400">
-                    {story.genreName ?? "ChapMee"} · {story.episodeCount} chap
+                    {story.genreName ?? "ChapMee"} · {metaLine}
                   </p>
                   <h2 className="mt-1 text-lg font-semibold text-white">
                     {story.title}
@@ -33,7 +51,8 @@ export function CreatorStoryList({ stories }: CreatorStoryListProps) {
                 </span>
               </Card>
             </Link>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <EmptyState

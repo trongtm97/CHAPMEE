@@ -1,14 +1,20 @@
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
 import type { StoryCatalogSort, StoryCatalogStatus } from "@/types/story";
+import {
+  CATALOG_PAGE_SIZES,
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+  MIN_PAGE_SIZE
+} from "@/lib/shared/pagination";
 
-export const CATALOG_STORY_SELECT =
-  "id, title, slug, hook, short_description, cover_url, published_at, is_completed, creator_profiles(pen_name), genres(name, slug)";
+export const CATALOG_STORY_SELECT = `id, title, slug, public_code, hook, short_description, cover_url, published_at, is_completed, structure_type, standalone_reading_time_minutes, ${CREATOR_PROFILE_STORY_JOIN}`;
 
-export const CATALOG_STORY_ID_SELECT = "id, hook, title, short_description, is_completed, genres(slug)";
+export const CATALOG_STORY_ID_SELECT =
+  "id, hook, title, short_description, is_completed";
 
-export const DEFAULT_CATALOG_PAGE_SIZE = 20;
-export const DESKTOP_CATALOG_PAGE_SIZE = 24;
-export const MIN_CATALOG_PAGE_SIZE = 10;
-export const MAX_CATALOG_PAGE_SIZE = 30;
+export const DEFAULT_CATALOG_PAGE_SIZE = DEFAULT_PAGE_SIZE;
+export const DESKTOP_CATALOG_PAGE_SIZE = 40;
+export { CATALOG_PAGE_SIZES, MAX_PAGE_SIZE, MIN_PAGE_SIZE };
 export const RANKING_CATALOG_LIMIT = 2000;
 
 export type NormalizedCatalogParams = {
@@ -32,7 +38,11 @@ export function clampPageSize(pageSize: number) {
   if (!Number.isFinite(pageSize)) {
     return DEFAULT_CATALOG_PAGE_SIZE;
   }
-  return Math.min(Math.max(Math.floor(pageSize), MIN_CATALOG_PAGE_SIZE), MAX_CATALOG_PAGE_SIZE);
+  const value = Math.floor(pageSize);
+  if (CATALOG_PAGE_SIZES.includes(value as (typeof CATALOG_PAGE_SIZES)[number])) {
+    return value;
+  }
+  return Math.min(Math.max(value, MIN_PAGE_SIZE), MAX_PAGE_SIZE);
 }
 
 export function getCatalogOffset(page: number, pageSize: number) {
@@ -48,6 +58,17 @@ export function getTotalPages(totalCount: number, pageSize: number) {
 
 export function isScoreSortedCatalog(sort: StoryCatalogSort) {
   return sort === "hot" || sort === "reads";
+}
+
+export function isMetricSortedCatalog(sort: StoryCatalogSort) {
+  return (
+    sort === "saved" ||
+    sort === "chapters" ||
+    sort === "price_asc" ||
+    sort === "price_desc" ||
+    sort === "chapter_price_asc" ||
+    sort === "chapter_price_desc"
+  );
 }
 
 export function formatCatalogCount(total: number) {

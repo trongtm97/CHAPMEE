@@ -1,18 +1,26 @@
-import Link from "next/link";
 import { StudioCommentsPage } from "@/components/studio/StudioCommentsPage";
-import { ErrorState, SectionHeader } from "@/components/ui";
+import { ErrorState } from "@/components/ui";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getStudioAccess } from "@/lib/creator/getStudioAccess";
 import {
+  buildCommentsQuery,
   getStudioComments,
-  normalizeStudioCommentFilter
+  normalizeStudioCommentFilter,
+  normalizeStudioCommentSort,
+  normalizeStudioCommentTimeFilter,
+  parseCommentPageSize
 } from "@/lib/studio/get-studio-comments";
+import { studioPath } from "@/lib/studio/constants";
 
 type StudioCommentsRouteProps = {
   searchParams: Promise<{
     filter?: string;
     story?: string;
     q?: string;
+    time?: string;
+    sort?: string;
+    page?: string;
+    size?: string;
   }>;
 };
 
@@ -22,14 +30,20 @@ export default async function StudioCommentsRoute({
   searchParams
 }: StudioCommentsRouteProps) {
   const params = await searchParams;
+  const basePath = studioPath("/comments");
   const activeFilter = normalizeStudioCommentFilter(params.filter);
-  const { creatorProfile, error } = await getStudioAccess("/studio/comments");
+  const activeTime = normalizeStudioCommentTimeFilter(params.time);
+  const activeSort = normalizeStudioCommentSort(params.sort);
+  const activePageSize = parseCommentPageSize(params.size);
+  const search = (params.q ?? "").trim();
+
+  const { creatorProfile, error } = await getStudioAccess(basePath);
   const { profile } = await getCurrentUser();
 
   if (error || !creatorProfile || !profile?.id) {
     return (
-      <section className="space-y-6">
-        <SectionHeader title="Bình luận" />
+      <section className="w-full min-w-0 space-y-6">
+        <h1 className="text-xl font-black text-white">Bình luận</h1>
         <ErrorState message={error} title="Không tải được quyền truy cập Studio" />
       </section>
     );
@@ -37,29 +51,35 @@ export default async function StudioCommentsRoute({
 
   const data = await getStudioComments(creatorProfile, profile.id, {
     filter: activeFilter,
+    page: params.page,
+    pageSize: activePageSize,
+    q: search,
+    sort: activeSort,
     storyId: params.story,
-    q: params.q
+    time: activeTime
+  });
+
+  const query = buildCommentsQuery({
+    filter: activeFilter,
+    page: params.page,
+    pageSize: activePageSize,
+    q: search,
+    sort: activeSort,
+    story: params.story,
+    time: activeTime
   });
 
   return (
-    <section className="space-y-6">
-      <Link
-        className="text-sm font-semibold text-sky-300 hover:text-sky-200"
-        href="/studio"
-      >
-        Trở về tổng quan
-      </Link>
-
-      <SectionHeader
-        subtitle="Theo dõi và phản hồi người đọc quanh truyện của bạn."
-        title="Bình luận"
-      />
-
+    <section className="w-full min-w-0">
       <StudioCommentsPage
         activeFilter={activeFilter}
+        activePageSize={activePageSize}
+        activeSort={activeSort}
+        activeTime={activeTime}
         activeStoryId={params.story}
         data={data}
-        searchQuery={params.q}
+        query={query}
+        searchQuery={search}
       />
     </section>
   );

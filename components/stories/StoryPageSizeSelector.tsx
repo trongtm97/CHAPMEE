@@ -2,25 +2,23 @@
 
 import { useRouter } from "next/navigation";
 import { buildCatalogHref } from "@/lib/stories/catalog-url";
-import type { StoryCatalogSort, StoryCatalogStatus } from "@/types/story";
+import type { StoryCatalogFilterParams } from "@/lib/discovery/types";
 
 type StoryPageSizeSelectorProps = {
   page: number;
+  pageSize: number;
+  filters: StoryCatalogFilterParams;
   query: string;
   genre: string;
-  status: StoryCatalogStatus;
-  sort: StoryCatalogSort;
-  pageSize: number;
 };
 
-const options = [20, 24, 30];
+const options = [20, 40, 60];
 
 export function StoryPageSizeSelector({
+  filters,
   genre,
   pageSize,
-  query,
-  sort,
-  status
+  query
 }: StoryPageSizeSelectorProps) {
   const router = useRouter();
 
@@ -33,10 +31,9 @@ export function StoryPageSizeSelector({
           const nextSize = Number(event.target.value);
           router.push(
             buildCatalogHref({
-              q: query,
-              genre,
-              status,
-              sort,
+              ...filters,
+              q: query || filters.q,
+              genre: genre || filters.genre,
               page: 1,
               pageSize: nextSize
             })

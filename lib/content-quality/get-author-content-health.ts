@@ -47,12 +47,14 @@ function mapReview(row: Record<string, unknown>): ContentQualityReviewRecord {
 function recommendedActions(
   status: ContentQualityStatus,
   attempt: number,
-  reasons: ContentQualityReasonCode[]
+  reasons: ContentQualityReasonCode[],
+  isStandalone = false
 ): string[] {
   const actions: string[] = [];
+  const contentLabel = isStandalone ? "nội dung truyện" : "nội dung chương";
 
   if (reasons.includes("too_short_content")) {
-    actions.push("Bổ sung mô tả hoặc nội dung chương đủ dài.");
+    actions.push(`Bổ sung mô tả hoặc ${contentLabel} đủ dài.`);
   }
 
   if (reasons.includes("repeated_reports")) {
@@ -60,7 +62,11 @@ function recommendedActions(
   }
 
   if (reasons.includes("high_early_drop_rate")) {
-    actions.push("Cải thiện mở đầu chương để giữ chân người đọc.");
+    actions.push(
+      isStandalone
+        ? "Cải thiện mở đầu truyện để giữ chân người đọc."
+        : "Cải thiện mở đầu chương để giữ chân người đọc."
+    );
   }
 
   if (reasons.includes("incomplete_story")) {
@@ -135,7 +141,7 @@ export async function getAuthorContentHealth(
   const { data: stories } = await supabase
     .from("stories")
     .select(
-      "id, title, slug, quality_status, low_quality_attempt_count, monetization_disabled_by_quality, quality_updated_at, updated_at"
+      "id, title, slug, structure_type, quality_status, low_quality_attempt_count, monetization_disabled_by_quality, quality_updated_at, updated_at"
     )
     .eq("creator_id", creatorProfile.id)
     .neq("quality_status", "good")
@@ -165,6 +171,8 @@ export async function getAuthorContentHealth(
     const reasonCodes = (latest?.reason_codes as ContentQualityReasonCode[]) ?? [];
     const primaryCode = reasonCodes[0] ?? null;
 
+    const isStandalone = story.structure_type === "standalone";
+
     return {
       attemptCount: attempt,
       canAppeal:
@@ -172,7 +180,9 @@ export async function getAuthorContentHealth(
         attempt >= 3,
       canResubmit: canResubmitQualityStatus(status, attempt),
       chapterId: null,
-      editHref: studioPath(`/stories/${story.id}/edit`),
+      editHref: isStandalone
+        ? studioPath(`/stories/${story.id}/content`)
+        : studioPath(`/stories/${story.id}/edit`),
       id: story.id,
       monetizationDisabled: Boolean(story.monetization_disabled_by_quality),
       primaryReasonCode: primaryCode,
@@ -225,7 +235,7 @@ export async function getAuthorContentQualityDetail(
   const { data: story } = await supabase
     .from("stories")
     .select(
-      "id, title, slug, quality_status, low_quality_attempt_count, monetization_disabled_by_quality, monetization_status, free_access_set_at, quality_updated_at, updated_at, creator_id"
+      "id, title, slug, structure_type, quality_status, low_quality_attempt_count, monetization_disabled_by_quality, monetization_status, free_access_set_at, quality_updated_at, updated_at, creator_id"
     )
     .eq("id", storyId)
     .eq("creator_id", creatorProfile.id)
@@ -258,12 +268,16 @@ export async function getAuthorContentQualityDetail(
   const latestRefund = refundHistory.batches[0] ?? null;
   const impact = impactResult.data;
 
+  const isStandalone = story.structure_type === "standalone";
+
   return {
     attemptCount: attempt,
     canAppeal: status === "permanently_hidden_low_quality",
     canResubmit: canResubmitQualityStatus(status, attempt),
     chapterId: null,
-    editHref: studioPath(`/stories/${story.id}/edit`),
+    editHref: isStandalone
+      ? studioPath(`/stories/${story.id}/content`)
+      : studioPath(`/stories/${story.id}/edit`),
     history,
     id: story.id,
     monetizationDisabled: Boolean(story.monetization_disabled_by_quality),
@@ -272,7 +286,7 @@ export async function getAuthorContentQualityDetail(
     primaryReasonLabel: reasonCodes[0] ? qualityReasonLabel(reasonCodes[0]) : null,
     qualityStatus: status,
     reasonCodes,
-    recommendedActions: recommendedActions(status, attempt, reasonCodes),
+    recommendedActions: recommendedActions(status, attempt, reasonCodes, isStandalone),
     signalSnapshot: latest?.signalSnapshot ?? null,
     storyId: story.id,
     subtitle: null,

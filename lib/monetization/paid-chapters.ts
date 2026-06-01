@@ -12,7 +12,8 @@ import {
   createChapterUnlock,
   getChapterUnlockByUser
 } from "@/lib/supabase/chapter-unlocks";
-import { getCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
+import { getStoryFullAccessUnlock } from "@/lib/supabase/story-monetization";
+import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
 import { createClient } from "@/lib/supabase/server";
 import { recordCreatorNetEarning } from "@/lib/finance/record-creator-net-earning";
 import { calculateWalletBalance, debitUserCoins } from "@/lib/wallets/user-wallet";
@@ -69,18 +70,19 @@ export async function getPaidChapterReaderState(input: {
   }
 
   if (input.userId) {
+    const fullAccess = await getStoryFullAccessUnlock(input.userId, input.storyId);
+    if (fullAccess.data?.status === "active") {
+      return { locked: false as const };
+    }
+
     const unlock = await getChapterUnlockByUser(input.userId, input.chapterId);
     if (unlock.data) {
       return { locked: false as const };
     }
   }
 
-  const creatorProfile = await getCreatorMonetizationProfile(input.creatorUserId);
-  if (
-    !creatorProfile.data ||
-    creatorProfile.data.status !== "approved" ||
-    !creatorProfile.data.monetization_enabled
-  ) {
+  const creatorCanEarn = await isCreatorMonetizationAllowed(input.creatorUserId);
+  if (!creatorCanEarn) {
     return { locked: false as const };
   }
 
@@ -204,13 +206,12 @@ export async function unlockPaidChapterAction(input: {
     return { ok: false, error: "Chapter đầu bắt buộc miễn phí theo cấu hình admin." };
   }
 
-  const creatorProfile = await getCreatorMonetizationProfile(creatorUserId);
-  if (
-    !creatorProfile.data ||
-    creatorProfile.data.status !== "approved" ||
-    !creatorProfile.data.monetization_enabled
-  ) {
-    return { ok: false, error: "Creator chưa đủ điều kiện kiếm tiền." };
+  const creatorCanEarn = await isCreatorMonetizationAllowed(creatorUserId);
+  if (!creatorCanEarn) {
+    return {
+      ok: false,
+      error: "Kiếm tiền đang bị tắt bởi ChapMee cho tài khoản này."
+    };
   }
 
   const chapterPrice = Math.min(
@@ -386,6 +387,21 @@ export async function unlockPaidChapterAction(input: {
       coin_price: chapterPrice
     }
   });
+
+  try {
+    const { trackTaxonomyStoryPurchaseServer } = await import(
+      "@/lib/analytics/track-taxonomy-server"
+    );
+    await trackTaxonomyStoryPurchaseServer({
+      storyId: input.storyId,
+      chapterId: input.chapterId,
+      revenueCoin: chapterPrice,
+      userId: user.id,
+      sourceSurface: "catalog"
+    });
+  } catch {
+    // Non-blocking taxonomy analytics
+  }
 
   return { ok: true, alreadyUnlocked: false, error: null };
 }

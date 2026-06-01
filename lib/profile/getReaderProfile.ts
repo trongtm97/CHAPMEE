@@ -13,6 +13,7 @@ import {
   toProfileBadgeChips
 } from "@/lib/supabase/badges";
 import { createClient } from "@/lib/supabase/server";
+import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import { buildReaderAchievements } from "@/lib/profile/profileIdentity";
 import type { EarlyFanStoryItem } from "@/types/early-fan";
 import type { BadgeViewItem } from "@/types/badge";
@@ -31,9 +32,9 @@ type StoryRelation = {
   id: string;
   title: string;
   slug: string;
+  public_code: string;
   cover_url: string | null;
   hook: string | null;
-  genres: { name: string | null } | { name: string | null }[] | null;
   creator_profiles:
     | { pen_name: string | null }
     | { pen_name: string | null }[]
@@ -49,32 +50,39 @@ function firstRelation<T>(relation: T | T[] | null | undefined) {
   return Array.isArray(relation) ? (relation[0] ?? null) : (relation ?? null);
 }
 
-function toStoryItem(story: StoryRelation, status: BookshelfRow["status"]): ProfileStoryItem {
-  const genre = firstRelation(story.genres);
+function toStoryItem(
+  story: StoryRelation,
+  status: BookshelfRow["status"],
+  genreName: string | null
+): ProfileStoryItem {
   const creator = firstRelation(story.creator_profiles);
 
   return {
     id: story.id,
     slug: story.slug,
+    publicCode: story.public_code,
     title: story.title,
     coverUrl: story.cover_url,
     subtitle: story.hook || creator?.pen_name || null,
-    meta: status === "saved" ? genre?.name ?? null : `Đang ${status}`
+    meta: status === "saved" ? genreName : `Đang ${status}`
   };
 }
 
-function buildFavoriteGenres(rows: BookshelfRow[]) {
+function buildFavoriteGenres(
+  rows: BookshelfRow[],
+  taxonomyByStory: Map<string, { mainGenreName: string | null }>
+) {
   const genreCounts = new Map<string, number>();
 
   for (const row of rows) {
     const story = firstRelation(row.stories);
-    const genre = firstRelation(story?.genres);
+    const genreName = story ? taxonomyByStory.get(story.id)?.mainGenreName : null;
 
-    if (!genre?.name) {
+    if (!genreName) {
       continue;
     }
 
-    genreCounts.set(genre.name, (genreCounts.get(genre.name) ?? 0) + 1);
+    genreCounts.set(genreName, (genreCounts.get(genreName) ?? 0) + 1);
   }
 
   return [...genreCounts.entries()]
@@ -119,7 +127,7 @@ export async function getReaderProfile(
       supabase
         .from("bookshelf_items")
         .select(
-          "status, stories(id, title, slug, cover_url, hook, genres(name), creator_profiles(pen_name))"
+          "status, stories(id, title, slug, public_code, cover_url, hook, creator_profiles(pen_name))"
         )
         .eq("user_id", profile.id)
         .order("updated_at", { ascending: false }),
@@ -140,6 +148,14 @@ export async function getReaderProfile(
       | null;
 
     const bookshelf = (bookshelfRows ?? []) as BookshelfRow[];
+    const storyIds = [
+      ...new Set(
+        bookshelf
+          .map((row) => firstRelation(row.stories)?.id)
+          .filter((id): id is string => Boolean(id))
+      )
+    ];
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
     const savedStories = bookshelf
       .filter((row) => row.status === "saved")
       .map((row) => {
@@ -149,7 +165,11 @@ export async function getReaderProfile(
           return null;
         }
 
-        return toStoryItem(story, row.status);
+        return toStoryItem(
+          story,
+          row.status,
+          taxonomyByStory.get(story.id)?.mainGenreName ?? null
+        );
       })
       .filter((item): item is ProfileStoryItem => Boolean(item))
       .slice(0, 6);
@@ -216,7 +236,7 @@ export async function getReaderProfile(
       badgeItems,
       milestones,
       topFanHighlights,
-      favoriteGenres: buildFavoriteGenres(bookshelf),
+      favoriteGenres: buildFavoriteGenres(bookshelf, taxonomyByStory),
       savedStories,
       earlyFanStories,
       metrics: {

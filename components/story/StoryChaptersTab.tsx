@@ -13,12 +13,15 @@ import type { ChapterSort, StoryChaptersResult, StoryReadingProgress } from "@/t
 type StoryChaptersTabProps = {
   storyId: string;
   storySlug: string;
+  storyPublicCode: string;
   initialData: StoryChaptersResult;
   readingProgress: StoryReadingProgress | null;
   shortEpisodes?: Array<{
     id: string;
     episodeNumber: number;
     title: string;
+    slug: string;
+    publicCode: string;
     excerpt: string | null;
     publishedAt: string | null;
   }>;
@@ -45,7 +48,8 @@ export function StoryChaptersTab({
   readingProgress,
   shortEpisodes,
   storyId,
-  storySlug
+  storySlug,
+  storyPublicCode
 }: StoryChaptersTabProps) {
   const isLongStory = initialData.totalChapters > SHORT_STORY_CHAPTER_THRESHOLD;
   const [data, setData] = useState(initialData);
@@ -100,7 +104,11 @@ export function StoryChaptersTab({
   return (
     <div className="space-y-4">
       {readingProgress ? (
-        <ContinueReadingCard progress={readingProgress} storySlug={storySlug} />
+        <ContinueReadingCard
+          progress={readingProgress}
+          storyPublicCode={storyPublicCode}
+          storySlug={storySlug}
+        />
       ) : null}
 
       {isLongStory ? (
@@ -192,6 +200,7 @@ export function StoryChaptersTab({
             <ChapterListItem
               chapter={chapter}
               status={chapterStatus(chapter.episodeNumber, readingProgress)}
+              storyPublicCode={storyPublicCode}
               storySlug={storySlug}
             />
           </li>

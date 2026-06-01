@@ -42,6 +42,7 @@ type ReaderEarlyFanRow = {
         id: string;
         title: string;
         slug: string;
+        public_code: string;
         cover_url: string | null;
         hook: string | null;
       }
@@ -49,6 +50,7 @@ type ReaderEarlyFanRow = {
         id: string;
         title: string;
         slug: string;
+        public_code: string;
         cover_url: string | null;
         hook: string | null;
       }[]
@@ -156,7 +158,7 @@ export async function getReaderEarlyFanStories(userId: string): Promise<EarlyFan
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("story_early_fans")
-    .select("id, awarded_at, reads_at_award, followers_at_award, stories(id, title, slug, cover_url, hook)")
+    .select("id, awarded_at, reads_at_award, followers_at_award, stories(id, title, slug, public_code, cover_url, hook)")
     .eq("user_id", userId)
     .order("awarded_at", { ascending: false })
     .limit(6);
@@ -177,6 +179,7 @@ export async function getReaderEarlyFanStories(userId: string): Promise<EarlyFan
         id: row.id,
         storyId: story.id,
         slug: story.slug,
+        publicCode: story.public_code,
         title: story.title,
         coverUrl: story.cover_url,
         hook: story.hook,

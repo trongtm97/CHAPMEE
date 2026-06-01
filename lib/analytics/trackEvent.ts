@@ -1,7 +1,7 @@
 import { getAnalyticsSessionId } from "@/lib/analytics/session";
 import { sanitizeAnalyticsMetadata } from "@/lib/analytics/sanitizeMetadata";
 import { createClient } from "@/lib/supabase/client";
-import { analyticsCategories, analyticsEvents } from "@/lib/analytics/events";
+import { inferEventCategory } from "@/lib/analytics/infer-event-category";
 import type { TrackEventInput } from "@/types/analytics";
 
 function logAnalyticsError(error: unknown) {
@@ -32,34 +32,6 @@ let analyticsUnavailable = false;
 
 function eventThrottleKey(eventName: string, targetId?: string | null) {
   return `${eventName}:${targetId ?? "_"}`;
-}
-
-function inferCategory(eventName: string) {
-  if (eventName.startsWith("swipe_") || eventName.startsWith("feed_")) return analyticsCategories.swipe;
-  if (
-    [
-      analyticsEvents.storyViewed,
-      analyticsEvents.chapterOpened,
-      analyticsEvents.chapterCompleted,
-      analyticsEvents.nextChapterClicked,
-      analyticsEvents.readingTimeTracked,
-      analyticsEvents.startReading,
-      analyticsEvents.completeChap,
-      analyticsEvents.nextChapClick,
-      analyticsEvents.scroll25,
-      analyticsEvents.scroll50,
-      analyticsEvents.scroll75
-    ].includes(eventName as never)
-  ) {
-    return analyticsCategories.reading;
-  }
-  if (eventName.startsWith("creator_") || eventName.startsWith("story_created") || eventName.startsWith("chapter_")) return analyticsCategories.creator;
-  if (eventName.startsWith("comment_") || eventName.startsWith("share_") || eventName.startsWith("author_followed") || eventName.startsWith("story_saved") || eventName.startsWith("story_liked")) return analyticsCategories.social;
-  if (eventName.startsWith("onboarding_")) return analyticsCategories.onboarding;
-  if (eventName.startsWith("notification_") || eventName.startsWith("referral_")) return analyticsCategories.retention;
-  if (eventName.startsWith("report_") || eventName.startsWith("content_reported") || eventName.startsWith("moderation_")) return analyticsCategories.moderation;
-  if (eventName.startsWith("experiment_")) return analyticsCategories.experiment;
-  return analyticsCategories.app;
 }
 
 /**
@@ -93,14 +65,17 @@ export async function trackEvent(input: TrackEventInput) {
     const pagePath = window.location.pathname;
     const referrer = document.referrer || null;
     const userAgent = navigator.userAgent || null;
-    const category = input.category ?? input.category_name ?? inferCategory(eventName);
+    const category =
+      input.category ?? input.category_name ?? inferEventCategory(eventName);
+    const payload = sanitizeAnalyticsMetadata(input.metadata ?? {});
 
     const { error } = await supabase.from("analytics_events").insert({
       anonymous_id: sessionId,
       event_category: category,
       event_name: eventName,
+      metadata: payload,
       page_path: pagePath,
-      properties: sanitizeAnalyticsMetadata(input.metadata ?? {}),
+      properties: payload,
       referrer,
       session_id: sessionId,
       target_id: targetId,

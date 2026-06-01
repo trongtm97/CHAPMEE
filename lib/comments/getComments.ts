@@ -17,6 +17,7 @@ export type CommentView = {
   content: string;
   createdAt: string;
   displayName: string | null;
+  username: string | null;
   verification: PublicVerificationBadge | null;
   canDelete: boolean;
   isVip: boolean;
@@ -106,6 +107,7 @@ export async function getCommunityPostComments(target: CommunityPostCommentTarge
         content: comment.content,
         createdAt: comment.created_at,
         displayName: profile?.display_name ?? profile?.username ?? null,
+        username: profile?.username?.trim().toLowerCase() ?? null,
         verification: verificationByUser.get(comment.user_id) ?? null,
         canDelete: currentUserId === comment.user_id,
         isVip: vipUsers.has(comment.user_id),
@@ -163,6 +165,7 @@ export async function getComments(target: CommentTarget) {
         content: comment.content,
         createdAt: comment.created_at,
         displayName: profile?.display_name ?? profile?.username ?? null,
+        username: profile?.username?.trim().toLowerCase() ?? null,
         verification: verificationByUser.get(comment.user_id) ?? null,
         canDelete: currentUserId === comment.user_id,
         isVip: vipUsers.has(comment.user_id)

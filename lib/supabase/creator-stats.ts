@@ -35,8 +35,14 @@ export async function getCreatorEligibilityStats(userId: string): Promise<{
     const creatorId = creator.id as string;
     const createdAt = creator.created_at as string;
 
-    const [followersResult, metricsResult, chaptersResult, reportsStory, reportsEpisode] =
-      await Promise.all([
+    const [
+      followersResult,
+      metricsResult,
+      chaptersResult,
+      standaloneStoriesResult,
+      reportsStory,
+      reportsEpisode
+    ] = await Promise.all([
         supabase
           .from("follows")
           .select("id", { count: "exact", head: true })
@@ -50,6 +56,13 @@ export async function getCreatorEligibilityStats(userId: string): Promise<{
           .select("id, stories!inner(creator_id)", { count: "exact", head: true })
           .eq("stories.creator_id", creatorId)
           .in("status", ["approved", "published"]),
+        supabase
+          .from("stories")
+          .select("id", { count: "exact", head: true })
+          .eq("creator_id", creatorId)
+          .eq("structure_type", "standalone")
+          .in("status", ["approved", "published"])
+          .gt("standalone_word_count", 0),
         supabase
           .from("reports")
           .select("id", { count: "exact", head: true })
@@ -91,7 +104,9 @@ export async function getCreatorEligibilityStats(userId: string): Promise<{
       data: {
         followers: Number(metrics?.follower_count ?? followersResult.count ?? 0),
         total_reads: Number(metrics?.total_read_count ?? 0),
-        chapters_count: Number(chaptersResult.count ?? 0),
+        chapters_count:
+          Number(chaptersResult.count ?? 0) +
+          Number(standaloneStoriesResult.count ?? 0),
         violations_count: Number((reportsStory.count ?? 0) + (reportsEpisode.count ?? 0)),
         account_age_days: accountAgeDays
       },

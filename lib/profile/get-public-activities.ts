@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getStoryUrl } from "@/lib/urls/paths";
 import type { PublicActivityItem } from "@/types/public-profile";
 import type { ProfilePrivacySettings } from "@/types/public-profile";
 
@@ -8,7 +9,10 @@ type CommentRow = {
   id: string;
   content: string;
   created_at: string;
-  stories: { title: string; slug: string } | { title: string; slug: string }[] | null;
+  stories:
+    | { title: string; slug: string; public_code: string }
+    | { title: string; slug: string; public_code: string }[]
+    | null;
 };
 
 type CollectionRow = {
@@ -21,6 +25,7 @@ type StoryRow = {
   id: string;
   title: string;
   slug: string;
+  public_code: string;
   created_at: string;
 };
 
@@ -51,7 +56,7 @@ export async function getPublicActivitiesForUser(
     if (creatorProfile?.id) {
       const { data: stories } = await supabase
         .from("stories")
-        .select("id, title, slug, created_at")
+        .select("id, title, slug, public_code, created_at")
         .eq("creator_id", creatorProfile.id)
         .eq("visibility", "public")
         .in("status", ["published", "approved"])
@@ -65,7 +70,7 @@ export async function getPublicActivitiesForUser(
     privacy.showPublicComments
       ? supabase
           .from("comments")
-          .select("id, content, created_at, stories(title, slug)")
+          .select("id, content, created_at, stories(title, slug, public_code)")
           .eq("user_id", userId)
           .eq("status", "visible")
           .order("created_at", { ascending: false })
@@ -92,7 +97,7 @@ export async function getPublicActivitiesForUser(
       id: `comment-${row.id}`,
       type: "comment",
       message: `Đã bình luận trong «${story.title}»`,
-      href: `/stories/${story.slug}`,
+      href: getStoryUrl({ slug: story.slug, public_code: story.public_code }),
       createdAt: row.created_at
     });
   }
@@ -112,7 +117,7 @@ export async function getPublicActivitiesForUser(
       id: `story-${row.id}`,
       type: "story",
       message: `Đã đăng truyện «${row.title}»`,
-      href: `/stories/${row.slug}`,
+      href: getStoryUrl({ slug: row.slug, public_code: row.public_code }),
       createdAt: row.created_at
     });
   }

@@ -62,12 +62,12 @@ export function CreatorDashboard({
             Tổng quan Studio
           </h1>
           <p className="text-sm text-zinc-300">
-            Xin chào, <span className="font-semibold text-white">{creatorProfile.pen_name}</span>
+            Xin chào, <span className="font-semibold text-white">{creatorProfile.display_name}</span>
           </p>
         </div>
         <div className="flex gap-2 sm:gap-3">
           <Link className={primaryBtnClass} href={data.writeChapterHref}>
-            Viết chương mới
+            {data.writeActionLabel}
           </Link>
           <Link className={secondaryBtnClass} href={studioPath("/stories/new")}>
             Tạo truyện
@@ -112,6 +112,7 @@ export function CreatorDashboard({
           basePath={basePath}
           defaultStorySlug={data.defaultStorySlug}
           qualityNeedsActionCount={data.qualityNeedsActionCount}
+          writeActionLabel={data.writeActionLabel}
           writeChapterHref={data.writeChapterHref}
         />
       </DashboardSection>

@@ -1,17 +1,30 @@
 import { getMonetizationConfig, getRevenueShareConfig } from "@/lib/monetization/config";
+import {
+  readPayoutProcessingDaysLabel,
+  readPayoutProcessingDaysRange
+} from "@/lib/finance/payout-processing-display";
 import type { StudioMonetizationConfigView } from "@/types/studio-monetization";
 import type { PayoutMethod } from "@/types/payout";
 
 const DEFAULT_POLICY_LINES = [
-  "Chỉ nội dung hợp lệ mới được bật kiếm tiền.",
-  "ChapMee có thể tạm khóa kiếm tiền nếu phát hiện vi phạm.",
-  "Yêu cầu rút tiền sẽ được kiểm tra trước khi xử lý.",
+  "Kiếm tiền được mở mặc định cho tác giả trên ChapMee.",
+  "Bạn có thể rút tiền khi đạt số dư tối thiểu và tài khoản không bị admin khóa rút tiền.",
+  "Xác thực tài khoản giúp tăng độ tin cậy, không bắt buộc để kiếm tiền.",
+  "ChapMee có thể tạm tắt quyền kiếm tiền/rút tiền riêng cho tài khoản khi cần.",
   "Tỷ lệ ăn chia và mức rút tối thiểu có thể thay đổi theo chính sách nền tảng."
 ];
 
 export type StudioMonetizationConfigBuildOptions = {
   includePrivate?: boolean;
 };
+
+/** Module kiếm tiền Studio (duyệt tác giả, cấu hình trả phí) — không phụ thuộc cờ ẩn/hiện số tiền. */
+export function isStudioMonetizationModuleEnabled(config: {
+  ecosystemEnabled: boolean;
+  creatorMonetizationEnabled: boolean;
+}): boolean {
+  return config.ecosystemEnabled && config.creatorMonetizationEnabled;
+}
 
 function numberSetting(
   settings: Record<string, unknown>,
@@ -50,6 +63,11 @@ export async function buildStudioMonetizationConfigView(
     ? `${DEFAULT_POLICY_LINES.join("\n")}\n\n${processingNote}`
     : DEFAULT_POLICY_LINES.join("\n");
 
+  const processingRange = readPayoutProcessingDaysRange(settings as Record<string, unknown>);
+  const payoutProcessingDaysLabel = readPayoutProcessingDaysLabel(
+    settings as Record<string, unknown>
+  );
+
   return {
     ecosystemEnabled: Boolean(settings["monetization.enabled"]),
     creatorMonetizationEnabled: Boolean(settings["creator_monetization.enabled"]),
@@ -62,6 +80,9 @@ export async function buildStudioMonetizationConfigView(
     coinExchangeRateVnd: numberSetting(settings, "coin.exchange_rate_vnd", 1000),
     minWithdrawAmountVnd: numberSetting(settings, "payout.min_withdraw_amount_vnd", 0),
     payoutHoldDays: numberSetting(settings, "payout.hold_days", 0),
+    payoutProcessingDaysMin: processingRange.min,
+    payoutProcessingDaysMax: processingRange.max,
+    payoutProcessingDaysLabel,
     payoutKycRequired: Boolean(settings["payout.kyc_required"]),
     payoutAllowedMethods: parsePayoutMethods(settings as Record<string, unknown>),
     payoutProcessingNote: processingNote,

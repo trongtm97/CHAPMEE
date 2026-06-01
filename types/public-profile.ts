@@ -58,6 +58,7 @@ export type PublicCommentItem = {
   content: string;
   storyTitle: string;
   storySlug: string;
+  storyPublicCode: string;
   likeCount: number;
   replyCount: number;
   createdAt: string;
@@ -66,6 +67,7 @@ export type PublicCommentItem = {
 export type PublicWorkItem = {
   id: string;
   slug: string;
+  publicCode: string;
   title: string;
   description: string | null;
   coverUrl: string | null;
@@ -73,6 +75,8 @@ export type PublicWorkItem = {
   readCount: number | null;
   statusLabel: string;
   authorName: string | null;
+  structureType: "chaptered" | "standalone";
+  standaloneReadingTimeMinutes: number;
 };
 
 export type PublicProfileMessaging = {

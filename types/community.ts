@@ -39,6 +39,7 @@ export type StoryCommunityGroup = {
 export type AuthorCommunityGroup = {
   id: string;
   authorId: string;
+  authorUsername: string | null;
   name: string;
   avatarUrl: string | null;
   storyCount: number;
@@ -62,6 +63,7 @@ export type CommunityFeedItem = {
   id: string;
   kind: CommunityFeedItemKind;
   authorName: string;
+  authorUsername: string | null;
   authorRole: CommunityRole;
   createdAt: string;
   title: string | null;
@@ -105,9 +107,12 @@ export type EnrichedCommunityPost = {
   title: string;
   contentPreview: string;
   authorName: string;
+  authorUsername: string | null;
+  creatorUsername: string | null;
   authorRole: CommunityRole;
   relatedStoryTitle: string | null;
   relatedStorySlug: string | null;
+  relatedStoryPublicCode: string | null;
   storyId: string | null;
   createdAt: string;
   commentCount: number;
@@ -146,6 +151,7 @@ export type FeaturedComment = {
   authorName: string;
   storyTitle: string;
   storySlug: string | null;
+  storyPublicCode?: string | null;
   chapterLabel?: string;
   postId: string;
 };

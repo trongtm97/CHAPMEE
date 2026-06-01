@@ -47,7 +47,11 @@ const creatorTypes = new Set<NotificationType>([
   "content_quality_needs_fix",
   "content_quality_restored",
   "content_quality_permanently_hidden",
-  "content_quality_monetization_disabled"
+  "content_quality_monetization_disabled",
+  "taxonomy_request_approved",
+  "taxonomy_request_rejected",
+  "taxonomy_request_merged",
+  "taxonomy_revision_requested"
 ]);
 
 const messagesTypes = new Set<NotificationType>([
@@ -61,7 +65,9 @@ const messagesTypes = new Set<NotificationType>([
 const systemTypes = new Set<NotificationType>([
   "welcome",
   "onboarding_reminder",
-  "community_guideline_update"
+  "community_guideline_update",
+  "feedback_received",
+  "feedback_status_updated"
 ]);
 
 export function getNotificationCategory(type: NotificationType): NotificationCategory {

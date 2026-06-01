@@ -1,4 +1,6 @@
+import { ADMIN_CREATOR_JOIN, resolveAdminCreatorName } from "@/lib/admin/creator-display";
 import { createClient } from "@/lib/supabase/server";
+import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 
 export type PendingStory = {
   id: string;
@@ -42,11 +44,7 @@ type StoryRow = {
   short_description: string | null;
   created_at: string;
   status: "pending";
-  genres: { name: string | null } | { name: string | null }[] | null;
-  creator_profiles:
-    | { pen_name: string | null }
-    | { pen_name: string | null }[]
-    | null;
+  creator_profiles: unknown;
 };
 
 type EpisodeRow = {
@@ -62,18 +60,12 @@ type EpisodeRow = {
     | {
         title: string | null;
         slug: string | null;
-        creator_profiles:
-          | { pen_name: string | null }
-          | { pen_name: string | null }[]
-          | null;
+        creator_profiles: unknown;
       }
     | Array<{
         title: string | null;
         slug: string | null;
-        creator_profiles:
-          | { pen_name: string | null }
-          | { pen_name: string | null }[]
-          | null;
+        creator_profiles: unknown;
       }>
     | null;
 };
@@ -89,7 +81,7 @@ export async function getPendingContent(): Promise<PendingContentData> {
       supabase
         .from("stories")
         .select(
-          "id, creator_id, title, slug, hook, short_description, created_at, status, genres(name), creator_profiles(pen_name)"
+          `id, creator_id, title, slug, hook, short_description, created_at, status, ${ADMIN_CREATOR_JOIN}`
         )
         .eq("status", "pending")
         .order("created_at", { ascending: true })
@@ -97,7 +89,7 @@ export async function getPendingContent(): Promise<PendingContentData> {
       supabase
         .from("episodes")
         .select(
-          "id, story_id, episode_number, title, excerpt, word_count, created_at, status, stories(title, slug, creator_profiles(pen_name))"
+          `id, story_id, episode_number, title, excerpt, word_count, created_at, status, stories(title, slug, ${ADMIN_CREATOR_JOIN})`
         )
         .eq("status", "pending")
         .order("created_at", { ascending: true })
@@ -112,47 +104,48 @@ export async function getPendingContent(): Promise<PendingContentData> {
       throw episodesResult.error;
     }
 
+    const storyRows = (storiesResult.data ?? []) as unknown as StoryRow[];
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(
+      supabase,
+      storyRows.map((story) => story.id)
+    );
+
     return {
       error: null,
-      stories: ((storiesResult.data ?? []) as unknown as StoryRow[]).map(
-        (story) => {
-          const genre = firstRelation(story.genres);
-          const creator = firstRelation(story.creator_profiles);
+      stories: storyRows.map((story) => {
+        const creator = firstRelation(story.creator_profiles);
 
-          return {
-            id: story.id,
-            creatorId: story.creator_id,
-            title: story.title,
-            slug: story.slug,
-            hook: story.hook,
-            shortDescription: story.short_description,
-            genreName: genre?.name ?? null,
-            creatorName: creator?.pen_name ?? null,
-            createdAt: story.created_at,
-            status: story.status
-          };
-        }
-      ),
-      episodes: ((episodesResult.data ?? []) as unknown as EpisodeRow[]).map(
-        (episode) => {
-          const story = firstRelation(episode.stories);
-          const creator = firstRelation(story?.creator_profiles);
+        return {
+          id: story.id,
+          creatorId: story.creator_id,
+          title: story.title,
+          slug: story.slug,
+          hook: story.hook,
+          shortDescription: story.short_description,
+          genreName: taxonomyByStory.get(story.id)?.mainGenreName ?? null,
+          creatorName: resolveAdminCreatorName(firstRelation(creator)),
+          createdAt: story.created_at,
+          status: story.status
+        };
+      }),
+      episodes: ((episodesResult.data ?? []) as unknown as EpisodeRow[]).map((episode) => {
+        const story = firstRelation(episode.stories);
+        const creator = firstRelation(story?.creator_profiles);
 
-          return {
-            id: episode.id,
-            storyId: episode.story_id,
-            storySlug: story?.slug ?? "",
-            storyTitle: story?.title ?? "Không rõ truyện",
-            episodeNumber: episode.episode_number,
-            title: episode.title,
-            excerpt: episode.excerpt,
-            wordCount: episode.word_count,
-            creatorName: creator?.pen_name ?? null,
-            createdAt: episode.created_at,
-            status: episode.status
-          };
-        }
-      )
+        return {
+          id: episode.id,
+          storyId: episode.story_id,
+          storySlug: story?.slug ?? "",
+          storyTitle: story?.title ?? "Không rõ truyện",
+          episodeNumber: episode.episode_number,
+          title: episode.title,
+          excerpt: episode.excerpt,
+          wordCount: episode.word_count,
+          creatorName: resolveAdminCreatorName(firstRelation(creator)),
+          createdAt: episode.created_at,
+          status: episode.status
+        };
+      })
     };
   } catch (error) {
     return {

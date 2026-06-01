@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { getCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
+import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
 import { getVirtualGiftById } from "@/lib/supabase/virtual-gifts";
 import { debitUserCoins } from "@/lib/wallets/user-wallet";
 import { recordCreatorNetEarning } from "@/lib/finance/record-creator-net-earning";
@@ -151,13 +151,9 @@ export async function sendSupportAction(input: SendSupportInput) {
     }
   }
 
-  const creatorProfile = await getCreatorMonetizationProfile(input.toCreatorUserId);
-  if (
-    !creatorProfile.data ||
-    creatorProfile.data.status !== "approved" ||
-    !creatorProfile.data.monetization_enabled
-  ) {
-    return { ok: false, error: "Creator chưa bật hoặc chưa được duyệt kiếm tiền." };
+  const creatorCanEarn = await isCreatorMonetizationAllowed(input.toCreatorUserId);
+  if (!creatorCanEarn) {
+    return { ok: false, error: "Kiếm tiền đang bị tắt bởi ChapMee cho tác giả này." };
   }
 
   const contentValidation = await validateContentMonetizable({

@@ -136,6 +136,8 @@ export function StoryActionSheet({
             <form action={storyToggleSaveAction}>
               <input name="creatorId" type="hidden" value={story.creatorId ?? ""} />
               <input name="returnTo" type="hidden" value={returnTo} />
+              <input name="sourceSurface" type="hidden" value="catalog" />
+              <input name="trackingSurface" type="hidden" value="story_detail" />
               <input name="saved" type="hidden" value={userState.isSaved ? "false" : "true"} />
               <input name="storyId" type="hidden" value={story.id} />
               <input name="storySlug" type="hidden" value={story.slug} />

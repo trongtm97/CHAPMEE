@@ -5,8 +5,8 @@ type ProgressRow = {
   progress_percent: number | null;
   episode_id: string | null;
   episodes:
-    | { id: string; episode_number: number; title: string }
-    | { id: string; episode_number: number; title: string }[]
+    | { id: string; episode_number: number; title: string; slug: string; public_code: string }
+    | { id: string; episode_number: number; title: string; slug: string; public_code: string }[]
     | null;
 };
 
@@ -25,7 +25,7 @@ export async function getStoryReadingProgress(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("reading_progress")
-    .select("progress_percent, episode_id, episodes(id, episode_number, title)")
+    .select("progress_percent, episode_id, episodes(id, episode_number, title, slug, public_code)")
     .eq("user_id", userId)
     .eq("story_id", storyId)
     .maybeSingle();
@@ -49,6 +49,8 @@ export async function getStoryReadingProgress(
     episodeId: episode.id,
     episodeNumber: episode.episode_number,
     episodeTitle: episode.title,
+    episodeSlug: episode.slug,
+    episodePublicCode: episode.public_code,
     progressPercent
   };
 }

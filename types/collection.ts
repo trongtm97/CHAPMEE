@@ -5,6 +5,7 @@ export type CollectionStoryItem = {
   storyId: string;
   title: string;
   slug: string;
+  publicCode: string;
   coverUrl: string | null;
   hook: string | null;
   authorName: string | null;

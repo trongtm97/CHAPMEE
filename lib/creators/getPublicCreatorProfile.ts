@@ -1,4 +1,6 @@
+import { mapStoryStructureFromRow } from "@/lib/stories/story-structure";
 import { createClient } from "@/lib/supabase/server";
+import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import { getPublicStoryEarlyFanStats } from "@/lib/supabase/early-fans";
 import { getAuthorTopFans } from "@/lib/supabase/fan-scores";
 import {
@@ -16,6 +18,7 @@ import {
   buildAuthorAchievements,
   buildAuthorStats
 } from "@/lib/profile/profileIdentity";
+import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
 import { createExcerpt } from "@/lib/text/createExcerpt";
 import type { BadgeViewItem } from "@/types/badge";
 import type { TopFanPerson } from "@/types/fan";
@@ -27,14 +30,20 @@ export type PublicCreatorStory = {
   id: string;
   title: string;
   slug: string;
+  publicCode: string;
   hook: string | null;
   genreName: string | null;
   episodeCount: number;
+  structureType: "chaptered" | "standalone";
+  standaloneReadingTimeMinutes: number;
 };
 
 export type PublicCreatorFeaturedEpisode = {
   id: string;
   storySlug: string;
+  storyPublicCode: string;
+  episodeSlug: string;
+  episodePublicCode: string;
   storyTitle: string;
   episodeNumber: number;
   title: string;
@@ -44,7 +53,7 @@ export type PublicCreatorFeaturedEpisode = {
 export type PublicCreatorProfile = {
   id: string;
   userId: string;
-  penName: string;
+  displayName: string;
   handle: string | null;
   bio: string | null;
   avatarUrl: string | null;
@@ -88,21 +97,25 @@ type StoryRow = {
   id: string;
   title: string;
   slug: string;
+  public_code: string;
   hook: string | null;
   published_at: string | null;
-  genres: { name: string | null } | { name: string | null }[] | null;
+  structure_type?: string | null;
+  standalone_reading_time_minutes?: number | null;
 };
 
 type EpisodeRow = {
   id: string;
   story_id: string;
+  slug: string;
+  public_code: string;
   episode_number: number;
   title: string;
   excerpt: string | null;
   content: string | null;
   stories:
-    | { slug: string; title: string }
-    | { slug: string; title: string }[]
+    | { slug: string; public_code: string; title: string }
+    | { slug: string; public_code: string; title: string }[]
     | null;
 };
 
@@ -148,7 +161,9 @@ export async function getPublicCreatorProfile(
 
     const { data: creatorRow, error: creatorError } = await supabase
       .from("creator_profiles")
-      .select("id, user_id, pen_name, bio, created_at, profiles(avatar_url, username)")
+      .select(
+        "id, user_id, pen_name, bio, created_at, profiles!creator_profiles_user_id_fkey(avatar_url, username, display_name)"
+      )
       .eq("id", creatorId)
       .eq("status", "active")
       .maybeSingle();
@@ -171,7 +186,7 @@ export async function getPublicCreatorProfile(
     ] = await Promise.all([
       supabase
         .from("stories")
-        .select("id, title, slug, hook, cover_url, published_at, genres(name)")
+        .select("id, title, slug, public_code, hook, cover_url, published_at, structure_type, standalone_reading_time_minutes")
         .eq("creator_id", creator.id)
         .eq("visibility", "public")
         .in("status", ["approved", "published"])
@@ -195,6 +210,7 @@ export async function getPublicCreatorProfile(
 
     const storiesRaw = (storyRows ?? []) as unknown as StoryRow[];
     const storyIds = storiesRaw.map((story) => story.id);
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
     const episodeCountByStory = new Map<string, number>();
     const metrics = Array.isArray(metricsResult.data)
       ? metricsResult.data[0]
@@ -254,7 +270,7 @@ export async function getPublicCreatorProfile(
         creator: {
           id: creator.id,
           userId: creator.user_id,
-          penName: creator.pen_name,
+          displayName: resolvePublicDisplayName(profile, creator),
           handle: profile?.username ?? null,
           bio: creator.bio,
           avatarUrl: profile?.avatar_url ?? null,
@@ -298,7 +314,7 @@ export async function getPublicCreatorProfile(
           .in("status", ["approved", "published"]),
         supabase
           .from("episodes")
-          .select("id, story_id, episode_number, title, excerpt, content, stories!inner(slug, title)")
+          .select("id, story_id, slug, public_code, episode_number, title, excerpt, content, stories!inner(slug, public_code, title)")
           .in("story_id", storyIds)
           .in("status", ["approved", "published"])
           .order("published_at", { ascending: false })
@@ -320,7 +336,7 @@ export async function getPublicCreatorProfile(
       creator: {
         id: creator.id,
         userId: creator.user_id,
-        penName: creator.pen_name,
+        displayName: resolvePublicDisplayName(profile, creator),
         handle: profile?.username ?? null,
         bio: creator.bio,
         avatarUrl: profile?.avatar_url ?? null,
@@ -348,16 +364,19 @@ export async function getPublicCreatorProfile(
           storiesCount
         }),
         stories: storiesRaw.map((story) => {
-          const genre = firstRelation(story.genres);
+          const structure = mapStoryStructureFromRow(story);
 
           return {
             id: story.id,
             coverUrl: story.cover_url,
             title: story.title,
             slug: story.slug,
+            publicCode: story.public_code,
             hook: story.hook,
-            genreName: genre?.name ?? null,
-            episodeCount: episodeCountByStory.get(story.id) ?? 0
+            genreName: taxonomyByStory.get(story.id)?.mainGenreName ?? null,
+            episodeCount: episodeCountByStory.get(story.id) ?? 0,
+            structureType: structure.structureType,
+            standaloneReadingTimeMinutes: structure.standaloneReadingTimeMinutes
           };
         }),
         featuredEpisodes: creatorEpisodes.map((episode) => {
@@ -366,6 +385,9 @@ export async function getPublicCreatorProfile(
           return {
             id: episode.id,
             storySlug: story?.slug ?? "",
+            storyPublicCode: story?.public_code ?? "",
+            episodeSlug: episode.slug,
+            episodePublicCode: episode.public_code,
             storyTitle: story?.title ?? "",
             episodeNumber: episode.episode_number,
             title: episode.title,

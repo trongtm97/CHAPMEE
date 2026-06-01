@@ -35,9 +35,10 @@ export function WithdrawalPinSetup({
         ? await studioChangeWithdrawalPinAction({
             currentPin,
             newPin: pin,
-            confirmPin
+            confirmPin,
+            emailCode: "000000"
           })
-        : await studioSetWithdrawalPinAction({ pin, confirmPin });
+        : await studioSetWithdrawalPinAction({ pin, confirmPin, emailCode: "000000" });
 
       if (!result.ok) {
         setError(result.error ?? "Không thể cập nhật PIN.");

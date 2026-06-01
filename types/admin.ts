@@ -16,7 +16,10 @@ export type AdminContentQualityQueueItem = {
   storyId: string;
   title: string;
   slug: string | null;
-  authorPenName: string;
+  publicCode: string | null;
+  structureType: "chaptered" | "standalone";
+  structureWarnings: string[];
+  authorDisplayName: string;
   authorUserId: string;
   creatorId: string;
   qualityStatus: ContentQualityStatus;

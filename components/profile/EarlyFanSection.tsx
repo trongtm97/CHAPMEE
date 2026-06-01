@@ -5,6 +5,7 @@ import {
   getStoryPlaceholderInitial
 } from "@/lib/images/placeholders";
 import { EmptyState, SectionHeader } from "@/components/ui";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import type { EarlyFanStoryItem } from "@/types/early-fan";
 
 type EarlyFanSectionProps = {
@@ -27,7 +28,10 @@ export function EarlyFanSection({ items }: EarlyFanSectionProps) {
             return (
             <Link
               className="group overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/[0.04] transition hover:border-cyan-300/25 hover:bg-white/[0.06]"
-              href={`/stories/${item.slug}`}
+              href={getStoryDetailHref({
+                slug: item.slug,
+                public_code: item.publicCode
+              })}
               key={item.id}
             >
               <div className="grid grid-cols-[4.5rem_1fr] gap-3 p-3">

@@ -1,5 +1,7 @@
 import { DesktopStoryCatalogLayout } from "@/components/stories/DesktopStoryCatalogLayout";
 import { MobileStoryCatalogLayout } from "@/components/stories/MobileStoryCatalogLayout";
+import { TaxonomyFilterApplyTracker } from "@/components/analytics/TaxonomyFilterApplyTracker";
+import type { CatalogFilterOptions, StoryCatalogFilterParams } from "@/lib/discovery/types";
 import type { StoryCatalogGenre, StoryCatalogSort, StoryCatalogStatus, StoryCatalogStory } from "@/types/story";
 
 type StoryCatalogPageProps = {
@@ -13,11 +15,15 @@ type StoryCatalogPageProps = {
   pageSize: number;
   totalCount: number;
   totalPages: number;
+  filters: StoryCatalogFilterParams;
+  filterOptions: CatalogFilterOptions;
+  hideCatalogHeader?: boolean;
 };
 
 export function StoryCatalogPage(props: StoryCatalogPageProps) {
   return (
     <>
+      <TaxonomyFilterApplyTracker filters={props.filters} sourcePage="truyen" />
       <MobileStoryCatalogLayout {...props} />
       <DesktopStoryCatalogLayout {...props} />
     </>

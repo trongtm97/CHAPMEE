@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { PaymentWebhookEvent, PaymentWebhookEventStatus } from "@/types/payment";
 
 function toNumber(value: unknown) {
@@ -37,7 +37,7 @@ export async function createPaymentWebhookEvent(input: {
   providerReference?: string | null;
   errorMessage?: string | null;
 }) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("payment_webhook_events")
     .insert({
@@ -67,7 +67,7 @@ export async function createPaymentWebhookEvent(input: {
 }
 
 export async function listPaymentWebhookEventsForAdmin(limit = 100) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("payment_webhook_events")
     .select("*")
@@ -86,7 +86,7 @@ export async function updatePaymentWebhookEvent(input: {
   checkoutSessionId?: string | null;
   errorMessage?: string | null;
 }) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("payment_webhook_events")
     .update({

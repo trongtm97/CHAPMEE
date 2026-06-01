@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assertCreatorOwnsStory } from "@/lib/creator/assertCreatorOwnsStory";
 import { getCurrentCreatorProfile } from "@/lib/creator/getCurrentCreatorProfile";
-import { getCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
+import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
 import { upsertChapterMonetizationSetting } from "@/lib/supabase/chapter-monetization";
 import { createClient } from "@/lib/supabase/server";
 import { buildStudioMonetizationConfigView } from "@/lib/studio/monetization-config";
@@ -37,13 +37,9 @@ export async function updateStoryMonetization(
     return { ok: false, error: "Admin chưa bật chương trả phí." };
   }
 
-  const monetizationProfile = await getCreatorMonetizationProfile(state.user.id);
-
-  if (
-    monetizationProfile.data?.status !== "approved" ||
-    !monetizationProfile.data.monetization_enabled
-  ) {
-    return { ok: false, error: "Tài khoản chưa được duyệt kiếm tiền." };
+  const creatorCanEarn = await isCreatorMonetizationAllowed(state.user.id);
+  if (!creatorCanEarn) {
+    return { ok: false, error: "Kiếm tiền đang bị tắt bởi ChapMee." };
   }
 
   try {
@@ -82,6 +78,19 @@ export async function updateStoryMonetization(
     config.paidChapterFreeChaptersRequired,
     Math.max(0, Math.floor(input.freeChaptersCount))
   );
+
+  const { data: storyStructure } = await supabase
+    .from("stories")
+    .select("structure_type")
+    .eq("id", input.storyId)
+    .maybeSingle();
+
+  if (storyStructure?.structure_type === "standalone") {
+    return {
+      error: "Truyện một phần chỉ dùng bán trọn bộ, không cấu hình giá từng chương.",
+      ok: false
+    };
+  }
 
   const { data: episodes, error: episodesError } = await supabase
     .from("episodes")

@@ -1,3 +1,5 @@
+import type { ChapterPricingSource } from "@/types/story-monetization";
+
 export type ChapterMonetizationSetting = {
   id: string;
   chapter_id: string;
@@ -8,6 +10,8 @@ export type ChapterMonetizationSetting = {
   free_preview_enabled: boolean;
   free_preview_percent: number | null;
   free_preview_chars: number | null;
+  pricing_source?: ChapterPricingSource;
+  monetization_override?: boolean;
   created_at: string;
   updated_at: string;
 };

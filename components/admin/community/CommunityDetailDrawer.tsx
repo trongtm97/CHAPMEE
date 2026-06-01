@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Badge, Button } from "@/components/ui";
+import { getProfileUrlOrFallback } from "@/lib/profile/profile-url";
 import {
   COMMUNITY_POST_STATUS_LABELS,
   COMMUNITY_POST_TYPE_LABELS,
@@ -254,7 +255,7 @@ export function CommunityDetailDrawer({
                   {item.authorUsername ? (
                     <Link
                       className="inline-flex min-h-10 items-center rounded-lg border border-zinc-700 px-3 text-sm text-zinc-300 hover:border-cyan-300/50"
-                      href={`/profile/${item.authorUsername}`}
+                      href={getProfileUrlOrFallback(item.authorUsername)}
                     >
                       Xem hồ sơ
                     </Link>

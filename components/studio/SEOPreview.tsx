@@ -12,7 +12,7 @@ type SEOPreviewProps = {
 export function SEOPreview({ description, title, url, variant }: SEOPreviewProps) {
   const displayTitle = title.trim() || "Tiêu đề SEO";
   const displayDescription =
-    description.trim() || "Mô tả lấy từ nội dung có sẵn";
+    description.trim() || "Mô tả SEO sẽ hiển thị tại đây sau khi bạn nhập hoặc dùng gợi ý.";
 
   if (variant === "social") {
     return (

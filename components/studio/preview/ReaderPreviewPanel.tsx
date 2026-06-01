@@ -1,19 +1,22 @@
+import { ChapterPresentationRenderer } from "@/components/presentation/ChapterPresentationRenderer";
+import { ReaderPreferencesProvider } from "@/components/reader/ReaderPreferencesProvider";
+import type { PresentationMode } from "@/types/presentation";
+
 type ReaderPreviewPanelProps = {
   content: string;
   episodeTitle: string;
   storyTitle: string;
+  presentationMode?: PresentationMode;
+  structuredContent?: unknown | null;
 };
 
 export function ReaderPreviewPanel({
   content,
   episodeTitle,
-  storyTitle
+  presentationMode = "standard_prose",
+  storyTitle,
+  structuredContent = null
 }: ReaderPreviewPanelProps) {
-  const paragraphs = content
-    .split(/\n+/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
-
   return (
     <article className="space-y-8 rounded-2xl border border-white/10 bg-zinc-950 p-6 shadow-sm xl:p-8">
       <header className="space-y-3 border-b border-white/5 pb-6">
@@ -30,11 +33,16 @@ export function ReaderPreviewPanel({
         </div>
       </header>
 
-      <div className="space-y-6 text-[1.05rem] leading-9 text-zinc-100 md:text-[1.1rem]">
-        {paragraphs.map((paragraph, index) => (
-          <p key={`${paragraph.slice(0, 24)}-${index}`}>{paragraph}</p>
-        ))}
-      </div>
+      <ReaderPreferencesProvider>
+        <ChapterPresentationRenderer
+          chapterMode={null}
+          content={content}
+          mode={presentationMode}
+          showFallbackNotice
+          storyMode={presentationMode}
+          structuredContent={structuredContent}
+        />
+      </ReaderPreferencesProvider>
 
       <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
         <div>

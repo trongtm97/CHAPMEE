@@ -20,7 +20,7 @@ export default async function StudioWorkspaceLayout({
   if (error || !creatorProfile) {
     return (
       <div className="min-h-screen bg-[#0b0c10] px-4 py-10 text-zinc-50">
-        <div className="mx-auto w-full max-w-4xl">
+        <div className="w-full min-w-0">
           <ErrorState message={error} title="Không tải được Studio" />
         </div>
       </div>

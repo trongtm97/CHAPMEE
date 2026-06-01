@@ -52,6 +52,7 @@ export async function getAuthorGroupById(authorId: string): Promise<{
       group: {
         id: `author-group-${data.id}`,
         authorId: data.id,
+        authorUsername: profile?.username?.trim().toLowerCase() ?? null,
         name:
           data.pen_name ?? profile?.display_name ?? profile?.username ?? "Tác giả",
         avatarUrl: profile?.avatar_url ?? null,

@@ -1,17 +1,20 @@
 import { DiscoverStoryCard } from "@/components/discover/DiscoverStoryCard";
 import { Card, SectionHeader } from "@/components/ui";
 import type { DiscoverStory } from "@/lib/discover/getDiscoverData";
+import type { TrackingSurface } from "@/types/tracking";
 
 type DiscoverSectionProps = {
   title: string;
   subtitle?: string;
   stories: DiscoverStory[];
+  trackingSurface?: TrackingSurface;
 };
 
 export function DiscoverSection({
   stories,
   subtitle,
-  title
+  title,
+  trackingSurface = "discover"
 }: DiscoverSectionProps) {
   return (
     <section className="space-y-3">
@@ -34,8 +37,13 @@ export function DiscoverSection({
         </Card>
       ) : (
         <div className="space-y-3">
-          {stories.map((story) => (
-            <DiscoverStoryCard key={story.id} story={story} />
+          {stories.map((story, index) => (
+            <DiscoverStoryCard
+              key={story.id}
+              position={index}
+              story={story}
+              surface={trackingSurface}
+            />
           ))}
         </div>
       )}

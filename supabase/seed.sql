@@ -27,34 +27,7 @@ begin
 end
 $$;
 
-insert into public.genres (id, name, slug, description)
-values
-  ('30000000-0000-0000-0000-000000000001', 'Ngôn tình', 'ngon-tinh', 'Tình cảm hiện đại, cảm xúc rõ, chương ngắn dễ đọc trên điện thoại.'),
-  ('30000000-0000-0000-0000-000000000002', 'Drama', 'drama', 'Mâu thuẫn gia đình, công sở và những lựa chọn khó nói.'),
-  ('30000000-0000-0000-0000-000000000003', 'Kinh dị', 'kinh-di', 'Không khí lạ và rùng mình nhẹ, phù hợp MVP text-only.'),
-  ('30000000-0000-0000-0000-000000000004', 'Trinh thám', 'trinh-tham', 'Manh mối, mất tích, suy luận và cú lật cuối chương.'),
-  ('30000000-0000-0000-0000-000000000005', 'Xuyên không', 'xuyen-khong', 'Nhân vật bước sang thời gian hoặc thế giới khác.'),
-  ('30000000-0000-0000-0000-000000000006', 'Chat story', 'chat-story', 'Truyện kể qua tin nhắn, ghi chú và hội thoại nhanh.'),
-  ('30000000-0000-0000-0000-000000000007', 'Truyện ngắn', 'truyen-ngan', 'Câu chuyện gọn, hook rõ, twist nhanh.'),
-  ('30000000-0000-0000-0000-000000000008', 'Chữa lành', 'chua-lanh', 'Nhẹ nhàng, ấm áp, cho người đọc thở chậm lại.')
-on conflict (slug) do update set
-  name = excluded.name,
-  description = excluded.description;
-
-insert into public.tags (id, name, slug)
-values
-  ('40000000-0000-0000-0000-000000000001', 'báo thù', 'bao-thu'),
-  ('40000000-0000-0000-0000-000000000002', 'bí mật', 'bi-mat'),
-  ('40000000-0000-0000-0000-000000000003', 'cưới trước yêu sau', 'cuoi-truoc-yeu-sau'),
-  ('40000000-0000-0000-0000-000000000004', 'mất tích', 'mat-tich'),
-  ('40000000-0000-0000-0000-000000000005', 'trọng sinh', 'trong-sinh'),
-  ('40000000-0000-0000-0000-000000000006', 'tổng tài', 'tong-tai'),
-  ('40000000-0000-0000-0000-000000000007', 'học đường', 'hoc-duong'),
-  ('40000000-0000-0000-0000-000000000008', 'twist cuối', 'twist-cuoi'),
-  ('40000000-0000-0000-0000-000000000009', 'gia đình', 'gia-dinh'),
-  ('40000000-0000-0000-0000-000000000010', 'tâm lý', 'tam-ly')
-on conflict (slug) do update set
-  name = excluded.name;
+-- Legacy genres/tags removed — taxonomy seeded in migration 161.
 
 with selected_creator as (
   select cp.id as creator_id, cp.user_id
@@ -217,7 +190,6 @@ insert into public.stories (
   short_description,
   long_description,
   cover_url,
-  genre_id,
   status,
   visibility,
   is_completed,
@@ -232,13 +204,11 @@ select
   seed.short_description,
   seed.long_description,
   null,
-  genres.id,
   seed.status,
   seed.visibility,
   seed.is_completed,
   now() - seed.published_offset
 from story_seed seed
-join public.genres genres on genres.slug = seed.genre_slug
 cross join selected_creator
 on conflict (slug) do update set
   creator_id = excluded.creator_id,
@@ -246,52 +216,63 @@ on conflict (slug) do update set
   hook = excluded.hook,
   short_description = excluded.short_description,
   long_description = excluded.long_description,
-  genre_id = excluded.genre_id,
   status = excluded.status,
   visibility = excluded.visibility,
   is_completed = excluded.is_completed,
   published_at = excluded.published_at,
   updated_at = now();
 
+insert into public.story_taxonomy_terms (story_id, term_id, type)
+select stories.id, terms.id, 'main_genre'
+from (
+  values
+    ('hop-dong-luc-0-gio', 'ngon-tinh'),
+    ('tin-nhan-tu-phong-404', 'kinh-di'),
+    ('ngay-toi-muon-tuoi-17', 'xuyen-khong'),
+    ('group-chat-khong-co-toi', 'chat-story'),
+    ('tiem-tra-sau-con-mua', 'chua-lanh'),
+    ('sep-tong-doc-nhat-ky-cua-toi', 'drama'),
+    ('ban-do-nhung-nguoi-mat-tich', 'trinh-tham'),
+    ('can-ho-tang-13-ruoi', 'kinh-di'),
+    ('ba-phut-truoc-khi-chuong-reo', 'truyen-ngan'),
+    ('bua-com-co-ghe-trong', 'drama')
+) as map(story_slug, genre_slug)
+join public.stories stories on stories.slug = map.story_slug
+join public.taxonomy_terms terms
+  on terms.type = 'main_genre'
+ and terms.slug = map.genre_slug
+on conflict do nothing;
+
 with tag_seed (story_slug, tag_slug) as (
   values
     ('hop-dong-luc-0-gio', 'cuoi-truoc-yeu-sau'),
     ('hop-dong-luc-0-gio', 'tong-tai'),
-    ('hop-dong-luc-0-gio', 'bi-mat'),
+    ('hop-dong-luc-0-gio', 'bao-thu'),
     ('tin-nhan-tu-phong-404', 'mat-tich'),
     ('tin-nhan-tu-phong-404', 'kinh-di'),
-    ('tin-nhan-tu-phong-404', 'twist-cuoi'),
     ('ngay-toi-muon-tuoi-17', 'hoc-duong'),
     ('ngay-toi-muon-tuoi-17', 'trong-sinh'),
-    ('ngay-toi-muon-tuoi-17', 'twist-cuoi'),
     ('group-chat-khong-co-toi', 'hoc-duong'),
-    ('group-chat-khong-co-toi', 'bi-mat'),
     ('group-chat-khong-co-toi', 'tam-ly'),
     ('tiem-tra-sau-con-mua', 'gia-dinh'),
     ('tiem-tra-sau-con-mua', 'chua-lanh'),
-    ('tiem-tra-sau-con-mua', 'bi-mat'),
     ('sep-tong-doc-nhat-ky-cua-toi', 'tong-tai'),
     ('sep-tong-doc-nhat-ky-cua-toi', 'tam-ly'),
-    ('sep-tong-doc-nhat-ky-cua-toi', 'bi-mat'),
     ('ban-do-nhung-nguoi-mat-tich', 'mat-tich'),
-    ('ban-do-nhung-nguoi-mat-tich', 'twist-cuoi'),
-    ('ban-do-nhung-nguoi-mat-tich', 'bi-mat'),
     ('can-ho-tang-13-ruoi', 'kinh-di'),
-    ('can-ho-tang-13-ruoi', 'bi-mat'),
-    ('can-ho-tang-13-ruoi', 'twist-cuoi'),
     ('ba-phut-truoc-khi-chuong-reo', 'hoc-duong'),
-    ('ba-phut-truoc-khi-chuong-reo', 'twist-cuoi'),
     ('ba-phut-truoc-khi-chuong-reo', 'tam-ly'),
     ('bua-com-co-ghe-trong', 'gia-dinh'),
-    ('bua-com-co-ghe-trong', 'tam-ly'),
-    ('bua-com-co-ghe-trong', 'bi-mat')
+    ('bua-com-co-ghe-trong', 'tam-ly')
 )
-insert into public.story_tags (story_id, tag_id)
-select stories.id, tags.id
+insert into public.story_taxonomy_terms (story_id, term_id, type)
+select stories.id, terms.id, terms.type
 from tag_seed
 join public.stories stories on stories.slug = tag_seed.story_slug
-join public.tags tags on tags.slug = tag_seed.tag_slug
-on conflict (story_id, tag_id) do nothing;
+join public.taxonomy_terms terms
+  on terms.slug = tag_seed.tag_slug
+ and terms.type in ('trope_tag', 'subgenre')
+on conflict do nothing;
 
 with episode_seed (
   id,
@@ -821,7 +802,7 @@ event_seed (
       null::integer,
       'seed-session-1',
       false,
-      '{"source":"seed","surface":"home","action":"open_story"}'::jsonb
+      '{"source":"seed","surface":"reels","action":"open_story"}'::jsonb
     ),
     (
       '90000000-0000-0000-0000-000000000002'::uuid,

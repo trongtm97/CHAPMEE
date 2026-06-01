@@ -8,10 +8,6 @@ type ReaderNavigationProps = {
   data: EpisodeReaderData;
 };
 
-function episodeHref(slug: string, episodeNumber: number) {
-  return `/stories/${slug}/episodes/${episodeNumber}`;
-}
-
 export function ReaderNavigation({
   analyticsContext,
   data
@@ -21,7 +17,7 @@ export function ReaderNavigation({
       {data.previousEpisodeNumber ? (
         <Link
           className="tap-highlight inline-flex min-h-12 items-center justify-center rounded-full bg-white/[0.05] px-4 py-3 text-sm font-bold text-zinc-100 sm:min-h-14"
-          href={episodeHref(data.story.slug, data.previousEpisodeNumber)}
+          href={data.previousChapterHref ?? data.storyHref}
         >
           Previous
         </Link>
@@ -34,7 +30,7 @@ export function ReaderNavigation({
         <TrackedNextChapterLink
           className="tap-highlight inline-flex min-h-12 items-center justify-center rounded-full bg-cyan-300 px-4 py-3 text-sm font-black uppercase tracking-[0.12em] text-zinc-950 shadow-[0_14px_30px_rgba(103,232,249,0.18)] sm:min-h-14"
           context={analyticsContext}
-          href={episodeHref(data.story.slug, data.nextEpisodeNumber)}
+          href={data.nextChapterHref ?? data.storyHref}
           nextEpisodeNumber={data.nextEpisodeNumber}
         >
           Next chap

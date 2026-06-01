@@ -24,9 +24,26 @@ export type StudioStoryListFilter =
   | "scheduled"
   | "completed"
   | "rejected"
-  | "hidden";
+  | "hidden"
+  | "missing_cover";
 
-export type StudioStorySort = "updated" | "created" | "reads" | "title";
+export type StudioStorySort =
+  | "updated"
+  | "updated_asc"
+  | "created"
+  | "reads"
+  | "reads_7d"
+  | "saves"
+  | "comments"
+  | "title"
+  | "chapters"
+  | "main_genre"
+  | "needs_attention";
+
+export const STUDIO_LIST_PAGE_SIZES = [10, 20, 50] as const;
+export type StudioListPageSize = (typeof STUDIO_LIST_PAGE_SIZES)[number];
+export const STUDIO_LIST_PAGE_SIZE_DEFAULT: StudioListPageSize = 10;
+export const STUDIO_LIST_PAGE_SIZE = STUDIO_LIST_PAGE_SIZE_DEFAULT;
 
 export type StudioChapterListFilter =
   | "all"
@@ -34,12 +51,20 @@ export type StudioChapterListFilter =
   | "scheduled"
   | "published"
   | "rejected"
-  | "hidden";
+  | "hidden"
+  | "paid"
+  | "free"
+  | "has_comments";
 
 export type StudioChapterSort =
   | "number_asc"
   | "number_desc"
   | "updated"
-  | "scheduled";
+  | "scheduled"
+  | "published"
+  | "reads"
+  | "comments";
 
-export const STUDIO_LIST_PAGE_SIZE = 20;
+export const STUDIO_CHAPTER_PAGE_SIZES = [25, 50, 100] as const;
+export type StudioChapterPageSize = (typeof STUDIO_CHAPTER_PAGE_SIZES)[number];
+export const STUDIO_CHAPTER_PAGE_SIZE_DEFAULT: StudioChapterPageSize = 25;

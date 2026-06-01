@@ -148,7 +148,7 @@ export async function calculateCreatorBonusCandidates(input: {
     ).size;
     const chapterStarts = eventRows.filter((event) => event.event_name === "start_reading").length;
     const chapterCompletes = eventRows.filter((event) => event.event_name === "complete_chap").length;
-    const readMore = eventRows.filter((event) => ["feed_read_more", "swipe_read_more_clicked"].includes(event.event_name)).length;
+    const readMore = eventRows.filter((event) => ["feed_read_more", "reels_read_more_clicked"].includes(event.event_name)).length;
     const shares = eventRows.filter((event) => event.event_name === "share_clicked").length;
     const completionRate = chapterStarts > 0 ? chapterCompletes / chapterStarts : 0;
     const readMoreRate = chapterStarts > 0 ? readMore / chapterStarts : 0;

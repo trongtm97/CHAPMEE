@@ -1,7 +1,7 @@
 "use server";
 
-import { requireWalletAdjustAccess } from "@/lib/auth/finance-guards";
 import { mapCreatorFeePolicyRow } from "@/lib/admin/creator-fee-policy-shared";
+import { requireCreatorFeeViewAccess } from "@/lib/auth/creator-fee-guards";
 import { resolveCreatorFeePolicy } from "@/lib/finance/resolve-creator-fee-policy";
 import { createClient } from "@/lib/supabase/server";
 import type { CreatorFeePolicyAdminView } from "@/types/creator-fee-policy";
@@ -20,7 +20,7 @@ async function countTransactionsForPolicy(policyId: string): Promise<number> {
 }
 
 export async function fetchCreatorFeePoliciesForUserAction(creatorId: string) {
-  const guard = await requireWalletAdjustAccess();
+  const guard = await requireCreatorFeeViewAccess();
   if (!guard.ok) {
     return {
       policies: [] as CreatorFeePolicyAdminView[],
@@ -33,7 +33,7 @@ export async function fetchCreatorFeePoliciesForUserAction(creatorId: string) {
   const supabase = await createClient();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, username, display_name")
+    .select("id, username, display_name, avatar_url")
     .eq("id", creatorId)
     .maybeSingle();
 
@@ -49,14 +49,28 @@ export async function fetchCreatorFeePoliciesForUserAction(creatorId: string) {
     .order("starts_at", { ascending: false });
 
   if (error) {
-    return { policies: [], current: null, defaultResolved: null, error: error.message };
+    return {
+      policies: [],
+      current: null,
+      defaultResolved: null,
+      error: "Không thể tải chính sách phí. Vui lòng thử lại."
+    };
   }
 
   const policies: CreatorFeePolicyAdminView[] = await Promise.all(
     (data ?? []).map(async (row) => {
       const mapped = mapCreatorFeePolicyRow(row as Record<string, unknown>);
       const transaction_count = await countTransactionsForPolicy(mapped.id);
-      return { ...mapped, transaction_count, creator_label: creatorLabel };
+      return {
+        ...mapped,
+        transaction_count,
+        creator_label: creatorLabel,
+        creator_username: (profile?.username as string) ?? null,
+        creator_email: null,
+        creator_avatar_url: (profile?.avatar_url as string) ?? null,
+        studio_name: null,
+        updated_by_label: null
+      };
     })
   );
 
@@ -70,7 +84,7 @@ export async function fetchCreatorFeePoliciesForUserAction(creatorId: string) {
 }
 
 export async function fetchCreatorFeePolicyTransactionsAction(policyId: string, limit = 20) {
-  const guard = await requireWalletAdjustAccess();
+  const guard = await requireCreatorFeeViewAccess();
   if (!guard.ok) {
     return { rows: [], error: guard.error };
   }
@@ -86,7 +100,7 @@ export async function fetchCreatorFeePolicyTransactionsAction(policyId: string, 
     .limit(limit);
 
   if (error) {
-    return { rows: [], error: error.message };
+    return { rows: [], error: "Không thể tải giao dịch." };
   }
 
   return { rows: data ?? [], error: null };

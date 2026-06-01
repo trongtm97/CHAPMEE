@@ -1,4 +1,4 @@
-export type ShareCardKind = "story" | "swipe" | "generic" | "profile" | "achievement";
+export type ShareCardKind = "story" | "reel" | "generic" | "profile" | "achievement";
 
 export type ShareCardStat = {
   label: string;

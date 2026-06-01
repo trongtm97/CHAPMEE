@@ -4,48 +4,33 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { AppSearchField } from "@/components/ui/AppSearchField";
-import { buildCatalogHref, resolveCatalogGenres } from "@/lib/stories/catalog-url";
+import { buildCatalogHref } from "@/lib/stories/catalog-url";
+import type { CatalogFilterOptions, StoryCatalogFilterParams } from "@/lib/discovery/types";
 import type { StoryCatalogGenre, StoryCatalogSort, StoryCatalogStatus } from "@/types/story";
 
 type StoryFilterSheetProps = {
   open: boolean;
   onClose: () => void;
   genres: StoryCatalogGenre[];
+  filterOptions: CatalogFilterOptions;
   query: string;
   genre: string;
   status: StoryCatalogStatus;
   sort: StoryCatalogSort;
+  filters: StoryCatalogFilterParams;
 };
-
-type LengthFilter = "all" | "quick" | "short" | "long";
-
-function lengthFromSort(sort: StoryCatalogSort, genre: string): LengthFilter {
-  if (sort === "quick") {
-    return "quick";
-  }
-  if (genre === "truyen-ngan") {
-    return "short";
-  }
-  return "all";
-}
 
 export function StoryFilterSheet(props: StoryFilterSheetProps) {
   const { onClose, open } = props;
 
   useEffect(() => {
-    if (!open) {
-      return;
-    }
+    if (!open) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
+      if (event.key === "Escape") onClose();
     }
     window.addEventListener("keydown", onKeyDown);
-
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
@@ -57,15 +42,14 @@ export function StoryFilterSheet(props: StoryFilterSheetProps) {
   }
 
   return createPortal(
-    <StoryFilterSheetPanel
-      key={`${props.genre}|${props.status}|${props.sort}|${props.query}`}
-      {...props}
-    />,
+    <StoryFilterSheetPanel key={JSON.stringify(props.filters)} {...props} />,
     document.body
   );
 }
 
 function StoryFilterSheetPanel({
+  filterOptions,
+  filters,
   genre,
   genres,
   onClose,
@@ -75,48 +59,31 @@ function StoryFilterSheetPanel({
 }: StoryFilterSheetProps) {
   const router = useRouter();
   const [genreSearch, setGenreSearch] = useState("");
-  const [draftGenre, setDraftGenre] = useState(genre);
-  const [draftStatus, setDraftStatus] = useState(status);
-  const [draftLength, setDraftLength] = useState<LengthFilter>(() => lengthFromSort(sort, genre));
-
-  const allGenres = useMemo(() => resolveCatalogGenres(genres), [genres]);
+  const [draft, setDraft] = useState<StoryCatalogFilterParams>({
+    ...filters,
+    genre: genre || filters.genre,
+    status: status ?? filters.status,
+    sort: sort ?? filters.sort
+  });
 
   const filteredGenres = useMemo(() => {
     const q = genreSearch.trim().toLowerCase();
-    if (!q) {
-      return allGenres;
-    }
-    return allGenres.filter(
+    if (!q) return genres;
+    return genres.filter(
       (item) => item.name.toLowerCase().includes(q) || item.slug.toLowerCase().includes(q)
     );
-  }, [allGenres, genreSearch]);
+  }, [genreSearch, genres]);
+
+  function patch(partial: Partial<StoryCatalogFilterParams>) {
+    setDraft((current) => ({ ...current, ...partial }));
+  }
 
   function applyFilters() {
-    let nextSort: StoryCatalogSort = sort;
-    let nextGenre = draftGenre;
-
-    if (draftLength === "quick") {
-      nextSort = "quick";
-    } else if (draftLength === "short") {
-      nextGenre = "truyen-ngan";
-      if (nextSort === "quick") {
-        nextSort = "updated";
-      }
-    } else if (draftLength === "long") {
-      // TODO: backend filter for multi-chapter stories when episode counts are exposed.
-      if (nextSort === "quick") {
-        nextSort = "updated";
-      }
-    } else if (draftLength === "all" && nextSort === "quick" && nextGenre !== "truyen-ngan") {
-      nextSort = "updated";
-    }
-
     router.push(
       buildCatalogHref({
-        q: query,
-        genre: nextGenre,
-        status: draftStatus,
-        sort: nextSort
+        ...draft,
+        q: query || draft.q,
+        page: 1
       })
     );
     onClose();
@@ -136,14 +103,14 @@ function StoryFilterSheetPanel({
         type="button"
       />
       <div
-        className="absolute inset-x-0 bottom-0 z-10 mx-auto max-h-[85dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-white/10 bg-[#0b1016] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-[0_-20px_60px_rgba(0,0,0,0.45)] lg:bottom-auto lg:left-1/2 lg:top-1/2 lg:max-h-[min(85dvh,40rem)] lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-2xl lg:pb-4"
-        role="dialog"
-        aria-modal="true"
         aria-labelledby="story-filter-sheet-title"
+        aria-modal="true"
+        className="absolute inset-x-0 bottom-0 z-10 mx-auto max-h-[85dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-white/10 bg-[#0b1016] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-[0_-20px_60px_rgba(0,0,0,0.45)] lg:bottom-auto lg:left-1/2 lg:top-1/2 lg:max-h-[min(85dvh,42rem)] lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-2xl lg:pb-4"
+        role="dialog"
       >
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-base font-black text-zinc-50" id="story-filter-sheet-title">
-            Chọn Danh Mục
+            Bộ lọc truyện
           </h2>
           <button className="text-xs font-semibold text-zinc-400" onClick={onClose} type="button">
             Đóng
@@ -151,63 +118,166 @@ function StoryFilterSheetPanel({
         </div>
 
         <div className="space-y-4">
+          <FacetSelect
+            label="Thể loại chính"
+            onChange={(value) => patch({ genre: value || undefined, subgenre: undefined })}
+            options={filteredGenres}
+            search={genreSearch}
+            onSearchChange={setGenreSearch}
+            value={draft.genre ?? ""}
+          />
+
+          <FacetChips
+            label="Thể loại phụ"
+            onChange={(value) => patch({ subgenre: value || undefined })}
+            options={filterOptions.subgenres}
+            value={draft.subgenre ?? ""}
+          />
+
+          <FacetChips
+            label="Tag / motif"
+            onChange={(value) => patch({ tag: value || undefined })}
+            options={filterOptions.tags}
+            value={draft.tag ?? ""}
+          />
+
+          <FacetChips
+            label="Nhân vật"
+            onChange={(value) => patch({ character: value || undefined })}
+            options={filterOptions.characters}
+            value={draft.character ?? ""}
+          />
+
+          <FacetChips
+            label="Quan hệ"
+            onChange={(value) => patch({ relationship: value || undefined })}
+            options={filterOptions.relationships}
+            value={draft.relationship ?? ""}
+          />
+
+          <FacetChips
+            label="Phong cách kể"
+            onChange={(value) => patch({ narrativeStyle: value || undefined })}
+            options={filterOptions.narrativeStyles}
+            value={draft.narrativeStyle ?? ""}
+          />
+
+          <FacetChips
+            label="Bối cảnh"
+            onChange={(value) => patch({ setting: value || undefined })}
+            options={filterOptions.settings}
+            value={draft.setting ?? ""}
+          />
+
+          <FacetChips
+            label="Cảm giác đọc"
+            onChange={(value) => patch({ experience: value || undefined })}
+            options={filterOptions.experiences}
+            value={draft.experience ?? ""}
+          />
+
+          <FacetChips
+            label="Format trình bày"
+            onChange={(value) => patch({ presentation: value || undefined })}
+            options={filterOptions.presentations}
+            value={draft.presentation ?? ""}
+          />
+
+          <FacetChips
+            label="Loại nội dung"
+            onChange={(value) => patch({ contentType: value || undefined })}
+            options={filterOptions.contentTypes}
+            value={draft.contentType ?? ""}
+          />
+
+          <FacetChips
+            label="Độ tuổi"
+            onChange={(value) => patch({ ageRating: value || undefined })}
+            options={filterOptions.ageRatings}
+            value={draft.ageRating ?? ""}
+          />
+
+          <FacetChips
+            label="Gói truy cập (taxonomy)"
+            onChange={(value) => patch({ monetization: value || undefined })}
+            options={filterOptions.monetizationAccess}
+            value={draft.monetization ?? ""}
+          />
+
+          <FacetChips
+            label="Cảnh báo nội dung"
+            onChange={(value) => patch({ contentWarning: value || undefined })}
+            options={filterOptions.contentWarnings}
+            value={draft.contentWarning ?? ""}
+          />
+
+          <FacetChips
+            label="Nhãn trạng thái"
+            onChange={(value) => patch({ storyStatus: value || undefined })}
+            options={filterOptions.storyStatuses}
+            value={draft.storyStatus ?? ""}
+          />
+
           <section className="space-y-2">
-            <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">Danh mục / thể loại</p>
-            <AppSearchField
-              onChange={setGenreSearch}
-              placeholder="Tìm danh mục..."
-              showSubmit={false}
-              value={genreSearch}
-              variant="field"
-            />
-            <div className="max-h-52 space-y-1 overflow-y-auto">
-              <GenreListOption active={!draftGenre} label="Tất cả danh mục" onSelect={() => setDraftGenre("")} />
-              {filteredGenres.length === 0 ? (
-                <p className="px-1 py-2 text-xs text-zinc-500">Không tìm thấy danh mục phù hợp.</p>
-              ) : null}
-              {filteredGenres.map((item) => (
-                <GenreListOption
-                  active={draftGenre === item.slug}
-                  key={item.slug}
-                  label={`${item.name}${item.storyCount > 0 ? ` (${item.storyCount})` : ""}`}
-                  onSelect={() => setDraftGenre(item.slug)}
+            <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">Trạng thái</p>
+            <div className="flex flex-wrap gap-2">
+              <FilterOption active={draft.status === "all"} label="Tất cả" onSelect={() => patch({ status: "all" })} />
+              <FilterOption active={draft.status === "ongoing"} label="Đang ra" onSelect={() => patch({ status: "ongoing" })} />
+              <FilterOption active={draft.status === "completed"} label="Hoàn thành" onSelect={() => patch({ status: "completed" })} />
+            </div>
+          </section>
+
+          <section className="space-y-2">
+            <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">Truy cập</p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: "", label: "Tất cả" },
+                { value: "free", label: "Miễn phí" },
+                { value: "paid", label: "Trả phí" },
+                { value: "free_chapters", label: "Có chương miễn phí" },
+                { value: "full_access", label: "Bán trọn bộ" }
+              ].map((option) => (
+                <FilterOption
+                  active={(draft.access ?? "") === option.value}
+                  key={option.label}
+                  label={option.label}
+                  onSelect={() =>
+                    patch({
+                      access: (option.value || undefined) as StoryCatalogFilterParams["access"]
+                    })
+                  }
                 />
               ))}
             </div>
           </section>
 
           <section className="space-y-2">
-            <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">Trạng thái</p>
+            <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">Chương mới</p>
             <div className="flex flex-wrap gap-2">
-              <FilterOption active={draftStatus === "all"} label="Tất cả" onSelect={() => setDraftStatus("all")} />
               <FilterOption
-                active={draftStatus === "ongoing"}
-                label="Đang ra"
-                onSelect={() => setDraftStatus("ongoing")}
+                active={!draft.hasNewChapter}
+                label="Tất cả"
+                onSelect={() => patch({ hasNewChapter: undefined })}
               />
               <FilterOption
-                active={draftStatus === "completed"}
-                label="Hoàn thành"
-                onSelect={() => setDraftStatus("completed")}
+                active={draft.hasNewChapter === "yes"}
+                label="Có chương mới (14 ngày)"
+                onSelect={() => patch({ hasNewChapter: "yes" })}
+              />
+              <FilterOption
+                active={draft.hasNewChapter === "no"}
+                label="Không ưu tiên mới"
+                onSelect={() => patch({ hasNewChapter: "no" })}
               />
             </div>
           </section>
 
           <section className="space-y-2">
-            <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">Độ dài</p>
+            <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">Cảnh báo nội dung</p>
             <div className="flex flex-wrap gap-2">
-              <FilterOption active={draftLength === "all"} label="Tất cả" onSelect={() => setDraftLength("all")} />
-              <FilterOption active={draftLength === "quick"} label="Đọc nhanh" onSelect={() => setDraftLength("quick")} />
-              <FilterOption
-                active={draftLength === "short"}
-                label="Truyện ngắn"
-                onSelect={() => setDraftLength("short")}
-              />
-              <FilterOption
-                active={draftLength === "long"}
-                label="Nhiều chương"
-                onSelect={() => setDraftLength("long")}
-              />
+              <FilterOption active={!draft.hasWarning} label="Tất cả" onSelect={() => patch({ hasWarning: undefined })} />
+              <FilterOption active={draft.hasWarning === "yes"} label="Có cảnh báo" onSelect={() => patch({ hasWarning: "yes" })} />
+              <FilterOption active={draft.hasWarning === "no"} label="Không cảnh báo" onSelect={() => patch({ hasWarning: "no" })} />
             </div>
           </section>
         </div>
@@ -230,6 +300,70 @@ function StoryFilterSheetPanel({
         </div>
       </div>
     </div>
+  );
+}
+
+function FacetSelect({
+  label,
+  onChange,
+  onSearchChange,
+  options,
+  search,
+  value
+}: {
+  label: string;
+  onChange: (slug: string) => void;
+  onSearchChange: (value: string) => void;
+  options: Array<{ slug: string; name: string }>;
+  search: string;
+  value: string;
+}) {
+  return (
+    <section className="space-y-2">
+      <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">{label}</p>
+      <AppSearchField onChange={onSearchChange} placeholder="Tìm…" showSubmit={false} value={search} variant="field" />
+      <div className="max-h-40 space-y-1 overflow-y-auto">
+        <GenreListOption active={!value} label="Tất cả" onSelect={() => onChange("")} />
+        {options.map((item) => (
+          <GenreListOption
+            active={value === item.slug}
+            key={item.slug}
+            label={item.name}
+            onSelect={() => onChange(item.slug)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FacetChips({
+  label,
+  onChange,
+  options,
+  value
+}: {
+  label: string;
+  onChange: (slug: string) => void;
+  options: Array<{ slug: string; name: string }>;
+  value: string;
+}) {
+  if (options.length === 0) return null;
+  return (
+    <section className="space-y-2">
+      <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">{label}</p>
+      <div className="flex flex-wrap gap-2">
+        <FilterOption active={!value} label="Tất cả" onSelect={() => onChange("")} />
+        {options.slice(0, 16).map((item) => (
+          <FilterOption
+            active={value === item.slug}
+            key={item.slug}
+            label={item.name}
+            onSelect={() => onChange(item.slug)}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 

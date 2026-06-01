@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ContentHealthPage } from "@/components/studio/ContentHealthPage";
+import { CreatorTaxonomyRevisionPanel } from "@/components/studio/CreatorTaxonomyRevisionPanel";
 import { ErrorState, SectionHeader } from "@/components/ui";
 import { getStudioAccess } from "@/lib/creator/getStudioAccess";
 import {
   getAuthorContentHealth,
   getAuthorContentQualityDetail
 } from "@/lib/content-quality/get-author-content-health";
+import { getCreatorStoryAlgorithmInsights } from "@/lib/explainability/get-creator-story-insights";
 import { buildCanonicalUrl } from "@/lib/seo/metadata";
 import { studioPath } from "@/lib/studio/constants";
+import { getCreatorTaxonomyRevisionRequests } from "@/lib/content-taxonomy-quality/get-creator-taxonomy-revisions";
 import type { ContentQualityListTab } from "@/types/content-quality";
 
 export const dynamic = "force-dynamic";
@@ -64,15 +67,19 @@ export default async function StudioContentHealthRoute({
     );
   }
 
-  const [data, initialDetail] = await Promise.all([
+  const [data, initialDetail, algorithmInsights, taxonomyRevisions] = await Promise.all([
     getAuthorContentHealth(creatorProfile, activeTab),
     params.story
       ? getAuthorContentQualityDetail(creatorProfile, params.story)
-      : Promise.resolve(null)
+      : Promise.resolve(null),
+    params.story
+      ? getCreatorStoryAlgorithmInsights(creatorProfile, params.story)
+      : Promise.resolve(null),
+    getCreatorTaxonomyRevisionRequests(creatorProfile)
   ]);
 
   return (
-    <section className="mx-auto w-full max-w-4xl space-y-6">
+    <section className="w-full min-w-0 space-y-6">
       <Link
         className="text-sm font-semibold text-sky-300 hover:text-sky-200"
         href={studioPath("")}
@@ -82,7 +89,13 @@ export default async function StudioContentHealthRoute({
 
       <SectionHeader subtitle={PAGE_SUBTITLE} title={PAGE_TITLE} />
 
-      <ContentHealthPage data={data} initialDetail={initialDetail} />
+      <CreatorTaxonomyRevisionPanel items={taxonomyRevisions.items} />
+
+      <ContentHealthPage
+        algorithmInsights={algorithmInsights}
+        data={data}
+        initialDetail={initialDetail}
+      />
     </section>
   );
 }

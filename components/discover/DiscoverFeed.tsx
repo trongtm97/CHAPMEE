@@ -1,14 +1,20 @@
 import { CreatorSpotlightSection } from "@/components/discover/CreatorSpotlightSection";
+import { DiscoverArticlesBlock } from "@/components/discover/DiscoverArticlesBlock";
+import { DiscoverTaxonomySections } from "@/components/discovery/DiscoverTaxonomySections";
 import { DiscoverQuickAccessGrid } from "@/components/discover/DiscoverQuickAccessGrid";
 import { AppSearchBar } from "@/components/ui/AppSearchBar";
 import { MiniRanking } from "@/components/discover/MiniRanking";
 import { MoodChipCarousel } from "@/components/discover/MoodChipCarousel";
 import { StoryCarouselSection } from "@/components/discover/StoryCarouselSection";
-import { SwipeTeaserCard } from "@/components/discover/SwipeTeaserCard";
-import { UpdatedStoriesCompactList } from "@/components/discover/UpdatedStoriesCompactList";
 import { ErrorState } from "@/components/ui";
-import type { DiscoverData, DiscoverStory } from "@/lib/discover/getDiscoverData";
+import type { DiscoverData } from "@/lib/discover/getDiscoverData";
 import type { ReactNode } from "react";
+import { Suspense } from "react";
+import { AdSlotBudgetProvider } from "@/components/ads/AdSlotBudgetContext";
+import { DiscoverFeedAdInset } from "@/components/ads/DiscoverFeedAdInset";
+
+/** Insert one in-feed ad after this many visible sections (0-indexed: after section 2 = 3rd block). */
+const DISCOVER_AD_AFTER_SECTION_INDEX = 2;
 
 type DiscoverFeedProps = {
   data: DiscoverData;
@@ -17,37 +23,14 @@ type DiscoverFeedProps = {
   sponsoredBanner?: ReactNode;
 };
 
-function dedupeStories(stories: DiscoverStory[], usedIds: Set<string>, limit: number) {
-  const unique: DiscoverStory[] = [];
-  for (const story of stories) {
-    if (usedIds.has(story.id)) {
-      continue;
-    }
-    usedIds.add(story.id);
-    unique.push(story);
-    if (unique.length >= limit) {
-      break;
-    }
-  }
-  return unique;
-}
-
 export function DiscoverFeed({ data, header, query, sponsoredBanner }: DiscoverFeedProps) {
-  const usedIds = new Set<string>();
-  const recommended = dedupeStories(
-    data.searchResults.length > 0 ? data.searchResults : data.hot24h,
-    usedIds,
-    8
-  );
-  const updated = dedupeStories(data.updatedStories, usedIds, 3);
-  const hotStories = dedupeStories(data.hot24h, usedIds, 6);
-  const quickReads = dedupeStories(data.shortReads, usedIds, 6);
-  const rankingStories = data.hot24h.filter(
-    (story, index, array) => array.findIndex((item) => item.id === story.id) === index
-  );
+  const trackingSurface = query.trim() ? "search" : "discover";
+  const showSearchResults = data.searchResults.length > 0 && query.trim().length > 0;
+
+  let visibleSectionIndex = -1;
 
   return (
-    <>
+    <AdSlotBudgetProvider>
       {header}
 
       <AppSearchBar catalogNavigation defaultValue={query} />
@@ -55,30 +38,86 @@ export function DiscoverFeed({ data, header, query, sponsoredBanner }: DiscoverF
       <div className="mt-7 space-y-7 md:mt-8 md:space-y-8">
         <DiscoverQuickAccessGrid />
 
-        <MoodChipCarousel variant="catalog" />
+        {!showSearchResults ? (
+          <Suspense fallback={null}>
+            <DiscoverArticlesBlock />
+          </Suspense>
+        ) : null}
 
-        <SwipeTeaserCard />
+        <MoodChipCarousel activeGenre="" genres={data.genres} variant="discover" />
+
+        {!showSearchResults && data.taxonomy ? (
+          <DiscoverTaxonomySections taxonomy={data.taxonomy} />
+        ) : null}
 
         {sponsoredBanner}
 
-        {data.error ? <ErrorState message={data.error} title="Không tải được trang khám phá" /> : null}
+        {data.error ? (
+          <ErrorState message={data.error} title="Không tải được trang khám phá" />
+        ) : null}
 
-        <MiniRanking stories={rankingStories} />
+        {showSearchResults ? (
+          <StoryCarouselSection
+            href={`/search?q=${encodeURIComponent(query.trim())}`}
+            seeAllLabel="Xem tất cả"
+            stories={data.searchResults.slice(0, 12)}
+            subtitle={`${data.searchResults.length} truyện — mở trang tìm kiếm để xem đầy đủ`}
+            title="Kết quả"
+            trackingSurface="search"
+          />
+        ) : null}
 
-        <StoryCarouselSection href="/truyen" stories={recommended} title="Đề xuất cho bạn" />
+        {data.sections.map((section) => {
+          if (section.variant === "ranking") {
+            if (section.stories.length === 0) {
+              return null;
+            }
+            visibleSectionIndex += 1;
+            const showAd = visibleSectionIndex === DISCOVER_AD_AFTER_SECTION_INDEX;
+            return (
+              <div key={section.key}>
+                <MiniRanking stories={section.stories} />
+                {showAd ? <DiscoverFeedAdInset /> : null}
+              </div>
+            );
+          }
 
-        <UpdatedStoriesCompactList stories={updated.length > 0 ? updated : data.updatedStories} />
+          if (section.variant === "creators" && section.creators.length > 0) {
+            visibleSectionIndex += 1;
+            const showAd = visibleSectionIndex === DISCOVER_AD_AFTER_SECTION_INDEX;
+            return (
+              <div key={section.key}>
+                <CreatorSpotlightSection
+                  creators={section.creators}
+                  href={section.href}
+                  title={section.title}
+                />
+                {showAd ? <DiscoverFeedAdInset /> : null}
+              </div>
+            );
+          }
 
-        <StoryCarouselSection href="/truyen?sort=hot&page=1" stories={hotStories} title="Đang hot" />
+          if (section.stories.length === 0) {
+            return null;
+          }
 
-        <StoryCarouselSection
-          href="/truyen?sort=quick&page=1"
-          stories={quickReads}
-          title="Đọc nhanh 1 phút"
-        />
+          visibleSectionIndex += 1;
+          const showAd = visibleSectionIndex === DISCOVER_AD_AFTER_SECTION_INDEX;
 
-        <CreatorSpotlightSection creators={data.risingCreators} />
+          return (
+            <div key={section.key}>
+              <StoryCarouselSection
+                href={section.href}
+                stories={section.stories}
+                subtitle={section.subtitle}
+                title={section.title}
+                trackingSurface={trackingSurface}
+              />
+              {showAd ? <DiscoverFeedAdInset /> : null}
+            </div>
+          );
+        })}
       </div>
-    </>
+    </AdSlotBudgetProvider>
   );
 }

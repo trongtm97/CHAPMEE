@@ -1,19 +1,24 @@
 import Link from "next/link";
 import { MobileStoryCard } from "@/components/discover/MobileStoryCard";
 import type { DiscoverStory } from "@/lib/discover/getDiscoverData";
+import type { TrackingSurface } from "@/types/tracking";
 
 type StoryCarouselSectionProps = {
   title: string;
   stories: DiscoverStory[];
   href: string;
   subtitle?: string;
+  trackingSurface?: TrackingSurface;
+  seeAllLabel?: string;
 };
 
 export function StoryCarouselSection({
   href,
+  seeAllLabel = "Xem thêm",
   stories,
   subtitle,
-  title
+  title,
+  trackingSurface = "discover"
 }: StoryCarouselSectionProps) {
   if (stories.length === 0) {
     return null;
@@ -27,14 +32,19 @@ export function StoryCarouselSection({
           {subtitle ? <p className="mt-1 text-xs text-zinc-400">{subtitle}</p> : null}
         </div>
         <Link className="text-xs font-bold text-cyan-200" href={href}>
-          Xem thêm
+          {seeAllLabel}
         </Link>
       </div>
 
       <div className="no-scrollbar -mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
         <div className="flex min-w-max snap-x snap-mandatory gap-3 pb-0.5 pr-4 md:gap-4">
-          {stories.map((story) => (
-            <MobileStoryCard key={story.id} story={story} />
+          {stories.map((story, index) => (
+            <MobileStoryCard
+              key={story.id}
+              position={index}
+              story={story}
+              surface={trackingSurface}
+            />
           ))}
         </div>
       </div>

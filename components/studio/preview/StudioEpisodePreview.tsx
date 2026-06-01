@@ -1,26 +1,32 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useState } from "react";
 import { Badge } from "@/components/ui";
 import { ReaderPreviewPanel } from "@/components/studio/preview/ReaderPreviewPanel";
-import { SwipePreviewPanel } from "@/components/studio/preview/SwipePreviewPanel";
+import { ReelsPreviewPanel } from "@/components/studio/preview/ReelsPreviewPanel";
+
+import type { PresentationMode } from "@/types/presentation";
 
 type StudioEpisodePreviewProps = {
   backHref: string;
   content: string;
+  presentationMode?: PresentationMode;
+  structuredContent?: unknown | null;
   creatorName: string;
   episodeNumber: number;
   episodeStatus: string;
   episodeTitle: string;
   excerpt: string;
-  initialMode?: "reader" | "swipe";
+  initialMode?: "reader" | "reels";
   storyTitle: string;
 };
 
 export function StudioEpisodePreview({
   backHref,
   content,
+  presentationMode = "standard_prose",
+  structuredContent = null,
   creatorName,
   episodeNumber,
   episodeStatus,
@@ -29,7 +35,9 @@ export function StudioEpisodePreview({
   initialMode = "reader",
   storyTitle
 }: StudioEpisodePreviewProps) {
-  const [mode, setMode] = useState<"reader" | "swipe">(initialMode);
+  const [mode, setMode] = useState<"reader" | "reels">(
+    initialMode === "reels" ? "reels" : "reader"
+  );
 
   return (
     <section className="space-y-6">
@@ -76,16 +84,16 @@ export function StudioEpisodePreview({
           Reader Preview
         </button>
         <button
-          aria-pressed={mode === "swipe"}
+          aria-pressed={mode === "reels"}
           className={`min-h-11 rounded-xl px-4 py-2 text-sm font-semibold transition ${
-            mode === "swipe"
+            mode === "reels"
               ? "bg-cyan-300 text-zinc-950"
               : "text-zinc-300 hover:text-white"
           }`}
-          onClick={() => setMode("swipe")}
+          onClick={() => setMode("reels")}
           type="button"
         >
-          Swipe Preview
+          Reels Preview
         </button>
       </div>
 
@@ -100,18 +108,20 @@ export function StudioEpisodePreview({
           <ReaderPreviewPanel
             content={content}
             episodeTitle={episodeTitle}
+            presentationMode={presentationMode}
             storyTitle={storyTitle}
+            structuredContent={structuredContent}
           />
         </section>
 
-        <section className={`${mode === "swipe" ? "block" : "hidden"} xl:block`}>
+        <section className={`${mode === "reels" ? "block" : "hidden"} xl:block`}>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-white">Swipe Preview</p>
+            <p className="text-sm font-semibold text-white">Reels Preview</p>
             <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
               Card-style discovery view
             </p>
           </div>
-          <SwipePreviewPanel
+          <ReelsPreviewPanel
             creatorName={creatorName}
             episodeNumber={episodeNumber}
             episodeTitle={episodeTitle}

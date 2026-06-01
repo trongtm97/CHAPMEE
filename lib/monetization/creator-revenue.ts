@@ -1,9 +1,10 @@
+import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
+import { normalizeRevenueSharePercents } from "@/lib/admin/creator-fee-policy-shared";
 import {
   resolveCreatorFeePolicy,
   toCreatorFeePolicySnapshot
 } from "@/lib/finance/resolve-creator-fee-policy";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { calculateChannelAmounts, resolveFeePercent } from "@/lib/payments/payment-fees";
 import type { CoinLotAllocation } from "@/types/coin-lot";
 import type { PaymentChannel, PaymentProviderKey } from "@/types/payment";
 import type {
@@ -50,119 +51,100 @@ function resolveDefaultPaymentContext(input: CreatorRevenueInput): {
     return { paymentChannel: input.paymentChannel, provider: input.provider };
   }
 
-  // Coin spending does not always carry lot-level channel metadata yet.
   return {
     paymentChannel: input.paymentChannel ?? "web_sepay",
     provider: input.provider ?? "sepay"
   };
 }
 
+function resolveGrossVnd(input: CreatorRevenueInput): number {
+  const lotAllocations = input.coinLotAllocations ?? [];
+  if (lotAllocations.length > 0) {
+    const lotGross = lotAllocations.reduce((sum, item) => {
+      const lotCoins =
+        numberValue(item.paid_coin_amount, 0) + numberValue(item.bonus_coin_amount, 0);
+      const ratio = numberValue(item.coin_to_vnd_rate, input.coinToVndRate);
+      return sum + lotCoins * ratio;
+    }, 0);
+    if (lotGross > 0) {
+      return roundCurrency(lotGross);
+    }
+  }
+
+  return roundCurrency(input.coinSpent * input.coinToVndRate);
+}
+
+/** @deprecated Chỉ còn trả gross — không trừ phí kênh trước khi chia. */
 export async function resolveRevenueFeeDetails(
   input: CreatorRevenueInput
 ): Promise<RevenueFeeDetails> {
-  const config = await getMonetizationConfig({ includePrivate: true });
   const context = resolveDefaultPaymentContext(input);
-
-  const grossValueVnd = roundCurrency(input.coinSpent * input.coinToVndRate);
-  const channelEstimate = calculateChannelAmounts(
-    grossValueVnd,
-    context.paymentChannel,
-    config.settings
-  );
-  const estimated = !(
-    Number.isFinite(input.feePercentApplied) &&
-    Number.isFinite(input.providerFeeVnd) &&
-    Number.isFinite(input.storeFeeVnd) &&
-    Number.isFinite(input.netValueVnd)
-  );
-
-  const feePercentApplied = roundCurrency(
-    numberValue(
-      input.feePercentApplied,
-      resolveFeePercent(context.paymentChannel, config.settings)
-    )
-  );
-  const providerFeeVnd = roundCurrency(
-    numberValue(input.providerFeeVnd, channelEstimate.providerFeeVnd)
-  );
-  const storeFeeVnd = roundCurrency(numberValue(input.storeFeeVnd, channelEstimate.storeFeeVnd));
-  const netValueVnd = roundCurrency(
-    numberValue(input.netValueVnd, Math.max(grossValueVnd - providerFeeVnd - storeFeeVnd, 0))
-  );
+  const grossValueVnd = resolveGrossVnd(input);
 
   return {
     paymentChannel: context.paymentChannel,
     provider: context.provider,
-    feePercentApplied,
+    feePercentApplied: 0,
     grossValueVnd,
-    providerFeeVnd,
-    storeFeeVnd,
-    netValueVnd,
-    estimated
+    providerFeeVnd: 0,
+    storeFeeVnd: 0,
+    netValueVnd: grossValueVnd,
+    estimated: false
   };
 }
 
 export async function calculateCreatorRevenue(
   input: CreatorRevenueInput
 ): Promise<CreatorRevenueBreakdown> {
-  const [config, feeDetails, feePolicy] = await Promise.all([
+  const context = resolveDefaultPaymentContext(input);
+  const grossValueVnd = resolveGrossVnd(input);
+
+  const monetizationAllowed = await isCreatorMonetizationAllowed(input.creatorUserId);
+  if (!monetizationAllowed) {
+    return {
+      moduleType: input.moduleType,
+      creatorPercent: 0,
+      revenueBasis: "gross",
+      grossValueVnd,
+      providerFeeVnd: 0,
+      storeFeeVnd: 0,
+      netValueVnd: grossValueVnd,
+      creatorRevenueVnd: 0,
+      platformRevenueVnd: grossValueVnd,
+      creatorWithdrawableVnd: 0,
+      creatorNonWithdrawableVnd: 0,
+      paidCoinAmount: numberValue(input.paidCoinAmount, 0),
+      bonusCoinAmount: numberValue(input.bonusCoinAmount, 0),
+      feePercentApplied: 0,
+      paymentChannel: context.paymentChannel,
+      provider: context.provider,
+      metadata: { monetization_blocked: true, ...(input.metadata ?? {}) }
+    };
+  }
+
+  const [config, feePolicy] = await Promise.all([
     getMonetizationConfig({ includePrivate: true }),
-    resolveRevenueFeeDetails(input),
     resolveCreatorFeePolicy({
       creatorId: input.creatorUserId,
       transactionType: input.moduleType
     })
   ]);
 
-  const creatorPercent = feePolicy.creatorRevenueSharePercent;
-  const platformSharePercent = feePolicy.platformFeePercent;
-  const calculateOnNetAfterChannelFee = feePolicy.calculateOnNetAfterChannelFee;
-  const revenueBasis: "gross" | "net" = feePolicy.revenueBasis;
+  const normalizedShare = normalizeRevenueSharePercents(
+    feePolicy.creatorRevenueSharePercent,
+    feePolicy.platformFeePercent
+  );
   const feePolicySnapshot = toCreatorFeePolicySnapshot(feePolicy);
+
+  const creatorRevenueVnd = roundCurrency(
+    (grossValueVnd * normalizedShare.authorPercent) / 100
+  );
+  const platformRevenueVnd = roundCurrency(
+    (grossValueVnd * normalizedShare.platformPercent) / 100
+  );
 
   const paidCoinAmount = numberValue(input.paidCoinAmount, 0);
   const bonusCoinAmount = numberValue(input.bonusCoinAmount, 0);
-  const lotAllocations = input.coinLotAllocations ?? [];
-  const hasLotAllocations = lotAllocations.length > 0;
-  const allocationCoinTotal = lotAllocations.reduce(
-    (sum, item) => sum + numberValue(item.paid_coin_amount, 0) + numberValue(item.bonus_coin_amount, 0),
-    0
-  );
-  const lotGrossWeighted = lotAllocations.reduce((sum, item) => {
-    const lotCoins = numberValue(item.paid_coin_amount, 0) + numberValue(item.bonus_coin_amount, 0);
-    const ratio = numberValue(item.coin_to_vnd_rate, input.coinToVndRate);
-    return sum + lotCoins * ratio;
-  }, 0);
-  const lotNetWeighted = lotAllocations.reduce((sum, item) => {
-    const lotCoins = numberValue(item.paid_coin_amount, 0) + numberValue(item.bonus_coin_amount, 0);
-    const ratio = numberValue(item.coin_to_vnd_rate, input.coinToVndRate);
-    const gross = lotCoins * ratio;
-    const netRatio = numberValue(item.net_ratio, NaN);
-    const computedNet =
-      Number.isFinite(netRatio) && netRatio > 0
-        ? gross * netRatio
-        : Math.max(gross - numberValue(item.provider_fee_vnd, 0) - numberValue(item.store_fee_vnd, 0), 0);
-    return sum + computedNet;
-  }, 0);
-  const useLotWeightedNet =
-    hasLotAllocations && allocationCoinTotal > 0 && lotGrossWeighted > 0 && lotNetWeighted > 0;
-
-  const effectiveGrossVnd = useLotWeightedNet ? roundCurrency(lotGrossWeighted) : feeDetails.grossValueVnd;
-  const effectiveNetVnd = useLotWeightedNet ? roundCurrency(lotNetWeighted) : feeDetails.netValueVnd;
-  const effectiveProviderFeeVnd = roundCurrency(
-    Math.max(effectiveGrossVnd - effectiveNetVnd, 0)
-  );
-
-  const effectiveBase = revenueBasis === "net" ? effectiveNetVnd : effectiveGrossVnd;
-  const creatorRevenueVnd = roundCurrency((effectiveBase * creatorPercent) / 100);
-  const platformFromPercent = roundCurrency((effectiveBase * platformSharePercent) / 100);
-  const platformRevenueVnd =
-    input.moduleType === "tip" && feePolicy.tipPlatformFeePercent != null
-      ? roundCurrency((effectiveBase * feePolicy.tipPlatformFeePercent) / 100)
-      : feePolicy.source === "creator_override" && feePolicy.platformFeePercent > 0
-        ? platformFromPercent
-        : roundCurrency(Math.max(effectiveBase - creatorRevenueVnd, 0));
-
   const totalCoinSpent = Math.max(paidCoinAmount + bonusCoinAmount, 0);
   const bonusRatio = totalCoinSpent > 0 ? Math.min(1, bonusCoinAmount / totalCoinSpent) : 0;
   const bonusAttributedRevenue = roundCurrency(creatorRevenueVnd * bonusRatio);
@@ -185,28 +167,24 @@ export async function calculateCreatorRevenue(
 
   return {
     moduleType: input.moduleType,
-    creatorPercent,
-    revenueBasis,
-    grossValueVnd: effectiveGrossVnd,
-    providerFeeVnd: effectiveProviderFeeVnd,
-    storeFeeVnd: useLotWeightedNet ? 0 : feeDetails.storeFeeVnd,
-    netValueVnd: effectiveNetVnd,
+    creatorPercent: normalizedShare.authorPercent,
+    revenueBasis: "gross",
+    grossValueVnd,
+    providerFeeVnd: 0,
+    storeFeeVnd: 0,
+    netValueVnd: grossValueVnd,
     creatorRevenueVnd,
     platformRevenueVnd,
     creatorWithdrawableVnd,
     creatorNonWithdrawableVnd,
     paidCoinAmount,
     bonusCoinAmount,
-    feePercentApplied: feeDetails.feePercentApplied,
-    paymentChannel: feeDetails.paymentChannel,
-    provider: feeDetails.provider,
+    feePercentApplied: 0,
+    paymentChannel: context.paymentChannel,
+    provider: context.provider,
     metadata: {
       ...(input.metadata ?? {}),
-      fee_source: feeDetails.estimated ? "estimated_from_channel_config" : "explicit",
-      fee_estimated: feeDetails.estimated,
-      has_lot_allocations: hasLotAllocations,
-      lot_weighted_net_used: useLotWeightedNet,
-      coin_lot_allocations: lotAllocations,
+      split_model: "gross_share_only",
       fee_policy: feePolicySnapshot
     }
   };

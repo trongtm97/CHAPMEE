@@ -7,6 +7,16 @@ import {
 import { publicContentStatuses } from "@/lib/visibility/contentVisibility";
 import type { ChapterRange, ChapterSort, StoryChapterMeta, StoryChaptersResult } from "@/types/chapter";
 
+export const EMPTY_STORY_CHAPTERS: StoryChaptersResult = {
+  chapters: [],
+  totalChapters: 0,
+  currentRange: null,
+  availableRanges: [],
+  hasNextPage: false,
+  hasPreviousPage: false,
+  sort: "asc"
+};
+
 export type GetStoryChaptersInput = {
   storyId: string;
   rangeStart?: number;
@@ -20,6 +30,8 @@ type EpisodeRow = {
   id: string;
   episode_number: number;
   title: string;
+  slug: string;
+  public_code: string;
   excerpt: string | null;
   published_at: string | null;
 };
@@ -29,6 +41,8 @@ function mapRow(row: EpisodeRow): StoryChapterMeta {
     id: row.id,
     episodeNumber: row.episode_number,
     title: row.title,
+    slug: row.slug,
+    publicCode: row.public_code,
     excerpt: row.excerpt,
     publishedAt: row.published_at
   };
@@ -74,7 +88,7 @@ export async function getStoryChapters(
 
   let query = supabase
     .from("episodes")
-    .select("id, episode_number, title, excerpt, published_at")
+    .select("id, episode_number, title, slug, public_code, excerpt, published_at")
     .eq("story_id", input.storyId)
     .in("status", [...publicContentStatuses]);
 

@@ -1,3 +1,5 @@
+import type { TopupPackagePaymentSnapshot } from "@/types/topup-package";
+
 export type PaymentProviderKey =
   | "sepay"
   | "apple_iap"
@@ -50,12 +52,18 @@ export type CoinPack = {
   bonus_coin_amount: number;
   total_coin_amount: number;
   bonus_percent: number;
+  /** VND amount (same as price_vnd). */
+  amount_vnd: number;
   price_vnd: number;
   currency: string;
   label: string | null;
+  description: string | null;
   is_active: boolean;
+  is_recommended: boolean;
   sort_order: number;
   badge_text: string | null;
+  created_by: string | null;
+  updated_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -96,6 +104,7 @@ export type CheckoutSession = {
   transfer_content: string | null;
   qr_url: string | null;
   provider_payload: Record<string, unknown> | null;
+  package_snapshot_json: TopupPackagePaymentSnapshot | null;
   expires_at: string | null;
   paid_at: string | null;
   created_at: string;

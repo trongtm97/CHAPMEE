@@ -1,5 +1,6 @@
 import { getCheckoutSessionById } from "@/lib/supabase/checkout-sessions";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { extractNumericPaymentCodes } from "@/lib/payments/payment-code";
 
 function parseAmount(payload: Record<string, unknown>) {
   const candidates = [
@@ -29,7 +30,8 @@ export function parseSePayPayload(payload: Record<string, unknown>) {
     "transfer_content",
     "transferContent",
     "description",
-    "content"
+    "content",
+    "code"
   ]);
   const providerReference = parseText(payload, [
     "provider_reference",
@@ -42,15 +44,25 @@ export function parseSePayPayload(payload: Record<string, unknown>) {
 
   let checkoutCode: string | null = null;
   if (transferContent) {
-    const match = transferContent.match(/CCP[\s_-]*([A-Z0-9]+)/i);
-    if (match?.[1]) checkoutCode = match[1].toUpperCase();
+    checkoutCode = extractNumericPaymentCodes(transferContent, 12)[0] ?? null;
   }
 
-  return { amountVnd, transferContent, providerReference, checkoutCode, eventId };
+  const transferType = parseText(payload, ["transferType", "transfer_type"]);
+  const accountNumber = parseText(payload, ["accountNumber", "account_number"]);
+
+  return {
+    amountVnd,
+    transferContent,
+    providerReference,
+    checkoutCode,
+    eventId,
+    transferType,
+    accountNumber
+  };
 }
 
 export async function findCheckoutByCode(checkoutCode: string) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("checkout_sessions")
     .select("*")

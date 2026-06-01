@@ -4,9 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Card } from "@/components/ui";
 import { analyticsEvents } from "@/lib/analytics/events";
 import { trackEvent } from "@/lib/analytics/trackEvent";
-import { ONBOARDING_GENRES, type OnboardingGoal, type OnboardingRolePreference } from "@/types/onboarding";
+import type { OnboardingGoal, OnboardingRolePreference } from "@/types/onboarding";
+import type { OnboardingGenreOption } from "@/lib/taxonomy/onboarding-genres";
 
 type OnboardingFlowProps = {
+  genreOptions?: OnboardingGenreOption[];
   initialRole?: OnboardingRolePreference | null;
   initialGenres?: string[];
   initialGoals?: OnboardingGoal[];
@@ -19,14 +21,14 @@ type OnboardingFlowProps = {
 };
 
 const roleOptions: { id: OnboardingRolePreference; label: string; description: string }[] = [
-  { id: "reader", label: "Đọc truyện", description: "Lướt truyện cuốn, follow tác giả, vote và comment." },
+  { id: "reader", label: "Đọc truyện", description: "Xem Reels truyện, follow tác giả, vote và comment." },
   { id: "author", label: "Viết truyện", description: "Đăng truyện, xây fan và bắt đầu hành trình tác giả." },
   { id: "both", label: "Cả đọc và viết", description: "Vừa đọc vừa sáng tác trên ChapMee." }
 ];
 
 const readerGoals: { id: OnboardingGoal; label: string }[] = [
   { id: "discover_short_stories", label: "Tìm truyện ngắn cuốn" },
-  { id: "swipe_like_tiktok", label: "Lướt truyện như TikTok" },
+  { id: "reels_like_tiktok", label: "Xem Reels truyện như TikTok" },
   { id: "follow_authors", label: "Theo dõi tác giả mới" },
   { id: "comment_vote", label: "Tham gia bình luận/vote" },
   { id: "save_for_later", label: "Lưu truyện đọc sau" }
@@ -40,7 +42,13 @@ const authorGoals: { id: OnboardingGoal; label: string }[] = [
   { id: "earn_money_later", label: "Kiếm tiền sau này" }
 ];
 
-export function OnboardingFlow({ initialGenres = [], initialGoals = [], initialRole = null, onComplete }: OnboardingFlowProps) {
+export function OnboardingFlow({
+  genreOptions = [],
+  initialGenres = [],
+  initialGoals = [],
+  initialRole = null,
+  onComplete
+}: OnboardingFlowProps) {
   const [step, setStep] = useState(0);
   const [role, setRole] = useState<OnboardingRolePreference | null>(initialRole);
   const [genres, setGenres] = useState<string[]>(initialGenres);
@@ -88,8 +96,8 @@ export function OnboardingFlow({ initialGenres = [], initialGoals = [], initialR
 
   const stepsTotal = 4;
 
-  function toggleGenre(genre: string) {
-    setGenres((current) => (current.includes(genre) ? current.filter((item) => item !== genre) : [...current, genre]));
+  function toggleGenre(slug: string) {
+    setGenres((current) => (current.includes(slug) ? current.filter((item) => item !== slug) : [...current, slug]));
   }
 
   function toggleGoal(goal: OnboardingGoal) {
@@ -148,9 +156,12 @@ export function OnboardingFlow({ initialGenres = [], initialGoals = [], initialR
             <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-cyan-200">Bước 2</p>
             <h2 className="text-2xl font-black text-white">Chọn thể loại yêu thích</h2>
             <div className="flex flex-wrap gap-2">
-              {ONBOARDING_GENRES.map((genre) => (
-                <button className={`rounded-full border px-3 py-2 text-sm font-bold transition ${genres.includes(genre) ? "border-cyan-300/40 bg-cyan-300/10 text-cyan-100" : "border-white/10 bg-white/[0.04] text-zinc-300"}`} key={genre} onClick={() => toggleGenre(genre)} type="button">
-                  {genre}
+              {genreOptions.length === 0 ? (
+                <p className="text-sm text-zinc-400">Chưa có thể loại — bạn có thể bỏ qua bước này.</p>
+              ) : null}
+              {genreOptions.map((genre) => (
+                <button className={`rounded-full border px-3 py-2 text-sm font-bold transition ${genres.includes(genre.slug) ? "border-cyan-300/40 bg-cyan-300/10 text-cyan-100" : "border-white/10 bg-white/[0.04] text-zinc-300"}`} key={genre.slug} onClick={() => toggleGenre(genre.slug)} type="button">
+                  {genre.name}
                 </button>
               ))}
             </div>

@@ -1,22 +1,33 @@
 import Link from "next/link";
-import { StudioManagerTabs } from "@/components/studio/StudioManagerTabs";
+import { StudioTaxonomyFilterTracker } from "@/components/analytics/StudioTaxonomyFilterTracker";
 import { StudioPagination } from "@/components/studio/StudioPagination";
-import { StudioStoryList } from "@/components/studio/StudioStoryList";
-import { Button, ErrorState, Input, SectionHeader } from "@/components/ui";
+import { StudioStoriesAttention } from "@/components/studio/stories/StudioStoriesAttention";
+import {
+  buildStoriesQuery
+} from "@/lib/studio/stories-query";
+import { StudioStoriesFilters } from "@/components/studio/stories/StudioStoriesFilters";
+import { StudioStoriesListSection } from "@/components/studio/stories/StudioStoriesListSection";
+import { StudioStoriesOverview } from "@/components/studio/stories/StudioStoriesOverview";
+import {
+  storiesBtnPrimary,
+  storiesBtnSecondary
+} from "@/components/studio/stories/shared/styles";
+import { ErrorState } from "@/components/ui";
 import { getStudioAccess } from "@/lib/creator/getStudioAccess";
 import {
   getStudioStoriesPage,
   getStudioStorySearch,
   normalizeStudioStoryFilter,
-  normalizeStudioStorySort
+  normalizeStudioStorySort,
+  parseStudioStoryPageSize
 } from "@/lib/studio/get-studio-stories";
+import { getStudioTaxonomyFilterOptions } from "@/lib/studio/get-studio-taxonomy-filters";
 import { buildStudioManagerHref } from "@/lib/studio/manager-url";
 import {
   STUDIO_ACCESS_ERROR_TITLE,
   STUDIO_LOAD_STORIES_ERROR
 } from "@/lib/studio/messages";
-import { studioPath } from "@/lib/studio/constants";
-import type { StudioStoryListFilter } from "@/types/studio";
+import { STUDIO_PAGE_WIDTH_CLASS, studioPath } from "@/lib/studio/constants";
 
 type StudioStoriesPageProps = {
   searchParams: Promise<{
@@ -24,18 +35,13 @@ type StudioStoriesPageProps = {
     status?: string;
     sort?: string;
     page?: string;
+    size?: string;
+    mainGenreTerm?: string;
+    contentType?: string;
+    presentationMode?: string;
+    hasWarning?: string;
   }>;
 };
-
-const STORY_TABS: Array<{ label: string; value: StudioStoryListFilter }> = [
-  { label: "Tất cả", value: "all" },
-  { label: "Nháp", value: "draft" },
-  { label: "Đang đăng", value: "live" },
-  { label: "Đã lên lịch", value: "scheduled" },
-  { label: "Hoàn thành", value: "completed" },
-  { label: "Cần sửa", value: "rejected" },
-  { label: "Đã ẩn", value: "hidden" }
-];
 
 export const dynamic = "force-dynamic";
 
@@ -46,119 +52,143 @@ export default async function StudioStoriesPage({
   const activeFilter = normalizeStudioStoryFilter(params.status);
   const search = getStudioStorySearch(params.q);
   const activeSort = normalizeStudioStorySort(params.sort);
+  const activeMainGenreTerm = (params.mainGenreTerm ?? "").trim();
+  const activeContentTypeTerm = (params.contentType ?? "").trim();
+  const activePresentationMode = (params.presentationMode ?? "").trim();
+  const activeHasWarning = (params.hasWarning ?? "").trim();
+  const activePageSize = parseStudioStoryPageSize(params.size);
   const basePath = studioPath("/stories");
-  const query = {
+  const query = buildStoriesQuery({
+    filter: activeFilter,
     page: params.page,
-    q: search || undefined,
-    sort: activeSort === "updated" ? undefined : activeSort,
-    status: activeFilter === "all" ? undefined : activeFilter
-  };
+    pageSize: activePageSize,
+    search,
+    sort: activeSort,
+    mainGenreTerm: activeMainGenreTerm,
+    contentType: activeContentTypeTerm,
+    presentationMode: activePresentationMode,
+    hasWarning: activeHasWarning
+  });
 
   const { creatorProfile, error } = await getStudioAccess(basePath);
 
   if (error || !creatorProfile) {
     return (
-      <section className="space-y-6">
-        <SectionHeader title="Truyện của tôi" />
+      <section className={`${STUDIO_PAGE_WIDTH_CLASS} space-y-6`}>
+        <h2 className="text-xl font-black text-white">Truyện & chương</h2>
         <ErrorState message={error} title={STUDIO_ACCESS_ERROR_TITLE} />
       </section>
     );
   }
 
-  const data = await getStudioStoriesPage(creatorProfile, {
-    filter: activeFilter,
-    page: params.page,
-    search,
-    sort: activeSort
-  });
+  const [data, taxonomyOptions] = await Promise.all([
+    getStudioStoriesPage(creatorProfile, {
+      filter: activeFilter,
+      page: params.page,
+      pageSize: params.size,
+      search,
+      sort: activeSort,
+      mainGenreTerm: activeMainGenreTerm,
+      contentTypeTerm: activeContentTypeTerm,
+      presentationMode: activePresentationMode,
+      hasWarning: activeHasWarning
+    }),
+    getStudioTaxonomyFilterOptions()
+  ]);
 
   const hasActiveFilters =
-    Boolean(search) || activeFilter !== "all" || Boolean(params.page);
+    Boolean(search) ||
+    activeFilter !== "all" ||
+    Boolean(activeMainGenreTerm) ||
+    Boolean(activeContentTypeTerm) ||
+    Boolean(activePresentationMode) ||
+    Boolean(activeHasWarning) ||
+    activeSort !== "updated" ||
+    activePageSize !== 10 ||
+    Boolean(params.page);
 
   return (
-    <section className="space-y-6">
-      <SectionHeader
-        action={
-          <div className="flex flex-wrap gap-2">
-            <Link
-              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-white/10"
-              href={studioPath("/import")}
-            >
-              Nhập hàng loạt
-            </Link>
-            <Link
-              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-300 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-200"
-              href={studioPath("/stories/new")}
-            >
-              Tạo truyện mới
-            </Link>
-          </div>
-        }
-        subtitle="Quản lý truyện, chương và trạng thái xuất bản trên ChapMee."
-        title="Truyện của tôi"
+    <section className={`${STUDIO_PAGE_WIDTH_CLASS} space-y-4 pb-6 sm:space-y-5`}>
+      <StudioTaxonomyFilterTracker
+        contentType={activeContentTypeTerm || undefined}
+        hasWarning={activeHasWarning || undefined}
+        mainGenreTerm={activeMainGenreTerm || undefined}
+        presentationMode={activePresentationMode || undefined}
+        search={search || undefined}
       />
-
-      <form
-        action={basePath}
-        className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 lg:grid-cols-[minmax(0,1fr)_10rem_auto_auto]"
-        method="get"
-      >
-        <Input
-          defaultValue={search}
-          label="Tìm kiếm"
-          name="q"
-          placeholder="Tìm truyện của bạn..."
-        />
-        <label className="block space-y-2 text-sm">
-          <span className="font-semibold text-zinc-200">Sắp xếp</span>
-          <select
-            className="min-h-11 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 text-sm text-zinc-100"
-            defaultValue={activeSort}
-            name="sort"
-          >
-            <option value="updated">Cập nhật gần nhất</option>
-            <option value="created">Tạo mới nhất</option>
-            <option value="reads">Lượt đọc cao nhất</option>
-            <option value="title">Tên A–Z</option>
-          </select>
-        </label>
-        {activeFilter !== "all" ? (
-          <input name="status" type="hidden" value={activeFilter} />
-        ) : null}
-        <div className="flex items-end gap-2">
-          <Button className="flex-1" type="submit">
-            Tìm
-          </Button>
-          <Link
-            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-white/10"
-            href={basePath}
-          >
-            Xóa lọc
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-xl font-black text-white">Truyện & chương</h2>
+          <p className="mt-1 text-sm leading-6 text-zinc-400">
+            Quản lý toàn bộ truyện, chương, lịch đăng và trạng thái xuất bản của bạn.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+          <Link className={storiesBtnSecondary} href={studioPath("/import")}>
+            Nhập hàng loạt
+          </Link>
+          <Link className={storiesBtnPrimary} href={studioPath("/stories/new")}>
+            Tạo truyện mới
           </Link>
         </div>
-      </form>
+      </div>
 
-      {data.error ? (
-        <ErrorState message={data.error} title={STUDIO_LOAD_STORIES_ERROR} />
+      {!data.error ? (
+        <StudioStoriesOverview basePath={basePath} overview={data.overview} query={query} />
       ) : null}
 
-      <StudioManagerTabs
-        active={activeFilter}
+      {!data.error && data.attentionItems.length > 0 ? (
+        <StudioStoriesAttention items={data.attentionItems} />
+      ) : null}
+
+      <StudioStoriesFilters
+        activeContentTypeTerm={activeContentTypeTerm}
+        activeFilter={activeFilter}
+        activeHasWarning={activeHasWarning}
+        activeMainGenreTerm={activeMainGenreTerm}
+        activePageSize={activePageSize}
+        activePresentationMode={activePresentationMode}
+        activeSort={activeSort}
         basePath={basePath}
         counts={data.counts}
         query={query}
-        tabs={STORY_TABS}
+        search={search}
+        taxonomyOptions={taxonomyOptions}
       />
 
-      <StudioStoryList hasActiveFilters={hasActiveFilters} stories={data.stories} />
+      {data.error ? (
+        <ErrorState
+          action={
+            <Link className={storiesBtnPrimary} href={basePath}>
+              Thử lại
+            </Link>
+          }
+          message={data.error}
+          title={STUDIO_LOAD_STORIES_ERROR}
+        />
+      ) : (
+        <StudioStoriesListSection
+          filteredStoryIds={data.filteredStoryIds}
+          genres={data.genres}
+          hasActiveFilters={hasActiveFilters}
+          taxonomyOptions={taxonomyOptions}
+          page={data.page}
+          pageSize={data.pageSize}
+          stories={data.stories}
+          totalFiltered={data.total}
+          totalPages={data.totalPages}
+        />
+      )}
 
-      <StudioPagination
-        buildHref={(page) =>
-          buildStudioManagerHref(basePath, { ...query, page: String(page) })
-        }
-        page={data.page}
-        totalPages={data.totalPages}
-      />
+      {!data.error ? (
+        <StudioPagination
+          buildHref={(page) =>
+            buildStudioManagerHref(basePath, { ...query, page: String(page) })
+          }
+          page={data.page}
+          totalPages={data.totalPages}
+        />
+      ) : null}
     </section>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import { StoryImageThumb } from "@/components/common/StoryImageView";
 import { useMemo } from "react";
 import { LibraryEmptyState } from "@/components/library/LibraryEmptyState";
@@ -50,7 +51,7 @@ export function FollowingLibraryTab({
 
   const filteredAuthors = useMemo(() => {
     if (!query) return authors;
-    return authors.filter((a) => a.penName.toLowerCase().includes(query));
+    return authors.filter((a) => a.displayName.toLowerCase().includes(query));
   }, [authors, query]);
 
   const filteredStories = useMemo(() => {
@@ -112,23 +113,25 @@ export function FollowingLibraryTab({
             {authorPreview.map((author) => (
               <Link
                 className="flex items-center gap-2.5 rounded-xl border border-white/6 bg-white/[0.02] p-2"
-                href={`/creators/${author.id}`}
+                href={
+                  author.username ? `/@${author.username}` : "/discover"
+                }
                 key={author.id}
               >
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 text-sm font-bold text-white">
                   {author.avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      alt={author.penName}
+                      alt={author.displayName}
                       className="h-full w-full object-cover"
                       src={author.avatarUrl}
                     />
                   ) : (
-                    author.penName.charAt(0)
+                    author.displayName.charAt(0)
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-white">{author.penName}</p>
+                  <p className="truncate text-sm font-semibold text-white">{author.displayName}</p>
                   <p className="text-[0.65rem] text-zinc-500">{author.storyCount} truyện</p>
                 </div>
                 {author.hasNewChapter ? (
@@ -197,7 +200,7 @@ export function FollowingLibraryTab({
                     ? "border-amber-400/20 bg-amber-400/[0.04]"
                     : "border-white/6 bg-white/[0.02]"
                 }`}
-                href={`/stories/${story.slug}`}
+                href={getStoryDetailHref({ slug: story.slug, public_code: story.publicCode })}
                 key={story.id}
               >
                 <StoryImageThumb

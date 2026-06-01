@@ -1,6 +1,9 @@
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
 import { createClient } from "@/lib/supabase/server";
 import { getRankedStoryIds } from "@/lib/ranking/getTrendingStories";
 import { getTimePeriodStart } from "@/lib/rankings/ranking-formulas";
+import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import type { StoryRankingWindow } from "@/lib/ranking/storyRanking";
 import type {
   StoryRankingItem,
@@ -13,14 +16,22 @@ type HotStoryRow = {
   id: string;
   title: string;
   slug: string;
+  public_code: string;
   hook: string | null;
   short_description: string | null;
   is_completed: boolean | null;
   published_at: string | null;
-  genres: { name: string | null } | null;
   creator_profiles:
-    | { id: string | null; pen_name: string | null }
-    | { id: string | null; pen_name: string | null }[]
+    | {
+        id: string | null;
+        pen_name: string | null;
+        profiles?: { display_name: string | null; username: string | null } | null;
+      }
+    | {
+        id: string | null;
+        pen_name: string | null;
+        profiles?: { display_name: string | null; username: string | null } | null;
+      }[]
     | null;
 };
 
@@ -33,6 +44,7 @@ type TopAuthorRow = {
   author_id: string;
   user_id: string;
   pen_name: string;
+  username?: string | null;
   avatar_url: string | null;
   follower_count: number;
   total_reads: number;
@@ -73,7 +85,7 @@ export async function getHotStories(
     const { data } = await supabase
       .from("stories")
       .select(
-        "id, title, slug, hook, short_description, is_completed, published_at, genres(name), creator_profiles(id, pen_name)"
+        `id, title, slug, public_code, hook, short_description, is_completed, published_at, ${CREATOR_PROFILE_STORY_JOIN}`
       )
       .in("id", storyIds)
       .in("status", ["approved", "published"])
@@ -81,13 +93,13 @@ export async function getHotStories(
 
     const rows = (data ?? []) as unknown as HotStoryRow[];
     const rowsMap = new Map(rows.map((r: HotStoryRow) => [r.id, r]));
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
 
     return ranked
       .map((r, index) => {
         const row = rowsMap.get(r.storyId);
         if (!row) return null;
 
-        const genre = firstRelation(row.genres);
         const creator = firstRelation(row.creator_profiles);
 
         return {
@@ -95,10 +107,13 @@ export async function getHotStories(
           rank: index + 1,
           title: row.title,
           slug: row.slug,
+          publicCode: row.public_code,
           hook: row.hook,
           shortDescription: row.short_description,
-          genreName: genre?.name ?? null,
-          creatorName: creator?.pen_name ?? null,
+          genreName: taxonomyByStory.get(row.id)?.mainGenreName ?? null,
+          creatorName: creator
+            ? resolvePublicDisplayName(firstRelation(creator.profiles), creator)
+            : null,
           creatorId: creator?.id ?? null,
           score: r.score
         };
@@ -115,7 +130,7 @@ async function getRecentStories(limit = 20): Promise<StoryRankingItem[]> {
     const { data } = await supabase
       .from("stories")
       .select(
-        "id, title, slug, hook, short_description, is_completed, published_at, genres(name), creator_profiles(id, pen_name)"
+        `id, title, slug, public_code, hook, short_description, is_completed, published_at, ${CREATOR_PROFILE_STORY_JOIN}`
       )
       .in("status", ["approved", "published"])
       .eq("visibility", "public")
@@ -123,9 +138,12 @@ async function getRecentStories(limit = 20): Promise<StoryRankingItem[]> {
       .limit(limit);
 
     const rows = (data ?? []) as unknown as HotStoryRow[];
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(
+      supabase,
+      rows.map((row) => row.id)
+    );
 
     return rows.map((row: HotStoryRow, index: number) => {
-      const genre = firstRelation(row.genres);
       const creator = firstRelation(row.creator_profiles);
 
       return {
@@ -133,10 +151,13 @@ async function getRecentStories(limit = 20): Promise<StoryRankingItem[]> {
         rank: index + 1,
         title: row.title,
         slug: row.slug,
+        publicCode: row.public_code,
         hook: row.hook,
         shortDescription: row.short_description,
-        genreName: genre?.name ?? null,
-        creatorName: creator?.pen_name ?? null,
+        genreName: taxonomyByStory.get(row.id)?.mainGenreName ?? null,
+        creatorName: creator
+          ? resolvePublicDisplayName(firstRelation(creator.profiles), creator)
+          : null,
         creatorId: creator?.id ?? null,
         score: 0
       };
@@ -182,7 +203,7 @@ export async function getRisingStories(
     const { data } = await supabase
       .from("stories")
       .select(
-        "id, title, slug, hook, short_description, is_completed, published_at, genres(name), creator_profiles(id, pen_name)"
+        `id, title, slug, public_code, hook, short_description, is_completed, published_at, ${CREATOR_PROFILE_STORY_JOIN}`
       )
       .in("id", storyIds)
       .in("status", ["approved", "published"])
@@ -192,13 +213,13 @@ export async function getRisingStories(
 
     const rows = (data ?? []) as unknown as HotStoryRow[];
     const rowsMap = new Map(rows.map((r: HotStoryRow) => [r.id, r]));
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
 
     return scoreRows
       .map((sr, index) => {
         const row = rowsMap.get(sr.story_id);
         if (!row) return null;
 
-        const genre = firstRelation(row.genres);
         const creator = firstRelation(row.creator_profiles);
 
         return {
@@ -206,10 +227,13 @@ export async function getRisingStories(
           rank: index + 1,
           title: row.title,
           slug: row.slug,
+          publicCode: row.public_code,
           hook: row.hook,
           shortDescription: row.short_description,
-          genreName: genre?.name ?? null,
-          creatorName: creator?.pen_name ?? null,
+          genreName: taxonomyByStory.get(row.id)?.mainGenreName ?? null,
+          creatorName: creator
+            ? resolvePublicDisplayName(firstRelation(creator.profiles), creator)
+            : null,
           creatorId: creator?.id ?? null,
           score: sr.score
         };
@@ -244,7 +268,8 @@ export async function getTopAuthors(
       id: row.author_id,
       rank: index + 1,
       userId: row.user_id,
-      penName: row.pen_name,
+      displayName: row.pen_name ?? "Tác giả",
+      username: row.username ?? null,
       avatarUrl: row.avatar_url,
       followerCount: Number(row.follower_count),
       totalReads: Number(row.total_reads),

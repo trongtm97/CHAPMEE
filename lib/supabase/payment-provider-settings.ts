@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { PaymentProviderKey, PaymentProviderSetting } from "@/types/payment";
 
 function mapSetting(row: Record<string, unknown>): PaymentProviderSetting {
@@ -15,7 +15,7 @@ function mapSetting(row: Record<string, unknown>): PaymentProviderSetting {
 }
 
 export async function getPaymentProviderSettings() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("payment_provider_settings")
     .select("*")
@@ -29,7 +29,7 @@ export async function getPaymentProviderSettings() {
 }
 
 export async function getEnabledPaymentProviderSettings() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("payment_provider_settings")
     .select("*")
@@ -50,7 +50,7 @@ export async function upsertPaymentProviderSetting(input: {
   publicConfig?: Record<string, unknown>;
   privateConfigReference?: string | null;
 }) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("payment_provider_settings")
     .upsert(

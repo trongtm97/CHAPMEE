@@ -125,6 +125,19 @@ export async function requireRefundAdminAccess(returnTo = "/admin/refunds") {
   );
 }
 
+export async function requireCampaignViewAccess(returnTo = "/admin/campaigns") {
+  return requireAnyPermission(
+    [
+      "campaign.view",
+      "admin.settings.view",
+      "admin.settings.update",
+      "finance.dashboard.view"
+    ],
+    { returnTo }
+  );
+}
+
+/** @deprecated Use requireCampaignViewAccess */
 export async function requireAdminSettingsAccess(
   returnTo = "/admin/monetization"
 ) {
@@ -145,6 +158,13 @@ export async function requireFinanceSettingsView(
       "admin.settings.view",
       "admin.settings.update"
     ],
+    { returnTo }
+  );
+}
+
+export async function requireCreatorFeeAdminAccess(returnTo = "/admin/creator-fee-policies") {
+  return requireAnyPermission(
+    ["finance.creator_fee.view", "finance.wallet.adjust", "finance.dashboard.view"],
     { returnTo }
   );
 }

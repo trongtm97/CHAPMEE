@@ -7,6 +7,8 @@ import { AddToCollectionSheet } from "@/components/collections/AddToCollectionSh
 import { LibraryEmptyState } from "@/components/library/LibraryEmptyState";
 import { LibrarySortFilter } from "@/components/library/LibrarySortFilter";
 import { saveStoryAction } from "@/lib/actions/saveStory";
+import { getStoryCardMeta, isStandaloneStory } from "@/lib/stories/story-structure";
+import { getStoryChapterHref, getStoryDetailHref } from "@/lib/stories/story-routes";
 import { getStoryImageForUsage } from "@/lib/images/get-story-image";
 import {
   STORY_IMAGE_PLACEHOLDER_GRADIENT_CLASS,
@@ -69,13 +71,29 @@ function SavedStoryRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const [collectionOpen, setCollectionOpen] = useState(false);
   const readLabel =
-    item.hasReadingProgress && item.currentEpisodeNumber
+    item.hasReadingProgress && item.currentEpisodeNumber && !isStandaloneStory(item)
       ? "Đọc tiếp"
       : "Đọc ngay";
+  const storyFields = { slug: item.slug, public_code: item.publicCode };
   const readHref =
-    item.hasReadingProgress && item.currentEpisodeNumber
-      ? `/stories/${item.slug}/episodes/${item.currentEpisodeNumber}`
-      : `/stories/${item.slug}`;
+    item.hasReadingProgress &&
+    item.currentEpisodeNumber &&
+    item.currentEpisodeSlug &&
+    item.currentEpisodePublicCode &&
+    !isStandaloneStory(item)
+      ? getStoryChapterHref(storyFields, {
+          slug: item.currentEpisodeSlug,
+          public_code: item.currentEpisodePublicCode
+        })
+      : getStoryDetailHref(storyFields);
+  const cardMeta = getStoryCardMeta({
+    structureType: item.structureType,
+    standaloneReadingTimeMinutes: item.standaloneReadingTimeMinutes,
+    episodeCount: item.episodeCount
+  });
+  const metaLine = cardMeta.secondaryLabel
+    ? `${cardMeta.primaryLabel} · ${cardMeta.secondaryLabel}`
+    : cardMeta.primaryLabel;
   const cover = getStoryImageForUsage(item, "catalogRow");
 
   return (
@@ -84,7 +102,7 @@ function SavedStoryRow({
         <div className="flex gap-2.5">
           <Link
             className="relative h-[3.1rem] w-[2.2rem] shrink-0 overflow-hidden rounded-md bg-white/5"
-            href={`/stories/${item.slug}`}
+            href={getStoryDetailHref(storyFields)}
           >
             {cover.src ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -103,7 +121,7 @@ function SavedStoryRow({
             )}
           </Link>
           <div className="min-w-0 flex-1">
-            <Link href={`/stories/${item.slug}`}>
+            <Link href={getStoryDetailHref(storyFields)}>
               <h3 className="line-clamp-1 text-[0.8125rem] font-bold text-white">
                 {item.title}
               </h3>
@@ -112,7 +130,7 @@ function SavedStoryRow({
               <p className="truncate text-[0.65rem] text-zinc-500">{item.authorName}</p>
             ) : null}
             <p className="mt-0.5 text-[0.62rem] text-zinc-500">
-              {item.isCompleted ? "Hoàn thành" : "Đang ra"} · {item.episodeCount} chương
+              {item.isCompleted ? "Hoàn thành" : "Đang ra"} · {metaLine}
               {formatDate(item.latestEpisodePublishedAt)
                 ? ` · ${formatDate(item.latestEpisodePublishedAt)}`
                 : ""}
@@ -162,7 +180,7 @@ function SavedStoryRow({
                         if (typeof navigator !== "undefined" && navigator.share) {
                           void navigator.share({
                             title: item.title,
-                            url: `${window.location.origin}/stories/${item.slug}`
+                            url: `${window.location.origin}${getStoryDetailHref(storyFields)}`
                           });
                         }
                       }}

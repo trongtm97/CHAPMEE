@@ -1,4 +1,9 @@
+import { validateNoExternalContact } from "@/lib/profile/validate-no-external-contact";
+import { validateStudioCoinPrice } from "@/lib/studio/validate-coin-price";
 import type { StudioMonetizationConfigView } from "@/types/studio-monetization";
+
+export const TIP_THANK_YOU_EXTERNAL_CONTACT_ERROR =
+  "Nội dung không được chứa thông tin liên hệ hoặc liên kết ngoài nền tảng.";
 
 export function buildAllowedCoinPriceOptions(config: StudioMonetizationConfigView) {
   const min = config.paidChapterMinCoinPrice;
@@ -30,16 +35,21 @@ export function validateChapterCoinPrice(
     return { ok: true, price: defaultPrice };
   }
 
-  const rounded = Math.round(coinPrice);
+  const check = validateStudioCoinPrice(Math.round(coinPrice), { allowFree: true });
+  if (!check.ok) {
+    return check;
+  }
 
-  if (rounded < config.paidChapterMinCoinPrice || rounded > config.paidChapterMaxCoinPrice) {
+  const price = check.price ?? defaultPrice;
+
+  if (price < config.paidChapterMinCoinPrice || price > config.paidChapterMaxCoinPrice) {
     return {
       ok: false,
       error: `Giá phải từ ${config.paidChapterMinCoinPrice} đến ${config.paidChapterMaxCoinPrice} ${config.coinDisplayName}.`
     };
   }
 
-  return { ok: true, price: rounded };
+  return { ok: true, price };
 }
 
 export function validateTipThankYouMessage(message: string) {
@@ -49,8 +59,9 @@ export function validateTipThankYouMessage(message: string) {
     return { ok: false as const, error: "Lời cảm ơn tối đa 280 ký tự." };
   }
 
-  if (/https?:\/\//i.test(trimmed) || /www\./i.test(trimmed)) {
-    return { ok: false as const, error: "Lời cảm ơn không được chứa link." };
+  const contactCheck = validateNoExternalContact(trimmed);
+  if (!contactCheck.ok) {
+    return { ok: false as const, error: TIP_THANK_YOU_EXTERNAL_CONTACT_ERROR };
   }
 
   return { ok: true as const, message: trimmed };

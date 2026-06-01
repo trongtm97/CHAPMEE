@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { getStoryChapterHref } from "@/lib/stories/story-routes";
 import { useState } from "react";
 import { EpisodeListSheet } from "@/components/reader/EpisodeListSheet";
 import type { StoryEpisode } from "@/lib/stories/getStoryBySlug";
 
 type StoryEpisodesTabProps = {
   storySlug: string;
+  storyPublicCode: string;
   storyTitle: string;
   episodes: StoryEpisode[];
   previewCount?: number;
@@ -27,6 +29,7 @@ function formatDate(value: string | null) {
 export function StoryEpisodesTab({
   episodes,
   previewCount = 3,
+  storyPublicCode,
   storySlug,
   storyTitle
 }: StoryEpisodesTabProps) {
@@ -48,7 +51,10 @@ export function StoryEpisodesTab({
           <li key={episode.id}>
             <Link
               className="tap-highlight block rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-3 transition hover:border-cyan-300/25 hover:bg-white/[0.04]"
-              href={`/stories/${storySlug}/episodes/${episode.episodeNumber}`}
+              href={getStoryChapterHref(
+                { slug: storySlug, public_code: storyPublicCode },
+                { slug: episode.slug, public_code: episode.publicCode }
+              )}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -88,6 +94,7 @@ export function StoryEpisodesTab({
         episodes={episodes}
         onClose={() => setSheetOpen(false)}
         open={sheetOpen}
+        storyPublicCode={storyPublicCode}
         storySlug={storySlug}
         storyTitle={storyTitle}
       />

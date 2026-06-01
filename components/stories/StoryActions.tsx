@@ -5,6 +5,7 @@ import { Button } from "@/components/ui";
 import { followCreatorAction } from "@/lib/actions/followCreator";
 import { followStoryAction } from "@/lib/actions/followStory";
 import { saveStoryAction } from "@/lib/actions/saveStory";
+import { getStoryChapterHref } from "@/lib/stories/story-routes";
 import type { StoryDetail } from "@/lib/stories/getStoryBySlug";
 import type { StoryUserState } from "@/lib/stories/getStoryUserState";
 
@@ -26,7 +27,10 @@ export function StoryActions({
       {firstEpisode ? (
         <Link
           className="tap-highlight inline-flex min-h-12 items-center justify-center rounded-full bg-cyan-300 px-4 py-3 text-sm font-black uppercase tracking-[0.12em] text-zinc-950 shadow-[0_14px_30px_rgba(103,232,249,0.18)] transition hover:bg-cyan-200"
-          href={`/stories/${story.slug}/episodes/${firstEpisode.episodeNumber}`}
+          href={getStoryChapterHref(
+            { slug: story.slug, public_code: story.publicCode },
+            { slug: firstEpisode.slug, public_code: firstEpisode.publicCode }
+          )}
         >
           Start reading
         </Link>
@@ -43,6 +47,8 @@ export function StoryActions({
               creatorId: story.creatorId,
               returnTo,
               saved: !userState.isSaved,
+              sourceSurface: "catalog",
+              trackingSurface: "story_detail",
               storyId: story.id,
               storySlug: story.slug
             });

@@ -1,20 +1,17 @@
-import Link from "next/link";
 import { CreatorRevenuePolicyBox } from "@/components/studio/CreatorRevenuePolicyBox";
-import { FinanceOverviewCards } from "@/components/studio/FinanceOverviewCards";
-import { IncomeTransparencyBox } from "@/components/studio/IncomeTransparencyBox";
-import { EarningsBreakdownTable } from "@/components/studio/EarningsBreakdownTable";
-import { WalletLedgerTable } from "@/components/studio/WalletLedgerTable";
-import { WithdrawalHistoryTable } from "@/components/studio/WithdrawalHistoryTable";
-import { PayoutProfileForm } from "@/components/studio/PayoutProfileForm";
-import { WithdrawalPinSetup } from "@/components/studio/WithdrawalPinSetup";
-import { FinanceWithdrawalRequestForm } from "@/components/studio/FinanceWithdrawalRequestForm";
-import { FinanceSecurityLogs } from "@/components/studio/FinanceSecurityLogs";
-import { ErrorState, EmptyState } from "@/components/ui";
-import type { CreatorPayoutAccount } from "@/types/payout";
+import { FinanceBankAccountsSection } from "@/components/studio/finance/FinanceBankAccountsSection";
+import { FinanceHistoryTabs } from "@/components/studio/finance/FinanceHistoryTabs";
+import { FinanceOverviewSection } from "@/components/studio/finance/FinanceOverviewSection";
+import { FinancePageHeader } from "@/components/studio/finance/FinancePageHeader";
+import { FinancePinModule } from "@/components/studio/finance/FinancePinModule";
+import { FinanceWithdrawalSection } from "@/components/studio/finance/FinanceWithdrawalSection";
+import { FinanceWithdrawalStatusCard } from "@/components/studio/finance/FinanceWithdrawalStatusCard";
+import { EmptyState, ErrorState } from "@/components/ui";
+import { STUDIO_PAGE_WIDTH_CLASS } from "@/lib/studio/constants";
 import type { StudioFinancePageData } from "@/types/finance";
 
 type StudioFinancePageProps = {
-  data: StudioFinancePageData & { payoutAccounts: CreatorPayoutAccount[] };
+  data: StudioFinancePageData;
   creatorUserId: string;
 };
 
@@ -33,37 +30,40 @@ export function StudioFinancePage({ data, creatorUserId }: StudioFinancePageProp
   }
 
   return (
-    <div className="space-y-8">
-      <p className="text-sm text-zinc-400">
-        Cấu hình trả phí và tip tại{" "}
-        <Link className="font-semibold text-sky-300 hover:text-sky-200" href="/studio/monetization">
-          Kiếm tiền
-        </Link>
-        .
-      </p>
+    <div className={`${STUDIO_PAGE_WIDTH_CLASS} mx-auto max-w-[1200px] space-y-5 pb-24 sm:pb-8`}>
+      <FinancePageHeader canWithdraw={data.eligibility.canWithdraw} />
 
-      <FinanceOverviewCards balance={data.balance} config={data.config} />
-      <CreatorRevenuePolicyBox creatorUserId={creatorUserId} />
-      <IncomeTransparencyBox config={data.config} />
-      <EarningsBreakdownTable rows={data.earningsRows} activeFilter={data.earningsFilter} />
-      <WalletLedgerTable rows={data.ledgerRows} />
-      <WithdrawalHistoryTable rows={data.withdrawalHistory} />
-      <PayoutProfileForm config={data.config} accounts={data.payoutAccounts} />
-      <WithdrawalPinSetup
+      <FinanceOverviewSection balance={data.balance} config={data.config} />
+
+      <FinanceWithdrawalStatusCard eligibility={data.eligibility} identity={data.identity} />
+
+      <FinanceBankAccountsSection accounts={data.bankAccounts} identity={data.identity} />
+
+      <FinancePinModule
         pinConfigured={data.pinConfigured}
         pinLocked={data.pinLocked}
         pinLockedUntil={data.pinLockedUntil}
         pinRequired={data.config.withdrawalPinRequired}
       />
-      <FinanceWithdrawalRequestForm
-        config={data.config}
+
+      <FinanceWithdrawalSection
         availableBalanceVnd={data.balance.availableBalanceVnd}
-        accounts={data.payoutAccounts}
-        canWithdraw={data.canWithdraw}
-        blockReason={data.withdrawBlockReason}
+        bankAccounts={data.bankAccounts}
+        config={data.config}
+        eligibility={data.eligibility}
         pinRequired={data.config.withdrawalPinRequired}
       />
-      <FinanceSecurityLogs logs={data.securityLogs} />
+
+      <FinanceHistoryTabs
+        bankAccounts={data.bankAccounts}
+        earningsFilter={data.earningsFilter}
+        earningsRows={data.earningsRows}
+        ledgerRows={data.ledgerRows}
+        securityLogs={data.securityLogs}
+        withdrawalHistory={data.withdrawalHistory}
+      />
+
+      <CreatorRevenuePolicyBox creatorUserId={creatorUserId} />
     </div>
   );
 }

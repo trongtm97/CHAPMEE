@@ -1,4 +1,5 @@
 import type { CreatorMonetizationStatus } from "@/types/creator-monetization";
+import type { CreatorAccessStatus } from "@/types/creator-access";
 
 export type CreatorStudioStatus = "active" | "suspended" | "none";
 
@@ -155,6 +156,7 @@ export type AdminCreatorDetail = {
   monetizationStatus: CreatorMonetizationStatus | "none";
   monetizationEnabled: boolean;
   payoutEnabled: boolean;
+  creatorAccess: CreatorAccessStatus;
   isVerified: boolean;
   verificationType: string | null;
   verificationLabel: string | null;

@@ -1,4 +1,4 @@
-import { VerifiedName } from "@/components/profile/VerifiedBadge";
+import { AuthorNameLink } from "@/components/profile/AuthorNameLink";
 import type { EpisodeReaderData } from "@/lib/episodes/getEpisodeReaderData";
 
 type ReaderChapterMetaProps = {
@@ -40,7 +40,11 @@ export function ReaderChapterMeta({ data }: ReaderChapterMetaProps) {
         {storyTitle ? <span>{storyTitle}</span> : null}
         {storyTitle && creatorName ? <span className="text-zinc-600"> · </span> : null}
         {creatorName ? (
-          <VerifiedName badge={data.story.authorVerification} name={creatorName} />
+          <AuthorNameLink
+            badge={data.story.authorVerification}
+            name={creatorName}
+            username={data.story.creatorUsername}
+          />
         ) : null}
       </p>
       {publishedLabel ? (

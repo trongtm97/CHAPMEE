@@ -50,6 +50,7 @@ const TABS: Array<{ id: AdminContentQualityTab; label: string }> = [
 const defaultFilters: ContentQualityFilterState = {
   search: "",
   targetType: "all",
+  structureType: "all",
   riskLevel: "all",
   attempt: "all",
   status: "all",
@@ -110,6 +111,9 @@ export function AdminContentQualityPage({ data, activeTab: initialTab }: AdminCo
     return data.allItems.filter((item) => {
       if (!matchesQualityTab(effectiveTab, item)) return false;
       if (cardFilter === "monetization" && !item.monetizationDisabled) return false;
+      if (filters.structureType !== "all" && item.structureType !== filters.structureType) {
+        return false;
+      }
       if (filters.riskLevel !== "all" && item.riskLevel !== filters.riskLevel) return false;
       if (filters.attempt !== "all" && item.attemptCount !== Number(filters.attempt)) return false;
       if (filters.monetization === "enabled" && item.monetizationDisabled) return false;
@@ -117,7 +121,7 @@ export function AdminContentQualityPage({ data, activeTab: initialTab }: AdminCo
       if (!withinDateRange(item.warnedAt, filters.dateRange)) return false;
 
       if (q) {
-        const hay = `${item.title} ${item.storyId} ${item.authorPenName}`.toLowerCase();
+        const hay = `${item.title} ${item.storyId} ${item.authorDisplayName}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
 

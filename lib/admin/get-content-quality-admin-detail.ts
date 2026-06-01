@@ -1,5 +1,6 @@
 "use server";
 
+import { resolveAdminCreatorName } from "@/lib/admin/creator-display";
 import { createClient } from "@/lib/supabase/server";
 import { getQualityMonetizationImpact, getQualityRefundHistory } from "@/lib/admin/get-quality-monetization-impact";
 import { calculateQualitySignals } from "@/lib/content-quality/calculate-quality-signals";
@@ -23,7 +24,12 @@ export async function getContentQualityAdminDetail(storyId: string) {
       monetization_disabled_by_quality,
       monetization_status,
       free_access_set_at,
-      creator_profiles (id, user_id, pen_name)
+      creator_profiles (
+        id,
+        user_id,
+        pen_name,
+        profiles!creator_profiles_user_id_fkey(display_name, username)
+      )
     `
     )
     .eq("id", storyId)
@@ -40,7 +46,8 @@ export async function getContentQualityAdminDetail(storyId: string) {
   const creatorProfile = {
     id: story.creator_id as string,
     user_id: creatorRow?.user_id as string,
-    pen_name: creatorRow?.pen_name as string
+    pen_name: creatorRow?.pen_name as string,
+    display_name: resolveAdminCreatorName(creatorRow) ?? undefined
   } as CreatorProfile;
 
   const detail = await getAuthorContentQualityDetail(creatorProfile, storyId);
@@ -94,7 +101,7 @@ export async function getContentQualityAdminDetail(storyId: string) {
       author: {
         creatorId: story.creator_id as string,
         userId: creatorRow?.user_id as string,
-        penName: creatorRow?.pen_name as string
+        displayName: resolveAdminCreatorName(creatorRow) ?? "Tác giả"
       },
       detail,
       signals,

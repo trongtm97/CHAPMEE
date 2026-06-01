@@ -1,6 +1,6 @@
 import { deleteCommentAction } from "@/lib/comments/deleteComment";
 import { ReportButton } from "@/components/report/ReportButton";
-import { VerifiedName } from "@/components/profile/VerifiedBadge";
+import { AuthorNameLink } from "@/components/profile/AuthorNameLink";
 import { Badge, Button, Card } from "@/components/ui";
 import type { CommentView } from "@/lib/comments/getComments";
 
@@ -23,9 +23,10 @@ export function CommentItem({ comment, returnTo }: CommentItemProps) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-white">
-            <VerifiedName
+            <AuthorNameLink
               badge={comment.verification}
               name={comment.displayName ?? "Độc giả ChapMee"}
+              username={comment.username}
             />
           </p>
           {comment.isVip ? <Badge className="mt-1" variant="success">VIP</Badge> : null}

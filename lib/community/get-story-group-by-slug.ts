@@ -1,3 +1,5 @@
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { resolveCreatorRowName } from "@/lib/creator/resolve-creator-row-name";
 import { createClient } from "@/lib/supabase/server";
 import type { StoryCommunityGroup } from "@/types/community";
 import { getStoryGroups } from "@/lib/community/get-story-groups";
@@ -12,6 +14,7 @@ export async function getStoryGroupBySlug(slugOrId: string): Promise<{
     id: string;
     title: string;
     slug: string;
+    publicCode: string;
     coverUrl: string | null;
     authorName: string | null;
     hook: string | null;
@@ -23,7 +26,7 @@ export async function getStoryGroupBySlug(slugOrId: string): Promise<{
     let { data, error } = await supabase
       .from("stories")
       .select(
-        "id, title, slug, cover_url, hook, creator_profiles(id, pen_name)"
+        `id, title, slug, public_code, cover_url, hook, ${CREATOR_PROFILE_STORY_JOIN}`
       )
       .eq("slug", slugOrId)
       .maybeSingle();
@@ -32,7 +35,7 @@ export async function getStoryGroupBySlug(slugOrId: string): Promise<{
       const byId = await supabase
         .from("stories")
         .select(
-          "id, title, slug, cover_url, hook, creator_profiles(id, pen_name)"
+          `id, title, slug, public_code, cover_url, hook, ${CREATOR_PROFILE_STORY_JOIN}`
         )
         .eq("id", slugOrId)
         .maybeSingle();
@@ -64,7 +67,7 @@ export async function getStoryGroupBySlug(slugOrId: string): Promise<{
         name: data.title,
         slug: data.slug,
         coverUrl: data.cover_url,
-        authorName: creator?.pen_name ?? null,
+        authorName: resolveCreatorRowName(creator),
         memberCount: 100,
         todayPostCount: 0,
         badge: null,
@@ -79,8 +82,9 @@ export async function getStoryGroupBySlug(slugOrId: string): Promise<{
         id: data.id,
         title: data.title,
         slug: data.slug,
+        publicCode: data.public_code,
         coverUrl: data.cover_url,
-        authorName: creator?.pen_name ?? null,
+        authorName: resolveCreatorRowName(creator),
         hook: data.hook
       }
     };

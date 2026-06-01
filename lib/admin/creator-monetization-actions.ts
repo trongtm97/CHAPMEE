@@ -8,10 +8,22 @@ import {
   validateRevenueSharePercents
 } from "@/lib/admin/creator-revenue-share-utils";
 import { checkStaffPermission } from "@/lib/auth/staff-guards";
+import { upsertCreatorAccessOverride } from "@/lib/supabase/creator-access-overrides";
 import { updateCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
 import { createClient } from "@/lib/supabase/server";
 
 const REVALIDATE = "/admin/creators";
+const STUDIO_MONETIZATION_PATHS = [
+  "/studio/monetization",
+  "/studio/finance",
+  "/studio"
+] as const;
+
+function revalidateStudioMonetizationPaths() {
+  for (const path of STUDIO_MONETIZATION_PATHS) {
+    revalidatePath(path);
+  }
+}
 
 async function assertCreatorMonetizationStaff() {
   const auth = await checkStaffPermission("admin.settings.update");
@@ -74,6 +86,7 @@ export async function approveCreatorMonetizationAction(
       metadata: { target_user_id: updated.data.user_id }
     });
     revalidatePath(REVALIDATE);
+    revalidateStudioMonetizationPaths();
   }
   return { ok: Boolean(updated.data), error: updated.error };
 }
@@ -118,6 +131,7 @@ export async function rejectCreatorMonetizationAction(
       }
     });
     revalidatePath(REVALIDATE);
+    revalidateStudioMonetizationPaths();
   }
   return { ok: Boolean(updated.data), error: updated.error };
 }
@@ -148,6 +162,22 @@ export async function suspendCreatorMonetizationAction(
   }
   const updated = await updateCreatorMonetizationProfile(profileId, patch);
 
+  if (updated.data?.user_id) {
+    await upsertCreatorAccessOverride({
+      userId: updated.data.user_id as string,
+      monetizationDisabled: true,
+      monetizationDisabledReason: `${reason} (${duration})`,
+      monetizationDisabledBy: auth.approverId,
+      ...(formData.get("lock_payout") === "true"
+        ? {
+            withdrawalDisabled: true,
+            withdrawalDisabledReason: reason,
+            withdrawalDisabledBy: auth.approverId
+          }
+        : {})
+    });
+  }
+
   if (updated.data && auth.approverId) {
     await createAdminAuditLog({
       actorId: auth.approverId,
@@ -167,6 +197,7 @@ export async function suspendCreatorMonetizationAction(
       }
     });
     revalidatePath(REVALIDATE);
+    revalidateStudioMonetizationPaths();
   }
   return { ok: Boolean(updated.data), error: updated.error };
 }
@@ -191,6 +222,14 @@ export async function restoreCreatorMonetizationAction(
     rejected_reason: null
   });
 
+  if (updated.data?.user_id) {
+    await upsertCreatorAccessOverride({
+      userId: updated.data.user_id as string,
+      monetizationDisabled: false,
+      withdrawalDisabled: false
+    });
+  }
+
   if (updated.data && auth.approverId) {
     await createAdminAuditLog({
       actorId: auth.approverId,
@@ -203,6 +242,7 @@ export async function restoreCreatorMonetizationAction(
       metadata: { target_user_id: updated.data.user_id }
     });
     revalidatePath(REVALIDATE);
+    revalidateStudioMonetizationPaths();
   }
   return { ok: Boolean(updated.data), error: updated.error };
 }
@@ -227,6 +267,18 @@ export async function permanentlyDisableCreatorMonetizationAction(
     suspended_reason: reason
   });
 
+  if (updated.data?.user_id) {
+    await upsertCreatorAccessOverride({
+      userId: updated.data.user_id as string,
+      monetizationDisabled: true,
+      monetizationDisabledReason: reason,
+      monetizationDisabledBy: auth.approverId,
+      withdrawalDisabled: true,
+      withdrawalDisabledReason: reason,
+      withdrawalDisabledBy: auth.approverId
+    });
+  }
+
   if (updated.data && auth.approverId) {
     await createAdminAuditLog({
       actorId: auth.approverId,
@@ -239,6 +291,7 @@ export async function permanentlyDisableCreatorMonetizationAction(
       metadata: { target_user_id: updated.data.user_id }
     });
     revalidatePath(REVALIDATE);
+    revalidateStudioMonetizationPaths();
   }
   return { ok: Boolean(updated.data), error: updated.error };
 }

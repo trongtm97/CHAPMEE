@@ -19,7 +19,7 @@ export function ReaderBottomActions({
   data,
   userState
 }: ReaderBottomActionsProps) {
-  const returnTo = `/stories/${data.story.slug}/episodes/${data.episode.episodeNumber}`;
+  const returnTo = data.chapterHref;
 
   return (
     <section className="space-y-4 chap-card p-4 sm:p-5">
@@ -36,7 +36,7 @@ export function ReaderBottomActions({
           <TrackedNextChapterLink
             className="tap-highlight inline-flex min-h-12 items-center justify-center rounded-full bg-cyan-300 px-4 py-3 text-sm font-black uppercase tracking-[0.12em] text-zinc-950 shadow-[0_14px_30px_rgba(103,232,249,0.18)]"
             context={analyticsContext}
-            href={`/stories/${data.story.slug}/episodes/${data.nextEpisodeNumber}`}
+            href={data.nextChapterHref ?? data.storyHref}
             nextEpisodeNumber={data.nextEpisodeNumber}
           >
             Read next chap
@@ -54,6 +54,8 @@ export function ReaderBottomActions({
                 creatorId: data.story.creatorId,
                 returnTo,
                 saved: !userState.isSaved,
+                sourceSurface: "catalog",
+                trackingSurface: "chapter_detail",
                 storyId: data.story.id,
                 storySlug: data.story.slug
               });

@@ -1,4 +1,4 @@
-import { publishTargetByType } from "@/lib/studio/scheduling/publish-target";
+﻿import { publishTargetByType } from "@/lib/studio/scheduling/publish-target";
 import { studioPath } from "@/lib/studio/constants";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -7,7 +7,7 @@ const MAX_ATTEMPTS = 3;
 type ScheduleRow = {
   id: string;
   creator_id: string;
-  target_type: "story" | "chapter" | "swipe";
+  target_type: "story" | "chapter" | "reels";
   target_id: string;
   story_id: string | null;
   publish_attempts: number;
@@ -101,14 +101,29 @@ export async function publishScheduledItems(supabase: SupabaseClient) {
 
       published += 1;
 
+      let notifyHref = studioPath("/calendar");
+      if (row.story_id) {
+        if (row.target_type === "story") {
+          const { data: storyRow } = await supabase
+            .from("stories")
+            .select("structure_type")
+            .eq("id", row.story_id)
+            .maybeSingle();
+          notifyHref =
+            storyRow?.structure_type === "standalone"
+              ? studioPath(`/stories/${row.story_id}/content`)
+              : studioPath(`/stories/${row.story_id}/edit`);
+        } else {
+          notifyHref = studioPath(`/stories/${row.story_id}/chapters`);
+        }
+      }
+
       await notifyScheduleResult(
         supabase,
         row.creator_id,
         true,
         row.target_type === "chapter" ? "Chương" : "Truyện",
-        row.story_id
-          ? studioPath(`/stories/${row.story_id}/chapters`)
-          : studioPath("/calendar")
+        notifyHref
       );
     } else {
       const attempts = row.publish_attempts + 1;

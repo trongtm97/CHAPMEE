@@ -5,7 +5,7 @@ import type { ProfileBadge, ProfileStat } from "@/types/profile";
 
 type ProfileHeaderProps = {
   eyebrow: string;
-  title: string;
+  title: ReactNode;
   handle?: string | null;
   bio?: string | null;
   avatarName: string;

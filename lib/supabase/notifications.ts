@@ -1,26 +1,44 @@
 import { createClient } from "@/lib/supabase/server";
+import { mapUserNotificationToNotificationItem } from "@/lib/notifications/campaign-notification-adapter";
+import { filterNotificationsByTab } from "@/lib/notifications/filter-notifications";
+import { sanitizeUserNotificationHref } from "@/lib/platform-content/campaign-href";
 import type {
   NotificationGroup,
   NotificationItem,
   NotificationPreferences
 } from "@/types/notification";
-import { getNotificationGroup } from "@/lib/notifications/notification-categories";
 import type { NotificationFilterTab } from "@/types/notification";
-import { filterNotificationsByTab } from "@/lib/notifications/filter-notifications";
+import { listUserNotifications } from "@/lib/platform-content/notification-campaigns";
+
+function sanitizeNotificationItem(item: NotificationItem): NotificationItem {
+  const href = sanitizeUserNotificationHref(item.action_url);
+  return href === item.action_url ? item : { ...item, action_url: href };
+}
 
 export async function getUnreadNotificationCount(userId: string) {
   const supabase = await createClient();
-  const { count, error } = await supabase
-    .from("notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .is("read_at", null);
+  const [legacyRes, campaignRes] = await Promise.all([
+    supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .is("read_at", null),
+    supabase
+      .from("user_notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("is_read", false)
+  ]);
 
-  if (error) {
-    throw error;
+  if (legacyRes.error) {
+    throw legacyRes.error;
   }
 
-  return count ?? 0;
+  if (campaignRes.error) {
+    throw campaignRes.error;
+  }
+
+  return (legacyRes.count ?? 0) + (campaignRes.count ?? 0);
 }
 
 export async function getUserNotifications(input: {
@@ -31,10 +49,12 @@ export async function getUserNotifications(input: {
   tab?: NotificationFilterTab;
   unreadOnly?: boolean;
 }): Promise<NotificationItem[]> {
-  const supabase = await createClient();
   const limit = input.limit ?? 30;
   const offset = input.offset ?? 0;
-  let query = supabase
+  const fetchSize = Math.min(100, limit + offset);
+
+  const supabase = await createClient();
+  let legacyQuery = supabase
     .from("notifications")
     .select(
       "id, user_id, type, title, body, target_type, target_id, action_url, metadata, read_at, created_at"
@@ -43,29 +63,64 @@ export async function getUserNotifications(input: {
     .order("created_at", { ascending: false });
 
   if (input.unreadOnly) {
-    query = query.is("read_at", null);
+    legacyQuery = legacyQuery.is("read_at", null);
   }
 
-  const { data, error } = await query.range(offset, offset + limit - 1);
+  const [legacyRes, campaignRes] = await Promise.all([
+    legacyQuery.range(0, fetchSize - 1),
+    listUserNotifications({
+      userId: input.userId,
+      unreadOnly: input.unreadOnly,
+      limit: fetchSize,
+      offset: 0
+    })
+  ]);
 
-  if (error) {
-    throw error;
+  if (legacyRes.error) {
+    throw legacyRes.error;
   }
 
-  const items = (data ?? []) as NotificationItem[];
-
-  if (input.tab) {
-    return filterNotificationsByTab(items, input.tab);
+  if (campaignRes.error) {
+    throw campaignRes.error;
   }
 
-  if (!input.group || input.group === "all") {
-    return items;
-  }
+  const legacyItems = (legacyRes.data ?? []).map((row) =>
+    sanitizeNotificationItem(row as NotificationItem)
+  );
+  const campaignItems = campaignRes.items.map((item) =>
+    sanitizeNotificationItem(mapUserNotificationToNotificationItem(item))
+  );
+  const merged = [...legacyItems, ...campaignItems]
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
 
-  return items.filter((item) => getNotificationGroup(item.type) === input.group);
+  const filtered =
+    input.tab && input.tab !== "all"
+      ? filterNotificationsByTab(merged, input.tab)
+      : merged;
+
+  return filtered.slice(offset, offset + limit);
 }
 
 export async function markNotificationAsRead(userId: string, notificationId: string) {
+  const {
+    isCampaignNotificationId,
+    stripCampaignNotificationId
+  } = await import("@/lib/notifications/campaign-notification-adapter");
+
+  if (isCampaignNotificationId(notificationId)) {
+    const { markNotificationRead } = await import(
+      "@/lib/platform-content/notification-campaigns"
+    );
+    const { error } = await markNotificationRead(
+      userId,
+      stripCampaignNotificationId(notificationId)
+    );
+    if (error) {
+      throw new Error(error);
+    }
+    return;
+  }
+
   const supabase = await createClient();
   const { error } = await supabase
     .from("notifications")
@@ -81,14 +136,25 @@ export async function markNotificationAsRead(userId: string, notificationId: str
 
 export async function markAllNotificationsAsRead(userId: string) {
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("notifications")
-    .update({ read_at: new Date().toISOString() })
-    .eq("user_id", userId)
-    .is("read_at", null);
+  const { markAllUserNotificationsRead } = await import(
+    "@/lib/platform-content/notification-campaigns"
+  );
 
-  if (error) {
-    throw error;
+  const [legacyRes, campaignRes] = await Promise.all([
+    supabase
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .is("read_at", null),
+    markAllUserNotificationsRead(userId)
+  ]);
+
+  if (legacyRes.error) {
+    throw legacyRes.error;
+  }
+
+  if (campaignRes.error) {
+    throw new Error(campaignRes.error);
   }
 }
 

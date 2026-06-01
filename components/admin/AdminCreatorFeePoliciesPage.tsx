@@ -1,192 +1,374 @@
 ﻿"use client";
 
-import { useCallback, useState, useTransition } from "react";
-import { CreatorFeePolicyForm } from "@/components/admin/CreatorFeePolicyForm";
-import { CreatorFeePolicyHistory } from "@/components/admin/CreatorFeePolicyHistory";
-import { Button, Card } from "@/components/ui";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { CreatorFeePolicyActionModals } from "@/components/admin/creator-fee-policies/CreatorFeePolicyActionModals";
+import { CreatorFeePolicyCreateModal } from "@/components/admin/creator-fee-policies/CreatorFeePolicyCreateModal";
+import { CreatorFeePolicyDetailDrawer } from "@/components/admin/creator-fee-policies/CreatorFeePolicyDetailDrawer";
+import { CreatorFeePolicyEmptyState } from "@/components/admin/creator-fee-policies/CreatorFeePolicyEmptyState";
+import { CreatorFeePolicyFilters } from "@/components/admin/creator-fee-policies/CreatorFeePolicyFilters";
+import { CreatorFeePolicyKpiCards } from "@/components/admin/creator-fee-policies/CreatorFeePolicyKpiCards";
 import {
-  fetchCreatorFeePoliciesForUserAction,
-  fetchCreatorFeePolicyTransactionsAction
-} from "@/lib/admin/creator-fee-policy-actions";
-import { searchAdminUsers, type AdminUserSearchResult } from "@/lib/admin/get-users";
-import type { CreatorFeePolicyAdminView } from "@/types/creator-fee-policy";
-import type { ResolvedCreatorFeePolicy } from "@/types/creator-fee-policy";
+  CreatorFeePolicyCardList,
+  CreatorFeePolicyTable,
+  type CreatorFeePolicyRowAction
+} from "@/components/admin/creator-fee-policies/CreatorFeePolicyTable";
+import { Button, ErrorState } from "@/components/ui";
+import {
+  buildCreatorFeePolicyFilterQuery,
+  getDefaultCreatorFeePolicyFilters
+} from "@/lib/admin/creator-fee-policies/filters";
+import { listCreatorFeePoliciesAction } from "@/lib/admin/creator-fee-policies/list-policies";
+import { exportCreatorFeePoliciesCsvAction } from "@/lib/admin/creator-fee-policies/list-policies";
+import { getCreatorFeePolicyStatsAction } from "@/lib/admin/creator-fee-policies/preview-policy";
+import { duplicateCreatorFeePolicyAction } from "@/lib/admin/creator-fee-policies/policy-status-actions";
+import type {
+  CreatorFeePolicyAdminCapabilities,
+  CreatorFeePolicyDashboardFilters,
+  CreatorFeePolicyKpiSummary,
+  CreatorFeePolicyListRow,
+  CreatorFeePolicyModalState
+} from "@/types/admin-creator-fee-policy";
+import type { CreatorFeeSourceRates } from "@/types/creator-fee-policy";
 
-export function AdminCreatorFeePoliciesPage() {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<AdminUserSearchResult[]>([]);
-  const [selected, setSelected] = useState<AdminUserSearchResult | null>(null);
-  const [policies, setPolicies] = useState<CreatorFeePolicyAdminView[]>([]);
-  const [current, setCurrent] = useState<CreatorFeePolicyAdminView | null>(null);
-  const [defaultResolved, setDefaultResolved] = useState<ResolvedCreatorFeePolicy | null>(null);
-  const [editing, setEditing] = useState<CreatorFeePolicyAdminView | null>(null);
-  const [txPreview, setTxPreview] = useState<
-    Array<{
-      id: string;
-      source_type: string;
-      gross_amount_vnd: number;
-      creator_net_amount_vnd: number;
-      created_at: string;
-    }>
-  >([]);
-  const [message, setMessage] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+type Props = {
+  initialFilters: CreatorFeePolicyDashboardFilters;
+  initialRows: CreatorFeePolicyListRow[];
+  initialTotal: number;
+  summary: CreatorFeePolicyKpiSummary;
+  capabilities: CreatorFeePolicyAdminCapabilities;
+  defaultRates: CreatorFeeSourceRates;
+  loadError?: string | null;
+};
 
-  const reloadPolicies = useCallback(
-    (creatorId: string) => {
+export function AdminCreatorFeePoliciesPage({
+  initialFilters,
+  initialRows,
+  initialTotal,
+  summary: initialSummary,
+  capabilities,
+  defaultRates,
+  loadError
+}: Props) {
+  const router = useRouter();
+  const [filters, setFilters] = useState(initialFilters);
+  const [rows, setRows] = useState(initialRows);
+  const [total, setTotal] = useState(initialTotal);
+  const [summary, setSummary] = useState(initialSummary);
+  const [searchInput, setSearchInput] = useState(initialFilters.search);
+  const [listError, setListError] = useState<string | null>(loadError ?? null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [modal, setModal] = useState<CreatorFeePolicyModalState>(null);
+  const [createOpen, setCreateOpen] = useState(initialFilters.createMode);
+  const [drawerPolicyId, setDrawerPolicyId] = useState<string | null>(
+    initialFilters.selectedPolicyId
+  );
+  const [drawerEdit, setDrawerEdit] = useState(false);
+  const [drawerTab, setDrawerTab] = useState<"summary" | "editor" | "history">("summary");
+  const [showAuditPanel, setShowAuditPanel] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (initialFilters.createMode && capabilities.canCreate) {
+      setCreateOpen(true);
+    }
+  }, [initialFilters.createMode, capabilities.canCreate]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const totalPages = Math.max(1, Math.ceil(total / filters.pageSize));
+
+  const refreshAll = useCallback(
+    (next: CreatorFeePolicyDashboardFilters) => {
       startTransition(async () => {
-        const result = await fetchCreatorFeePoliciesForUserAction(creatorId);
-        setPolicies(result.policies);
-        setCurrent(result.current ?? null);
-        setDefaultResolved(result.defaultResolved ?? null);
-        if (result.error) {
-          setMessage(result.error);
+        setListError(null);
+        const [listResult, statsResult] = await Promise.all([
+          listCreatorFeePoliciesAction(next),
+          getCreatorFeePolicyStatsAction()
+        ]);
+        if (listResult.error) {
+          setListError(listResult.error);
+          return;
         }
+        setRows(listResult.rows);
+        setTotal(listResult.total);
+        if (statsResult.data) setSummary(statsResult.data);
       });
     },
     []
   );
 
-  function searchUsers() {
-    startTransition(async () => {
-      const result = await searchAdminUsers({ query, page: 1, pageSize: 10 });
-      setResults(result.users);
-      if (result.error) {
-        setMessage(result.error);
+  const applyFilters = useCallback(
+    (patch?: Partial<CreatorFeePolicyDashboardFilters>, options?: { push?: boolean }) => {
+      const next = {
+        ...filters,
+        ...patch,
+        search: patch?.search ?? filters.search
+      };
+      if (patch?.search === undefined && searchInput !== filters.search) {
+        next.search = searchInput;
       }
+      setFilters(next);
+      if (options?.push !== false) {
+        router.push(`/admin/creator-fee-policies${buildCreatorFeePolicyFilterQuery(next)}`);
+      }
+      refreshAll(next);
+    },
+    [filters, refreshAll, router, searchInput]
+  );
+
+  const resetFilters = useCallback(() => {
+    const next = getDefaultCreatorFeePolicyFilters(filters.pageSize);
+    setSearchInput("");
+    setFilters(next);
+    router.push("/admin/creator-fee-policies");
+    refreshAll(next);
+  }, [filters.pageSize, refreshAll, router]);
+
+  function handleRowAction(action: CreatorFeePolicyRowAction, row: CreatorFeePolicyListRow) {
+    if (action === "view") {
+      setDrawerPolicyId(row.id);
+      setDrawerEdit(false);
+      setDrawerTab("summary");
+      applyFilters({ selectedPolicyId: row.id }, { push: true });
+      return;
+    }
+    if (action === "edit") {
+      setDrawerPolicyId(row.id);
+      setDrawerEdit(true);
+      setDrawerTab("editor");
+      applyFilters({ selectedPolicyId: row.id }, { push: true });
+      return;
+    }
+    if (action === "history") {
+      setDrawerPolicyId(row.id);
+      setDrawerTab("history");
+      applyFilters({ selectedPolicyId: row.id }, { push: true });
+      return;
+    }
+    if (action === "pause") {
+      setModal({ type: "pause", policyId: row.id, policyName: row.policyName });
+      return;
+    }
+    if (action === "revoke") {
+      setModal({ type: "revoke", policyId: row.id, policyName: row.policyName });
+      return;
+    }
+    if (action === "duplicate") {
+      startTransition(async () => {
+        const result = await duplicateCreatorFeePolicyAction(row.id);
+        if (!result.ok) {
+          setToast(result.error ?? "Không thể nhân bản.");
+          return;
+        }
+        setToast("Đã nhân bản chính sách (trạng thái nháp).");
+        refreshAll(filters);
+      });
+    }
+  }
+
+  function exportCsv() {
+    startTransition(async () => {
+      const result = await exportCreatorFeePoliciesCsvAction(filters);
+      if (result.error || !result.csv) {
+        setToast(result.error ?? "Không thể xuất CSV.");
+        return;
+      }
+      const blob = new Blob([result.csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `creator-fee-policies-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setToast("Đã xuất CSV.");
     });
   }
-
-  function selectUser(user: AdminUserSearchResult) {
-    setSelected(user);
-    setEditing(null);
-    setTxPreview([]);
-    reloadPolicies(user.id);
-  }
-
-  function viewTransactions(policyId: string) {
-    startTransition(async () => {
-      const result = await fetchCreatorFeePolicyTransactionsAction(policyId);
-      setTxPreview(
-        (result.rows ?? []) as Array<{
-          id: string;
-          source_type: string;
-          gross_amount_vnd: number;
-          creator_net_amount_vnd: number;
-          created_at: string;
-        }>
-      );
-      if (result.error) {
-        setMessage(result.error);
-      }
-    });
-  }
-
-  const effective = current && ["active", "scheduled"].includes(current.status) ? current : null;
 
   return (
     <div className="space-y-6">
-      <Card className="space-y-3">
-        <p className="text-sm text-zinc-400">
-          Thiết lập tỷ lệ phí riêng theo tác giả. Transactions mới lưu snapshot; giao dịch cũ không
-          đổi khi đổi policy.
-        </p>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <input
-            className="flex-1 rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Tìm username, tên hoặc user id..."
-            value={query}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <nav className="text-sm text-zinc-500">
+          <Link className="hover:text-zinc-300" href="/admin">
+            Admin
+          </Link>
+          <span className="mx-2">/</span>
+          <Link className="hover:text-zinc-300" href="/admin/finance">
+            Tài chính
+          </Link>
+          <span className="mx-2">/</span>
+          <span className="text-zinc-300">Chính sách phí tác giả</span>
+        </nav>
+        <Link
+          className="shrink-0 text-xs font-medium text-cyan-300/90 transition hover:text-cyan-200"
+          href="/admin/monetization-settings"
+        >
+          Về cấu hình kiếm tiền →
+        </Link>
+      </div>
+
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-3xl font-bold text-white">Chính sách phí tác giả</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
+            Thiết lập tỷ lệ chia doanh thu riêng cho từng tác giả. Giao dịch mới lưu snapshot; giao
+            dịch cũ không thay đổi khi đổi policy.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-nowrap items-center gap-2 self-start lg:self-center">
+          {capabilities.canCreate ? (
+            <Button className="whitespace-nowrap" onClick={() => setCreateOpen(true)} type="button">
+              + Tạo policy
+            </Button>
+          ) : null}
+          {capabilities.canExport ? (
+            <Button
+              className="whitespace-nowrap"
+              disabled={pending}
+              onClick={exportCsv}
+              type="button"
+              variant="secondary"
+            >
+              Xuất CSV
+            </Button>
+          ) : null}
+          {capabilities.canViewAudit ? (
+            <Button
+              className="whitespace-nowrap"
+              onClick={() => setShowAuditPanel((v) => !v)}
+              type="button"
+              variant="secondary"
+            >
+              {showAuditPanel ? "Ẩn audit" : "Audit log"}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      <CreatorFeePolicyKpiCards
+        onFilterStatus={(status) => applyFilters({ status: status as CreatorFeePolicyDashboardFilters["status"], page: 1 })}
+        summary={summary}
+      />
+
+      <CreatorFeePolicyFilters
+        filters={filters}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        onSearchInputChange={setSearchInput}
+        pending={pending}
+        searchInput={searchInput}
+      />
+
+      {toast ? (
+        <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-200">
+          {toast}
+        </div>
+      ) : null}
+
+      {listError ? (
+        <ErrorState
+          action={
+            <Button disabled={pending} onClick={() => refreshAll(filters)} type="button" variant="secondary">
+              Tải lại
+            </Button>
+          }
+          message={listError}
+          title="Không thể tải chính sách phí. Vui lòng thử lại."
+        />
+      ) : rows.length === 0 ? (
+        <CreatorFeePolicyEmptyState
+          capabilities={capabilities}
+          onCreate={() => setCreateOpen(true)}
+        />
+      ) : (
+        <>
+          <CreatorFeePolicyTable
+            capabilities={capabilities}
+            onAction={handleRowAction}
+            rows={rows}
+            selectedId={drawerPolicyId}
           />
-          <Button disabled={isPending} onClick={searchUsers} type="button">
-            Tìm
+          <CreatorFeePolicyCardList
+            capabilities={capabilities}
+            onAction={handleRowAction}
+            rows={rows}
+            selectedId={drawerPolicyId}
+          />
+        </>
+      )}
+
+      {totalPages > 1 ? (
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            disabled={filters.page <= 1 || pending}
+            onClick={() => applyFilters({ page: filters.page - 1 })}
+            type="button"
+            variant="secondary"
+          >
+            Trước
+          </Button>
+          <span className="text-sm text-zinc-400">
+            Trang {filters.page}/{totalPages} · {total} policy
+          </span>
+          <Button
+            disabled={filters.page >= totalPages || pending}
+            onClick={() => applyFilters({ page: filters.page + 1 })}
+            type="button"
+            variant="secondary"
+          >
+            Sau
           </Button>
         </div>
-        {results.length > 0 ? (
-          <ul className="divide-y divide-white/5 rounded-lg border border-white/10">
-            {results.map((user) => (
-              <li key={user.id}>
-                <button
-                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-white/5"
-                  onClick={() => selectUser(user)}
-                  type="button"
-                >
-                  <span className="text-white">
-                    {user.display_name ?? user.username ?? user.id}
-                  </span>
-                  <span className="text-zinc-500">@{user.username ?? "—"}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </Card>
-
-      {message ? <p className="text-sm text-amber-300">{message}</p> : null}
-
-      {selected ? (
-        <>
-          <Card className="space-y-2">
-            <h2 className="text-xl font-bold text-white">
-              {selected.display_name ?? selected.username}
-            </h2>
-            <p className="text-sm text-zinc-400">User ID: {selected.id}</p>
-            {effective ? (
-              <div className="mt-3 rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3 text-sm text-cyan-100">
-                <p className="font-semibold">Policy hiện tại: {effective.policy_name}</p>
-                <p>
-                  Creator {effective.creator_revenue_share_percent ?? "—"}% · Platform{" "}
-                  {effective.platform_fee_percent ?? "—"}%
-                </p>
-                <p className="text-xs text-cyan-200/80">
-                  {new Date(effective.starts_at).toLocaleString("vi-VN")}
-                  {effective.ends_at
-                    ? ` → ${new Date(effective.ends_at).toLocaleString("vi-VN")}`
-                    : " → không giới hạn"}
-                </p>
-              </div>
-            ) : (
-              <div className="mt-3 rounded-lg border border-zinc-600 bg-zinc-800/50 p-3 text-sm text-zinc-300">
-                Không có override — dùng config mặc định (creator{" "}
-                {defaultResolved?.creatorRevenueSharePercent ?? "—"}%, platform{" "}
-                {defaultResolved?.platformFeePercent ?? "—"}%).
-              </div>
-            )}
-          </Card>
-
-          <CreatorFeePolicyForm
-            creatorId={selected.id}
-            editing={editing}
-            onSuccess={() => {
-              setEditing(null);
-              reloadPolicies(selected.id);
-            }}
-          />
-
-          <CreatorFeePolicyHistory
-            onEdit={(policy) => setEditing(policy)}
-            onRefresh={() => reloadPolicies(selected.id)}
-            onViewTransactions={viewTransactions}
-            policies={policies}
-          />
-
-          {txPreview.length > 0 ? (
-            <Card className="space-y-2">
-              <h3 className="font-semibold text-white">Transactions áp dụng policy</h3>
-              <ul className="space-y-2 text-sm text-zinc-300">
-                {txPreview.map((row) => (
-                  <li className="rounded border border-white/10 px-3 py-2" key={row.id}>
-                    {row.source_type} · gross{" "}
-                    {Number(row.gross_amount_vnd).toLocaleString("vi-VN")} ₫ · net{" "}
-                    {Number(row.creator_net_amount_vnd).toLocaleString("vi-VN")} ₫ ·{" "}
-                    {new Date(row.created_at).toLocaleString("vi-VN")}
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          ) : null}
-        </>
       ) : null}
+
+      {showAuditPanel && capabilities.canViewAudit ? (
+        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 text-sm text-zinc-400">
+          Audit log chi tiết hiển thị trong tab Lịch sử của từng policy. Mọi thao tác create/update/
+          pause/resume/revoke/export đều được ghi vào admin_audit_logs.
+        </div>
+      ) : null}
+
+      <CreatorFeePolicyDetailDrawer
+        capabilities={capabilities}
+        editMode={drawerEdit}
+        initialTab={drawerTab}
+        onClose={() => {
+          setDrawerPolicyId(null);
+          applyFilters({ selectedPolicyId: null }, { push: true });
+        }}
+        onRefresh={() => refreshAll(filters)}
+        open={Boolean(drawerPolicyId)}
+        policyId={drawerPolicyId}
+      />
+
+      <CreatorFeePolicyCreateModal
+        defaultRates={defaultRates}
+        onClose={() => {
+          setCreateOpen(false);
+          applyFilters({ createMode: false, selectedCreatorId: null }, { push: true });
+        }}
+        onSuccess={() => {
+          setToast("Đã tạo chính sách phí.");
+          refreshAll(filters);
+        }}
+        open={createOpen}
+        preselectedCreatorId={filters.selectedCreatorId}
+      />
+
+      <CreatorFeePolicyActionModals
+        modal={modal}
+        onClose={() => setModal(null)}
+        onError={(msg) => setToast(msg)}
+        onSuccess={(msg) => {
+          setToast(msg);
+          refreshAll(filters);
+        }}
+      />
     </div>
   );
 }

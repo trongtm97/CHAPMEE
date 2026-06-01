@@ -1,12 +1,23 @@
 import { createClient } from "@/lib/supabase/server";
+import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { getDefaultPlacementForType } from "@/lib/campaigns/constants";
+import { isCampaignPubliclyVisible } from "@/lib/campaigns/visibility";
 import type {
   BrandCampaignRecord,
+  CampaignCenterSettings,
+  CampaignFormInput,
+  CampaignMetricsSummary,
+  CampaignPlacement,
   CampaignStatus,
+  CampaignTargetType,
   CampaignType,
   CampaignWithSponsor,
+  SponsorFormInput,
   SponsorRecord,
-  SponsorStatus
+  SponsorStatus,
+  SponsorWithStats
 } from "@/types/campaign";
+import { DEFAULT_CAMPAIGN_CENTER_SETTINGS } from "@/types/campaign";
 
 type SponsorRow = {
   id: string;
@@ -15,6 +26,7 @@ type SponsorRow = {
   website_url: string | null;
   contact_email: string | null;
   status: SponsorStatus;
+  notes?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -24,6 +36,7 @@ type CampaignRow = {
   sponsor_id: string;
   name: string;
   campaign_type: CampaignType;
+  placement?: CampaignPlacement | null;
   status: CampaignStatus;
   budget_vnd: number | null;
   revenue_vnd: number | null;
@@ -31,7 +44,11 @@ type CampaignRow = {
   ends_at: string | null;
   cta_text: string | null;
   cta_url: string | null;
+  target_type?: CampaignTargetType | null;
+  target_id?: string | null;
   disclosure_text: string | null;
+  description?: string | null;
+  admin_note?: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
@@ -50,6 +67,7 @@ function mapSponsor(row: SponsorRow): SponsorRecord {
     websiteUrl: row.website_url,
     contactEmail: row.contact_email,
     status: row.status,
+    notes: row.notes ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -61,6 +79,7 @@ function mapCampaign(row: CampaignRow): BrandCampaignRecord {
     sponsorId: row.sponsor_id,
     name: row.name,
     campaignType: row.campaign_type,
+    placement: row.placement ?? getDefaultPlacementForType(row.campaign_type),
     status: row.status,
     budgetVnd: row.budget_vnd,
     revenueVnd: row.revenue_vnd,
@@ -68,34 +87,94 @@ function mapCampaign(row: CampaignRow): BrandCampaignRecord {
     endsAt: row.ends_at,
     ctaText: row.cta_text,
     ctaUrl: row.cta_url,
+    targetType: row.target_type ?? null,
+    targetId: row.target_id ?? null,
     disclosureText: row.disclosure_text ?? "Được tài trợ",
+    description: row.description ?? null,
+    adminNote: row.admin_note ?? null,
     metadata: row.metadata,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
 }
 
-export async function getSponsorsForAdmin() {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("sponsors")
-    .select("id, name, logo_url, website_url, contact_email, status, created_at, updated_at")
-    .order("created_at", { ascending: false });
+const CAMPAIGN_SELECT =
+  "id, sponsor_id, name, campaign_type, placement, status, budget_vnd, revenue_vnd, starts_at, ends_at, cta_text, cta_url, target_type, target_id, disclosure_text, description, admin_note, metadata, created_at, updated_at";
 
-  if (error) {
-    return { data: [] as SponsorRecord[], error: error.message };
-  }
+const LEGACY_CAMPAIGN_SELECT =
+  "id, sponsor_id, name, campaign_type, status, budget_vnd, revenue_vnd, starts_at, ends_at, cta_text, cta_url, disclosure_text, metadata, created_at, updated_at";
 
-  return { data: ((data ?? []) as SponsorRow[]).map(mapSponsor), error: null };
+const SPONSOR_SELECT =
+  "id, name, logo_url, website_url, contact_email, status, notes, created_at, updated_at";
+
+const LEGACY_SPONSOR_SELECT =
+  "id, name, logo_url, website_url, contact_email, status, created_at, updated_at";
+
+function campaignInsertPayload(input: CampaignFormInput) {
+  const placement = input.placement ?? getDefaultPlacementForType(input.campaignType);
+  return {
+    sponsor_id: input.sponsorId,
+    name: input.name.trim(),
+    campaign_type: input.campaignType,
+    placement,
+    status: input.status,
+    budget_vnd: input.budgetVnd ?? null,
+    revenue_vnd: input.revenueVnd ?? null,
+    starts_at: input.startsAt ?? null,
+    ends_at: input.endsAt ?? null,
+    cta_text: input.ctaText?.trim() || null,
+    cta_url: input.ctaUrl?.trim() || null,
+    target_type: input.targetType ?? null,
+    target_id: input.targetId?.trim() || null,
+    disclosure_text: input.disclosureText?.trim() || "Được tài trợ",
+    description: input.description?.trim() || null,
+    admin_note: input.adminNote?.trim() || null
+  };
 }
 
-export async function createSponsor(input: {
-  name: string;
-  logoUrl?: string | null;
-  websiteUrl?: string | null;
-  contactEmail?: string | null;
-  status?: SponsorStatus;
-}) {
+export async function getSponsorsForAdmin() {
+  const supabase = await createClient();
+  const primary = await supabase
+    .from("sponsors")
+    .select(SPONSOR_SELECT)
+    .order("created_at", { ascending: false });
+
+  let rows = primary.data as SponsorRow[] | null;
+  let queryError = primary.error;
+
+  if (queryError && isMissingSchemaError(queryError)) {
+    const legacy = await supabase
+      .from("sponsors")
+      .select(LEGACY_SPONSOR_SELECT)
+      .order("created_at", { ascending: false });
+    rows = legacy.data as SponsorRow[] | null;
+    queryError = legacy.error;
+  }
+
+  if (queryError) {
+    return { data: [] as SponsorRecord[], error: queryError.message };
+  }
+
+  return { data: ((rows ?? []) as SponsorRow[]).map(mapSponsor), error: null };
+}
+
+export async function getSponsorsWithStats(campaigns: BrandCampaignRecord[]) {
+  const sponsors = await getSponsorsForAdmin();
+  if (sponsors.error) return { data: [] as SponsorWithStats[], error: sponsors.error };
+
+  const withStats: SponsorWithStats[] = sponsors.data.map((sponsor) => {
+    const related = campaigns.filter((c) => c.sponsorId === sponsor.id);
+    return {
+      ...sponsor,
+      campaignCount: related.length,
+      totalRevenueVnd: related.reduce((sum, c) => sum + (c.revenueVnd ?? 0), 0)
+    };
+  });
+
+  return { data: withStats, error: null };
+}
+
+export async function createSponsor(input: SponsorFormInput) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("sponsors")
@@ -104,9 +183,10 @@ export async function createSponsor(input: {
       logo_url: input.logoUrl?.trim() || null,
       website_url: input.websiteUrl?.trim() || null,
       contact_email: input.contactEmail?.trim() || null,
-      status: input.status ?? "active"
+      status: input.status ?? "active",
+      notes: input.notes?.trim() || null
     })
-    .select("id, name, logo_url, website_url, contact_email, status, created_at, updated_at")
+    .select(SPONSOR_SELECT)
     .single();
 
   if (error || !data) {
@@ -116,21 +196,54 @@ export async function createSponsor(input: {
   return { data: mapSponsor(data as SponsorRow), error: null };
 }
 
-export async function getCampaignsForAdmin() {
+export async function updateSponsor(input: SponsorFormInput & { sponsorId: string }) {
   const supabase = await createClient();
   const { data, error } = await supabase
+    .from("sponsors")
+    .update({
+      name: input.name.trim(),
+      logo_url: input.logoUrl?.trim() || null,
+      website_url: input.websiteUrl?.trim() || null,
+      contact_email: input.contactEmail?.trim() || null,
+      status: input.status,
+      notes: input.notes?.trim() || null
+    })
+    .eq("id", input.sponsorId)
+    .select(SPONSOR_SELECT)
+    .single();
+
+  if (error || !data) {
+    return { data: null, error: error?.message ?? "Không thể cập nhật sponsor." };
+  }
+
+  return { data: mapSponsor(data as SponsorRow), error: null };
+}
+
+export async function getCampaignsForAdmin() {
+  const supabase = await createClient();
+  const primary = await supabase
     .from("brand_campaigns")
-    .select(
-      "id, sponsor_id, name, campaign_type, status, budget_vnd, revenue_vnd, starts_at, ends_at, cta_text, cta_url, disclosure_text, metadata, created_at, updated_at, sponsors(id, name, logo_url, website_url, contact_email, status, created_at, updated_at)"
-    )
+    .select(`${CAMPAIGN_SELECT}, sponsors(${SPONSOR_SELECT})`)
     .order("created_at", { ascending: false });
 
-  if (error) {
-    return { data: [] as CampaignWithSponsor[], error: error.message };
+  let rows = primary.data as CampaignRow[] | null;
+  let queryError = primary.error;
+
+  if (queryError && isMissingSchemaError(queryError)) {
+    const legacy = await supabase
+      .from("brand_campaigns")
+      .select(`${LEGACY_CAMPAIGN_SELECT}, sponsors(${LEGACY_SPONSOR_SELECT})`)
+      .order("created_at", { ascending: false });
+    rows = legacy.data as CampaignRow[] | null;
+    queryError = legacy.error;
+  }
+
+  if (queryError) {
+    return { data: [] as CampaignWithSponsor[], error: queryError.message };
   }
 
   return {
-    data: ((data ?? []) as CampaignRow[]).map((row) => ({
+    data: ((rows ?? []) as CampaignRow[]).map((row) => ({
       ...mapCampaign(row),
       sponsor: firstRelation(row.sponsors)
         ? mapSponsor(firstRelation(row.sponsors) as SponsorRow)
@@ -140,36 +253,12 @@ export async function getCampaignsForAdmin() {
   };
 }
 
-export async function createCampaign(input: {
-  sponsorId: string;
-  name: string;
-  campaignType: CampaignType;
-  status?: CampaignStatus;
-  budgetVnd?: number | null;
-  revenueVnd?: number | null;
-  startsAt?: string | null;
-  endsAt?: string | null;
-  ctaText?: string | null;
-  ctaUrl?: string | null;
-  disclosureText?: string | null;
-}) {
+export async function createCampaign(input: CampaignFormInput) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("brand_campaigns")
-    .insert({
-      sponsor_id: input.sponsorId,
-      name: input.name.trim(),
-      campaign_type: input.campaignType,
-      status: input.status ?? "draft",
-      budget_vnd: input.budgetVnd ?? null,
-      revenue_vnd: input.revenueVnd ?? null,
-      starts_at: input.startsAt ?? null,
-      ends_at: input.endsAt ?? null,
-      cta_text: input.ctaText?.trim() || null,
-      cta_url: input.ctaUrl?.trim() || null,
-      disclosure_text: input.disclosureText?.trim() || "Được tài trợ"
-    })
-    .select("id, sponsor_id, name, campaign_type, status, budget_vnd, revenue_vnd, starts_at, ends_at, cta_text, cta_url, disclosure_text, metadata, created_at, updated_at")
+    .insert(campaignInsertPayload(input))
+    .select(CAMPAIGN_SELECT)
     .single();
 
   if (error || !data) {
@@ -179,6 +268,42 @@ export async function createCampaign(input: {
   return { data: mapCampaign(data as CampaignRow), error: null };
 }
 
+export async function updateCampaignFull(input: CampaignFormInput & { campaignId: string }) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("brand_campaigns")
+    .update(campaignInsertPayload(input))
+    .eq("id", input.campaignId)
+    .select(CAMPAIGN_SELECT)
+    .single();
+
+  if (error || !data) {
+    return { data: null, error: error?.message ?? "Không thể cập nhật campaign." };
+  }
+
+  return { data: mapCampaign(data as CampaignRow), error: null };
+}
+
+export async function updateCampaignStatus(input: {
+  campaignId: string;
+  status: CampaignStatus;
+}) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("brand_campaigns")
+    .update({ status: input.status })
+    .eq("id", input.campaignId)
+    .select(CAMPAIGN_SELECT)
+    .single();
+
+  if (error || !data) {
+    return { data: null, error: error?.message ?? "Không thể cập nhật trạng thái campaign." };
+  }
+
+  return { data: mapCampaign(data as CampaignRow), error: null };
+}
+
+/** @deprecated Use updateCampaignFull — kept for backward compatibility */
 export async function updateCampaign(input: {
   campaignId: string;
   status?: CampaignStatus;
@@ -204,7 +329,7 @@ export async function updateCampaign(input: {
     .from("brand_campaigns")
     .update(updates)
     .eq("id", input.campaignId)
-    .select("id, sponsor_id, name, campaign_type, status, budget_vnd, revenue_vnd, starts_at, ends_at, cta_text, cta_url, disclosure_text, metadata, created_at, updated_at")
+    .select(CAMPAIGN_SELECT)
     .single();
 
   if (error || !data) {
@@ -236,7 +361,7 @@ export async function getChallengeCampaignMap(challengeIds: string[]) {
   const { data } = await supabase
     .from("creator_challenges")
     .select(
-      "id, sponsored_campaign_id, brand_campaigns(id, sponsor_id, name, campaign_type, status, budget_vnd, revenue_vnd, starts_at, ends_at, cta_text, cta_url, disclosure_text, metadata, created_at, updated_at, sponsors(id, name, logo_url, website_url, contact_email, status, created_at, updated_at))"
+      `id, sponsored_campaign_id, brand_campaigns(${CAMPAIGN_SELECT}, sponsors(${SPONSOR_SELECT}))`
     )
     .in("id", challengeIds)
     .not("sponsored_campaign_id", "is", null);
@@ -260,32 +385,254 @@ export async function getChallengeCampaignMap(challengeIds: string[]) {
   return map;
 }
 
-export async function getActiveCampaignByType(campaignType: CampaignType) {
-  const now = Date.now();
+export async function getCampaignCenterSettings(): Promise<{
+  data: CampaignCenterSettings;
+  error: string | null;
+}> {
   const supabase = await createClient();
   const { data, error } = await supabase
+    .from("campaign_settings")
+    .select("settings")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingSchemaError(error)) {
+      return { data: DEFAULT_CAMPAIGN_CENTER_SETTINGS, error: null };
+    }
+    return { data: DEFAULT_CAMPAIGN_CENTER_SETTINGS, error: error.message };
+  }
+
+  const raw = (data?.settings ?? {}) as Partial<CampaignCenterSettings>;
+  return {
+    data: { ...DEFAULT_CAMPAIGN_CENTER_SETTINGS, ...raw },
+    error: null
+  };
+}
+
+export async function saveCampaignCenterSettings(settings: CampaignCenterSettings) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("campaign_settings").upsert({
+    id: 1,
+    settings,
+    updated_at: new Date().toISOString()
+  });
+
+  if (error) {
+    if (isMissingSchemaError(error)) {
+      return { error: "Bảng campaign_settings chưa có — cần chạy migration 109." };
+    }
+    return { error: error.message };
+  }
+
+  return { error: null };
+}
+
+export async function getCampaignMetricsSummary(): Promise<{
+  data: CampaignMetricsSummary;
+  error: string | null;
+}> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("campaign_metrics")
+    .select("impressions, clicks, joins");
+
+  if (error) {
+    if (isMissingSchemaError(error)) {
+      return {
+        data: {
+          totalImpressions: 0,
+          totalClicks: 0,
+          totalJoins: 0,
+          hasTrackingData: false
+        },
+        error: null
+      };
+    }
+    return {
+      data: {
+        totalImpressions: 0,
+        totalClicks: 0,
+        totalJoins: 0,
+        hasTrackingData: false
+      },
+      error: error.message
+    };
+  }
+
+  const rows = data ?? [];
+  if (rows.length === 0) {
+    return {
+      data: {
+        totalImpressions: 0,
+        totalClicks: 0,
+        totalJoins: 0,
+        hasTrackingData: false
+      },
+      error: null
+    };
+  }
+
+  return {
+    data: {
+      totalImpressions: rows.reduce((s, r) => s + Number(r.impressions ?? 0), 0),
+      totalClicks: rows.reduce((s, r) => s + Number(r.clicks ?? 0), 0),
+      totalJoins: rows.reduce((s, r) => s + Number(r.joins ?? 0), 0),
+      hasTrackingData: true
+    },
+    error: null
+  };
+}
+
+export async function listActiveCampaignsForPlacement(
+  placement: CampaignPlacement,
+  campaignType?: CampaignType,
+  settings?: CampaignCenterSettings | null
+): Promise<CampaignWithSponsor[]> {
+  const resolvedSettings = settings ?? (await getCampaignCenterSettings()).data;
+  const now = Date.now();
+  const supabase = await createClient();
+
+  let query = supabase
     .from("brand_campaigns")
-    .select(
-      "id, sponsor_id, name, campaign_type, status, budget_vnd, revenue_vnd, starts_at, ends_at, cta_text, cta_url, disclosure_text, metadata, created_at, updated_at, sponsors(id, name, logo_url, website_url, contact_email, status, created_at, updated_at)"
-    )
-    .eq("campaign_type", campaignType)
-    .eq("status", "active")
+    .select(`${CAMPAIGN_SELECT}, sponsors(${SPONSOR_SELECT})`)
+    .in("status", ["active", "scheduled"])
     .order("updated_at", { ascending: false })
     .limit(20);
 
-  if (error || !data || data.length === 0) {
+  if (campaignType) {
+    query = query.eq("campaign_type", campaignType);
+  }
+
+  const primary = await query;
+
+  let rows = primary.data as CampaignRow[] | null;
+  let queryError = primary.error;
+
+  if (queryError && isMissingSchemaError(queryError)) {
+    let legacyQuery = supabase
+      .from("brand_campaigns")
+      .select(`${LEGACY_CAMPAIGN_SELECT}, sponsors(${LEGACY_SPONSOR_SELECT})`)
+      .in("status", ["active", "scheduled"])
+      .order("updated_at", { ascending: false })
+      .limit(20);
+    if (campaignType) {
+      legacyQuery = legacyQuery.eq("campaign_type", campaignType);
+    }
+    const legacy = await legacyQuery;
+    rows = legacy.data as CampaignRow[] | null;
+    queryError = legacy.error;
+  }
+
+  if (queryError || !rows?.length) {
+    return [];
+  }
+
+  const matches: CampaignWithSponsor[] = [];
+
+  for (const row of rows as CampaignRow[]) {
+    const campaign: CampaignWithSponsor = {
+      ...mapCampaign(row),
+      sponsor: firstRelation(row.sponsors)
+        ? mapSponsor(firstRelation(row.sponsors) as SponsorRow)
+        : null
+    };
+
+    const resolvedPlacement =
+      campaign.placement ?? getDefaultPlacementForType(campaign.campaignType);
+    if (resolvedPlacement !== placement) continue;
+    if (!isCampaignPubliclyVisible(campaign, resolvedSettings)) continue;
+
+    const startsAt = campaign.startsAt ? new Date(campaign.startsAt).getTime() : null;
+    const endsAt = campaign.endsAt ? new Date(campaign.endsAt).getTime() : null;
+    if (startsAt !== null && now < startsAt) continue;
+    if (endsAt !== null && now > endsAt) continue;
+
+    matches.push(campaign);
+  }
+
+  return matches;
+}
+
+export async function getPublicCampaignForContent(input: {
+  placement: CampaignPlacement;
+  campaignType?: CampaignType;
+  settings?: CampaignCenterSettings | null;
+  matches?: (campaign: CampaignWithSponsor) => boolean;
+}) {
+  const campaigns = await listActiveCampaignsForPlacement(
+    input.placement,
+    input.campaignType,
+    input.settings
+  );
+
+  if (input.matches) {
+    return campaigns.find(input.matches) ?? null;
+  }
+
+  return campaigns[0] ?? null;
+}
+
+export async function getActiveCampaignForPlacement(
+  placement: CampaignPlacement,
+  campaignType?: CampaignType,
+  settings?: CampaignCenterSettings | null
+) {
+  return getPublicCampaignForContent({ placement, campaignType, settings });
+}
+
+export async function getActiveCampaignByType(
+  campaignType: CampaignType,
+  settings?: CampaignCenterSettings | null
+) {
+  const resolvedSettings = settings ?? (await getCampaignCenterSettings()).data;
+  const now = Date.now();
+  const supabase = await createClient();
+
+  const primary = await supabase
+    .from("brand_campaigns")
+    .select(`${CAMPAIGN_SELECT}, sponsors(${SPONSOR_SELECT})`)
+    .eq("campaign_type", campaignType)
+    .in("status", ["active", "scheduled"])
+    .order("updated_at", { ascending: false })
+    .limit(20);
+
+  let rows = primary.data as CampaignRow[] | null;
+  let queryError = primary.error;
+
+  if (queryError && isMissingSchemaError(queryError)) {
+    const legacy = await supabase
+      .from("brand_campaigns")
+      .select(`${LEGACY_CAMPAIGN_SELECT}, sponsors(${LEGACY_SPONSOR_SELECT})`)
+      .eq("campaign_type", campaignType)
+      .in("status", ["active", "scheduled"])
+      .order("updated_at", { ascending: false })
+      .limit(20);
+    rows = legacy.data as CampaignRow[] | null;
+    queryError = legacy.error;
+  }
+
+  if (queryError || !rows || rows.length === 0) {
     return null;
   }
-  const row = (data as CampaignRow[]).find((item) => {
-    const startsAt = item.starts_at ? new Date(item.starts_at).getTime() : null;
-    const endsAt = item.ends_at ? new Date(item.ends_at).getTime() : null;
-    return (!startsAt || now >= startsAt) && (!endsAt || now <= endsAt);
-  });
-  if (!row) return null;
-  return {
-    ...mapCampaign(row),
-    sponsor: firstRelation(row.sponsors)
-      ? mapSponsor(firstRelation(row.sponsors) as SponsorRow)
-      : null
-  } satisfies CampaignWithSponsor;
+
+  for (const row of rows as CampaignRow[]) {
+    const campaign: CampaignWithSponsor = {
+      ...mapCampaign(row),
+      sponsor: firstRelation(row.sponsors)
+        ? mapSponsor(firstRelation(row.sponsors) as SponsorRow)
+        : null
+    };
+
+    if (!isCampaignPubliclyVisible(campaign, resolvedSettings)) continue;
+
+    const startsAt = campaign.startsAt ? new Date(campaign.startsAt).getTime() : null;
+    const endsAt = campaign.endsAt ? new Date(campaign.endsAt).getTime() : null;
+    if (startsAt !== null && now < startsAt) continue;
+    if (endsAt !== null && now > endsAt) continue;
+
+    return campaign;
+  }
+
+  return null;
 }

@@ -4,12 +4,15 @@ import type { CreatorStoryStatus } from "@/lib/creator/getCreatorStories";
 
 export type CreatorEpisode = {
   id: string;
+  slug: string;
+  publicCode: string;
   episode_number: number;
   title: string;
   excerpt: string | null;
   status: CreatorStoryStatus;
   word_count: number;
   updated_at: string;
+  content_format: string | null;
 };
 
 export type CreatorStoryEpisodesData = {
@@ -17,6 +20,7 @@ export type CreatorStoryEpisodesData = {
     id: string;
     title: string;
     slug: string;
+    publicCode: string;
     status: CreatorStoryStatus;
   } | null;
   episodes: CreatorEpisode[];
@@ -31,7 +35,7 @@ export async function getCreatorStoryEpisodes(
     const supabase = await createClient();
     const { data: story, error: storyError } = await supabase
       .from("stories")
-      .select("id, title, slug, status")
+      .select("id, title, slug, public_code, status")
       .eq("id", storyId)
       .eq("creator_id", creatorProfile.id)
       .maybeSingle();
@@ -46,7 +50,9 @@ export async function getCreatorStoryEpisodes(
 
     const { data: episodes, error: episodesError } = await supabase
       .from("episodes")
-      .select("id, episode_number, title, excerpt, status, word_count, updated_at")
+      .select(
+        "id, slug, public_code, episode_number, title, excerpt, status, word_count, updated_at, content_format"
+      )
       .eq("story_id", story.id)
       .order("episode_number", { ascending: true });
 
@@ -56,8 +62,25 @@ export async function getCreatorStoryEpisodes(
 
     return {
       error: null,
-      episodes: (episodes ?? []) as CreatorEpisode[],
-      story: story as CreatorStoryEpisodesData["story"]
+      episodes: (episodes ?? []).map((row) => ({
+        id: row.id,
+        slug: row.slug,
+        publicCode: row.public_code,
+        episode_number: row.episode_number,
+        title: row.title,
+        excerpt: row.excerpt,
+        status: row.status,
+        word_count: row.word_count,
+        updated_at: row.updated_at,
+        content_format: row.content_format ?? null
+      })),
+      story: {
+        id: story.id,
+        title: story.title,
+        slug: story.slug,
+        publicCode: story.public_code,
+        status: story.status
+      }
     };
   } catch (error) {
     return {

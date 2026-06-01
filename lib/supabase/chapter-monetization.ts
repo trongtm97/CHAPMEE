@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { ChapterMonetizationSetting } from "@/types/paid-chapter";
+import type { ChapterPricingSource } from "@/types/story-monetization";
 
 function toNumber(value: unknown) {
   const parsed = typeof value === "number" ? value : Number(value);
@@ -19,6 +20,8 @@ function mapSetting(row: Record<string, unknown>): ChapterMonetizationSetting {
       row.free_preview_percent == null ? null : toNumber(row.free_preview_percent),
     free_preview_chars:
       row.free_preview_chars == null ? null : toNumber(row.free_preview_chars),
+    pricing_source: (row.pricing_source as ChapterPricingSource | undefined) ?? "paid_manual",
+    monetization_override: Boolean(row.monetization_override),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at)
   };
@@ -44,6 +47,8 @@ export async function upsertChapterMonetizationSetting(input: {
   freePreviewEnabled: boolean;
   freePreviewPercent: number | null;
   freePreviewChars: number | null;
+  pricingSource?: ChapterPricingSource;
+  monetizationOverride?: boolean;
 }) {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -57,7 +62,9 @@ export async function upsertChapterMonetizationSetting(input: {
         coin_price: input.coinPrice,
         free_preview_enabled: input.freePreviewEnabled,
         free_preview_percent: input.freePreviewPercent,
-        free_preview_chars: input.freePreviewChars
+        free_preview_chars: input.freePreviewChars,
+        pricing_source: input.pricingSource ?? (input.isPaid ? "paid_manual" : "free_manual"),
+        monetization_override: input.monetizationOverride ?? false
       },
       { onConflict: "chapter_id" }
     )

@@ -5,16 +5,21 @@ import { followCreatorAction } from "@/lib/actions/followCreator";
 import { followStoryAction } from "@/lib/actions/followStory";
 import { saveStoryAction } from "@/lib/actions/saveStory";
 import { appendStoryToastParam } from "@/lib/stories/story-toast";
+import type { TrackingSurface } from "@/types/tracking";
 
 export async function storyToggleSaveAction(formData: FormData) {
   const saved = formData.get("saved") === "true";
   const returnTo = String(formData.get("returnTo") ?? "");
   const creatorIdRaw = String(formData.get("creatorId") ?? "").trim();
+  const sourceSurfaceRaw = String(formData.get("sourceSurface") ?? "").trim();
+  const trackingSurfaceRaw = String(formData.get("trackingSurface") ?? "").trim();
 
   await saveStoryAction({
     creatorId: creatorIdRaw || null,
     returnTo,
     saved,
+    sourceSurface: sourceSurfaceRaw || undefined,
+    trackingSurface: (trackingSurfaceRaw || undefined) as TrackingSurface | undefined,
     storyId: String(formData.get("storyId") ?? ""),
     storySlug: String(formData.get("storySlug") ?? "")
   });

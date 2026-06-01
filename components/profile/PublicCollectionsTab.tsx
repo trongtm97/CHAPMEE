@@ -1,5 +1,6 @@
 import { PublicCollectionCard } from "@/components/library/PublicCollectionCard";
 import { EmptyState } from "@/components/ui";
+import { getProfileTabUrl } from "@/lib/profile/profile-url";
 import type { CollectionSummary } from "@/types/collection";
 
 type PublicCollectionsTabProps = {
@@ -38,7 +39,7 @@ export function PublicCollectionsTab({
       {hasMore ? (
         <a
           className="block text-center text-sm font-semibold text-cyan-200"
-          href={`/profile/${username}?tab=collections&page=${page + 1}`}
+          href={getProfileTabUrl(username, "collections", page + 1) ?? "#"}
         >
           Trang sau
         </a>

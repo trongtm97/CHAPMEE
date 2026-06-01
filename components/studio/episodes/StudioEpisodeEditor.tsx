@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useActionState, useCallback, useMemo, useState } from "react";
@@ -33,7 +33,7 @@ type StudioEpisodeEditorProps = {
   defaultEpisodeNumber: number;
   episode?: CreatorEpisodeFormData["episode"];
   previewReaderHref?: string;
-  previewSwipeHref?: string;
+  previewReelsHref?: string;
   profileId: string;
   savedDraft?: StudioDraftRecord | null;
   story: NonNullable<CreatorEpisodeFormData["story"]>;
@@ -65,7 +65,7 @@ export function StudioEpisodeEditor({
   defaultEpisodeNumber,
   episode,
   previewReaderHref,
-  previewSwipeHref,
+  previewReelsHref,
   profileId,
   savedDraft,
   story
@@ -332,7 +332,7 @@ export function StudioEpisodeEditor({
           episodeStatus={episodeStatus}
           excerpt={previewExcerpt}
           previewReaderHref={previewReaderHref}
-          previewSwipeHref={previewSwipeHref}
+          previewReelsHref={previewReelsHref}
           storyStatus={story.status}
           storyTitle={story.title}
           wordCount={wordCount}

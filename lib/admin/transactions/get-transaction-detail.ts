@@ -121,6 +121,12 @@ export async function getAdminTransactionDetail(transactionId: string): Promise<
   }
 
   const meta = enriched.metadata ?? {};
+  const feePolicyRaw = meta.fee_policy;
+  const feePolicy =
+    feePolicyRaw && typeof feePolicyRaw === "object"
+      ? (feePolicyRaw as Record<string, unknown>)
+      : null;
+
   const [{ data: refunds }, { data: chargebacks }] = await Promise.all([
     supabase
       .from("refunds")
@@ -175,6 +181,22 @@ export async function getAdminTransactionDetail(transactionId: string): Promise<
       processedBy: processedByLabel,
       reason: refundRows[0]?.reason ?? null
     },
+    feePolicyInfo: feePolicy
+      ? {
+          appliedPolicyType:
+            (feePolicy.applied_policy_type as string) ??
+            (feePolicy.policy_source === "creator_override" ? "custom" : "default"),
+          authorPercent:
+            readMetaNumber(feePolicy, "author_percent_snapshot") ??
+            readMetaNumber(feePolicy, "creator_revenue_share_percent"),
+          platformPercent:
+            readMetaNumber(feePolicy, "platform_percent_snapshot") ??
+            readMetaNumber(feePolicy, "platform_fee_percent"),
+          policyId: (feePolicy.policy_id as string) ?? null,
+          policyName: (feePolicy.policy_name as string) ?? null,
+          revenueSource: (feePolicy.revenue_source_snapshot as string) ?? null
+        }
+      : null,
     auditLog: buildAuditLog(enriched, refundRows, chargebackRows)
   };
 

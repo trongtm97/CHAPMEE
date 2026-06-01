@@ -17,7 +17,7 @@ export function FinanceOverviewCards({ balance, config }: FinanceOverviewCardsPr
       highlight: true
     },
     { label: "Doanh thu gộp", value: formatVnd(balance.totalGrossRevenueVnd) },
-    { label: "Phí đã trừ", value: formatVnd(balance.totalFeesDeductedVnd) },
+    { label: "ChapMee giữ", value: formatVnd(balance.totalFeesDeductedVnd) },
     { label: "Tác giả thực nhận", value: formatVnd(balance.totalNetReceivedVnd) },
     { label: "Đang chờ rút", value: formatVnd(balance.pendingWithdrawalVnd) },
     { label: "Đã rút", value: formatVnd(balance.totalWithdrawnVnd) },

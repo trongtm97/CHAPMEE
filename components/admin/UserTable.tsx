@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { formatAdminRoleLabel, formatProfileStatusLabel } from "@/lib/admin/role-labels";
+import { getProfileUrlOrFallback } from "@/lib/profile/profile-url";
 import type { AdminUserListRow } from "@/types/admin-user";
 import type { RoleCode } from "@/types/permissions";
 
@@ -106,7 +107,7 @@ export function UserTable({ users, selectedId, onSelect }: Props) {
                     {user.username ? (
                       <Link
                         className="text-xs text-zinc-400 hover:text-zinc-200"
-                        href={`/profile/${user.username}`}
+                        href={getProfileUrlOrFallback(user.username)}
                         target="_blank"
                       >
                         Hồ sơ

@@ -6,10 +6,15 @@ import { getStoryDetailHref } from "@/lib/stories/story-routes";
 
 type StoryDetailHeaderProps = {
   storySlug: string;
+  storyPublicCode: string;
   storyTitle: string;
 };
 
-export function StoryDetailHeader({ storySlug, storyTitle }: StoryDetailHeaderProps) {
+export function StoryDetailHeader({
+  storyPublicCode,
+  storySlug,
+  storyTitle
+}: StoryDetailHeaderProps) {
   const router = useRouter();
 
   function handleBack() {
@@ -32,7 +37,7 @@ export function StoryDetailHeader({ storySlug, storyTitle }: StoryDetailHeaderPr
       </button>
       <Link
         className="min-w-0 flex-1 truncate text-sm font-bold text-zinc-100"
-        href={getStoryDetailHref(storySlug)}
+        href={getStoryDetailHref({ slug: storySlug, public_code: storyPublicCode })}
         title={storyTitle}
       >
         {storyTitle}

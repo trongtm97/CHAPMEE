@@ -11,8 +11,12 @@ import {
 } from "@/lib/supabase/milestones";
 import { safeRecordFanScoreAction } from "@/lib/supabase/fan-scores";
 import { trackServerEvent } from "@/lib/analytics/trackServerEvent";
+import { trackServerUserAction } from "@/lib/tracking/track-server";
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
 import { createClient } from "@/lib/supabase/server";
+import type { TaxonomySourceSurface } from "@/types/taxonomy-analytics";
+import { mapTrackingSurfaceToTaxonomySource } from "@/lib/taxonomy-analytics/map-source-surface";
+import type { TrackingSurface } from "@/types/tracking";
 
 type SaveStoryInput = {
   storyId: string;
@@ -20,6 +24,8 @@ type SaveStoryInput = {
   creatorId?: string | null;
   saved: boolean;
   returnTo: string;
+  sourceSurface?: TaxonomySourceSurface | string;
+  trackingSurface?: TrackingSurface;
 };
 
 async function getUserId() {
@@ -132,6 +138,29 @@ export async function saveStoryAction(input: SaveStoryInput) {
       targetId: input.storyId,
       targetType: "story"
     });
+
+    await trackServerUserAction(userId, {
+      surface: input.trackingSurface ?? "story_detail",
+      actionType: input.saved ? "save" : "unsave",
+      itemType: "story",
+      itemId: input.storyId,
+      storyId: input.storyId,
+      metadata: input.sourceSurface
+        ? { source_surface: input.sourceSurface }
+        : undefined
+    });
+
+    if (input.saved) {
+      const { trackTaxonomyStorySaveServer } = await import(
+        "@/lib/analytics/track-taxonomy-server"
+      );
+      await trackTaxonomyStorySaveServer({
+        storyId: input.storyId,
+        sourceSurface:
+          input.sourceSurface ??
+          mapTrackingSurfaceToTaxonomySource(input.trackingSurface ?? "story_detail")
+      });
+    }
   }
 
   revalidatePath(input.returnTo);

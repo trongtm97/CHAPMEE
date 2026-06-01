@@ -4,6 +4,11 @@ import { Badge } from "@/components/ui";
 import { ShareAchievementCard } from "@/components/share/ShareAchievementCard";
 import { ShareProfileCard } from "@/components/share/ShareProfileCard";
 import type { ShareCardPayload } from "@/types/share";
+import {
+  isReelsShareKind,
+  REELS_SHARE_BADGE_LABEL,
+  REELS_SHARE_CTA_LABEL
+} from "@/lib/routes/reels-paths";
 
 type ShareCardProps = {
   payload: ShareCardPayload;
@@ -27,7 +32,7 @@ function ShareMedia({
         />
       ) : (
         <div
-          className={`h-full w-full ${kind === "swipe" ? "bg-[radial-gradient(circle_at_top,rgba(103,232,249,0.2),transparent_28%),linear-gradient(180deg,#0a1220,#05070d)]" : "bg-[radial-gradient(circle_at_top,rgba(103,232,249,0.18),transparent_28%),linear-gradient(180deg,#101a28,#05070d)]"}`}
+          className={`h-full w-full ${isReelsShareKind(kind) ? "bg-[radial-gradient(circle_at_top,rgba(103,232,249,0.2),transparent_28%),linear-gradient(180deg,#0a1220,#05070d)]" : "bg-[radial-gradient(circle_at_top,rgba(103,232,249,0.18),transparent_28%),linear-gradient(180deg,#101a28,#05070d)]"}`}
         />
       )}
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,8,12,0.12)_0%,rgba(5,8,12,0.45)_46%,rgba(5,8,12,0.92)_100%)]" />
@@ -45,7 +50,7 @@ export function ShareCard({ payload }: ShareCardProps) {
   }
 
   const bodyText =
-    payload.kind === "swipe"
+    isReelsShareKind(payload.kind)
       ? payload.excerpt ?? payload.text
       : payload.hook ?? payload.text;
 
@@ -63,15 +68,15 @@ export function ShareCard({ payload }: ShareCardProps) {
             ChapMee
           </Badge>
           <span className="rounded-full border border-white/15 bg-black/25 px-3 py-1 text-[0.64rem] font-bold uppercase tracking-[0.18em] text-white backdrop-blur-md">
-            {payload.kind === "swipe" ? "Swipe excerpt" : "Story share"}
+            {isReelsShareKind(payload.kind) ? REELS_SHARE_BADGE_LABEL : "Story share"}
           </span>
         </div>
 
         <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
           <div className="space-y-3 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(7,10,15,0.28),rgba(7,10,15,0.78))] p-4 backdrop-blur-md">
             <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-cyan-200">
-              {payload.kind === "swipe"
-                ? "Lướt truyện này trên ChapMee"
+              {isReelsShareKind(payload.kind)
+                ? REELS_SHARE_CTA_LABEL
                 : "Đọc tiếp trên ChapMee"}
             </p>
             <h2 className="text-balance text-[1.75rem] font-black leading-[1.04] text-white">
@@ -112,8 +117,8 @@ export function ShareCard({ payload }: ShareCardProps) {
             <div className="flex items-center justify-between gap-3 pt-1">
               <span className="text-sm font-semibold text-zinc-200">
                 {payload.ctaLabel ??
-                  (payload.kind === "swipe"
-                    ? "Lướt truyện này trên ChapMee"
+                  (isReelsShareKind(payload.kind)
+                    ? REELS_SHARE_CTA_LABEL
                     : "Đọc tiếp trên ChapMee")}
               </span>
               <span className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">

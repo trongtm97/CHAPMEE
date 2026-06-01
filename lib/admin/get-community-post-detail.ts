@@ -1,5 +1,6 @@
 "use server";
 
+import { ADMIN_CREATOR_JOIN, resolveAdminStudioName } from "@/lib/admin/creator-display";
 import { DEFAULT_COMMUNITY_SPAM_SETTINGS } from "@/lib/admin/community-admin-labels";
 import { calculateUserTrustScore } from "@/lib/community/calculate-user-trust-score";
 import { createClient } from "@/lib/supabase/server";
@@ -28,7 +29,7 @@ export async function getCommunityPostDetail(
     const { data: post, error } = await supabase
       .from("community_posts")
       .select(
-        "id, type, title, content, created_at, status, report_count, risk_level, is_pinned, is_featured, comments_locked, auto_decision, auto_decision_reason_codes, story_id, creator_id, user_id, profiles!community_posts_user_id_fkey(display_name, username, role, created_at), stories(title, slug), creator_profiles(pen_name), episodes(episode_number, title)"
+        `id, type, title, content, created_at, status, report_count, risk_level, is_pinned, is_featured, comments_locked, auto_decision, auto_decision_reason_codes, story_id, creator_id, user_id, profiles!community_posts_user_id_fkey(display_name, username, role, created_at), stories(title, slug), ${ADMIN_CREATOR_JOIN}, episodes(episode_number, title)`
       )
       .eq("id", postId)
       .maybeSingle();
@@ -44,7 +45,7 @@ export async function getCommunityPostDetail(
       created_at: string;
     }>(post.profiles);
     const story = firstRelation<{ title: string | null; slug: string | null }>(post.stories);
-    const studio = firstRelation<{ pen_name: string | null }>(post.creator_profiles);
+    const studio = firstRelation(post.creator_profiles);
     const episode = firstRelation<{ episode_number: number | null; title: string | null }>(
       post.episodes
     );
@@ -131,7 +132,7 @@ export async function getCommunityPostDetail(
       episodeLabel: episode
         ? `Chương ${episode.episode_number ?? ""}${episode.title ? `: ${episode.title}` : ""}`
         : null,
-      studioName: studio?.pen_name ?? null,
+      studioName: resolveAdminStudioName(studio),
       commentCount: commentCount ?? 0,
       reportCount: (post.report_count as number) ?? reportCount ?? 0,
       status: post.status as CommunityQueueItem["status"],

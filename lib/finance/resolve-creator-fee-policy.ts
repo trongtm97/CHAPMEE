@@ -1,34 +1,37 @@
 import { getMonetizationConfig } from "@/lib/monetization/config";
 import { createClient } from "@/lib/supabase/server";
+import {
+  CREATOR_FEE_REVENUE_SOURCES,
+  moduleToRevenueSource,
+  revenueSourceToModule
+} from "@/lib/admin/creator-fee-policies/constants";
+import { getSourceRate, mapCreatorFeePolicyRow, normalizeRevenueSharePercents } from "@/lib/admin/creator-fee-policy-shared";
 import type { MonetizationConfigKey } from "@/types/monetization";
 import type {
   CreatorFeePolicyRow,
   CreatorFeePolicySnapshot,
   CreatorFeePolicySource,
+  CreatorFeeRevenueSourceId,
+  CreatorFeeSourceRates,
   ResolvedCreatorFeePolicy
 } from "@/types/creator-fee-policy";
 import type { CreatorRevenueModule } from "@/types/revenue-share";
 
 export type FeePolicyTransactionType = CreatorRevenueModule | string;
 
-const MODULE_CREATOR_PERCENT_KEY: Record<CreatorRevenueModule, MonetizationConfigKey> = {
-  paid_chapter: "revenue_share.paid_chapter_creator_percent",
-  early_access: "revenue_share.early_access_creator_percent",
-  tip: "revenue_share.tip_creator_percent",
-  gift: "revenue_share.gift_creator_percent",
-  fan_club: "revenue_share.fan_club_creator_percent",
-  vip_pool: "revenue_share.vip_creator_pool_percent"
-};
-
-const MODULE_PLATFORM_PERCENT_KEY: Partial<Record<CreatorRevenueModule, MonetizationConfigKey>> = {
-  paid_chapter: "revenue_share.paid_chapter_platform_percent",
-  tip: "revenue_share.tip_platform_percent"
-};
-
 function numberValue(value: unknown, fallback = 0) {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
+
+/** Mô hình đơn giản: chỉ tỉ lệ ăn chia tác giả / nền tảng trên doanh thu gộp. */
+const SIMPLIFIED_POLICY_EXTRAS = {
+  paymentProcessingFeePercent: 0,
+  paymentProcessingFixedFeeVnd: 0,
+  tipPlatformFeePercent: null,
+  revenueBasis: "gross" as const,
+  calculateOnNetAfterChannelFee: false
+};
 
 export function mapTransactionTypeToModule(
   transactionType: FeePolicyTransactionType
@@ -43,50 +46,22 @@ export function mapTransactionTypeToModule(
   }
   if (normalized === "early_access") return "early_access";
   if (normalized === "tip") return "tip";
-  if (normalized === "gift") return "gift";
-  if (normalized === "fan_club") return "fan_club";
-  if (normalized === "vip_pool") return "vip_pool";
+  if (normalized === "gift" || normalized === "virtual_gift") return "gift";
+  if (normalized === "fan_club" || normalized === "fan_club_subscription") return "fan_club";
+  if (normalized === "vip_pool" || normalized === "vip_subscription") return "vip_pool";
+  if (normalized === "rewarded_ads") return "paid_chapter";
+  if (normalized === "sponsored_challenge") return "paid_chapter";
   return "paid_chapter";
 }
 
-function mapRow(row: Record<string, unknown>): CreatorFeePolicyRow {
-  return {
-    id: String(row.id),
-    creator_id: String(row.creator_id),
-    policy_name: String(row.policy_name),
-    creator_revenue_share_percent:
-      row.creator_revenue_share_percent == null
-        ? null
-        : numberValue(row.creator_revenue_share_percent),
-    platform_fee_percent:
-      row.platform_fee_percent == null ? null : numberValue(row.platform_fee_percent),
-    payment_processing_fee_percent:
-      row.payment_processing_fee_percent == null
-        ? null
-        : numberValue(row.payment_processing_fee_percent),
-    payment_processing_fixed_fee:
-      row.payment_processing_fixed_fee == null
-        ? null
-        : numberValue(row.payment_processing_fixed_fee),
-    tip_platform_fee_percent:
-      row.tip_platform_fee_percent == null ? null : numberValue(row.tip_platform_fee_percent),
-    min_withdraw_amount_override:
-      row.min_withdraw_amount_override == null
-        ? null
-        : numberValue(row.min_withdraw_amount_override),
-    allowed_price_steps_override: Array.isArray(row.allowed_price_steps_override)
-      ? row.allowed_price_steps_override.map((v) => numberValue(v))
-      : null,
-    note: (row.note as string | null) ?? null,
-    public_note: (row.public_note as string | null) ?? null,
-    show_details_to_creator: row.show_details_to_creator !== false,
-    status: row.status as CreatorFeePolicyRow["status"],
-    starts_at: String(row.starts_at),
-    ends_at: row.ends_at ? String(row.ends_at) : null,
-    created_by: row.created_by ? String(row.created_by) : null,
-    created_at: String(row.created_at),
-    updated_at: String(row.updated_at)
-  };
+export function mapTransactionTypeToRevenueSource(
+  transactionType: FeePolicyTransactionType
+): CreatorFeeRevenueSourceId {
+  const normalized = String(transactionType).toLowerCase();
+  if (normalized === "rewarded_ads") return "rewarded_ads";
+  if (normalized === "sponsored_challenge") return "sponsored_challenge";
+  const moduleType = mapTransactionTypeToModule(transactionType);
+  return moduleToRevenueSource(moduleType) as CreatorFeeRevenueSourceId;
 }
 
 function isPolicyEffectiveAt(row: CreatorFeePolicyRow, at: Date): boolean {
@@ -121,7 +96,7 @@ async function fetchActivePolicyForCreator(
   }
 
   for (const row of data) {
-    const mapped = mapRow(row as Record<string, unknown>);
+    const mapped = mapCreatorFeePolicyRow(row as Record<string, unknown>);
     if (isPolicyEffectiveAt(mapped, at)) {
       return mapped;
     }
@@ -130,81 +105,98 @@ async function fetchActivePolicyForCreator(
   return null;
 }
 
+export async function buildDefaultSourceRates(): Promise<CreatorFeeSourceRates> {
+  const { settings } = await getMonetizationConfig({ includePrivate: true });
+  const rates: CreatorFeeSourceRates = {};
+
+  for (const source of CREATOR_FEE_REVENUE_SOURCES) {
+    const creator = numberValue(
+      settings[source.creatorConfigKey as MonetizationConfigKey],
+      numberValue(settings["revenue_share.default_creator_percent"], 70)
+    );
+    const configuredPlatform = numberValue(
+      settings[source.platformConfigKey as MonetizationConfigKey],
+      Math.max(0, 100 - creator)
+    );
+    const normalized = normalizeRevenueSharePercents(creator, configuredPlatform);
+    rates[source.id] = {
+      author_percent: normalized.authorPercent,
+      platform_percent: normalized.platformPercent
+    };
+  }
+
+  return rates;
+}
+
 function buildDefaultResolved(
-  moduleType: CreatorRevenueModule,
+  revenueSource: CreatorFeeRevenueSourceId,
   settings: Record<string, unknown>
 ): ResolvedCreatorFeePolicy {
-  const creatorKey = MODULE_CREATOR_PERCENT_KEY[moduleType];
-  const platformKey = MODULE_PLATFORM_PERCENT_KEY[moduleType];
-  const creatorRevenueSharePercent = numberValue(settings[creatorKey], 0);
-  const platformFromConfig = platformKey
-    ? numberValue(settings[platformKey], Math.max(0, 100 - creatorRevenueSharePercent))
+  const sourceDef = CREATOR_FEE_REVENUE_SOURCES.find((s) => s.id === revenueSource);
+  const creatorRevenueSharePercent = numberValue(
+    sourceDef
+      ? settings[sourceDef.creatorConfigKey as MonetizationConfigKey]
+      : settings["revenue_share.default_creator_percent"],
+    70
+  );
+  const configuredPlatform = sourceDef
+    ? numberValue(
+        settings[sourceDef.platformConfigKey as MonetizationConfigKey],
+        Math.max(0, 100 - creatorRevenueSharePercent)
+      )
     : Math.max(0, 100 - creatorRevenueSharePercent);
+  const normalized = normalizeRevenueSharePercents(
+    creatorRevenueSharePercent,
+    configuredPlatform
+  );
 
   return {
     source: "default_config",
     policyId: null,
     policyName: null,
-    creatorRevenueSharePercent,
-    platformFeePercent: platformFromConfig,
-    paymentProcessingFeePercent: numberValue(
-      settings["finance.payment_processing_fee_percent"],
-      0
-    ),
-    paymentProcessingFixedFeeVnd: numberValue(
-      settings["finance.payment_processing_fixed_fee_vnd"],
-      0
-    ),
-    tipPlatformFeePercent:
-      moduleType === "tip"
-        ? numberValue(settings["revenue_share.tip_platform_percent"], 0)
-        : null,
+    revenueSource,
+    creatorRevenueSharePercent: normalized.authorPercent,
+    platformFeePercent: normalized.platformPercent,
+    ...SIMPLIFIED_POLICY_EXTRAS,
     minWithdrawAmountOverride: null,
     allowedPriceStepsOverride: null,
     publicNote: null,
     showDetailsToCreator: true,
-    revenueBasis: settings["revenue_share.calculate_on_net_after_channel_fee"]
-      ? "net"
-      : "gross",
-    calculateOnNetAfterChannelFee: Boolean(
-      settings["revenue_share.calculate_on_net_after_channel_fee"]
-    )
+    policyEffectiveFrom: null,
+    appliedPolicyType: "default"
   };
 }
 
 function buildOverrideResolved(
   policy: CreatorFeePolicyRow,
   defaults: ResolvedCreatorFeePolicy,
-  moduleType: CreatorRevenueModule
+  revenueSource: CreatorFeeRevenueSourceId
 ): ResolvedCreatorFeePolicy {
-  const creatorRevenueSharePercent =
-    policy.creator_revenue_share_percent ?? defaults.creatorRevenueSharePercent;
-  const platformFeePercent =
-    policy.platform_fee_percent ??
-    (policy.creator_revenue_share_percent != null
-      ? Math.max(0, 100 - creatorRevenueSharePercent)
-      : defaults.platformFeePercent);
+  const sourceRate = getSourceRate(policy, revenueSource);
+  const normalized = normalizeRevenueSharePercents(
+    sourceRate?.author_percent ?? defaults.creatorRevenueSharePercent,
+    sourceRate?.platform_percent ?? defaults.platformFeePercent
+  );
+
+  const hasCustomSource = sourceRate != null;
+  const hasLegacyOverride =
+    policy.creator_revenue_share_percent != null ||
+    policy.platform_fee_percent != null;
 
   return {
     source: "creator_override",
     policyId: policy.id,
     policyName: policy.policy_name,
-    creatorRevenueSharePercent,
-    platformFeePercent,
-    paymentProcessingFeePercent:
-      policy.payment_processing_fee_percent ?? defaults.paymentProcessingFeePercent,
-    paymentProcessingFixedFeeVnd:
-      policy.payment_processing_fixed_fee ?? defaults.paymentProcessingFixedFeeVnd,
-    tipPlatformFeePercent:
-      moduleType === "tip"
-        ? (policy.tip_platform_fee_percent ?? defaults.tipPlatformFeePercent)
-        : null,
+    revenueSource,
+    creatorRevenueSharePercent: normalized.authorPercent,
+    platformFeePercent: normalized.platformPercent,
+    ...SIMPLIFIED_POLICY_EXTRAS,
     minWithdrawAmountOverride: policy.min_withdraw_amount_override,
     allowedPriceStepsOverride: policy.allowed_price_steps_override,
     publicNote: policy.public_note,
     showDetailsToCreator: policy.show_details_to_creator,
-    revenueBasis: defaults.revenueBasis,
-    calculateOnNetAfterChannelFee: defaults.calculateOnNetAfterChannelFee
+    policyEffectiveFrom: policy.starts_at,
+    appliedPolicyType: hasCustomSource || hasLegacyOverride ? "custom" : "default"
   };
 }
 
@@ -215,6 +207,11 @@ export function toCreatorFeePolicySnapshot(
     policy_source: resolved.source,
     policy_id: resolved.policyId,
     policy_name: resolved.policyName,
+    revenue_source_snapshot: resolved.revenueSource,
+    applied_policy_type: resolved.appliedPolicyType,
+    policy_effective_from_snapshot: resolved.policyEffectiveFrom,
+    author_percent_snapshot: resolved.creatorRevenueSharePercent,
+    platform_percent_snapshot: resolved.platformFeePercent,
     platform_fee_percent: resolved.platformFeePercent,
     creator_revenue_share_percent: resolved.creatorRevenueSharePercent,
     payment_processing_fee_percent: resolved.paymentProcessingFeePercent,
@@ -230,16 +227,35 @@ export async function resolveCreatorFeePolicy(input: {
   occurredAt?: Date;
 }): Promise<ResolvedCreatorFeePolicy> {
   const at = input.occurredAt ?? new Date();
-  const moduleType = mapTransactionTypeToModule(input.transactionType);
+  const revenueSource = mapTransactionTypeToRevenueSource(input.transactionType);
   const { settings } = await getMonetizationConfig({ includePrivate: true });
-  const defaults = buildDefaultResolved(moduleType, settings);
+  const defaults = buildDefaultResolved(revenueSource, settings);
 
   const policy = await fetchActivePolicyForCreator(input.creatorId, at);
   if (!policy) {
     return defaults;
   }
 
-  return buildOverrideResolved(policy, defaults, moduleType);
+  return buildOverrideResolved(policy, defaults, revenueSource);
+}
+
+export async function resolveCreatorFeePolicyForSource(input: {
+  creatorId: string;
+  revenueSource: CreatorFeeRevenueSourceId;
+  occurredAt?: Date;
+  policyOverride?: CreatorFeePolicyRow | null;
+}): Promise<ResolvedCreatorFeePolicy> {
+  const at = input.occurredAt ?? new Date();
+  const { settings } = await getMonetizationConfig({ includePrivate: true });
+  const defaults = buildDefaultResolved(input.revenueSource, settings);
+
+  const policy =
+    input.policyOverride ?? (await fetchActivePolicyForCreator(input.creatorId, at));
+  if (!policy) {
+    return defaults;
+  }
+
+  return buildOverrideResolved(policy, defaults, input.revenueSource);
 }
 
 export async function getCreatorFeePolicyForStudio(creatorId: string) {

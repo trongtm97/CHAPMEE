@@ -24,21 +24,27 @@ export type ContinueReadingEnriched = ContinueReadingItem & {
 export type LibrarySavedStory = {
   id: string;
   slug: string;
+  publicCode: string;
   title: string;
   coverUrl: string | null;
   authorName: string | null;
   isCompleted: boolean;
   episodeCount: number;
+  structureType: "chaptered" | "standalone";
+  standaloneReadingTimeMinutes: number;
   savedAt: string;
   latestEpisodePublishedAt: string | null;
   hasReadingProgress: boolean;
   progressPercent: number | null;
   currentEpisodeNumber: number | null;
+  currentEpisodeSlug: string | null;
+  currentEpisodePublicCode: string | null;
 };
 
 export type LibraryFollowedAuthor = {
   id: string;
-  penName: string;
+  displayName: string;
+  username: string | null;
   avatarUrl: string | null;
   storyCount: number;
   hasNewChapter: boolean;
@@ -47,6 +53,7 @@ export type LibraryFollowedAuthor = {
 export type LibraryFollowedStory = {
   id: string;
   slug: string;
+  publicCode: string;
   title: string;
   coverUrl: string | null;
   authorName: string | null;

@@ -1,0 +1,292 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { logAdminAction } from "@/lib/audit/log-admin-action";
+import { getAdminAuditLogs } from "@/lib/admin/get-audit-logs";
+import {
+  getDefaultComposerAdminSettings,
+  mergeBlockTypeSettings,
+  mergeModeSettings,
+  mergeValidationSettings,
+  type ComposerAdminSettingsBundle,
+  type ComposerBlockTypeRegistryEntry,
+  type ComposerModeRegistryEntry,
+  type ComposerValidationSettings
+} from "@/lib/composer/composer-settings-defaults";
+import { checkStaffAnyPermission } from "@/lib/auth/staff-guards";
+import { createClient } from "@/lib/supabase/server";
+import { listFormatTemplatesForAdmin } from "@/lib/taxonomy/admin-data";
+
+async function assertAdmin() {
+  const guard = await checkStaffAnyPermission([
+    "taxonomy.view",
+    "taxonomy.templates.manage",
+    "admin.settings.update"
+  ]);
+  if (!guard.ok) {
+    return { error: guard.error ?? "Không có quyền.", supabase: null as never, userId: null };
+  }
+  const supabase = await createClient();
+  return { error: null, supabase, userId: guard.userId };
+}
+
+export async function loadComposerAdminSettingsAction(): Promise<{
+  error: string | null;
+  settings: ComposerAdminSettingsBundle;
+}> {
+  const auth = await assertAdmin();
+  if (auth.error) {
+    return { error: auth.error, settings: getDefaultComposerAdminSettings() };
+  }
+
+  const { data, error } = await auth.supabase.from("composer_settings").select("key, value");
+
+  if (error) {
+    return { error: error.message, settings: getDefaultComposerAdminSettings() };
+  }
+
+  const byKey = new Map((data ?? []).map((row) => [String(row.key), row.value]));
+  const templates = await listFormatTemplatesForAdmin();
+
+  return {
+    error: null,
+    settings: {
+      validation: mergeValidationSettings(byKey.get("validation")),
+      modes: mergeModeSettings(byKey.get("modes")),
+      blockTypes: mergeBlockTypeSettings(byKey.get("block_types")),
+      templates: templates.items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        slug: item.name.toLowerCase().replace(/\s+/g, "-"),
+        mode_key: item.mode as ComposerModeRegistryEntry["mode"],
+        content_structure: "both",
+        description: item.description,
+        starter_blocks_json: item.example_json ?? {},
+        preview_text: item.description ?? null,
+        active: item.is_active,
+        creator_selectable: true,
+        sort_order: item.sort_order,
+        updated_at: item.updated_at
+      }))
+    }
+  };
+}
+
+async function upsertSetting(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  key: string,
+  value: unknown
+) {
+  const { error } = await supabase.from("composer_settings").upsert(
+    {
+      key,
+      value,
+      updated_by: userId
+    },
+    { onConflict: "key" }
+  );
+  return error;
+}
+
+export async function saveComposerValidationSettingsAction(
+  settings: ComposerValidationSettings
+): Promise<{ error: string | null }> {
+  const auth = await assertAdmin();
+  if (auth.error) {
+    return { error: auth.error };
+  }
+
+  const error = await upsertSetting(auth.supabase, auth.userId!, "validation", settings);
+  if (error) {
+    return { error: error.message };
+  }
+
+  await logAdminAction({
+    actorId: auth.userId!,
+    action: "update_app_settings",
+    targetType: "composer_settings",
+    targetId: "validation",
+    metadata: { keys: Object.keys(settings) }
+  });
+
+  revalidatePath("/admin/story-formats");
+  return { error: null };
+}
+
+export async function restoreComposerDefaultsAction(): Promise<{
+  error: string | null;
+}> {
+  const auth = await assertAdmin();
+  if (auth.error) {
+    return { error: auth.error };
+  }
+  const defaults = getDefaultComposerAdminSettings();
+  const validationError = await upsertSetting(
+    auth.supabase,
+    auth.userId!,
+    "validation",
+    defaults.validation
+  );
+  if (validationError) return { error: validationError.message };
+  const modeError = await upsertSetting(auth.supabase, auth.userId!, "modes", defaults.modes);
+  if (modeError) return { error: modeError.message };
+  const blockError = await upsertSetting(
+    auth.supabase,
+    auth.userId!,
+    "block_types",
+    defaults.blockTypes
+  );
+  if (blockError) return { error: blockError.message };
+
+  await logAdminAction({
+    actorId: auth.userId!,
+    action: "update_app_settings",
+    targetType: "composer_settings",
+    targetId: "restore_defaults",
+    metadata: { keys: ["validation", "modes", "block_types"] }
+  });
+  revalidatePath("/admin/story-formats");
+  return { error: null };
+}
+
+export async function saveComposerModesAction(
+  modes: ComposerModeRegistryEntry[]
+): Promise<{ error: string | null }> {
+  const auth = await assertAdmin();
+  if (auth.error) {
+    return { error: auth.error };
+  }
+
+  const error = await upsertSetting(auth.supabase, auth.userId!, "modes", modes);
+  if (error) {
+    return { error: error.message };
+  }
+
+  await logAdminAction({
+    actorId: auth.userId!,
+    action: "update_app_settings",
+    targetType: "composer_settings",
+    targetId: "modes",
+    metadata: { count: modes.length }
+  });
+
+  revalidatePath("/admin/story-formats");
+  return { error: null };
+}
+
+export async function saveComposerBlockTypesAction(
+  blockTypes: ComposerBlockTypeRegistryEntry[]
+): Promise<{ error: string | null }> {
+  const auth = await assertAdmin();
+  if (auth.error) {
+    return { error: auth.error };
+  }
+
+  const error = await upsertSetting(auth.supabase, auth.userId!, "block_types", blockTypes);
+  if (error) {
+    return { error: error.message };
+  }
+
+  await logAdminAction({
+    actorId: auth.userId!,
+    action: "update_app_settings",
+    targetType: "composer_settings",
+    targetId: "block_types",
+    metadata: { count: blockTypes.length }
+  });
+
+  revalidatePath("/admin/story-formats");
+  return { error: null };
+}
+
+export async function exportComposerSettingsAction(): Promise<{
+  error: string | null;
+  payload: string | null;
+}> {
+  const result = await loadComposerAdminSettingsAction();
+  if (result.error) {
+    return { error: result.error, payload: null };
+  }
+  return {
+    error: null,
+    payload: JSON.stringify(
+      {
+        exported_at: new Date().toISOString(),
+        ...result.settings
+      },
+      null,
+      2
+    )
+  };
+}
+
+export async function importComposerSettingsAction(input: {
+  payload: string;
+}): Promise<{ error: string | null }> {
+  const auth = await assertAdmin();
+  if (auth.error) {
+    return { error: auth.error };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(input.payload);
+  } catch {
+    return { error: "JSON cấu hình không hợp lệ." };
+  }
+  if (!parsed || typeof parsed !== "object") {
+    return { error: "Payload cấu hình không hợp lệ." };
+  }
+  const record = parsed as Record<string, unknown>;
+  const validation = mergeValidationSettings(record.validation);
+  const modes = mergeModeSettings(record.modes);
+  const blockTypes = mergeBlockTypeSettings(record.blockTypes ?? record.block_types);
+
+  const validationError = await upsertSetting(
+    auth.supabase,
+    auth.userId!,
+    "validation",
+    validation
+  );
+  if (validationError) return { error: validationError.message };
+  const modeError = await upsertSetting(auth.supabase, auth.userId!, "modes", modes);
+  if (modeError) return { error: modeError.message };
+  const blockError = await upsertSetting(auth.supabase, auth.userId!, "block_types", blockTypes);
+  if (blockError) return { error: blockError.message };
+
+  await logAdminAction({
+    actorId: auth.userId!,
+    action: "update_app_settings",
+    targetType: "composer_settings",
+    targetId: "import",
+    metadata: { imported: true }
+  });
+
+  revalidatePath("/admin/story-formats");
+  return { error: null };
+}
+
+export async function listComposerAuditLogsAction(input?: {
+  page?: number;
+  action?: string;
+}): Promise<{
+  error: string | null;
+  total: number;
+  logs: Awaited<ReturnType<typeof getAdminAuditLogs>>["logs"];
+}> {
+  try {
+    const result = await getAdminAuditLogs({
+      page: input?.page ?? 1,
+      pageSize: 25,
+      action: input?.action,
+      targetType: "composer_settings"
+    });
+    return { error: result.error, total: result.total, logs: result.logs };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Không tải được audit log.",
+      total: 0,
+      logs: []
+    };
+  }
+}

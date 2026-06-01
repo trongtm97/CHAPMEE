@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { revalidatePublicProfilePaths } from "@/lib/profile/revalidate-public-profile";
 import type { ProfilePrivacySettings } from "@/types/public-profile";
 import { ensureProfilePrivacySettings } from "@/lib/profile/get-profile-privacy";
 import { ensureMessagePrivacySettings } from "@/lib/messages/get-privacy-settings";
@@ -109,9 +110,7 @@ export async function updateProfilePrivacyAction(
 
   revalidatePath("/me");
   revalidatePath("/me/settings/privacy");
-  if (profile?.username) {
-    revalidatePath(`/profile/${profile.username}`);
-  }
+  revalidatePublicProfilePaths(profile?.username);
 
   return { error: null, success: true };
 }

@@ -4,7 +4,7 @@ import { ErrorState } from "@/components/ui";
 import { SePayCheckoutPanel } from "@/components/payments/SePayCheckoutPanel";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getCheckoutSessionById } from "@/lib/supabase/checkout-sessions";
-import { getSePayConfig, maskAccountNumber } from "@/lib/payments/sepay-config";
+import { getSePayRuntimeConfig, maskAccountNumber } from "@/lib/payments/sepay-config";
 
 type CheckoutPageProps = {
   params: Promise<{ id: string }>;
@@ -21,7 +21,7 @@ export default async function CheckoutDetailPage({ params }: CheckoutPageProps) 
     return <ErrorState title="Forbidden" message="Ban khong co quyen xem checkout nay." />;
   }
 
-  const sepay = getSePayConfig();
+  const sepay = await getSePayRuntimeConfig();
   return (
     <section className="space-y-6">
       <div>
@@ -32,7 +32,7 @@ export default async function CheckoutDetailPage({ params }: CheckoutPageProps) 
       </div>
 
       {!sepay.ready ? (
-        <ErrorState title="SePay chua cau hinh day du" message={`Missing env: ${sepay.missing.join(", ")}`} />
+        <ErrorState title="SePay chua cau hinh day du" message={`Missing config: ${sepay.missing.join(", ")}`} />
       ) : null}
 
       <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-sm text-zinc-200">

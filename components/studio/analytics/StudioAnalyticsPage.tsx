@@ -1,49 +1,107 @@
-import Link from "next/link";
-import { AnalyticsOverviewCards } from "@/components/studio/analytics/AnalyticsOverviewCards";
-import { AnalyticsRangeTabs } from "@/components/studio/analytics/AnalyticsRangeTabs";
-import { ChapterPerformanceTable } from "@/components/studio/analytics/ChapterPerformanceTable";
-import { StoryPerformanceTable } from "@/components/studio/analytics/StoryPerformanceTable";
-import { SwipePerformanceTable } from "@/components/studio/analytics/SwipePerformanceTable";
-import { EmptyState, ErrorState } from "@/components/ui";
-import type { StudioAnalyticsData } from "@/lib/studio/get-studio-analytics";
+"use client";
+
+import { AnalyticsChartsSection } from "@/components/studio/analytics/dashboard/AnalyticsChartsSection";
+import { AnalyticsEmptyState } from "@/components/studio/analytics/dashboard/AnalyticsEmptyState";
+import { AnalyticsFilters } from "@/components/studio/analytics/dashboard/AnalyticsFilters";
+import { AnalyticsHeader } from "@/components/studio/analytics/dashboard/AnalyticsHeader";
+import { CommunitySummarySection } from "@/components/studio/analytics/dashboard/CommunitySummarySection";
+import { ContentHealthSection } from "@/components/studio/analytics/dashboard/ContentHealthSection";
+import { InsightPanel } from "@/components/studio/analytics/dashboard/InsightPanel";
+import { KpiGrid } from "@/components/studio/analytics/dashboard/KpiGrid";
+import { ReelsPerformanceSection } from "@/components/studio/analytics/dashboard/ReelsPerformanceSection";
+import { TopChaptersSection } from "@/components/studio/analytics/dashboard/TopChaptersSection";
+import { TopStoriesSection } from "@/components/studio/analytics/dashboard/TopStoriesSection";
+import { ErrorState } from "@/components/ui";
 import { studioPath } from "@/lib/studio/constants";
+import type {
+  StudioAnalyticsContentFilter,
+  StudioAnalyticsPageData,
+  StudioAnalyticsRange
+} from "@/types/studio-analytics";
 
 type StudioAnalyticsPageProps = {
-  data: StudioAnalyticsData;
+  activeContent: StudioAnalyticsContentFilter;
+  activeRange: StudioAnalyticsRange;
+  activeStoryId?: string;
+  data: StudioAnalyticsPageData;
+  query: Record<string, string | undefined>;
 };
 
-export function StudioAnalyticsPage({ data }: StudioAnalyticsPageProps) {
+export function StudioAnalyticsPage({
+  activeContent,
+  activeRange,
+  activeStoryId,
+  data,
+  query
+}: StudioAnalyticsPageProps) {
+  const basePath = studioPath("/analytics");
+
   if (data.error) {
     return <ErrorState message={data.error} title="Không tải được thống kê" />;
   }
 
-  if (!data.hasAnyData) {
-    return (
-      <div className="space-y-6">
-        <AnalyticsRangeTabs activeRange={data.activeRange} />
-        <EmptyState
-          action={
-            <Link
-              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-zinc-950"
-              href={studioPath("/stories")}
-            >
-              Quản lý truyện
-            </Link>
-          }
-          description="Khi truyện hoặc nội dung Swipe của bạn có lượt đọc, dữ liệu sẽ xuất hiện tại đây."
-          title="Chưa có thống kê."
-        />
-      </div>
-    );
-  }
+  const showStories =
+    activeContent === "all" || activeContent === "story";
+  const showChapters =
+    activeContent === "all" || activeContent === "chapter";
+  const showReels = activeContent === "all" || activeContent === "reels";
+  const showComments =
+    activeContent === "all" || activeContent === "comments";
+
+  const showDashboard = data.hasAnyData || data.storyOptions.length > 0;
 
   return (
-    <div className="space-y-8">
-      <AnalyticsRangeTabs activeRange={data.activeRange} />
-      <AnalyticsOverviewCards overview={data.overview} />
-      <StoryPerformanceTable stories={data.stories} />
-      <ChapterPerformanceTable chapters={data.chapters} />
-      <SwipePerformanceTable swipes={data.swipes} />
+    <div className="space-y-6 pb-8">
+      <AnalyticsHeader updatedAt={data.updatedAt} />
+
+      <AnalyticsFilters
+        activeContent={activeContent}
+        activeRange={activeRange}
+        activeStoryId={activeStoryId}
+        basePath={basePath}
+        query={query}
+        search={data.search}
+        stories={data.storyOptions}
+      />
+
+      {!showDashboard ? (
+        <AnalyticsEmptyState />
+      ) : (
+        <>
+          <KpiGrid deltas={data.overviewDeltas} overview={data.overview} />
+
+          <InsightPanel
+            insights={data.insights}
+            totalHealthIssues={data.healthIssuesTotal}
+          />
+
+          {activeContent !== "comments" ? (
+            <AnalyticsChartsSection
+              engagementTimeline={data.engagementTimeline}
+              readTimeline={data.readTimeline}
+              sourceBreakdown={data.sourceBreakdown}
+            />
+          ) : null}
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {showStories ? <TopStoriesSection stories={data.stories} /> : null}
+            {showChapters ? <TopChaptersSection chapters={data.chapters} /> : null}
+          </div>
+
+          {showReels ? (
+            <ReelsPerformanceSection reels={data.reels} summary={data.reelsSummary} />
+          ) : null}
+
+          {showComments ? (
+            <CommunitySummarySection community={data.community} />
+          ) : null}
+
+          <ContentHealthSection
+            issues={data.healthIssues}
+            total={data.healthIssuesTotal}
+          />
+        </>
+      )}
     </div>
   );
 }

@@ -275,7 +275,7 @@ export async function duplicateTemplateAction(templateId: string) {
     body,
     description: existing.template.description,
     templateType: existing.template.templateType,
-    title: `${existing.template.title} (bản sao)`.slice(0, STUDIO_TEMPLATE_TITLE_MAX)
+    title: `[Bản sao] ${existing.template.title}`.slice(0, STUDIO_TEMPLATE_TITLE_MAX)
   });
 }
 

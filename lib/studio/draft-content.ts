@@ -9,12 +9,30 @@ export function parseChapterDraftContent(
 
   return {
     content: typeof content.content === "string" ? content.content : undefined,
+    composerDocument:
+      content.composerDocument && typeof content.composerDocument === "object"
+        ? (content.composerDocument as Record<string, unknown>)
+        : undefined,
     episodeNumber:
       typeof content.episodeNumber === "number"
         ? content.episodeNumber
         : undefined,
     excerpt: typeof content.excerpt === "string" ? content.excerpt : undefined,
-    title: typeof content.title === "string" ? content.title : undefined
+    presentationEditorMode:
+      typeof content.presentationEditorMode === "string"
+        ? content.presentationEditorMode
+        : undefined,
+    presentationSource:
+      typeof content.presentationSource === "string"
+        ? content.presentationSource
+        : undefined,
+    structuredContentJson:
+      typeof content.structuredContentJson === "string"
+        ? content.structuredContentJson
+        : undefined,
+    title: typeof content.title === "string" ? content.title : undefined,
+    useComposerUi:
+      typeof content.useComposerUi === "boolean" ? content.useComposerUi : undefined
   };
 }
 

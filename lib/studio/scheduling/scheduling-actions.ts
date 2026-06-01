@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
@@ -12,12 +12,12 @@ import {
   validateChapterForPublish,
   validateStoryForPublish
 } from "@/lib/studio/scheduling/validate-publish";
-import { validateSwipeBeforePublishFromDb } from "@/lib/publish/validate-swipe-before-publish-server";
+import { validateReelsBeforePublishFromDb } from "@/lib/publish/validate-reels-before-publish-server";
 import { parseVietnamScheduleInput } from "@/lib/studio/scheduling/timezone";
 import { studioPath } from "@/lib/studio/constants";
 import { createClient } from "@/lib/supabase/server";
 import type { ScheduledTargetType } from "@/types/scheduling";
-import { STUDIO_DEFAULT_TIMEZONE } from "@/types/scheduling";
+import { STUDIO_DEFAULT_TIMEZONE, isReelsScheduledTarget } from "@/types/scheduling";
 
 async function getActor() {
   const [{ profile }, creatorState] = await Promise.all([
@@ -213,8 +213,8 @@ export async function getPublishChecklistAction(input: {
     );
   }
 
-  if (input.targetType === "swipe") {
-    return validateSwipeBeforePublishFromDb(
+  if (isReelsScheduledTarget(input.targetType)) {
+    return validateReelsBeforePublishFromDb(
       supabase,
       input.targetId,
       actor.profileId

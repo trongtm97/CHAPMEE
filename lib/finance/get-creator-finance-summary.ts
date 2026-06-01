@@ -1,6 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { getCreatorAccessStatus } from "@/lib/creator-access";
 import { getCreatorFinanceConfig } from "@/lib/finance/get-creator-finance-config";
 import { calculateCreatorBalance } from "@/lib/finance/calculate-creator-balance";
+import { resolveStudioFinanceEligibility } from "@/lib/finance/finance-eligibility";
+import { getFinanceIdentityStatus } from "@/lib/finance/get-finance-identity-status";
+import { mapBankAccountViews } from "@/lib/finance/map-bank-account-view";
 import { getCreatorEarningAggregates } from "@/lib/finance/get-creator-earning-aggregates";
 import {
   listCreatorWalletLedger,
@@ -72,6 +76,7 @@ export async function getCreatorFinanceSummary(input: {
   const config = await getCreatorFinanceConfig();
 
   const [
+    creatorAccess,
     balanceResult,
     aggregatesResult,
     walletResult,
@@ -79,8 +84,13 @@ export async function getCreatorFinanceSummary(input: {
     securityLogsResult,
     securityResult,
     payoutAccounts,
-    payoutRequests
+    payoutRequests,
+    identityResult
   ] = await Promise.all([
+    getCreatorAccessStatus(input.creatorUserId, {
+      minWithdrawAmountVnd: config.minWithdrawAmountVnd,
+      availableBalanceVnd: 0
+    }),
     calculateCreatorBalance(input.creatorUserId),
     getCreatorEarningAggregates(input.creatorUserId),
     getOrCreateCreatorWallet(input.creatorUserId),
@@ -88,10 +98,16 @@ export async function getCreatorFinanceSummary(input: {
     listFinanceSecurityLogs(input.creatorUserId, 40),
     getCreatorWithdrawalSecurity(input.creatorUserId),
     listCreatorPayoutAccounts(input.creatorUserId),
-    listPayoutRequestsForCreator(input.creatorUserId, 30)
+    listPayoutRequestsForCreator(input.creatorUserId, 30),
+    getFinanceIdentityStatus(input.creatorUserId)
   ]);
 
   const supabase = await createClient();
+  const {
+    data: { user: authUser }
+  } = await supabase.auth.getUser();
+  const userEmail = authUser?.email ?? null;
+
   const fromIso = periodStart(earningsFilter);
 
   let earningsQuery = supabase
@@ -288,18 +304,24 @@ export async function getCreatorFinanceSummary(input: {
       new Date(securityResult.data.locked_until).getTime() > Date.now()
   );
 
-  const hasActivePayout = (payoutAccounts.data ?? []).some(
-    (a) => a.verification_status !== "rejected"
-  );
+  const accountsList = payoutAccounts.data ?? [];
+  const availableBalanceVnd = balanceResult.data?.availableBalanceVnd ?? 0;
+  const identity = identityResult;
+  const bankAccounts = mapBankAccountViews(accountsList, identity);
 
-  let withdrawBlockReason: string | null = null;
-  if (!config.withdrawalsEnabled) withdrawBlockReason = "Admin chưa bật rút tiền.";
-  else if (!config.creatorMonetizationEnabled)
-    withdrawBlockReason = "Kiếm tiền chưa được bật.";
-  else if (!hasActivePayout) withdrawBlockReason = "Vui lòng khai báo thông tin nhận tiền.";
-  else if (config.withdrawalPinRequired && !securityResult.data?.pin_hash)
-    withdrawBlockReason = "Vui lòng thiết lập mã PIN rút tiền.";
-  else if (pinLocked) withdrawBlockReason = "Mã PIN đang bị khóa tạm thời.";
+  const eligibility = resolveStudioFinanceEligibility({
+    config,
+    creatorAccessWithdrawalEnabled: creatorAccess.withdrawalEnabled,
+    creatorAccessWithdrawalDisabledReason: creatorAccess.withdrawalDisabledReason,
+    identity,
+    bankAccounts,
+    pinConfigured: Boolean(securityResult.data?.pin_hash),
+    pinLocked,
+    availableBalanceVnd
+  });
+
+  const withdrawBlockReason = eligibility.primaryBlockReason;
+  const canWithdraw = eligibility.canWithdraw;
 
   const balance = balanceResult.data ?? {
     availableBalanceVnd: 0,
@@ -344,9 +366,14 @@ export async function getCreatorFinanceSummary(input: {
     pinLocked,
     pinLockedUntil: securityResult.data?.locked_until ?? null,
     payoutsEnabled: config.withdrawalsEnabled,
-    canWithdraw: !withdrawBlockReason,
+    canWithdraw,
     withdrawBlockReason,
-    payoutAccounts: payoutAccounts.data ?? [],
+    payoutProfile: null,
+    userEmail,
+    identity,
+    bankAccounts,
+    eligibility,
+    payoutAccounts: accountsList,
     error: txError ?? balanceResult.error ?? ledgerResult.error ?? aggregatesResult.error ?? null
   };
 }

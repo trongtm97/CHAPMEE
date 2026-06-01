@@ -1,4 +1,10 @@
-export type PublishChecklistTargetType = "story" | "chapter" | "swipe";
+﻿export type PublishChecklistTargetType = "story" | "chapter" | "reels";
+
+export function isReelsPublishChecklistTarget(
+  targetType: PublishChecklistTargetType
+): targetType is "reels" {
+  return targetType === "reels";
+}
 
 export type PublishChecklistRuleStatus = "pass" | "warning" | "error";
 
@@ -24,5 +30,5 @@ export const STORY_DESCRIPTION_MIN_CHARS = 80;
 /** Nội dung chương ngắn hơn ngưỡng này → cảnh báo. */
 export const CHAPTER_CONTENT_MIN_CHARS = 500;
 
-/** Nội dung Swipe ngắn hơn ngưỡng này → cảnh báo. */
-export const SWIPE_BODY_MIN_CHARS = 80;
+/** Nội dung Reels ngắn hơn ngưỡng này → cảnh báo. */
+export const REELS_BODY_MIN_CHARS = 80;

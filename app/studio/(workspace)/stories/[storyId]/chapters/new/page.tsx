@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { StudioChapterEditor } from "@/components/studio/StudioChapterEditor";
 import { ErrorState } from "@/components/ui";
 import { createEpisodeAction } from "@/lib/creator/createEpisode";
@@ -7,19 +7,26 @@ import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getStudioAccess } from "@/lib/creator/getStudioAccess";
 import { studioStoryEpisodesHref } from "@/lib/studio/ownership";
 import { getStudioDraftForEditor } from "@/lib/studio/get-draft";
+import { createClient } from "@/lib/supabase/server";
+import { studioPath } from "@/lib/studio/constants";
 
 type NewChapterPageProps = {
   params: Promise<{
     storyId: string;
+  }>;
+  searchParams: Promise<{
+    title?: string;
   }>;
 };
 
 export const dynamic = "force-dynamic";
 
 export default async function StudioNewChapterPage({
-  params
+  params,
+  searchParams
 }: NewChapterPageProps) {
   const { storyId } = await params;
+  const { title: defaultTitle } = await searchParams;
   const { creatorProfile, error } = await getStudioAccess(
     `/studio/stories/${storyId}/chapters/new`
   );
@@ -30,6 +37,18 @@ export default async function StudioNewChapterPage({
         <ErrorState message={error} title="Không tải được quyền truy cập Studio" />
       </section>
     );
+  }
+
+  const supabase = await createClient();
+  const { data: structureRow } = await supabase
+    .from("stories")
+    .select("structure_type")
+    .eq("id", storyId)
+    .eq("creator_id", creatorProfile.id)
+    .maybeSingle();
+
+  if (structureRow?.structure_type === "standalone") {
+    redirect(studioPath(`/stories/${storyId}/content`));
   }
 
   const { profile } = await getCurrentUser();
@@ -52,9 +71,10 @@ export default async function StudioNewChapterPage({
     <section className="space-y-4">
       <StudioChapterEditor
         action={createEpisodeAction}
-        authorPenName={creatorProfile.pen_name}
+        authorDisplayName={creatorProfile.display_name}
         backHref={studioStoryEpisodesHref(storyId)}
         defaultEpisodeNumber={data.nextEpisodeNumber}
+        defaultTitle={defaultTitle?.trim() || undefined}
         profileId={profile?.id ?? ""}
         savedDraft={savedDraft}
         story={data.story}

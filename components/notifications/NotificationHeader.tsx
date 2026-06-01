@@ -22,7 +22,7 @@ export function NotificationHeader({ unreadCount }: NotificationHeaderProps) {
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-white">Thông báo</h1>
             <p className="mt-1 text-sm text-zinc-400">
-              Cập nhật mới từ truyện, tác giả và tài khoản của bạn.
+              Cập nhật từ truyện, tài khoản và thông báo nền tảng.
             </p>
             <p className="mt-1 text-xs text-zinc-500">
               {unreadCount > 0
@@ -35,7 +35,7 @@ export function NotificationHeader({ unreadCount }: NotificationHeaderProps) {
       </div>
 
       <p className="text-sm leading-6 text-zinc-400 lg:hidden">
-        Cập nhật mới từ truyện, tác giả và tài khoản của bạn.
+        Cập nhật từ truyện, tài khoản và thông báo nền tảng.
       </p>
     </>
   );

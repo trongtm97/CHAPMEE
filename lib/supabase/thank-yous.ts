@@ -1,3 +1,4 @@
+import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
 import { createClient } from "@/lib/supabase/server";
 import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
 import type { EarlyFanStoryItem } from "@/types/early-fan";
@@ -15,11 +16,17 @@ type ThankYouRow = {
   creator_profiles:
     | {
         pen_name: string | null;
-        profiles: { avatar_url: string | null } | { avatar_url: string | null }[] | null;
+        profiles:
+          | { display_name: string | null; username: string | null; avatar_url: string | null }
+          | { display_name: string | null; username: string | null; avatar_url: string | null }[]
+          | null;
       }
     | {
         pen_name: string | null;
-        profiles: { avatar_url: string | null } | { avatar_url: string | null }[] | null;
+        profiles:
+          | { display_name: string | null; username: string | null; avatar_url: string | null }
+          | { display_name: string | null; username: string | null; avatar_url: string | null }[]
+          | null;
       }[]
     | null;
   stories:
@@ -52,7 +59,7 @@ function mapThankYou(row: ThankYouRow): AuthorThankYouView {
     recipientGroupType: row.recipient_group_type,
     message: row.message,
     createdAt: row.created_at,
-    authorName: author?.pen_name ?? "Tác giả ChapMee",
+    authorName: resolvePublicDisplayName(firstRelation(author?.profiles), author) || "Tác giả ChapMee",
     authorAvatarUrl: firstRelation(author?.profiles)?.avatar_url ?? null,
     storyTitle: story?.title ?? null,
     recipientLabel: buildRecipientLabel(row),
@@ -75,7 +82,7 @@ export async function getMyThankYous(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("author_thank_yous")
-    .select("id, author_id, story_id, recipient_user_id, recipient_group_type, message, created_at, creator_profiles(pen_name, profiles(avatar_url)), stories(title, slug)")
+    .select("id, author_id, story_id, recipient_user_id, recipient_group_type, message, created_at, creator_profiles(pen_name, profiles!creator_profiles_user_id_fkey(display_name, username, avatar_url)), stories(title, slug)")
     .order("created_at", { ascending: false })
     .limit(20);
 
@@ -117,7 +124,7 @@ export async function getMySentThankYous(authorUserId: string) {
 
   const { data, error } = await supabase
     .from("author_thank_yous")
-    .select("id, author_id, story_id, recipient_user_id, recipient_group_type, message, created_at, creator_profiles(pen_name, profiles(avatar_url)), stories(title, slug)")
+    .select("id, author_id, story_id, recipient_user_id, recipient_group_type, message, created_at, creator_profiles(pen_name, profiles!creator_profiles_user_id_fkey(display_name, username, avatar_url)), stories(title, slug)")
     .eq("author_id", creatorProfile.id)
     .order("created_at", { ascending: false })
     .limit(20);
@@ -133,7 +140,7 @@ export async function getThankYouById(id: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("author_thank_yous")
-    .select("id, author_id, story_id, recipient_user_id, recipient_group_type, message, created_at, creator_profiles(pen_name, profiles(avatar_url)), stories(title, slug)")
+    .select("id, author_id, story_id, recipient_user_id, recipient_group_type, message, created_at, creator_profiles(pen_name, profiles!creator_profiles_user_id_fkey(display_name, username, avatar_url)), stories(title, slug)")
     .eq("id", id)
     .maybeSingle();
 

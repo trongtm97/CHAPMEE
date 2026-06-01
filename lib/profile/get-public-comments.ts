@@ -7,7 +7,10 @@ type CommentRow = {
   id: string;
   content: string;
   created_at: string;
-  stories: { title: string; slug: string } | { title: string; slug: string }[] | null;
+  stories:
+    | { title: string; slug: string; public_code: string }
+    | { title: string; slug: string; public_code: string }[]
+    | null;
 };
 
 function firstRelation<T>(relation: T | T[] | null | undefined) {
@@ -35,7 +38,7 @@ export async function getPublicCommentsForUser(
 
   const { data, error } = await supabase
     .from("comments")
-    .select("id, content, created_at, stories(title, slug)")
+    .select("id, content, created_at, stories(title, slug, public_code)")
     .eq("user_id", userId)
     .eq("status", "visible")
     .order("created_at", { ascending: false })
@@ -74,6 +77,7 @@ export async function getPublicCommentsForUser(
       content: row.content,
       storyTitle: story.title,
       storySlug: story.slug,
+      storyPublicCode: story.public_code,
       likeCount: likeCounts.get(row.id) ?? 0,
       replyCount: 0,
       createdAt: row.created_at

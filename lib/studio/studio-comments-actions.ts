@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { hideCommentAsCreator } from "@/lib/comments/hide-comment";
+import { unhideCommentAsCreator } from "@/lib/comments/unhide-comment";
 import { pinCommentAsCreator } from "@/lib/comments/pin-comment-studio";
 import { replyToCommentAsCreator } from "@/lib/comments/reply-comment";
 import { createReportAction } from "@/lib/reports/createReport";
@@ -21,6 +22,10 @@ export async function studioPinCommentAction(commentId: string, pinned: boolean)
 
 export async function studioHideCommentAction(commentId: string) {
   return hideCommentAsCreator(commentId);
+}
+
+export async function studioUnhideCommentAction(commentId: string) {
+  return unhideCommentAsCreator(commentId);
 }
 
 export async function studioReportCommentAction(commentId: string, reasonCode: string) {

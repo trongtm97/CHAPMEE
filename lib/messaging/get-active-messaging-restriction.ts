@@ -5,8 +5,6 @@ import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
 import type { ActiveMessagingRestriction } from "@/lib/messaging/messaging-restriction-helpers";
 import type { MessagingRestrictionType } from "@/types/messaging-safety";
 
-export type { ActiveMessagingRestriction };
-
 const MUTE_TYPES: MessagingRestrictionType[] = [
   "mute_24h",
   "mute_7d",

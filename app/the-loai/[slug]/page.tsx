@@ -1,12 +1,22 @@
-import GenrePage, { generateMetadata as generateGenreMetadata } from "@/app/genres/[slug]/page";
+import type { Metadata } from "next";
+import {
+  buildTaxonomyLandingMetadata,
+  TaxonomyLandingRouteView
+} from "@/lib/discovery/taxonomy-landing-route";
+import { assertTaxonomyLandingRoute } from "@/lib/discovery/taxonomy-landing";
 import { getPublicGenreSlugs } from "@/lib/seo/static-params";
 
-type GenreRouteProps = {
+type PageProps = {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 };
 
-export async function generateMetadata({ params }: GenreRouteProps) {
-  return generateGenreMetadata({ params });
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+  return buildTaxonomyLandingMetadata("the-loai", slug, {
+    notFoundTitle: "Không tìm thấy thể loại",
+    searchParams: await searchParams
+  });
 }
 
 export async function generateStaticParams() {
@@ -14,6 +24,8 @@ export async function generateStaticParams() {
   return slugs.map((slug) => ({ slug }));
 }
 
-export default async function GenreSeoRoute({ params }: GenreRouteProps) {
-  return <GenrePage params={params} />;
+export default async function TheLoaiLandingPage({ params, searchParams }: PageProps) {
+  const { slug } = await params;
+  const route = await assertTaxonomyLandingRoute("the-loai", slug, await searchParams);
+  return <TaxonomyLandingRouteView {...route} />;
 }

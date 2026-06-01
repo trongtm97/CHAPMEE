@@ -1,4 +1,4 @@
-import type { ScheduledPublicationStatus } from "@/types/scheduling";
+﻿import type { ScheduledPublicationStatus, ScheduledTargetType } from "@/types/scheduling";
 
 export const SCHEDULE_STATUS_LABELS: Record<ScheduledPublicationStatus, string> = {
   canceled: "Đã hủy",
@@ -7,8 +7,28 @@ export const SCHEDULE_STATUS_LABELS: Record<ScheduledPublicationStatus, string> 
   scheduled: "Đã lên lịch"
 };
 
-export const TARGET_TYPE_LABELS = {
+export const TARGET_TYPE_LABELS: Record<ScheduledTargetType, string> = {
   chapter: "Chương",
-  story: "Truyện",
-  swipe: "Swipe"
-} as const;
+  reels: "Reels",
+  story: "Truyện"
+};
+
+export function storyScheduleEventLabel(
+  storyTitle: string,
+  structureType: "chaptered" | "standalone" | null | undefined
+) {
+  if (structureType === "standalone") {
+    return `Đăng truyện một phần: ${storyTitle}`;
+  }
+  return storyTitle;
+}
+
+export function chapterScheduleEventLabel(
+  chapterTitle: string,
+  storyTitle: string | null
+) {
+  if (storyTitle) {
+    return `Đăng chương: ${chapterTitle} — ${storyTitle}`;
+  }
+  return `Đăng chương: ${chapterTitle}`;
+}

@@ -1,13 +1,16 @@
 import { unstable_cache } from "next/cache";
-import { getDiscoverData } from "@/lib/discover/getDiscoverData";
+import { getDiscoverHomeData } from "@/lib/discover/getDiscoverHomeData";
 
-export function getDiscoverDataCached(query: string, genre: string) {
+export function getDiscoverDataCached(
+  query: string,
+  genre: string,
+  userId?: string | null
+) {
   const normalizedQuery = query.trim();
   const normalizedGenre = genre.trim();
 
-  return unstable_cache(
-    () => getDiscoverData({ query: normalizedQuery, genre: normalizedGenre }),
-    ["discover-data", normalizedQuery, normalizedGenre],
-    { revalidate: 60, tags: ["discover"] }
-  )();
+  return getDiscoverHomeData(
+    { query: normalizedQuery, genre: normalizedGenre },
+    { userId: userId ?? null, skipCache: Boolean(userId) }
+  );
 }

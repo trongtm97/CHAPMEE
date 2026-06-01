@@ -1,3 +1,8 @@
+import {
+  ADMIN_CREATOR_JOIN,
+  resolveAdminCreatorName,
+  resolveAdminStudioName
+} from "@/lib/admin/creator-display";
 import { startOfTodayIso } from "@/lib/admin/messaging-date-range";
 import {
   COMMUNITY_AUDIT_ACTIONS,
@@ -130,9 +135,9 @@ export async function getCommunityAdminPageData(
     const todayStart = startOfTodayIso();
 
     const postSelectFull =
-      "id, type, title, content, created_at, status, report_count, risk_level, is_pinned, is_featured, comments_locked, auto_decision, auto_decision_reason_codes, story_id, creator_id, episode_id, user_id, profiles!community_posts_user_id_fkey(display_name, username, role), stories(title, slug), creator_profiles(pen_name), episodes(episode_number, title)";
+      `id, type, title, content, created_at, status, report_count, risk_level, is_pinned, is_featured, comments_locked, auto_decision, auto_decision_reason_codes, story_id, creator_id, episode_id, user_id, profiles!community_posts_user_id_fkey(display_name, username, role), stories(title, slug), ${ADMIN_CREATOR_JOIN}, episodes(episode_number, title)`;
     const postSelectMinimal =
-      "id, type, title, content, created_at, status, auto_decision, auto_decision_reason_codes, story_id, creator_id, user_id, profiles!community_posts_user_id_fkey(display_name, username, role), stories(title, slug), creator_profiles(pen_name)";
+      `id, type, title, content, created_at, status, auto_decision, auto_decision_reason_codes, story_id, creator_id, user_id, profiles!community_posts_user_id_fkey(display_name, username, role), stories(title, slug), ${ADMIN_CREATOR_JOIN}`;
 
     const [
       pendingRes,
@@ -210,14 +215,16 @@ export async function getCommunityAdminPageData(
         .maybeSingle(),
       supabase
         .from("stories")
-        .select("id, title, slug, creator_profiles(pen_name)")
+        .select(`id, title, slug, ${ADMIN_CREATOR_JOIN}`)
         .eq("status", "published")
         .order("published_at", { ascending: false })
         .limit(30),
       supabase
         .from("creator_profiles")
-        .select("id, pen_name, user_id, profiles(is_verified)")
-        .not("pen_name", "is", null)
+        .select(
+          "id, user_id, profiles!creator_profiles_user_id_fkey(display_name, username, is_verified)"
+        )
+        .eq("status", "active")
         .order("created_at", { ascending: false })
         .limit(30),
       supabase.from("community_group_settings").select("*").limit(100)
@@ -298,7 +305,7 @@ export async function getCommunityAdminPageData(
       const story = firstRelation<{ title: string | null; slug: string | null }>(
         post.stories
       );
-      const studio = firstRelation<{ pen_name: string | null }>(post.creator_profiles);
+      const studio = firstRelation(post.creator_profiles);
       const episode = firstRelation<{ episode_number: number | null; title: string | null }>(
         post.episodes
       );
@@ -333,7 +340,7 @@ export async function getCommunityAdminPageData(
         episodeLabel: episode
           ? `Chương ${episode.episode_number ?? ""}${episode.title ? `: ${episode.title}` : ""}`
           : null,
-        studioName: studio?.pen_name ?? null,
+        studioName: resolveAdminStudioName(studio),
         commentCount: commentCounts.get(post.id as string) ?? 0,
         reportCount,
         status: post.status as CommunityQueueItem["status"],
@@ -485,7 +492,7 @@ export async function getCommunityAdminPageData(
 
     const storyGroups: CommunityStoryGroupItem[] = (storiesRes.data ?? []).map(
       (story) => {
-        const studio = firstRelation<{ pen_name: string | null }>(story.creator_profiles);
+        const studio = firstRelation(story.creator_profiles);
         const settings = storySettingsById.get(story.id as string);
         const postsLast24h = posts24h.get(story.id as string) ?? 0;
 
@@ -493,7 +500,7 @@ export async function getCommunityAdminPageData(
           storyId: story.id as string,
           storyTitle: story.title as string,
           storySlug: story.slug as string,
-          studioName: studio?.pen_name ?? null,
+          studioName: resolveAdminStudioName(studio),
           memberCount: 0,
           postsLast24h,
           reportCount: 0,
@@ -513,7 +520,7 @@ export async function getCommunityAdminPageData(
 
         return {
           creatorId: creator.id as string,
-          studioName: creator.pen_name as string,
+          studioName: resolveAdminCreatorName(creator) ?? "",
           followerCount: 0,
           postCount: 0,
           reportCount: 0,

@@ -9,6 +9,7 @@ import type {
   RevenueShareType
 } from "@/types/monetization";
 import { fetchMonetizationSettings } from "@/lib/supabase/monetization-settings";
+import { normalizeRevenueSharePercents } from "@/lib/admin/creator-fee-policy-shared";
 
 export const MONETIZATION_CACHE_TAG = "monetization-settings";
 
@@ -938,6 +939,42 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
     step: 1
   },
   {
+    key: "payout.processing_days_min",
+    label: "Xử lý rút tiền — tối thiểu (ngày)",
+    description: "Số ngày làm việc tối thiểu hiển thị cho tác giả khi rút tiền.",
+    group: "payout",
+    defaultValue: 1,
+    inputType: "number",
+    isPublic: true,
+    min: 1,
+    max: 30,
+    step: 1
+  },
+  {
+    key: "payout.processing_days_max",
+    label: "Xử lý rút tiền — tối đa (ngày)",
+    description: "Số ngày làm việc tối đa hiển thị cho tác giả khi rút tiền.",
+    group: "payout",
+    defaultValue: 5,
+    inputType: "number",
+    isPublic: true,
+    min: 1,
+    max: 30,
+    step: 1
+  },
+  {
+    key: "payout.processing_days",
+    label: "Xử lý rút tiền (ngày — legacy)",
+    description: "Giá trị đơn cũ; ưu tiên min/max nếu đã cấu hình.",
+    group: "payout",
+    defaultValue: 5,
+    inputType: "number",
+    isPublic: true,
+    min: 1,
+    max: 30,
+    step: 1
+  },
+  {
     key: "payout.kyc_required",
     label: "Yêu cầu KYC",
     description: "Bật khi có quy trình KYC.",
@@ -1313,10 +1350,13 @@ export async function getRevenueShareConfig(
   };
 
   const [creatorKey, platformKey] = keys[type];
+  const creatorPercent = numberSetting(settings, creatorKey);
+  const platformPercent = numberSetting(settings, platformKey);
+  const normalized = normalizeRevenueSharePercents(creatorPercent, platformPercent);
 
   return {
-    creatorPercent: numberSetting(settings, creatorKey),
-    platformPercent: numberSetting(settings, platformKey),
+    creatorPercent: normalized.authorPercent,
+    platformPercent: normalized.platformPercent,
     platformFeePercent: numberSetting(
       settings,
       "revenue_share.platform_fee_percent"

@@ -31,7 +31,11 @@ export async function getMonetizationAuditLogs(limit = 10) {
     .select(
       "id, action, target_type, target_id, metadata, created_at, actor_id, ip_address, user_agent"
     )
-    .in("action", ["monetization_settings.update", "update_app_settings"])
+    .in("action", [
+      "monetization_settings.update",
+      "monetization_settings.ad_revenue_update",
+      "update_app_settings"
+    ])
     .eq("target_type", "monetization_settings")
     .order("created_at", { ascending: false })
     .limit(limit);

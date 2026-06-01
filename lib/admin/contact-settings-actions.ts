@@ -14,9 +14,24 @@ import {
   hasValidationErrors,
   validateContactSettings
 } from "@/lib/settings/validate-contact-settings";
+import { sanitizePlainContent } from "@/lib/editor/sanitize-content";
 import type { ContactSettings } from "@/types/contact-settings";
 
 export type { ContactSettingsActionState };
+
+function sanitizeContactSettings(settings: ContactSettings): ContactSettings {
+  return {
+    ...settings,
+    supportEmail: settings.supportEmail.trim(),
+    emailLabel: sanitizePlainContent(settings.emailLabel).slice(0, 40),
+    facebookUrl: settings.facebookUrl.trim(),
+    fanpageLabel: sanitizePlainContent(settings.fanpageLabel).slice(0, 40),
+    telegramUrl: settings.telegramUrl.trim(),
+    telegramLabel: sanitizePlainContent(settings.telegramLabel).slice(0, 40),
+    contactTitle: sanitizePlainContent(settings.contactTitle).slice(0, 60),
+    contactDescription: sanitizePlainContent(settings.contactDescription).slice(0, 160)
+  };
+}
 
 function sanitizePayload(rawPayload: unknown): ContactSettings {
   const payload =
@@ -24,7 +39,7 @@ function sanitizePayload(rawPayload: unknown): ContactSettings {
       ? (rawPayload as Record<string, unknown>)
       : {};
 
-  return toContactSettings(parseContactSettingsDb(payload));
+  return sanitizeContactSettings(toContactSettings(parseContactSettingsDb(payload)));
 }
 
 async function assertContactSettingsStaff() {
@@ -151,6 +166,17 @@ export async function resetContactSettingsAction(
   }
 
   revalidateTag(CONTACT_SETTINGS_CACHE_TAG, "max");
+
+  if (guard.userId) {
+    const { logAdminAction } = await import("@/lib/audit/log-admin-action");
+    await logAdminAction({
+      actorId: guard.userId,
+      action: "update_app_settings",
+      targetType: "contact_settings",
+      targetId: "contact",
+      metadata: { action: "reset_to_defaults" }
+    });
+  }
 
   return {
     ok: true,

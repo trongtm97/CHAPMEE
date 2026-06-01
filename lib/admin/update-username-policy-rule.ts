@@ -5,6 +5,7 @@ import { createAdminAuditLog } from "@/lib/admin/create-audit-log";
 import { createUsernamePolicyExceptionAction } from "@/lib/admin/username-policy-exceptions";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
+import { revalidatePublicProfilePaths } from "@/lib/profile/revalidate-public-profile";
 import { normalizePolicyText } from "@/lib/username/normalize-policy-text";
 import { normalizeUsername } from "@/lib/username/normalize-username";
 import type {
@@ -370,7 +371,11 @@ export async function adminSetUserUsernameAction(input: {
     });
 
     revalidatePath("/admin/username-policy");
-    revalidatePath(`/profile/${normalized}`);
+    revalidatePublicProfilePaths(normalized);
+    const previous = profile?.username?.trim().toLowerCase();
+    if (previous && previous !== normalized) {
+      revalidatePublicProfilePaths(previous);
+    }
     return { ok: true, error: null };
   } catch (error) {
     return {

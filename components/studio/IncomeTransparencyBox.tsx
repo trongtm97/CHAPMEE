@@ -34,8 +34,8 @@ export function IncomeTransparencyBox({ config }: IncomeTransparencyBoxProps) {
             : " được ghi nhận"}
           ; ChapMee không tự chuyển tiền thật — admin xác nhận thanh toán thủ công.
         </li>
-        {config.payoutProcessingDays > 0 ? (
-          <li>Thời gian xử lý tham khảo: {config.payoutProcessingDays} ngày làm việc.</li>
+        {config.payoutProcessingDaysLabel ? (
+          <li>Thời gian xử lý tham khảo: {config.payoutProcessingDaysLabel} làm việc.</li>
         ) : null}
       </ul>
       {config.policyNote ? (

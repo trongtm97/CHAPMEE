@@ -42,7 +42,9 @@ export function ContentQualityItemCard({
     <article className="rounded-xl border border-white/10 bg-zinc-900/50 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <Badge variant="default">Truyện</Badge>
+          <Badge variant="default">
+            {item.structureType === "standalone" ? "Một phần" : "Nhiều chương"}
+          </Badge>
           <h3 className="truncate text-base font-semibold text-white">{item.title}</h3>
         </div>
         <Badge
@@ -55,13 +57,19 @@ export function ContentQualityItemCard({
       </div>
 
       <p className="mt-2 text-sm text-zinc-400">
-        Tác giả: {item.authorPenName}
+        Tác giả: {item.authorDisplayName}
         {item.genreName ? ` · ${item.genreName}` : ""}
         {" · Lần "}
         {item.attemptCount}/{item.maxAttempts}
         {" · "}
         {qualityStatusLabel(item.qualityStatus)}
       </p>
+
+      {item.structureWarnings.length > 0 ? (
+        <p className="mt-2 text-sm text-amber-200/90">
+          Cảnh báo cấu trúc: {item.structureWarnings.join(" · ")}
+        </p>
+      ) : null}
 
       {item.reasonCodes.length > 0 ? (
         <p className="mt-2 line-clamp-2 text-sm text-zinc-500">

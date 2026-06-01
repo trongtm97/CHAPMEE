@@ -1,3 +1,5 @@
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
 import { createClient } from "@/lib/supabase/server";
 import { getMyCommunityGroups } from "@/lib/community/get-community-groups";
 import type {
@@ -39,7 +41,9 @@ export async function getFollowingForLibrary(userId: string) {
       await Promise.all([
         supabase
           .from("follows")
-          .select("created_at, creator_id, creator_profiles(id, pen_name, avatar_url)")
+          .select(
+            "created_at, creator_id, creator_profiles(id, pen_name, profiles!creator_profiles_user_id_fkey(display_name, username))"
+          )
           .eq("follower_id", userId)
           .not("creator_id", "is", null)
           .order("created_at", { ascending: false })
@@ -47,7 +51,7 @@ export async function getFollowingForLibrary(userId: string) {
         supabase
           .from("follows")
           .select(
-            "created_at, story_id, stories(id, title, slug, cover_url, creator_profiles(pen_name))"
+            `created_at, story_id, stories(id, title, slug, public_code, cover_url, ${CREATOR_PROFILE_STORY_JOIN})`
           )
           .eq("follower_id", userId)
           .not("story_id", "is", null)
@@ -99,41 +103,40 @@ export async function getFollowingForLibrary(userId: string) {
       }
     }
 
-    const followedAuthors: LibraryFollowedAuthor[] = (creatorFollows ?? [])
-      .map((row) => {
+    const followedAuthors = (creatorFollows ?? [])
+      .map((row): LibraryFollowedAuthor | null => {
         const creator = firstRelation(
-          (
-            row as {
-              creator_profiles:
-                | {
-                    id: string;
-                    pen_name: string | null;
-                    avatar_url: string | null;
-                  }
-                | {
-                    id: string;
-                    pen_name: string | null;
-                    avatar_url: string | null;
-                  }[]
-                | null;
-            }
-          ).creator_profiles
+          (row as { creator_profiles: unknown }).creator_profiles as
+            | {
+                id: string;
+                pen_name: string | null;
+                profiles?: { display_name: string | null; username: string | null } | null;
+              }
+            | {
+                id: string;
+                pen_name: string | null;
+                profiles?: { display_name: string | null; username: string | null } | null;
+              }[]
+            | null
         );
-        if (!creator?.id || !creator.pen_name) {
+        if (!creator?.id) {
           return null;
         }
 
+        const creatorProfile = firstRelation(creator.profiles);
+
         return {
           id: creator.id,
-          penName: creator.pen_name,
-          avatarUrl: creator.avatar_url,
+          displayName: resolvePublicDisplayName(creatorProfile, creator),
+          username: creatorProfile?.username ?? null,
+          avatarUrl: null,
           storyCount: storyCountByCreator.get(creator.id) ?? 0,
           hasNewChapter: false
         };
       })
-      .filter((item): item is LibraryFollowedAuthor => Boolean(item));
+      .filter((item): item is LibraryFollowedAuthor => item !== null);
 
-    const followedStories: LibraryFollowedStory[] = (storyFollows ?? [])
+    const followedStories = (storyFollows ?? [])
       .map((row) => {
         const story = firstRelation(
           (
@@ -144,20 +147,46 @@ export async function getFollowingForLibrary(userId: string) {
                     id: string;
                     title: string;
                     slug: string;
+                    public_code: string;
                     cover_url: string | null;
                     creator_profiles:
-                      | { pen_name: string | null }
-                      | { pen_name: string | null }[]
+                      | {
+                          pen_name: string | null;
+                          profiles:
+                            | { display_name: string | null; username: string | null }
+                            | { display_name: string | null; username: string | null }[]
+                            | null;
+                        }
+                      | {
+                          pen_name: string | null;
+                          profiles:
+                            | { display_name: string | null; username: string | null }
+                            | { display_name: string | null; username: string | null }[]
+                            | null;
+                        }[]
                       | null;
                   }
                 | {
                     id: string;
                     title: string;
                     slug: string;
+                    public_code: string;
                     cover_url: string | null;
                     creator_profiles:
-                      | { pen_name: string | null }
-                      | { pen_name: string | null }[]
+                      | {
+                          pen_name: string | null;
+                          profiles:
+                            | { display_name: string | null; username: string | null }
+                            | { display_name: string | null; username: string | null }[]
+                            | null;
+                        }
+                      | {
+                          pen_name: string | null;
+                          profiles:
+                            | { display_name: string | null; username: string | null }
+                            | { display_name: string | null; username: string | null }[]
+                            | null;
+                        }[]
                       | null;
                   }[]
                 | null;
@@ -176,14 +205,17 @@ export async function getFollowingForLibrary(userId: string) {
         return {
           id: story.id,
           slug: story.slug,
+          publicCode: story.public_code,
           title: story.title,
           coverUrl: story.cover_url,
-          authorName: creator?.pen_name ?? null,
+          authorName: creator
+            ? resolvePublicDisplayName(firstRelation(creator.profiles), creator)
+            : null,
           hasNewChapter,
           followedAt: (row as { created_at: string }).created_at
         };
       })
-      .filter((item): item is LibraryFollowedStory => Boolean(item));
+      .filter((item): item is LibraryFollowedStory => item !== null);
 
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const followedGroups: LibraryFollowedGroup[] = communityResult.groups

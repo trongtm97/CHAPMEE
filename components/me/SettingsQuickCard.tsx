@@ -70,6 +70,13 @@ export function SettingsQuickCard({
         </Link>
         <Link
           className="flex min-h-10 items-center justify-between border-t border-white/5 px-3.5 py-2 text-sm text-zinc-200 transition hover:bg-white/[0.03]"
+          href="/chinh-sach"
+        >
+          <span>Chính sách & điều khoản</span>
+          <span className="text-zinc-600">→</span>
+        </Link>
+        <Link
+          className="flex min-h-10 items-center justify-between border-t border-white/5 px-3.5 py-2 text-sm text-zinc-200 transition hover:bg-white/[0.03]"
           href="/me/settings/messages"
         >
           <span>Cài đặt tin nhắn</span>

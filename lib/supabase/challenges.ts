@@ -54,8 +54,8 @@ type EntryRow = {
     | { display_name: string | null; username: string | null }[]
     | null;
   stories:
-    | { title: string | null; slug: string | null }
-    | { title: string | null; slug: string | null }[]
+    | { title: string | null; slug: string | null; public_code: string | null }
+    | { title: string | null; slug: string | null; public_code: string | null }[]
     | null;
 };
 
@@ -145,7 +145,7 @@ export async function getChallengeById(id: string): Promise<{ challenge: Challen
   const challengeRecord = toChallengeRecord(challenge);
   const { data: entryData } = await supabase
     .from("challenge_entries")
-    .select("id, challenge_id, user_id, story_id, chapter_id, title, description, created_at, profiles(display_name, username), stories(title, slug)")
+    .select("id, challenge_id, user_id, story_id, chapter_id, title, description, created_at, profiles(display_name, username), stories(title, slug, public_code)")
     .eq("challenge_id", challengeRecord.id)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -167,7 +167,8 @@ export async function getChallengeById(id: string): Promise<{ challenge: Challen
       userVoted: Boolean(entry.user_voted),
       authorName: author?.display_name ?? author?.username ?? null,
       storyTitle: story?.title ?? null,
-      storySlug: story?.slug ?? null
+      storySlug: story?.slug ?? null,
+      storyPublicCode: story?.public_code ?? null
     };
   });
 

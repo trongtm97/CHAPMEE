@@ -210,7 +210,7 @@ export async function getVerificationDetail(
     fetchUserEmail(userId),
     supabase
       .from("creator_profiles")
-      .select("id, pen_name, status")
+      .select("id, status")
       .eq("user_id", userId)
       .maybeSingle(),
     creatorProfilePromise(supabase, userId),
@@ -331,7 +331,10 @@ export async function getVerificationDetail(
     accountStatus: profile?.status ?? null,
     createdAt: profile?.created_at ?? null,
     isAuthor: Boolean(creatorProfile.data),
-    studioName: creatorProfile.data?.pen_name ?? null,
+    studioName:
+      profile?.display_name?.trim() ||
+      profile?.username?.trim() ||
+      null,
     storyCount: storyStats.storyCount,
     followerCount: followerCount.count ?? 0,
     readCount: storyStats.readCount,

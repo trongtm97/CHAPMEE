@@ -5,7 +5,11 @@ import {
   matchesQualityTab
 } from "@/lib/admin/content-quality-tabs";
 import { getQualityConfigForAdmin } from "@/lib/admin/update-quality-config";
+import { resolveAdminCreatorName } from "@/lib/admin/creator-display";
 import { createClient } from "@/lib/supabase/server";
+import { validateStoryStructureConsistency } from "@/lib/publish/validate-story-for-publish";
+import { mapStoryStructureFromRow, normalizeStoryStructureType } from "@/lib/stories/story-structure";
+import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import type {
   AdminContentQualityPageData,
   AdminContentQualityQueueItem,
@@ -99,16 +103,19 @@ export async function getContentQualityPageData(
         id,
         title,
         slug,
+        public_code,
         creator_id,
         quality_status,
         low_quality_attempt_count,
         monetization_disabled_by_quality,
         quality_updated_at,
         updated_at,
-        genres(name),
+        structure_type,
+        standalone_content_json,
+        standalone_plain_text,
         creator_profiles (
-          pen_name,
-          user_id
+          user_id,
+          profiles!creator_profiles_user_id_fkey(display_name, username)
         )
       `
       )
@@ -121,6 +128,7 @@ export async function getContentQualityPageData(
     }
 
     const storyIds = (stories ?? []).map((s) => s.id as string);
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
 
     const [{ data: appeals }, { data: latestReviews }] = await Promise.all([
       storyIds.length
@@ -150,11 +158,26 @@ export async function getContentQualityPageData(
       }
     }
 
+    const episodeCountByStory = new Map<string, number>();
+    if (storyIds.length > 0) {
+      const { data: episodeRows } = await supabase
+        .from("episodes")
+        .select("story_id")
+        .in("story_id", storyIds)
+        .neq("status", "archived");
+
+      for (const episode of episodeRows ?? []) {
+        const sid = episode.story_id as string;
+        episodeCountByStory.set(sid, (episodeCountByStory.get(sid) ?? 0) + 1);
+      }
+    }
+
     const allItems: AdminContentQualityQueueItem[] = (stories ?? []).map((row) => {
-      const creator = firstRelation<{ pen_name: string | null; user_id: string }>(
-        row.creator_profiles
-      );
-      const genre = firstRelation<{ name: string }>(row.genres);
+      const creator = firstRelation<{
+        user_id: string;
+        profiles?: { display_name: string | null; username: string | null } | null;
+      }>(row.creator_profiles);
+      const genreName = taxonomyByStory.get(row.id as string)?.mainGenreName ?? null;
       const appealRaw = appealByStory.get(row.id as string);
       const appealStatus =
         appealRaw === "pending"
@@ -166,12 +189,30 @@ export async function getContentQualityPageData(
               : "none";
       const attemptCount = Number(row.low_quality_attempt_count ?? 0);
       const qualityStatus = row.quality_status as AdminContentQualityQueueItem["qualityStatus"];
+      const structure = mapStoryStructureFromRow(row as {
+        structure_type?: string | null;
+        standalone_content_json?: unknown | null;
+        standalone_plain_text?: string | null;
+      });
+      const episodeCount = episodeCountByStory.get(row.id as string) ?? 0;
+      const structureWarnings = validateStoryStructureConsistency({
+        structureType: structure.structureType,
+        episodeCount,
+        hasStandaloneContent: Boolean(
+          structure.standalonePlainText?.trim() || structure.standaloneContentJson
+        )
+      });
 
       return {
         storyId: row.id as string,
         title: row.title as string,
         slug: (row.slug as string | null) ?? null,
-        authorPenName: creator?.pen_name ?? "Tác giả",
+        publicCode: (row.public_code as string | null) ?? null,
+        structureType: normalizeStoryStructureType(
+          (row as { structure_type?: string }).structure_type
+        ),
+        structureWarnings,
+        authorDisplayName: resolveAdminCreatorName(creator) ?? "Tác giả",
         authorUserId: creator?.user_id ?? "",
         creatorId: row.creator_id as string,
         qualityStatus,
@@ -184,7 +225,7 @@ export async function getContentQualityPageData(
         appealStatus,
         monetizationDisabled: Boolean(row.monetization_disabled_by_quality),
         riskLevel: deriveRiskLevel(attemptCount, qualityStatus),
-        genreName: genre?.name ?? null,
+        genreName,
         targetType: "story"
       };
     });

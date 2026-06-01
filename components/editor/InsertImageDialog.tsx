@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Button, Input, Textarea } from "@/components/ui";
+import { Button, Textarea } from "@/components/ui";
 import { insertImageBlockIntoContent } from "@/lib/editor/insert-image-block";
 import { countImageBlocksInContent } from "@/lib/editor/chapter-image-block";
 import { mapStoryImageUploadError } from "@/lib/images/map-upload-error";
@@ -33,7 +33,6 @@ export function InsertImageDialog({
   textareaRef
 }: InsertImageDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [altText, setAltText] = useState("");
   const [caption, setCaption] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -71,7 +70,6 @@ export function InsertImageDialog({
       const formData = new FormData();
       formData.set("storyId", storyId);
       formData.set("file", file);
-      formData.set("altText", altText);
       formData.set("caption", caption);
       formData.set("content", content);
 
@@ -106,7 +104,6 @@ export function InsertImageDialog({
       const selectionEnd = textarea?.selectionEnd ?? content.length;
       const block: ChapterImageBlock = {
         ...payload.block,
-        alt: altText.trim() || payload.block.alt,
         caption: caption.trim() || payload.block.caption
       };
 
@@ -118,7 +115,6 @@ export function InsertImageDialog({
       });
 
       onInsert(nextContent);
-      setAltText("");
       setCaption("");
       setSelectedName(null);
       onClose();
@@ -156,13 +152,6 @@ export function InsertImageDialog({
         </p>
 
         <div className="space-y-3">
-          <Input
-            disabled={processing}
-            label="Mô tả ảnh"
-            onChange={(event) => setAltText(event.target.value)}
-            placeholder="Mô tả ngắn cho người đọc khiếm thị"
-            value={altText}
-          />
           <Textarea
             disabled={processing}
             label="Chú thích"

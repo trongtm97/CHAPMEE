@@ -5,6 +5,7 @@ import { SponsoredChallengeBanner } from "@/components/campaigns/SponsoredChalle
 import { SponsoredChallengeTracker } from "@/components/campaigns/SponsoredChallengeTracker";
 import { EmptyState } from "@/components/ui";
 import { isSponsoredContentEnabled } from "@/lib/campaigns/feature";
+import { sponsoredBannerProps } from "@/lib/campaigns/load-public-campaigns";
 import { buildCanonicalUrl } from "@/lib/seo/metadata";
 import { getChallengeById, createChallengeEntry } from "@/lib/supabase/challenges";
 import { getChallengeCampaignMap } from "@/lib/supabase/campaigns";
@@ -58,14 +59,7 @@ export default async function ChallengePage({ params }: ChallengePageProps) {
 
       {sponsoredCampaign ? (
         <SponsoredChallengeBanner
-          campaignId={sponsoredCampaign.id}
-          challengeId={result.challenge.id}
-          ctaText={sponsoredCampaign.ctaText}
-          ctaUrl={sponsoredCampaign.ctaUrl}
-          disclosureText={sponsoredCampaign.disclosureText}
-          sponsorId={sponsoredCampaign.sponsor?.id ?? null}
-          sponsorLogoUrl={sponsoredCampaign.sponsor?.logoUrl}
-          sponsorName={sponsoredCampaign.sponsor?.name ?? "Nhà tài trợ"}
+          {...sponsoredBannerProps(sponsoredCampaign, result.challenge.id)}
         />
       ) : null}
 

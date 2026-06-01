@@ -27,8 +27,8 @@ export function AnalyticsOverviewCards({ overview }: AnalyticsOverviewCardsProps
     { label: "Bình luận mới", value: formatMetric(overview.comments) },
     { label: "Người theo dõi mới", value: formatMetric(overview.newFollows) },
     {
-      label: "Lượt bấm từ Swipe",
-      value: formatMetric(overview.swipeCtaClicks)
+      label: "Lượt bấm từ Reels",
+      value: formatMetric(overview.reelsCtaClicks)
     },
     {
       label: "Doanh thu",

@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { buildProfileHandle, validateBio, validateUsername } from "@/lib/profile/buildProfileHandle";
 import { validateDisplayName } from "@/lib/username/validate-display-name";
 import { validateUsername as validateUsernamePolicy } from "@/lib/username/validate-username";
+import { ensureProfileUsername } from "@/lib/profile/ensure-profile-username";
+import { revalidatePublicProfilePaths } from "@/lib/profile/revalidate-public-profile";
 import { recordUsernameChange } from "@/lib/username/record-username-change";
 
 export type UpdateProfileActionState = {
@@ -47,12 +49,20 @@ export async function updateProfileAction(
     return { error: formatUsernameError, success: false };
   }
 
-  const usernameResult = await validateUsernamePolicy(usernameRaw, user.id);
-  if (!usernameResult.valid && usernameRaw) {
-    return { error: usernameResult.message ?? "Username không hợp lệ.", success: false };
-  }
+  let username: string | null = null;
 
-  const username = usernameResult.normalized;
+  if (usernameRaw) {
+    const usernameResult = await validateUsernamePolicy(usernameRaw, user.id);
+    if (!usernameResult.valid) {
+      return {
+        error: usernameResult.message ?? "Username không hợp lệ.",
+        success: false
+      };
+    }
+    username = usernameResult.normalized;
+  } else {
+    username = await ensureProfileUsername(user.id, displayResult.normalized);
+  }
 
   const { assertNotBanned } = await import("@/lib/auth/require-not-banned");
   try {
@@ -98,12 +108,9 @@ export async function updateProfileAction(
 
   revalidatePath("/me");
   revalidatePath("/me/settings");
-  revalidatePath(`/me/${user.id}`);
-  if (username) {
-    revalidatePath(`/profile/${username}`);
-  }
-  if (currentProfile?.username) {
-    revalidatePath(`/profile/${currentProfile.username}`);
+  revalidatePublicProfilePaths(username, { userId: user.id });
+  if (currentProfile?.username && currentProfile.username !== username) {
+    revalidatePublicProfilePaths(currentProfile.username);
   }
 
   return { error: null, success: true, savedAt: Date.now() };

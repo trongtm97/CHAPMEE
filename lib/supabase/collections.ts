@@ -1,4 +1,7 @@
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { resolveCreatorRowName } from "@/lib/creator/resolve-creator-row-name";
 import { createClient } from "@/lib/supabase/server";
+import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import type {
   CollectionDetail,
   CollectionFormValues,
@@ -33,9 +36,9 @@ type CollectionItemRow = {
     id: string;
     title: string;
     slug: string;
+    public_code: string;
     cover_url: string | null;
     hook: string | null;
-    genres: { name: string | null } | { name: string | null }[] | null;
     creator_profiles: { pen_name: string | null } | { pen_name: string | null }[] | null;
   } | null;
 };
@@ -44,19 +47,23 @@ function firstRelation<T>(relation: T | T[] | null | undefined) {
   return Array.isArray(relation) ? (relation[0] ?? null) : (relation ?? null);
 }
 
-function toStoryItem(row: CollectionItemRow): CollectionStoryItem {
-  const genre = firstRelation(row.stories?.genres);
+function toStoryItem(
+  row: CollectionItemRow,
+  taxonomyByStory: Map<string, { mainGenreName: string | null }>
+): CollectionStoryItem {
   const creator = firstRelation(row.stories?.creator_profiles);
+  const storyId = row.story_id;
 
   return {
     id: row.id,
     storyId: row.story_id,
     title: row.stories?.title ?? "Untitled",
     slug: row.stories?.slug ?? "",
+    publicCode: row.stories?.public_code ?? "",
     coverUrl: row.stories?.cover_url ?? null,
     hook: row.stories?.hook ?? null,
-    authorName: creator?.pen_name ?? null,
-    genreName: genre?.name ?? null,
+    authorName: resolveCreatorRowName(creator),
+    genreName: taxonomyByStory.get(storyId)?.mainGenreName ?? null,
     note: row.note,
     sortOrder: row.sort_order,
     createdAt: row.created_at
@@ -145,7 +152,7 @@ export async function getCollectionItems(collectionId: string, userId: string | 
   const supabase = await createClient();
   const query = supabase
     .from("collection_items")
-    .select("id, collection_id, story_id, sort_order, note, created_at, stories(id, title, slug, cover_url, hook, genres(name), creator_profiles(pen_name))")
+    .select(`id, collection_id, story_id, sort_order, note, created_at, stories(id, title, slug, public_code, cover_url, hook, ${CREATOR_PROFILE_STORY_JOIN})`)
     .eq("collection_id", collectionId)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
@@ -158,7 +165,11 @@ export async function getCollectionItems(collectionId: string, userId: string | 
   const { data, error } = await query;
   if (error || !data) return [];
 
-  return (data as unknown as CollectionItemRow[]).map(toStoryItem);
+  const rows = data as unknown as CollectionItemRow[];
+  const storyIds = rows.map((row) => row.story_id);
+  const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
+
+  return rows.map((row) => toStoryItem(row, taxonomyByStory));
 }
 
 export async function getPublicCollections(limit = 20): Promise<CollectionSummary[]> {

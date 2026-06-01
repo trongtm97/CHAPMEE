@@ -45,7 +45,13 @@ export const notificationTypes = [
   "content_quality_permanently_hidden",
   "content_quality_monetization_disabled",
   "content_quality_free_access",
-  "coin_refund_quality"
+  "coin_refund_quality",
+  "feedback_received",
+  "feedback_status_updated",
+  "taxonomy_request_approved",
+  "taxonomy_request_rejected",
+  "taxonomy_request_merged",
+  "taxonomy_revision_requested"
 ] as const;
 
 export type NotificationType = (typeof notificationTypes)[number];
@@ -62,15 +68,7 @@ export type NotificationCategory =
   | "messages"
   | "system";
 
-export type NotificationFilterTab =
-  | "all"
-  | "unread"
-  | "reading"
-  | "author"
-  | "community"
-  | "wallet"
-  | "messages"
-  | "system";
+export type NotificationFilterTab = "all" | "unread" | "read";
 
 export const notificationTargetTypes = [
   "story",
@@ -83,7 +81,8 @@ export const notificationTargetTypes = [
   "wallet",
   "transaction",
   "community_post",
-  "payout_request"
+  "payout_request",
+  "feedback"
 ] as const;
 
 export type NotificationTargetType = (typeof notificationTargetTypes)[number];

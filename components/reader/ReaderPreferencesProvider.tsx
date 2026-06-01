@@ -64,6 +64,20 @@ export function ReaderPreferencesProvider({ children }: { children: ReactNode })
   );
 }
 
+const noopSetPreferences = () => {};
+
+const FALLBACK_READER_PREFERENCES: ReaderPreferencesContextValue = {
+  preferences: DEFAULT_READING_PREFERENCES,
+  setPreferences: noopSetPreferences,
+  ready: true
+};
+
+/** Studio preview / Composer — không bắt buộc bọc provider. */
+export function useReaderPreferencesOptional(): ReaderPreferencesContextValue {
+  const context = useContext(ReaderPreferencesContext);
+  return context ?? FALLBACK_READER_PREFERENCES;
+}
+
 export function useReaderPreferences() {
   const context = useContext(ReaderPreferencesContext);
   if (!context) {

@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import { useEffect, useState, type ReactNode } from "react";
 
 type ReaderHeaderProps = {
   storySlug: string;
+  storyPublicCode: string;
   storyTitle: string;
   episodeTitle: string;
   episodeNumber: number;
@@ -19,6 +21,7 @@ export function ReaderHeader({
   onOpenEpisodeList,
   onOpenMenu,
   onOpenSettings,
+  storyPublicCode,
   storySlug,
   storyTitle
 }: ReaderHeaderProps) {
@@ -53,7 +56,7 @@ export function ReaderHeader({
       router.back();
       return;
     }
-    router.push(`/stories/${storySlug}`);
+    router.push(getStoryDetailHref({ slug: storySlug, public_code: storyPublicCode }));
   }
 
   return (

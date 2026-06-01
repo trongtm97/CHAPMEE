@@ -8,6 +8,7 @@ type StudioChapterListProps = {
   chapters: StudioChapter[];
   storyId: string;
   storySlug: string;
+  storyPublicCode: string;
   hasActiveFilters: boolean;
 };
 
@@ -15,7 +16,8 @@ export function StudioChapterList({
   chapters,
   hasActiveFilters,
   storyId,
-  storySlug
+  storySlug,
+  storyPublicCode
 }: StudioChapterListProps) {
   if (chapters.length === 0) {
     if (hasActiveFilters) {
@@ -50,6 +52,7 @@ export function StudioChapterList({
           chapter={chapter}
           key={chapter.id}
           storyId={storyId}
+          storyPublicCode={storyPublicCode}
           storySlug={storySlug}
         />
       ))}

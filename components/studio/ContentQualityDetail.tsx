@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { AlgorithmTransparencyCard } from "@/components/studio/AlgorithmTransparencyCard";
 import { QualityHistoryTimeline } from "@/components/studio/QualityHistoryTimeline";
 import { StudioContentQualityAlerts } from "@/components/studio/StudioContentQualityAlerts";
 import { Button, Card } from "@/components/ui";
@@ -11,15 +12,18 @@ import {
 } from "@/lib/content-quality/content-quality-studio-actions";
 import { qualityReasonLabel, qualityStatusLabel } from "@/lib/content-quality/labels";
 import type { ContentQualityDetail } from "@/types/content-quality";
+import type { CreatorAlgorithmInsight } from "@/types/algorithm-explanation";
 
 type ContentQualityDetailPanelProps = {
   detail: ContentQualityDetail;
+  algorithmInsights?: CreatorAlgorithmInsight | null;
   onClose: () => void;
   onUpdated?: () => void;
 };
 
 export function ContentQualityDetailPanel({
   detail,
+  algorithmInsights = null,
   onClose,
   onUpdated
 }: ContentQualityDetailPanelProps) {
@@ -99,6 +103,12 @@ export function ContentQualityDetailPanel({
         ) : null}
 
         <StudioContentQualityAlerts impact={detail.monetizationImpact} />
+
+        {algorithmInsights?.messages.length ? (
+          <div className="mb-4">
+            <AlgorithmTransparencyCard messages={algorithmInsights.messages} />
+          </div>
+        ) : null}
 
         <section className="mb-4 space-y-2">
           <h3 className="text-sm font-bold text-white">Lý do</h3>

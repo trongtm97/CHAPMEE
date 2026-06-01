@@ -7,6 +7,7 @@ import { ShareButton } from "@/components/share/ShareButton";
 import { buildCanonicalUrl } from "@/lib/seo/metadata";
 import { getCollectionById } from "@/lib/supabase/collections";
 import { getShareUrl } from "@/lib/share/getShareUrl";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 
 type CollectionPageProps = {
   params: Promise<{ id: string }>;
@@ -85,7 +86,13 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
       ) : (
         <div className="space-y-3">
           {collection.items.map((item, index) => (
-            <Link href={`/stories/${item.slug}`} key={item.id}>
+            <Link
+              href={getStoryDetailHref({
+                slug: item.slug,
+                public_code: item.publicCode
+              })}
+              key={item.id}
+            >
               <Card className="p-3 transition hover:border-cyan-300/25 hover:bg-white/[0.05]">
                 <div className="grid grid-cols-[3rem_1fr] gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-300/10 text-base font-black text-cyan-200">{index + 1}</div>

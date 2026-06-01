@@ -22,7 +22,30 @@ const LEGACY_ADMIN_PERMISSIONS: PermissionCode[] = [
   "admin.user.ban",
   "admin.settings.view",
   "admin.settings.update",
+  "taxonomy.view",
+  "taxonomy.create",
+  "taxonomy.edit",
+  "taxonomy.delete",
+  "taxonomy.import",
+  "taxonomy.export",
+  "taxonomy.requests.review",
+  "taxonomy.templates.manage",
+  "content_taxonomy_quality.view",
+  "content_taxonomy_quality.review",
+  "content_taxonomy_quality.edit_story_taxonomy",
+  "content_taxonomy_quality.request_creator_revision",
+  "content_taxonomy_quality.manage_rules",
   "admin.audit.view",
+  "campaign.view",
+  "campaign.create",
+  "campaign.update",
+  "campaign.pause",
+  "campaign.archive",
+  "sponsor.view",
+  "sponsor.create",
+  "sponsor.update",
+  "campaign.finance.view",
+  "campaign.settings.update",
   "report.review",
   "comment.moderate",
   "community.post.moderate",
@@ -44,6 +67,8 @@ const LEGACY_ADMIN_PERMISSIONS: PermissionCode[] = [
 
 const LEGACY_MODERATOR_PERMISSIONS: PermissionCode[] = [
   "report.review",
+  "content_taxonomy_quality.view",
+  "content_taxonomy_quality.review",
   "comment.moderate",
   "community.post.moderate",
   "community.group.moderate",
@@ -148,6 +173,12 @@ function buildClientFlags(input: {
       permissions.has("comment.moderate") || roles.has("moderator"),
     canViewAdmin: permissions.has("admin.dashboard.view"),
     canManageFinance: permissions.has("finance.dashboard.view"),
+    canManageCampaigns:
+      permissions.has("campaign.view") ||
+      permissions.has("campaign.create") ||
+      permissions.has("admin.settings.view") ||
+      permissions.has("admin.settings.update") ||
+      permissions.has("finance.dashboard.view"),
     isBanned
   };
 }

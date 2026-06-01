@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentCreatorProfile } from "@/lib/creator/getCurrentCreatorProfile";
+import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
 import {
   getCreatorMonetizationProfile,
   updateCreatorMonetizationProfile
@@ -26,14 +27,12 @@ export async function updateCreatorTipSettings(input: {
     return { ok: false, error: "Admin chưa bật tip." };
   }
 
-  const profile = await getCreatorMonetizationProfile(state.user.id);
-
-  if (
-    profile.data?.status !== "approved" ||
-    !profile.data.monetization_enabled
-  ) {
-    return { ok: false, error: "Tài khoản chưa được duyệt kiếm tiền." };
+  const creatorCanEarn = await isCreatorMonetizationAllowed(state.user.id);
+  if (!creatorCanEarn) {
+    return { ok: false, error: "Kiếm tiền đang bị tắt bởi ChapMee." };
   }
+
+  const profile = await getCreatorMonetizationProfile(state.user.id);
 
   if (!profile.data) {
     return { ok: false, error: "Không tìm thấy hồ sơ kiếm tiền." };

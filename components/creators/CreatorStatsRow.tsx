@@ -1,4 +1,4 @@
-import { formatSwipeCount } from "@/lib/swipe/formatCount";
+import { formatReelsCount } from "@/lib/reels/formatCount";
 
 type CreatorStatsRowProps = {
   followerCount: number;
@@ -28,7 +28,7 @@ export function CreatorStatsRow({
           key={stat.label}
         >
           <p className="text-[1.02rem] font-black text-white">
-            {formatSwipeCount(stat.value)}
+            {formatReelsCount(stat.value)}
           </p>
           <p className="mt-1 text-[0.68rem] font-medium text-zinc-400">
             {stat.label}

@@ -24,6 +24,7 @@ export function buildAdminNavGroups(
 ): AdminNavGroup[] {
   const canFinance = !flags || flags.canManageFinance;
   const canUsers = !flags || flags.canViewAdmin;
+  const canCampaigns = !flags || flags.canManageCampaigns || flags.canManageFinance;
 
   return [
     {
@@ -33,6 +34,7 @@ export function buildAdminNavGroups(
         { href: "/admin/content", label: "Kiểm duyệt" },
         { href: "/admin/reports", label: "Báo cáo vi phạm" },
         { href: "/admin/content-quality", label: "Chất lượng nội dung" },
+        { href: "/admin/content-taxonomy-quality", label: "Phân loại & tag" },
         { href: "/admin/community", label: "Cộng đồng" },
         { href: "/admin/messaging", label: "Tin nhắn an toàn" }
       ]
@@ -57,6 +59,11 @@ export function buildAdminNavGroups(
         { href: "/admin/coins", label: "Coin", disabled: !canFinance },
         { href: "/admin/withdrawals", label: "Rút tiền", disabled: !canFinance },
         { href: "/admin/refunds", label: "Hoàn tiền", disabled: !canFinance },
+        {
+          href: "/admin/monetization/completion-reviews",
+          label: "Duyệt hoàn thành truyện",
+          disabled: !canFinance
+        },
         { href: "/admin/creator-fee-policies", label: "Phí tác giả", disabled: !canFinance }
       ]
     },
@@ -65,7 +72,13 @@ export function buildAdminNavGroups(
       title: "Nội dung & IP",
       items: [
         { href: "/admin/originals", label: "Originals / IP", disabled: !canFinance },
-        { href: "/admin/campaigns", label: "Chiến dịch", disabled: !canFinance }
+        { href: "/admin/campaigns", label: "Chiến dịch", disabled: !canCampaigns },
+        { href: "/admin/content-hub", label: "Bài viết" },
+        { href: "/admin/policies", label: "Chính sách" },
+        { href: "/admin/announcements", label: "Thông báo nền tảng" },
+        { href: "/admin/notifications", label: "Notification Campaign" },
+        { href: "/admin/content-hub/platform", label: "Campaigns & SEO" },
+        { href: "/admin/seo", label: "SEO Control Panel" }
       ]
     },
     {
@@ -73,7 +86,24 @@ export function buildAdminNavGroups(
       title: "Hệ thống",
       items: [
         { href: "/admin/monetization-settings", label: "Cấu hình kiếm tiền" },
+        {
+          href: "/admin/ads",
+          label: "Quảng cáo & chia sẻ QC",
+          disabled: !canFinance
+        },
+        { href: "/admin/taxonomy", label: "Taxonomy truyện" },
+        { href: "/admin/taxonomy-analytics", label: "Phân tích taxonomy" },
+        { href: "/admin/taxonomy/import-export", label: "Nhập/Xuất taxonomy" },
+        { href: "/admin/story-formats", label: "Composer & định dạng" },
+        { href: "/admin/algorithm", label: "Thuật toán hiển thị" },
+        { href: "/admin/algorithm/rankings", label: "Bảng xếp hạng" },
+        { href: "/admin/algorithm/cold-start", label: "Cold Start" },
+        { href: "/admin/algorithm/audit", label: "Algorithm Audit" },
+        { href: "/admin/algorithm/ecosystem", label: "Ecosystem Fairness" },
+        { href: "/admin/algorithm/fairness", label: "Công bằng hiển thị" },
+        { href: "/admin/storage-cleanup", label: "Storage & Cleanup" },
         { href: "/admin/settings/contact", label: "Liên hệ & góp ý" },
+        { href: "/admin/feedback", label: "Feedback người dùng" },
         { href: "/admin/audit", label: "Nhật ký audit", disabled: !canUsers },
         { href: "/admin/analytics", label: "Phân tích" }
       ]
@@ -86,6 +116,7 @@ export function buildAdminShortcutGroups(
 ): AdminShortcutGroup[] {
   const canFinance = !flags || flags.canManageFinance;
   const canUsers = !flags || flags.canViewAdmin;
+  const canCampaigns = !flags || flags.canManageCampaigns || flags.canManageFinance;
 
   const disabled = (reason = "Đang phát triển") => ({
     disabled: true as const,
@@ -160,6 +191,11 @@ export function buildAdminShortcutGroups(
           ...(!canFinance ? disabled("Cần quyền tài chính") : {})
         },
         {
+          label: "Duyệt hoàn thành truyện",
+          href: "/admin/monetization/completion-reviews",
+          ...(!canFinance ? disabled("Cần quyền tài chính") : {})
+        },
+        {
           label: "Chính sách phí tác giả",
           href: "/admin/creator-fee-policies",
           ...(!canFinance ? disabled("Cần quyền tài chính") : {})
@@ -188,7 +224,7 @@ export function buildAdminShortcutGroups(
         {
           label: "Chiến dịch thương hiệu",
           href: "/admin/campaigns",
-          ...(!canFinance ? disabled("Cần quyền tài chính") : {})
+          ...(!canCampaigns ? disabled("Cần quyền chiến dịch") : {})
         }
       ]
     },
@@ -197,7 +233,9 @@ export function buildAdminShortcutGroups(
       title: "Hệ thống",
       description: "Cấu hình, liên hệ và nhật ký thao tác.",
       links: [
+        { label: "Thuật toán hiển thị", href: "/admin/algorithm" },
         { label: "Liên hệ & góp ý", href: "/admin/settings/contact" },
+        { label: "Feedback người dùng", href: "/admin/feedback" },
         {
           label: "Nhật ký audit",
           href: "/admin/audit",

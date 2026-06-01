@@ -4,7 +4,7 @@ import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { trackServerEvent } from "@/lib/analytics/trackServerEvent";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { getCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
+import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
 import {
   createFanClubMembership,
   getFanClubMembership,
@@ -70,13 +70,9 @@ export async function joinFanClubAction(input: { planId: string }) {
     metadata: { plan_id: plan.data.id, story_id: plan.data.story_id }
   });
 
-  const creatorProfile = await getCreatorMonetizationProfile(plan.data.creator_user_id);
-  if (
-    !creatorProfile.data ||
-    creatorProfile.data.status !== "approved" ||
-    !creatorProfile.data.monetization_enabled
-  ) {
-    return { ok: false, error: "Creator chưa đủ điều kiện mở Fan Club." };
+  const creatorCanEarn = await isCreatorMonetizationAllowed(plan.data.creator_user_id);
+  if (!creatorCanEarn) {
+    return { ok: false, error: "Kiếm tiền đang bị tắt bởi ChapMee cho tác giả này." };
   }
 
   const existing = await isFanClubActive(

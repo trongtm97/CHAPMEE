@@ -20,7 +20,10 @@ function mapPayoutAccount(row: Record<string, unknown>): CreatorPayoutAccount {
     account_holder_name: (row.account_holder_name as string | null) ?? null,
     bank_name: (row.bank_name as string | null) ?? null,
     bank_account_number_masked: (row.bank_account_number_masked as string | null) ?? null,
+    bank_branch: (row.bank_branch as string | null) ?? null,
     wallet_phone_masked: (row.wallet_phone_masked as string | null) ?? null,
+    withdrawal_locked_until: (row.withdrawal_locked_until as string | null) ?? null,
+    email_verified_at: (row.email_verified_at as string | null) ?? null,
     metadata: (row.metadata as Record<string, unknown> | null) ?? null,
     is_default: Boolean(row.is_default),
     verification_status: row.verification_status as CreatorPayoutAccount["verification_status"],
@@ -117,7 +120,7 @@ export async function createCreatorPayoutAccount(input: {
       wallet_phone_masked: input.walletPhoneMasked ?? null,
       metadata: input.metadata ?? {},
       is_default: Boolean(input.isDefault),
-      verification_status: "verified"
+      verification_status: "unverified"
     })
     .select("*")
     .single();
@@ -139,6 +142,62 @@ export async function getCreatorPayoutAccountById(accountId: string, creatorUser
   if (error) return { data: null, error: error.message };
   if (!data) return { data: null, error: "Payout account not found." };
   return { data: mapPayoutAccount(data as Record<string, unknown>), error: null };
+}
+
+export async function updateCreatorPayoutAccount(
+  accountId: string,
+  creatorUserId: string,
+  patch: Record<string, unknown>
+) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("creator_payout_accounts")
+    .update(patch)
+    .eq("id", accountId)
+    .eq("creator_user_id", creatorUserId)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    return { data: null, error: error?.message ?? "Không thể cập nhật tài khoản." };
+  }
+  return { data: mapPayoutAccount(data as Record<string, unknown>), error: null };
+}
+
+export async function deleteCreatorPayoutAccount(accountId: string, creatorUserId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("creator_payout_accounts")
+    .delete()
+    .eq("id", accountId)
+    .eq("creator_user_id", creatorUserId);
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+  return { ok: true, error: null };
+}
+
+export async function setDefaultCreatorPayoutAccount(accountId: string, creatorUserId: string) {
+  const supabase = await createClient();
+  await supabase
+    .from("creator_payout_accounts")
+    .update({ is_default: false })
+    .eq("creator_user_id", creatorUserId);
+
+  return updateCreatorPayoutAccount(accountId, creatorUserId, { is_default: true });
+}
+
+export async function countCreatorPayoutAccounts(creatorUserId: string) {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("creator_payout_accounts")
+    .select("id", { count: "exact", head: true })
+    .eq("creator_user_id", creatorUserId)
+    .eq("method", "bank_transfer");
+
+  if (error) return { count: 0, error: error.message };
+  return { count: count ?? 0, error: null };
 }
 
 export async function shiftCreatorWalletBalances(input: {

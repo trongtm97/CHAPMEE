@@ -1,6 +1,8 @@
+import { ADMIN_CREATOR_JOIN, resolveAdminCreatorName } from "@/lib/admin/creator-display";
 import { startOfTodayIso } from "@/lib/admin/messaging-date-range";
 import { queryWithReviewQueueStatuses } from "@/lib/admin/content-review-queue-statuses";
 import { createClient } from "@/lib/supabase/server";
+import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import type {
   ContentReviewPageData,
   ContentReviewQueueItem,
@@ -55,7 +57,7 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
       supabase
         .from("stories")
         .select(
-          "id, title, slug, hook, short_description, cover_url, created_at, status, genres(name), creator_profiles(pen_name, user_id, profiles(username, display_name))"
+          `id, title, slug, hook, short_description, cover_url, created_at, status, ${ADMIN_CREATOR_JOIN}`
         )
         .in("status", [...statuses])
         .order("created_at", { ascending: true })
@@ -66,7 +68,7 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
       supabase
         .from("episodes")
         .select(
-          "id, story_id, episode_number, title, excerpt, word_count, created_at, status, stories(title, slug, genres(name), creator_profiles(pen_name, user_id, profiles(username, display_name)))"
+          `id, story_id, episode_number, title, excerpt, word_count, created_at, status, stories(title, slug, ${ADMIN_CREATOR_JOIN})`
         )
         .in("status", [...statuses])
         .order("created_at", { ascending: true })
@@ -113,6 +115,12 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
     ]);
 
     const storyIds = (storiesRes.data ?? []).map((s) => s.id as string);
+    const episodeStoryIds = (episodesRes.data ?? [])
+      .map((episode) => episode.story_id as string)
+      .filter(Boolean);
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, [
+      ...new Set([...storyIds, ...episodeStoryIds])
+    ]);
     const episodeCounts = new Map<string, number>();
     const paidStoryIds = new Set<string>();
 
@@ -138,15 +146,13 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
     const queue: ContentReviewQueueItem[] = [];
 
     for (const story of storiesRes.data ?? []) {
-      const genre = firstRelation<{ name: string }>(story.genres);
-      const creator = firstRelation<{
-        pen_name: string | null;
-        profiles: { username: string | null; display_name: string | null } | null;
-      }>(story.creator_profiles);
+      const creator = firstRelation(story.creator_profiles);
       const profile = firstRelation<{
         username: string | null;
         display_name: string | null;
-      }>(creator?.profiles);
+      }>(
+        (creator as { profiles?: unknown } | null)?.profiles ?? null
+      );
 
       queue.push({
         id: story.id as string,
@@ -154,9 +160,9 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
         title: story.title as string,
         excerpt: (story.hook as string | null) ?? (story.short_description as string | null),
         status: story.status as string,
-        creatorName: creator?.pen_name ?? profile?.display_name ?? null,
+        creatorName: resolveAdminCreatorName(creator),
         creatorUsername: profile?.username ?? null,
-        genreName: genre?.name ?? null,
+        genreName: taxonomyByStory.get(story.id as string)?.mainGenreName ?? null,
         parentTitle: null,
         episodeNumber: null,
         storySlug: story.slug as string,
@@ -174,21 +180,15 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
       const story = firstRelation<{
         title: string | null;
         slug: string | null;
-        genres: { name: string | null } | null;
-        creator_profiles: {
-          pen_name: string | null;
-          profiles: { username: string | null; display_name: string | null } | null;
-        } | null;
+        creator_profiles: unknown;
       }>(episode.stories);
-      const genre = firstRelation<{ name: string | null }>(story?.genres);
-      const creator = firstRelation<{
-        pen_name: string | null;
-        profiles: { username: string | null; display_name: string | null } | null;
-      }>(story?.creator_profiles);
+      const creator = firstRelation(story?.creator_profiles);
       const profile = firstRelation<{
         username: string | null;
         display_name: string | null;
-      }>(creator?.profiles);
+      }>(
+        (creator as { profiles?: unknown } | null)?.profiles ?? null
+      );
 
       queue.push({
         id: episode.id as string,
@@ -196,9 +196,9 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
         title: episode.title as string,
         excerpt: episode.excerpt as string | null,
         status: episode.status as string,
-        creatorName: creator?.pen_name ?? profile?.display_name ?? null,
+        creatorName: resolveAdminCreatorName(creator),
         creatorUsername: profile?.username ?? null,
-        genreName: genre?.name ?? null,
+        genreName: taxonomyByStory.get(episode.story_id as string)?.mainGenreName ?? null,
         parentTitle: story?.title ?? null,
         episodeNumber: episode.episode_number as number,
         storySlug: story?.slug ?? null,

@@ -12,6 +12,7 @@ import {
 import { checkStaffPermission } from "@/lib/auth/staff-guards";
 import { getCurrentProfile } from "@/lib/auth/getCurrentProfile";
 import { getMonetizationConfig } from "@/lib/monetization/config";
+import { sumLockedFullStoryRevenueForCreator } from "@/lib/monetization/story-completion-escrow";
 import { addRiskEvent, shouldBlockPayout } from "@/lib/risk/risk-engine";
 import { createTransaction, getTransactionsForAdmin, updateTransactionStatus } from "@/lib/supabase/transactions";
 import {
@@ -25,7 +26,7 @@ import {
   shiftCreatorWalletBalances,
   updatePayoutRequestStatus
 } from "@/lib/supabase/payouts";
-import { getCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
+import { getCreatorAccessStatus } from "@/lib/creator-access";
 import { getOrCreateCreatorWallet } from "@/lib/wallets/creator-wallet";
 import type { PayoutMethod, PayoutRequestStatus } from "@/types/payout";
 
@@ -145,20 +146,16 @@ export async function requestPayoutAction(input: {
     return { ok: false, error: "Phương thức payout không hợp lệ.", data: null };
   }
 
-  const creatorProfile = await getCreatorMonetizationProfile(user.id);
-  if (!creatorProfile.data) {
-    return { ok: false, error: "Không tìm thấy creator monetization profile.", data: null };
-  }
-  if (creatorProfile.data.status === "suspended") {
-    return { ok: false, error: "Creator đang bị suspended, không thể rút tiền.", data: null };
-  }
-  if (creatorProfile.data.status !== "approved" || !creatorProfile.data.monetization_enabled) {
-    return { ok: false, error: "Creator chưa đủ điều kiện rút tiền.", data: null };
-  }
-  if (config.kycRequired && creatorProfile.data.kyc_status !== "verified") {
+  const access = await getCreatorAccessStatus(user.id, {
+    minWithdrawAmountVnd: config.minWithdrawAmount,
+    availableBalanceVnd: 0
+  });
+  if (!access.withdrawalEnabled) {
     return {
       ok: false,
-      error: "Bạn cần xác minh thông tin trước khi rút tiền.",
+      error:
+        access.withdrawalDisabledReason ??
+        "Tài khoản của bạn đang bị tạm tắt quyền rút tiền bởi ChapMee.",
       data: null
     };
   }
@@ -199,19 +196,21 @@ export async function requestPayoutAction(input: {
     };
   }
   if (amount > wallet.data.available_revenue_vnd) {
+    const lockedFullStory = await sumLockedFullStoryRevenueForCreator(user.id);
+    if (lockedFullStory > 0) {
+      return {
+        ok: false,
+        error:
+          "Một phần doanh thu của bạn đang được giữ do truyện bán trọn bộ chưa được admin xác nhận hoàn thành.",
+        data: null
+      };
+    }
     return { ok: false, error: "Số dư available không đủ.", data: null };
   }
 
   const payoutAccount = await getCreatorPayoutAccountById(input.payoutAccountId, user.id);
   if (!payoutAccount.data) {
     return { ok: false, error: payoutAccount.error ?? "Payout account không hợp lệ.", data: null };
-  }
-  if (config.kycRequired && payoutAccount.data.verification_status !== "verified") {
-    return {
-      ok: false,
-      error: "Payout account cần trạng thái verified.",
-      data: null
-    };
   }
 
   const lockWallet = await shiftCreatorWalletBalances({

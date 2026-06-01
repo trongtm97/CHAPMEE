@@ -48,9 +48,6 @@ export async function applyForCreatorMonetizationAction(
     return { ok: false, error: "Creator monetization đang tắt." };
   }
 
-  if (!eligibility.eligible) {
-    return { ok: false, error: "Bạn chưa đủ điều kiện để đăng ký." };
-  }
 
   if (!profileResult.data) {
     return { ok: false, error: profileResult.error ?? "Không thể tạo hồ sơ monetization." };

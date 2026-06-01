@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge, Card } from "@/components/ui";
+import { getProfileUrl } from "@/lib/profile/profile-url";
 import type { ReporterQualitySummary } from "@/types/moderation";
 
 type SpamReportersAlertProps = {
@@ -27,12 +28,14 @@ export function SpamReportersAlert({ reporters }: SpamReportersAlertProps) {
               {" · "}
               {r.reportsSubmitted} báo cáo · trust {r.trustScore}
             </span>
-            <Link
-              className="text-xs text-cyan-300 hover:text-cyan-200"
-              href={`/me/${r.userId}`}
-            >
-              Xem hồ sơ
-            </Link>
+            {getProfileUrl(r.username) ? (
+              <Link
+                className="text-xs text-cyan-300 hover:text-cyan-200"
+                href={getProfileUrl(r.username)!}
+              >
+                Xem hồ sơ
+              </Link>
+            ) : null}
           </li>
         ))}
       </ul>

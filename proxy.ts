@@ -1,10 +1,29 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { USERNAME_PATH_REGEX } from "@/lib/username/normalize-username";
 
 const ADMIN_PREFIX = "/admin";
 
+const AT_PROFILE_PATH = new RegExp(
+  `^/@(${USERNAME_PATH_REGEX})(/.*)?$`,
+  "i"
+);
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const atProfileMatch = pathname.match(AT_PROFILE_PATH);
+  if (atProfileMatch) {
+    const username = atProfileMatch[1].toLowerCase();
+    const suffix = atProfileMatch[2] ?? "";
+    const rewriteUrl = request.nextUrl.clone();
+    if (suffix.startsWith("/collections/")) {
+      rewriteUrl.pathname = `/me/${username}${suffix}`;
+    } else {
+      rewriteUrl.pathname = `/u/${username}${suffix || ""}`;
+    }
+    return NextResponse.rewrite(rewriteUrl);
+  }
 
   if (!pathname.startsWith(ADMIN_PREFIX)) {
     return NextResponse.next();
@@ -108,5 +127,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"]
+  matcher: ["/@:path*", "/admin/:path*"]
 };

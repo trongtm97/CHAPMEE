@@ -19,6 +19,7 @@ type ReaderActionSheetProps = {
   onOpenSettings?: () => void;
   storyId: string;
   storySlug: string;
+  storyPublicCode: string;
   creatorId: string | null;
   returnTo: string;
   isSaved: boolean;
@@ -43,6 +44,7 @@ export function ReaderActionSheet(props: ReaderActionSheetProps) {
     returnTo,
     sharePayload,
     storyId,
+    storyPublicCode,
     storySlug
   } = props;
 
@@ -208,7 +210,10 @@ export function ReaderActionSheet(props: ReaderActionSheetProps) {
               type="button"
             />
 
-            <Link href={getStoryDetailHref(storySlug)} onClick={onClose}>
+            <Link
+              href={getStoryDetailHref({ slug: storySlug, public_code: storyPublicCode })}
+              onClick={onClose}
+            >
               <ActionRow
                 asDiv
                 icon={<BookIcon />}

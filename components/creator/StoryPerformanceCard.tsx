@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card } from "@/components/ui";
 import { formatCompact } from "@/components/creator/StatCard";
+import { getStoryCardMeta } from "@/lib/stories/story-structure";
 import type { StoryDashboardItem } from "@/lib/creator/getCreatorDashboardData";
 
 type StoryPerformanceCardProps = {
@@ -24,6 +25,14 @@ const statusLabels: Record<string, string> = {
 export function StoryPerformanceCard({ story }: StoryPerformanceCardProps) {
   const statusColor = statusColors[story.status] ?? statusColors.draft;
   const statusLabel = statusLabels[story.status] ?? story.status;
+  const structureMeta = getStoryCardMeta({
+    structureType: story.structureType,
+    episodeCount: story.episodeCount
+  });
+  const structureMetricLabel = structureMeta.isStandalone ? "Dạng" : "Chap";
+  const structureMetricValue = structureMeta.isStandalone
+    ? "1 phần"
+    : String(story.episodeCount);
 
   return (
     <Card className="space-y-3 transition hover:-translate-y-0.5 hover:border-cyan-300/30 hover:bg-[var(--surface-soft)]">
@@ -53,7 +62,7 @@ export function StoryPerformanceCard({ story }: StoryPerformanceCardProps) {
         <Metric label="Thích" value={formatCompact(story.likes)} />
         <Metric label="Bình luận" value={formatCompact(story.comments)} />
         <Metric label="Lưu" value={formatCompact(story.saves)} />
-        <Metric label="Chap" value={String(story.episodeCount)} />
+        <Metric label={structureMetricLabel} value={structureMetricValue} />
       </div>
 
       <div className="flex gap-2">

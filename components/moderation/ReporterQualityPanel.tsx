@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { Badge, Button, Card } from "@/components/ui";
+import { getProfileUrl } from "@/lib/profile/profile-url";
 import {
   enforceReporterAbuseAction,
   markReportAbuseAction
@@ -31,7 +33,8 @@ export function ReporterQualityPanel({
     reportsAbuse: 0,
     spamSuspected: false,
     accuracyPercent: null,
-    displayName: reporterName
+    displayName: reporterName,
+    username: null
   };
 
   const wrongRate =
@@ -51,6 +54,14 @@ export function ReporterQualityPanel({
       </div>
       <p className="text-xs text-zinc-400">
         {q.displayName ?? reporterName ?? reporterId}
+        {getProfileUrl(q.username) ? (
+          <>
+            {" · "}
+            <Link className="text-cyan-300 hover:text-cyan-200" href={getProfileUrl(q.username)!}>
+              Xem hồ sơ
+            </Link>
+          </>
+        ) : null}
       </p>
       <dl className="grid grid-cols-2 gap-2 text-xs text-zinc-300">
         <div>

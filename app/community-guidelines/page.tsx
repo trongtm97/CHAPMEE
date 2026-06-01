@@ -113,7 +113,7 @@ export default function CommunityGuidelinesPage() {
 
       <div className="flex flex-wrap gap-3 text-sm">
         <Link className="text-cyan-300 hover:text-cyan-200" href="/">
-          Về trang chủ
+          Về Reels
         </Link>
         <Link className="text-cyan-300 hover:text-cyan-200" href="/me">
           Trang của tôi

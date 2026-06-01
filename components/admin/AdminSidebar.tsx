@@ -10,12 +10,19 @@ import {
   flattenAdminNavForSearch,
   type AdminNavGroup
 } from "@/lib/admin/admin-navigation";
+import {
+  ADMIN_ADS_MONETIZATION_HUB_HREF,
+  isAdminAdsMonetizationSidebarActive
+} from "@/lib/admin/ads-monetization-nav";
 
 function isActive(pathname: string, href: string) {
   if (href === "/admin") {
     return pathname === "/admin";
   }
-  return pathname.startsWith(href);
+  if (href === ADMIN_ADS_MONETIZATION_HUB_HREF) {
+    return isAdminAdsMonetizationSidebarActive(pathname);
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export function AdminSidebar() {

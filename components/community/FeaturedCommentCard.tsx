@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import type { FeaturedComment } from "@/types/community";
 
 type FeaturedCommentCardProps = {
@@ -22,10 +23,13 @@ export function FeaturedCommentCard({ featured }: FeaturedCommentCardProps) {
           <>
             {" "}
             ·{" "}
-            {featured.storySlug ? (
+            {featured.storySlug && featured.storyPublicCode ? (
               <Link
                 className="text-cyan-300 hover:text-cyan-200"
-                href={`/stories/${featured.storySlug}`}
+                href={getStoryDetailHref({
+                  slug: featured.storySlug,
+                  public_code: featured.storyPublicCode
+                })}
               >
                 {featured.storyTitle}
               </Link>

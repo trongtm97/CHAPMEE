@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        source: "/landing",
+        destination: "/",
+        permanent: true
+      },
+      {
         source: "/logo.png",
         destination: "/brand/chapmee-wordmark.png",
         permanent: false
@@ -100,14 +105,29 @@ const nextConfig: NextConfig = {
         permanent: false
       },
       {
-        source: "/creator/swipe",
-        destination: "/studio/swipe",
-        permanent: false
-      },
-      {
         source: "/me/creator",
         destination: "/studio",
         permanent: false
+      },
+      {
+        source: "/profile",
+        destination: "/me",
+        permanent: false
+      },
+      {
+        source: "/profile/:username",
+        destination: "/me/:username",
+        permanent: false
+      },
+      {
+        source: "/profile/:username/collections/:collectionId",
+        destination: "/me/:username/collections/:collectionId",
+        permanent: false
+      },
+      {
+        source: "/genres/:slug",
+        destination: "/the-loai/:slug",
+        permanent: true
       },
     ];
   },

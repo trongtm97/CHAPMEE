@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { NotificationsPage } from "@/components/notifications/NotificationsPage";
 import { ErrorState } from "@/components/ui";
 import { getCurrentProfile } from "@/lib/auth/getCurrentProfile";
 import { resolveInitialNotifications } from "@/lib/notifications/resolve-initial-notifications";
+import { STUDIO_NOINDEX_ROBOTS } from "@/lib/seo/should-index";
 import { getUnreadNotificationCount, getUserNotifications } from "@/lib/supabase/notifications";
+
+export const metadata: Metadata = {
+  robots: STUDIO_NOINDEX_ROBOTS
+};
 
 export const dynamic = "force-dynamic";
 

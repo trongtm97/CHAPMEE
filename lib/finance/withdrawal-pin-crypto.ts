@@ -1,10 +1,15 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { isWeakWithdrawalPin } from "@/lib/finance/finance-security-utils";
 
 const SCRYPT_KEYLEN = 64;
 
 export function isValidWithdrawalPin(pin: string): boolean {
-  return /^\d{6}$/.test(pin.trim());
+  if (!/^\d{6}$/.test(pin.trim())) return false;
+  if (isWeakWithdrawalPin(pin)) return false;
+  return true;
 }
+
+export { isWeakWithdrawalPin };
 
 export function hashWithdrawalPin(pin: string): string {
   const salt = randomBytes(16).toString("hex");

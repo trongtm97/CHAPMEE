@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import { useState } from "react";
 import { CommunityPostMenu } from "@/components/community/CommunityPostMenu";
 import { CommunityPollCard } from "@/components/community/CommunityPollCard";
 import { SpoilerContent } from "@/components/community/SpoilerContent";
+import { AuthorNameLink } from "@/components/profile/AuthorNameLink";
 import { AvatarFallback, Badge } from "@/components/ui";
+import { getProfileUrl } from "@/lib/profile/profile-url";
 import type { EnrichedCommunityPost } from "@/types/community";
 import type { CommunityPostType } from "@/lib/community/getCommunityFeed";
 
@@ -84,13 +87,26 @@ export function CommunityPostCard({ onHide, post }: CommunityPostCardProps) {
     );
   }
 
+  const authorProfileHref = getProfileUrl(post.authorUsername);
+
   return (
     <article className="chap-card space-y-3 p-4 transition hover:border-cyan-300/20">
       <header className="flex items-start gap-3">
-        <AvatarFallback name={post.authorName} size="sm" />
+        {authorProfileHref ? (
+          <Link className="shrink-0" href={authorProfileHref}>
+            <AvatarFallback name={post.authorName} size="sm" />
+          </Link>
+        ) : (
+          <AvatarFallback name={post.authorName} size="sm" />
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-sm font-bold text-white">{post.authorName}</p>
+            <p className="truncate text-sm font-bold text-white">
+              <AuthorNameLink
+                name={post.authorName}
+                username={post.authorUsername}
+              />
+            </p>
             <Badge
               className="px-2 py-0.5 text-[0.62rem]"
               variant={post.authorRole === "creator" ? "success" : "default"}
@@ -110,10 +126,13 @@ export function CommunityPostCard({ onHide, post }: CommunityPostCardProps) {
         <Badge className="px-2 py-0.5 text-[0.62rem]">{typeLabel[post.type]}</Badge>
         {post.relatedStoryTitle ? (
           <div>
-            {post.relatedStorySlug ? (
+            {post.relatedStorySlug && post.relatedStoryPublicCode ? (
               <Link
                 className="inline-flex max-w-full truncate rounded-full border border-cyan-300/20 bg-cyan-300/8 px-2.5 py-1 text-xs font-semibold text-cyan-100 hover:border-cyan-300/35"
-                href={`/stories/${post.relatedStorySlug}`}
+                href={getStoryDetailHref({
+                  slug: post.relatedStorySlug,
+                  public_code: post.relatedStoryPublicCode
+                })}
                 onClick={(event) => event.stopPropagation()}
               >
                 {post.relatedStoryTitle}

@@ -8,15 +8,15 @@ export const analyticsEvents = {
   onboardingGenresSelected: "onboarding_genres_selected",
   onboardingCompleted: "onboarding_completed",
   onboardingSkipped: "onboarding_skipped",
-  swipeFeedViewed: "swipe_feed_viewed",
-  swipeItemViewed: "swipe_item_viewed",
-  swipeItemChanged: "swipe_item_changed",
-  swipeReadMoreClicked: "swipe_read_more_clicked",
-  swipeLikeClicked: "swipe_like_clicked",
-  swipeSaveClicked: "swipe_save_clicked",
-  swipeCommentOpened: "swipe_comment_opened",
-  swipeShareClicked: "swipe_share_clicked",
-  swipeFollowAuthorClicked: "swipe_follow_author_clicked",
+  reelsFeedViewed: "reels_feed_viewed",
+  reelsItemViewed: "reels_item_viewed",
+  reelsItemChanged: "reels_item_changed",
+  reelsReadMoreClicked: "reels_read_more_clicked",
+  reelsLikeClicked: "reels_like_clicked",
+  reelsSaveClicked: "reels_save_clicked",
+  reelsCommentOpened: "reels_comment_opened",
+  reelsShareClicked: "reels_share_clicked",
+  reelsFollowAuthorClicked: "reels_follow_author_clicked",
   storyViewed: "story_viewed",
   chapterOpened: "chapter_opened",
   chapterCompleted: "chapter_completed",
@@ -36,6 +36,7 @@ export const analyticsEvents = {
   creatorDashboardViewed: "creator_dashboard_viewed",
   storyCreated: "story_created",
   storyPublished: "story_published",
+  standaloneStoryRead: "standalone_story_read",
   chapterCreated: "chapter_created",
   chapterPublished: "chapter_published",
   challengeJoined: "challenge_joined",
@@ -114,7 +115,21 @@ export const analyticsEvents = {
   commentDeleted: "comment_deleted",
   reportCreated: "report_created",
   experimentExposed: "experiment_exposed",
-  experimentConverted: "experiment_converted"
+  experimentConverted: "experiment_converted",
+  taxonomyPageView: "taxonomy_page_view",
+  storyImpression: "story_impression",
+  storyClick: "story_click",
+  chapterStart: "chapter_start",
+  chapterComplete: "chapter_complete",
+  storySave: "story_save",
+  storyFollowAuthor: "story_follow_author",
+  storyPurchase: "story_purchase",
+  bundlePurchase: "bundle_purchase",
+  taxonomyFilterApply: "taxonomy_filter_apply",
+  searchResultImpression: "search_result_impression",
+  searchResultClick: "search_result_click",
+  reportWrongTag: "report_wrong_tag",
+  reportMissingWarning: "report_missing_warning"
 } as const;
 
 export type AnalyticsEventName = (typeof analyticsEvents)[keyof typeof analyticsEvents];
@@ -122,7 +137,7 @@ export type AnalyticsEventName = (typeof analyticsEvents)[keyof typeof analytics
 export const analyticsCategories = {
   app: "app",
   onboarding: "onboarding",
-  swipe: "swipe",
+  reels: "reels",
   reading: "reading",
   social: "social",
   creator: "creator",
@@ -131,7 +146,8 @@ export const analyticsCategories = {
   referral: "referral",
   moderation: "moderation",
   feed: "feed",
-  experiment: "experiment"
+  experiment: "experiment",
+  taxonomy: "taxonomy"
 } as const;
 
 export type AnalyticsEventCategory = (typeof analyticsCategories)[keyof typeof analyticsCategories];

@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { StoryImageThumb } from "@/components/common/StoryImageView";
+import {
+  getProfileCollectionUrl,
+  getProfileUrlOrFallback
+} from "@/lib/profile/profile-url";
 import { Badge } from "@/components/ui";
 import type { CollectionSummary } from "@/types/collection";
 
@@ -12,7 +16,10 @@ export function PublicCollectionCard({ collection, username }: PublicCollectionC
   return (
     <Link
       className="block rounded-xl border border-white/6 bg-white/[0.02] p-3 transition hover:border-cyan-300/20 hover:bg-white/[0.04]"
-      href={`/profile/${username}/collections/${collection.id}`}
+      href={
+        getProfileCollectionUrl(username, collection.id) ??
+        getProfileUrlOrFallback(username)
+      }
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">

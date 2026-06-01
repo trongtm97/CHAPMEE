@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { TaxonomyFilterApplyTracker } from "@/components/analytics/TaxonomyFilterApplyTracker";
 import { DesktopDiscoverLayout } from "@/components/discover/DesktopDiscoverLayout";
 import { MobileDiscoverLayout } from "@/components/discover/MobileDiscoverLayout";
 import { LoadingState } from "@/components/ui";
-import { isSponsoredContentEnabled } from "@/lib/campaigns/feature";
+import { loadPublicCampaignContext } from "@/lib/campaigns/load-public-campaigns";
 import { getDiscoverDataCached } from "@/lib/discover/getDiscoverDataCached";
+import { createClient } from "@/lib/supabase/server";
 import { buildCanonicalUrl, cleanText } from "@/lib/seo/metadata";
-import { getActiveCampaignByType } from "@/lib/supabase/campaigns";
 
 type DiscoverPageProps = {
   searchParams: Promise<{
@@ -39,11 +40,13 @@ export async function generateMetadata({
       ? `/discover?genre=${encodeURIComponent(genre)}`
       : "/discover";
   const canonical = buildCanonicalUrl(canonicalPath);
+  const hasSearchQuery = Boolean(query);
 
   return {
     title,
     description,
     alternates: canonical ? { canonical } : undefined,
+    robots: hasSearchQuery ? { index: false, follow: true } : undefined,
     openGraph: {
       title,
       description,
@@ -62,21 +65,32 @@ async function DiscoverContent({ searchParams }: DiscoverPageProps) {
   const params = await searchParams;
   const query = params.q ?? "";
   const activeGenre = params.genre ?? "";
-  const [data, sponsoredEnabled] = await Promise.all([
-    getDiscoverDataCached(query, activeGenre),
-    isSponsoredContentEnabled()
+  const supabase = await createClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  const [data, campaignContext] = await Promise.all([
+    getDiscoverDataCached(query, activeGenre, user?.id ?? null),
+    loadPublicCampaignContext()
   ]);
-  const sponsoredBanner = sponsoredEnabled
-    ? await getActiveCampaignByType("banner")
-    : null;
+
   return (
     <>
-      <MobileDiscoverLayout activeGenre={activeGenre} data={data} query={query} />
+      <TaxonomyFilterApplyTracker
+        filters={{ genre: activeGenre || undefined, q: query || undefined }}
+        sourcePage="discover"
+      />
+      <MobileDiscoverLayout
+        activeGenre={activeGenre}
+        data={data}
+        query={query}
+        sponsoredBanner={campaignContext.discoverBanner}
+      />
       <DesktopDiscoverLayout
         activeGenre={activeGenre}
         data={data}
         query={query}
-        sponsoredBanner={sponsoredBanner}
+        sponsoredBanner={campaignContext.discoverBanner}
       />
     </>
   );

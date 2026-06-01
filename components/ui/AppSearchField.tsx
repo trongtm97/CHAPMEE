@@ -1,6 +1,6 @@
 import { SearchIcon } from "@/components/ui/SearchIcon";
 
-export const APP_SEARCH_PLACEHOLDER = "Tìm truyện, tác giả, thể loại...";
+export const APP_SEARCH_PLACEHOLDER = "Tìm truyện, tác giả, thể loại, tag…";
 
 type AppSearchFieldProps = {
   name?: string;

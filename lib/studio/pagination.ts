@@ -1,4 +1,4 @@
-import { STUDIO_LIST_PAGE_SIZE } from "@/types/studio";
+import { STUDIO_LIST_PAGE_SIZE_DEFAULT } from "@/types/studio";
 
 export function parseStudioPage(value?: string): number {
   const parsed = Number.parseInt(value ?? "1", 10);
@@ -10,7 +10,11 @@ export function parseStudioPage(value?: string): number {
   return parsed;
 }
 
-export function paginateList<T>(items: T[], page: number, pageSize = STUDIO_LIST_PAGE_SIZE) {
+export function paginateList<T>(
+  items: T[],
+  page: number,
+  pageSize: number = STUDIO_LIST_PAGE_SIZE_DEFAULT
+) {
   const total = items.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, totalPages);

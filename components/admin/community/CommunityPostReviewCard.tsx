@@ -4,6 +4,7 @@ import { RejectWithNoteForm } from "@/components/admin/content/RejectWithNoteFor
 import { Badge, Card } from "@/components/ui";
 import { approveCommunityPostAction } from "@/lib/admin/approveCommunityPost";
 import { rejectCommunityPostAction } from "@/lib/admin/rejectCommunityPost";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import type { CommunityPostForReview } from "@/lib/admin/getPendingCommunityPosts";
 
 type CommunityPostReviewCardProps = {
@@ -58,10 +59,13 @@ export function CommunityPostReviewCard({
 
       <div className="space-y-1 text-sm text-zinc-400">
         <p>Author: {post.authorName ?? "Doc gia ChapMee"}</p>
-        {post.relatedStorySlug ? (
+        {post.relatedStorySlug && post.relatedStoryPublicCode ? (
           <Link
             className="text-cyan-300 hover:text-cyan-200"
-            href={`/stories/${post.relatedStorySlug}`}
+            href={getStoryDetailHref({
+              slug: post.relatedStorySlug,
+              public_code: post.relatedStoryPublicCode
+            })}
           >
             Related story: {post.relatedStoryTitle}
           </Link>

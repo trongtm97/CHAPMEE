@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { ChapterFormatBadge } from "@/components/studio/presentation/ChapterFormatBadge";
+import { ComposerValidationBadge } from "@/components/studio/presentation/ComposerValidationBadge";
 import { StudioRowActionMenu } from "@/components/studio/StudioRowActionMenu";
 import { StudioStatusBadge } from "@/components/studio/StudioStatusBadge";
 import {
@@ -6,12 +10,14 @@ import {
   hideStudioChapterAction
 } from "@/lib/studio/manager-actions";
 import { studioPath } from "@/lib/studio/constants";
+import { getStoryChapterHref } from "@/lib/stories/story-routes";
 import type { StudioChapter } from "@/lib/studio/get-studio-chapters";
 
 type StudioChapterRowProps = {
   chapter: StudioChapter;
   storyId: string;
   storySlug: string;
+  storyPublicCode: string;
 };
 
 function formatDate(value: string | null) {
@@ -43,12 +49,16 @@ function canViewPublicChapter(chapter: StudioChapter) {
 export function StudioChapterRow({
   chapter,
   storyId,
-  storySlug
+  storySlug,
+  storyPublicCode
 }: StudioChapterRowProps) {
   const editHref = studioPath(
     `/stories/${storyId}/chapters/${chapter.id}/edit`
   );
-  const publicHref = `/stories/${storySlug}/episodes/${chapter.episodeNumber}`;
+  const publicHref = getStoryChapterHref(
+    { slug: storySlug, public_code: storyPublicCode },
+    { slug: chapter.slug, public_code: chapter.publicCode }
+  );
   const scheduleHref = `${editHref}#lich-dang`;
   const canDeleteDraft = chapter.status === "draft";
   const publishDate = chapter.publishedAt ?? null;
@@ -71,6 +81,10 @@ export function StudioChapterRow({
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <StudioStatusBadge kind="chapter" status={chapter.displayStatus} />
+            <ChapterFormatBadge contentFormat={chapter.contentFormat} />
+            {chapter.contentFormat === "structured_blocks" ? (
+              <ComposerValidationBadge status={chapter.validationStatus} />
+            ) : null}
           </div>
 
           <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-zinc-400 sm:grid-cols-4">

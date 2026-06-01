@@ -1,7 +1,8 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { inferEventCategory } from "@/lib/analytics/infer-event-category";
 import { sanitizeAnalyticsMetadata } from "@/lib/analytics/sanitizeMetadata";
+import { createClient } from "@/lib/supabase/server";
 import type { TrackEventInput } from "@/types/analytics";
 
 function logAnalyticsError(error: unknown) {
@@ -21,14 +22,23 @@ export async function trackServerEvent(input: TrackEventInput) {
     const {
       data: { user }
     } = await supabase.auth.getUser();
-    const eventName = "eventName" in input ? input.eventName : input.event_name;
+    const eventName = input.eventName ?? input.event_name;
+    if (!eventName) {
+      return;
+    }
     const targetId = input.targetId ?? input.target_id ?? null;
     const targetType = input.targetType ?? input.target_type ?? null;
     const sessionId = input.sessionId ?? input.session_id ?? null;
 
+    const payload = sanitizeAnalyticsMetadata(input.metadata ?? {});
+    const category =
+      input.category ?? input.category_name ?? inferEventCategory(eventName);
+
     const { error } = await supabase.from("analytics_events").insert({
+      event_category: category,
       event_name: eventName,
-      metadata: sanitizeAnalyticsMetadata(input.metadata ?? {}),
+      metadata: payload,
+      properties: payload,
       session_id: sessionId,
       target_id: targetId,
       target_type: targetType,

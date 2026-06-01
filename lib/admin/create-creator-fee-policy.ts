@@ -7,20 +7,21 @@ import {
   mapCreatorFeePolicyRow,
   validateCreatorFeePolicyInput
 } from "@/lib/admin/creator-fee-policy-shared";
-import { requireWalletAdjustAccess } from "@/lib/auth/finance-guards";
+import { requireCreatorFeeCreateAccess } from "@/lib/auth/creator-fee-guards";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
 import type { CreatorFeePolicyInput } from "@/types/creator-fee-policy";
 
-async function expireOverlappingPolicies(
+async function findOverlappingPolicy(
   supabase: Awaited<ReturnType<typeof createClient>>,
   creatorId: string,
+  startsAt: string,
+  endsAt: string | null,
   excludeId?: string
 ) {
-  const now = new Date().toISOString();
   let query = supabase
     .from("creator_fee_policies")
-    .update({ status: "expired", ends_at: now, updated_at: now })
+    .select("id, policy_name, starts_at, ends_at")
     .eq("creator_id", creatorId)
     .in("status", ["active", "scheduled"]);
 
@@ -28,13 +29,51 @@ async function expireOverlappingPolicies(
     query = query.neq("id", excludeId);
   }
 
-  await query;
+  const { data } = await query;
+  const startTs = new Date(startsAt).getTime();
+  const endTs = endsAt ? new Date(endsAt).getTime() : Infinity;
+
+  return (data ?? []).filter((row) => {
+    const rowStart = new Date(row.starts_at as string).getTime();
+    const rowEnd = row.ends_at ? new Date(row.ends_at as string).getTime() : Infinity;
+    return rowStart < endTs && startTs < rowEnd;
+  });
+}
+
+async function validateCreatorExists(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  creatorId: string
+): Promise<string | null> {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", creatorId)
+    .maybeSingle();
+  if (!profile) return "Tác giả không tồn tại.";
+
+  const { data: studio } = await supabase
+    .from("creator_monetization_profiles")
+    .select("user_id")
+    .eq("user_id", creatorId)
+    .maybeSingle();
+
+  const { data: stories } = await supabase
+    .from("stories")
+    .select("id")
+    .eq("author_id", creatorId)
+    .limit(1);
+
+  if (!studio && !(stories?.length ?? 0)) {
+    return "Người dùng chưa có Studio hoặc chưa là tác giả.";
+  }
+
+  return null;
 }
 
 export async function createCreatorFeePolicyAction(input: CreatorFeePolicyInput) {
-  const access = await requireWalletAdjustAccess();
+  const access = await requireCreatorFeeCreateAccess();
   if (!access.ok) {
-    return { ok: false, error: access.error ?? "Không có quyền quản lý chính sách phí." };
+    return { ok: false, error: access.error ?? "Không có quyền tạo chính sách phí." };
   }
 
   const ctx = await getCurrentAuthContext();
@@ -48,10 +87,35 @@ export async function createCreatorFeePolicyAction(input: CreatorFeePolicyInput)
   }
 
   const supabase = await createClient();
-  const payload = buildPolicyInsertPayload(input, ctx.userId);
+  const creatorError = await validateCreatorExists(supabase, input.creatorId);
+  if (creatorError) {
+    return { ok: false, error: creatorError };
+  }
 
-  if (payload.status === "active" || payload.status === "scheduled") {
-    await expireOverlappingPolicies(supabase, input.creatorId);
+  const payload = buildPolicyInsertPayload(input, ctx.userId);
+  const overlaps = await findOverlappingPolicy(
+    supabase,
+    input.creatorId,
+    payload.starts_at as string,
+    (payload.ends_at as string | null) ?? null
+  );
+
+  if (overlaps.length > 0 && !input.confirmOverlap) {
+    return {
+      ok: false,
+      needsConfirm: true,
+      error:
+        "Tác giả đã có chính sách active/scheduled chồng thời gian. Xác nhận để thay thế policy cũ."
+    };
+  }
+
+  if (overlaps.length > 0 && input.confirmOverlap) {
+    const now = new Date().toISOString();
+    await supabase
+      .from("creator_fee_policies")
+      .update({ status: "expired", ends_at: now, updated_at: now, updated_by: ctx.userId })
+      .eq("creator_id", input.creatorId)
+      .in("status", ["active", "scheduled"]);
   }
 
   const { data, error } = await supabase
@@ -64,22 +128,27 @@ export async function createCreatorFeePolicyAction(input: CreatorFeePolicyInput)
     if (error?.message?.includes("overlapping_creator_fee_policy")) {
       return {
         ok: false,
+        needsConfirm: true,
         error:
           "Tác giả đã có chính sách active/scheduled chồng thời gian. Hãy kết thúc policy cũ trước."
       };
     }
-    return { ok: false, error: error?.message ?? "Không thể tạo chính sách phí." };
+    return { ok: false, error: "Không thể tạo chính sách phí." };
   }
 
   const policy = mapCreatorFeePolicyRow(data as Record<string, unknown>);
 
   await createAdminAuditLog({
-    action: "creator_fee_policy_create",
+    action: "creator_fee_policy.create",
     targetType: "creator_fee_policy",
     targetId: policy.id,
     note: input.note?.trim() || null,
     after: policy as unknown as Record<string, unknown>,
-    metadata: { creator_id: input.creatorId, admin_id: ctx.userId }
+    metadata: {
+      creator_id: input.creatorId,
+      actor_user_id: ctx.userId,
+      reason: input.note?.trim() || null
+    }
   });
 
   revalidatePath("/admin/creator-fee-policies");

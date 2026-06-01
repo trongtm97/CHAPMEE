@@ -1,19 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { hasActiveRestriction } from "@/lib/moderation/check-restriction";
 import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
-import type { ReportPriority } from "@/types/moderation";
+import type { ReportPriority, ReporterQualitySummary } from "@/types/moderation";
 
-export type ReporterQualitySummary = {
-  userId: string;
-  trustScore: number;
-  reportsSubmitted: number;
-  reportsValid: number;
-  reportsRejected: number;
-  reportsAbuse: number;
-  spamSuspected: boolean;
-  accuracyPercent: number | null;
-  displayName: string | null;
-};
+export type { ReporterQualitySummary };
 
 const OPEN_STATUSES = ["pending", "open", "reviewing"];
 
@@ -155,7 +145,8 @@ export async function getReporterQuality(
     spamSuspected: data.spam_suspected ?? false,
     accuracyPercent:
       submitted > 0 ? Math.round((valid / submitted) * 100) : null,
-    displayName: profile?.display_name ?? profile?.username ?? null
+    displayName: profile?.display_name ?? profile?.username ?? null,
+    username: profile?.username?.trim().toLowerCase() ?? null
   };
 }
 

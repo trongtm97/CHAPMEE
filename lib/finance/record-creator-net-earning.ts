@@ -7,6 +7,7 @@ import { applyCreatorRevenueLedgerRecord } from "@/lib/supabase/wallets";
 import { buildTransactionCode } from "@/lib/transactions/ledger";
 import type { CreatorEarningSourceType } from "@/types/finance";
 import type { CreatorRevenueBreakdown } from "@/types/revenue-share";
+import type { CreatorEarningReleaseStatus } from "@/types/story-completion";
 import type { CreatorRevenueStatus } from "@/types/wallet";
 import type { TransactionSource, TransactionType } from "@/types/transaction";
 
@@ -21,6 +22,8 @@ export type RecordCreatorNetEarningInput = {
   coinToVndRate: number;
   revenue: CreatorRevenueBreakdown;
   revenueStatus?: CreatorRevenueStatus;
+  releaseStatus?: CreatorEarningReleaseStatus;
+  lockedReason?: string | null;
   transactionType?: TransactionType;
   transactionSource?: TransactionSource;
   transactionCode?: string;
@@ -66,7 +69,9 @@ export async function recordCreatorNetEarning(input: RecordCreatorNetEarningInpu
       creator_revenue_share_percent: breakdown.creatorRevenueSharePercent,
       payment_processing_fee_percent: breakdown.paymentProcessingFeePercent,
       calculation_snapshot: breakdown.calculationSnapshot,
-      status: "settled"
+      status: "settled",
+      release_status: input.releaseStatus ?? "available",
+      locked_reason: input.lockedReason ?? null
     })
     .select("id")
     .single();
@@ -87,6 +92,8 @@ export async function recordCreatorNetEarning(input: RecordCreatorNetEarningInpu
     revenueStatus: input.revenueStatus ?? "available",
     metadata: {
       ...(input.metadata ?? {}),
+      release_status: input.releaseStatus ?? "available",
+      locked_reason: input.lockedReason ?? null,
       earning_transaction_id: earningRow.id,
       gross_amount_vnd: breakdown.grossAmountVnd,
       platform_fee_vnd: breakdown.platformFeeVnd,

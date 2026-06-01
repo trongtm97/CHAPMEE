@@ -1,16 +1,31 @@
 import { StudioCalendarPage } from "@/components/studio/StudioCalendarPage";
-import { ErrorState, SectionHeader } from "@/components/ui";
+import { ErrorState } from "@/components/ui";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getStudioAccess } from "@/lib/creator/getStudioAccess";
 import {
-  getScheduledPublicationsPage,
-  normalizeCalendarTab
-} from "@/lib/studio/scheduling/get-scheduled-publications";
+  buildCalendarQuery,
+  normalizeCalendarContentFilter,
+  normalizeCalendarTab,
+  normalizeCalendarTimeFilter,
+  normalizeCalendarView,
+  parseCalendarPageSize
+} from "@/lib/studio/scheduling/calendar-query";
+import { getScheduledPublicationsPage } from "@/lib/studio/scheduling/get-scheduled-publications";
+import { CALENDAR_PAGE_SIZE_DEFAULT } from "@/types/scheduling";
 import { studioPath } from "@/lib/studio/constants";
 import { createClient } from "@/lib/supabase/server";
+import { StudioCalendarHeader } from "@/components/studio/calendar/StudioCalendarHeader";
 
 type StudioCalendarRouteProps = {
-  searchParams: Promise<{ tab?: string; page?: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    page?: string;
+    q?: string;
+    type?: string;
+    time?: string;
+    view?: string;
+    size?: string;
+  }>;
 };
 
 export const dynamic = "force-dynamic";
@@ -20,6 +35,11 @@ export default async function StudioCalendarRoute({
 }: StudioCalendarRouteProps) {
   const params = await searchParams;
   const activeTab = normalizeCalendarTab(params.tab);
+  const activeType = normalizeCalendarContentFilter(params.type);
+  const activeTime = normalizeCalendarTimeFilter(params.time);
+  const activeView = normalizeCalendarView(params.view);
+  const activePageSize = parseCalendarPageSize(params.size);
+  const search = (params.q ?? "").trim();
   const basePath = studioPath("/calendar");
 
   const { error } = await getStudioAccess(basePath);
@@ -27,8 +47,17 @@ export default async function StudioCalendarRoute({
 
   if (error || !profile?.id) {
     return (
-      <section className="space-y-6">
-        <SectionHeader title="Lịch đăng" />
+      <section className="w-full min-w-0 space-y-6">
+        <StudioCalendarHeader
+          stats={{
+            canceled: 0,
+            failed: 0,
+            published7d: 0,
+            today: 0,
+            upcoming: 0
+          }}
+          writeChapterHref={studioPath("/stories")}
+        />
         <ErrorState message={error} title="Không tải được quyền truy cập Studio" />
       </section>
     );
@@ -37,33 +66,63 @@ export default async function StudioCalendarRoute({
   const supabase = await createClient();
   const data = await getScheduledPublicationsPage(supabase, profile.id, {
     page: params.page,
-    tab: activeTab
+    pageSize: params.size,
+    search,
+    tab: activeTab,
+    time: activeTime,
+    type: activeType
   });
 
-  const query = {
+  const query = buildCalendarQuery({
     page: params.page,
-    tab: activeTab === "upcoming" ? undefined : activeTab
-  };
+    pageSize: activePageSize,
+    search,
+    tab: activeTab,
+    time: activeTime,
+    type: activeType,
+    view: activeView
+  });
+
+  const hasActiveFilters =
+    Boolean(search) ||
+    activeTab !== "upcoming" ||
+    activeType !== "all" ||
+    activeTime !== "all" ||
+    activeView !== "list" ||
+    activePageSize !== CALENDAR_PAGE_SIZE_DEFAULT ||
+    Boolean(params.page);
 
   return (
-    <section className="space-y-6">
-      <SectionHeader
-        subtitle="Quản lý lịch đăng truyện, chương và nội dung của bạn."
-        title="Lịch đăng"
-      />
-
+    <section className="w-full min-w-0 space-y-4 sm:space-y-5">
       {data.error ? (
-        <ErrorState message={data.error} title="Không tải được lịch đăng" />
-      ) : null}
-
-      <StudioCalendarPage
-        activeTab={data.tab}
-        counts={data.counts}
-        items={data.items}
-        page={data.page}
-        query={query}
-        totalPages={data.totalPages}
-      />
+        <>
+          <StudioCalendarHeader
+            stats={data.stats}
+            writeChapterHref={data.writeChapterHref}
+          />
+          <ErrorState message={data.error} title="Không tải được lịch đăng" />
+        </>
+      ) : (
+        <StudioCalendarPage
+          activeTab={data.tab}
+          activeTime={activeTime}
+          activeType={activeType}
+          activeView={activeView}
+          counts={data.counts}
+          failedItems={data.failedItems}
+          hasActiveFilters={hasActiveFilters}
+          items={data.items}
+          page={data.page}
+          pageSize={activePageSize}
+          query={query}
+          search={search}
+          stats={data.stats}
+          todayItems={data.todayItems}
+          total={data.total}
+          totalPages={data.totalPages}
+          writeChapterHref={data.writeChapterHref}
+        />
+      )}
     </section>
   );
 }

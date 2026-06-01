@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { getProfileUrlOrFallback } from "@/lib/profile/profile-url";
 import { useState, useTransition } from "react";
 import { AvatarFallback, Button, Card } from "@/components/ui";
 import {
@@ -89,7 +90,7 @@ export function MessageUserRiskPanel({
           {detail.username ? (
             <Link
               className="text-sm text-cyan-300 hover:text-cyan-200"
-              href={`/profile/${detail.username}`}
+              href={getProfileUrlOrFallback(detail.username)}
               target="_blank"
             >
               Xem hồ sơ công khai →

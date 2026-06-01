@@ -38,6 +38,7 @@ export function useGuidelinesSubmitGuard() {
 
 type GuidelinesAcknowledgementFieldProps = {
   acknowledged: boolean;
+  bare?: boolean;
   disabled?: boolean;
   error: string | null;
   onAckChange: (checked: boolean) => void;
@@ -46,6 +47,7 @@ type GuidelinesAcknowledgementFieldProps = {
 
 export function GuidelinesAcknowledgementField({
   acknowledged,
+  bare = false,
   disabled = false,
   error,
   onAckChange,
@@ -57,7 +59,13 @@ export function GuidelinesAcknowledgementField({
       : GUIDELINES_ACK_MESSAGE;
 
   return (
-    <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-950/40 p-4">
+    <div
+      className={
+        bare
+          ? "space-y-3"
+          : "space-y-3 rounded-lg border border-zinc-800 bg-zinc-950/40 p-4"
+      }
+    >
       <label className="flex cursor-pointer items-start gap-3">
         <input
           checked={acknowledged}
@@ -86,9 +94,11 @@ export function GuidelinesAcknowledgementField({
           {error}
         </p>
       ) : null}
-      <p className="text-xs text-zinc-500">
-        Bắt buộc khi bấm &quot;Gửi duyệt&quot;. Lưu nháp không cần tick.
-      </p>
+      {!bare ? (
+        <p className="text-xs text-zinc-500">
+          Bắt buộc khi bấm &quot;Gửi duyệt&quot;. Lưu nháp không cần tick.
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { TipGiftSheet } from "@/components/monetization/TipGiftSheet";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { getCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
+import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
 import { getActiveVirtualGifts } from "@/lib/supabase/virtual-gifts";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
@@ -17,9 +17,9 @@ export async function SupportButton({
 }: SupportButtonProps) {
   if (!toCreatorUserId) return null;
 
-  const [config, profile, gifts, currentUser] = await Promise.all([
+  const [config, creatorCanEarn, gifts, currentUser] = await Promise.all([
     getMonetizationConfig({ includePrivate: true }),
-    getCreatorMonetizationProfile(toCreatorUserId),
+    isCreatorMonetizationAllowed(toCreatorUserId),
     getActiveVirtualGifts(),
     getCurrentUser()
   ]);
@@ -32,7 +32,7 @@ export async function SupportButton({
       Boolean(config.settings["virtual_gifts.enabled"]));
   if (!enabled) return null;
 
-  if (!profile.data || profile.data.status !== "approved" || !profile.data.monetization_enabled) {
+  if (!creatorCanEarn) {
     return null;
   }
 

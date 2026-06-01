@@ -72,7 +72,20 @@ export async function getCurrentUser(): Promise<CurrentUserState> {
       profileError = fallback.error;
     }
 
-    const profile = profileData as CurrentUserProfile | null;
+    let profile = profileData as CurrentUserProfile | null;
+
+    if (profile?.id) {
+      const { ensureProfileUsername } = await import(
+        "@/lib/profile/ensure-profile-username"
+      );
+      const ensured = await ensureProfileUsername(
+        profile.id,
+        profile.display_name
+      );
+      if (ensured && ensured !== profile.username) {
+        profile = { ...profile, username: ensured };
+      }
+    }
 
     if (profileError && process.env.NODE_ENV === "development") {
       console.warn("[auth] profile:", profileError.message);

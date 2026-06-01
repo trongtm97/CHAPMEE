@@ -1,9 +1,12 @@
+import { ADMIN_CREATOR_JOIN, resolveAdminCreatorName } from "@/lib/admin/creator-display";
 import { createClient } from "@/lib/supabase/server";
+import { loadStoryCatalogDisplayLabels } from "@/lib/taxonomy/story-genre-labels";
 
 export type StoryForReview = {
   id: string;
   title: string;
   slug: string;
+  publicCode: string;
   hook: string | null;
   shortDescription: string | null;
   longDescription: string | null;
@@ -27,6 +30,7 @@ type StoryRow = {
   id: string;
   title: string;
   slug: string;
+  public_code: string;
   hook: string | null;
   short_description: string | null;
   long_description: string | null;
@@ -35,15 +39,7 @@ type StoryRow = {
   created_at: string;
   updated_at: string;
   published_at: string | null;
-  genres: { name: string | null } | { name: string | null }[] | null;
-  creator_profiles:
-    | { pen_name: string | null }
-    | { pen_name: string | null }[]
-    | null;
-};
-
-type StoryTagRow = {
-  tags: { name: string | null } | { name: string | null }[] | null;
+  creator_profiles: unknown;
 };
 
 function firstRelation<T>(relation: T | T[] | null | undefined) {
@@ -58,7 +54,7 @@ export async function getStoryForReview(
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, title, slug, hook, short_description, long_description, status, visibility, created_at, updated_at, published_at, genres(name), creator_profiles(pen_name)"
+        `id, title, slug, public_code, hook, short_description, long_description, status, visibility, created_at, updated_at, published_at, ${ADMIN_CREATOR_JOIN}`
       )
       .eq("id", storyId)
       .maybeSingle();
@@ -72,17 +68,8 @@ export async function getStoryForReview(
     }
 
     const story = data as unknown as StoryRow;
-    const { data: tagRows, error: tagError } = await supabase
-      .from("story_tags")
-      .select("tags(name)")
-      .eq("story_id", story.id);
-
-    if (tagError) {
-      throw tagError;
-    }
-
-    const genre = firstRelation(story.genres);
     const creator = firstRelation(story.creator_profiles);
+    const catalogDisplay = await loadStoryCatalogDisplayLabels(supabase, story.id);
 
     return {
       error: null,
@@ -91,14 +78,13 @@ export async function getStoryForReview(
         id: story.id,
         title: story.title,
         slug: story.slug,
+        publicCode: story.public_code,
         hook: story.hook,
         shortDescription: story.short_description,
         longDescription: story.long_description,
-        genreName: genre?.name ?? null,
-        creatorName: creator?.pen_name ?? null,
-        tags: ((tagRows ?? []) as unknown as StoryTagRow[])
-          .map((row) => firstRelation(row.tags)?.name)
-          .filter((tag): tag is string => Boolean(tag)),
+        genreName: catalogDisplay.genreName,
+        creatorName: resolveAdminCreatorName(creator),
+        tags: catalogDisplay.tagNames,
         status: story.status,
         visibility: story.visibility,
         createdAt: story.created_at,

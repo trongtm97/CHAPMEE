@@ -10,6 +10,7 @@ export type CommunityPostForReview = {
   authorName: string | null;
   relatedStoryTitle: string | null;
   relatedStorySlug: string | null;
+  relatedStoryPublicCode: string | null;
   createdAt: string;
   status: CommunityReviewStatus;
 };
@@ -31,8 +32,8 @@ type CommunityPostRow = {
     | { display_name: string | null; username: string | null }[]
     | null;
   stories:
-    | { title: string | null; slug: string | null }
-    | { title: string | null; slug: string | null }[]
+    | { title: string | null; slug: string | null; public_code: string | null }
+    | { title: string | null; slug: string | null; public_code: string | null }[]
     | null;
 };
 
@@ -48,7 +49,7 @@ export async function getPendingCommunityPosts(
     const { data, error } = await supabase
       .from("community_posts")
       .select(
-        "id, type, title, content, created_at, status, profiles!community_posts_user_id_fkey(display_name, username), stories(title, slug)"
+        "id, type, title, content, created_at, status, profiles!community_posts_user_id_fkey(display_name, username), stories(title, slug, public_code)"
       )
       .eq("status", status)
       .order("created_at", { ascending: true })
@@ -73,6 +74,7 @@ export async function getPendingCommunityPosts(
             author?.display_name ?? author?.username ?? "Doc gia ChapMee",
           relatedStoryTitle: story?.title ?? null,
           relatedStorySlug: story?.slug ?? null,
+          relatedStoryPublicCode: story?.public_code ?? null,
           createdAt: post.created_at,
           status: post.status
         };

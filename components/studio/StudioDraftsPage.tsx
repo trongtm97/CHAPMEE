@@ -1,117 +1,124 @@
-import Link from "next/link";
-import { StudioManagerTabs } from "@/components/studio/StudioManagerTabs";
+﻿"use client";
+
+import { StudioDraftsFilters } from "@/components/studio/drafts/StudioDraftsFilters";
+import { StudioDraftsHeader } from "@/components/studio/drafts/StudioDraftsHeader";
+import { StudioDraftsListSection } from "@/components/studio/drafts/StudioDraftsListSection";
+import { StudioDraftsRecent } from "@/components/studio/drafts/StudioDraftsRecent";
+import { StudioDraftsStats } from "@/components/studio/drafts/StudioDraftsStats";
+import { StudioDraftsWarningBanner } from "@/components/studio/drafts/StudioDraftsWarningBanner";
 import { StudioPagination } from "@/components/studio/StudioPagination";
-import { StudioDraftRow } from "@/components/studio/StudioDraftRow";
-import { EmptyState, Input, Button } from "@/components/ui";
 import { buildStudioManagerHref } from "@/lib/studio/manager-url";
 import { studioPath } from "@/lib/studio/constants";
-import type { StudioDraftListFilter, StudioDraftListItem } from "@/types/drafts";
-
-const DRAFT_TYPE_LABELS: Record<StudioDraftListItem["draftType"], string> = {
-  chapter: "Chương",
-  seo: "SEO",
-  story: "Truyện",
-  swipe: "Swipe",
-  template: "Mẫu"
-};
-
-const TABS: Array<{ label: string; value: StudioDraftListFilter }> = [
-  { label: "Tất cả", value: "all" },
-  { label: "Truyện", value: "story" },
-  { label: "Chương", value: "chapter" },
-  { label: "Swipe", value: "swipe" },
-  { label: "SEO", value: "seo" }
-];
+import type {
+  DraftItem,
+  DraftListPageSize,
+  DraftSort,
+  DraftStatusFilter,
+  DraftTimeFilter,
+  StudioDraftListFilter,
+  StudioDraftStats
+} from "@/types/drafts";
 
 type StudioDraftsPageProps = {
-  drafts: StudioDraftListItem[];
-  counts: Record<StudioDraftListFilter, number>;
   activeFilter: StudioDraftListFilter;
-  search: string;
-  page: number;
-  totalPages: number;
-  query: Record<string, string | undefined>;
+  activePageSize: DraftListPageSize;
+  activeSort: DraftSort;
+  activeStatus: DraftStatusFilter;
+  activeTime: DraftTimeFilter;
+  attentionDrafts: DraftItem[];
+  counts: Record<StudioDraftListFilter, number>;
+  drafts: DraftItem[];
+  filteredIds: string[];
   hasActiveFilters: boolean;
+  page: number;
+  query: Record<string, string | undefined>;
+  recentDrafts: DraftItem[];
+  search: string;
+  stats: StudioDraftStats;
+  total: number;
+  totalPages: number;
+  writeChapterHref: string;
 };
 
 export function StudioDraftsPage({
   activeFilter,
+  activePageSize,
+  activeSort,
+  activeStatus,
+  activeTime,
+  attentionDrafts,
   counts,
   drafts,
+  filteredIds,
   hasActiveFilters,
   page,
   query,
+  recentDrafts,
   search,
-  totalPages
+  stats,
+  total,
+  totalPages,
+  writeChapterHref
 }: StudioDraftsPageProps) {
   const basePath = studioPath("/drafts");
+  const showFullEmpty = stats.total === 0 && !hasActiveFilters;
 
   return (
-    <div className="space-y-6">
-      <form
-        action={basePath}
-        className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 lg:grid-cols-[minmax(0,1fr)_auto]"
-        method="get"
-      >
-        <Input
-          defaultValue={search}
-          label="Tìm kiếm"
-          name="q"
-          placeholder="Tìm theo tiêu đề hoặc truyện..."
-        />
-        {activeFilter !== "all" ? (
-          <input name="type" type="hidden" value={activeFilter} />
-        ) : null}
-        <div className="flex items-end gap-2">
-          <Button className="flex-1" type="submit">
-            Tìm
-          </Button>
-          <Link
-            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-white/10"
-            href={basePath}
-          >
-            Xóa lọc
-          </Link>
-        </div>
-      </form>
-
-      <StudioManagerTabs
-        active={activeFilter}
+    <div className="space-y-5 pb-24 sm:space-y-6 sm:pb-6">
+      <StudioDraftsHeader
         basePath={basePath}
-        counts={counts}
-        filterParam="type"
-        query={query}
-        tabs={TABS}
+        staleCount={stats.stale}
+        writeChapterHref={writeChapterHref}
       />
 
-      {drafts.length === 0 ? (
-        <EmptyState
-          description={
-            hasActiveFilters
-              ? "Thử đổi từ khóa hoặc bộ lọc khác."
-              : "Nội dung bạn đang viết sẽ xuất hiện ở đây sau khi autosave."
-          }
-          title={hasActiveFilters ? "Không có nháp phù hợp" : "Chưa có nháp nào"}
-        />
-      ) : (
-        <div className="space-y-3">
-          {drafts.map((draft) => (
-            <StudioDraftRow
-              draft={draft}
-              key={draft.id}
-              typeLabel={DRAFT_TYPE_LABELS[draft.draftType]}
+      {!showFullEmpty ? (
+        <>
+          <StudioDraftsStats basePath={basePath} stats={stats} />
+
+          {stats.stale > 0 || attentionDrafts.length > 0 ? (
+            <StudioDraftsWarningBanner
+              attentionDrafts={attentionDrafts}
+              basePath={basePath}
+              staleCount={stats.stale}
             />
-          ))}
-        </div>
-      )}
+          ) : null}
 
-      <StudioPagination
-        buildHref={(nextPage) =>
-          buildStudioManagerHref(basePath, { ...query, page: String(nextPage) })
-        }
+          <StudioDraftsRecent drafts={recentDrafts} />
+        </>
+      ) : null}
+
+      {!showFullEmpty ? (
+        <StudioDraftsFilters
+          activeFilter={activeFilter}
+          activePageSize={activePageSize}
+          activeSort={activeSort}
+          activeStatus={activeStatus}
+          activeTime={activeTime}
+          basePath={basePath}
+          counts={counts}
+          query={query}
+          search={search}
+        />
+      ) : null}
+
+      <StudioDraftsListSection
+        drafts={drafts}
+        filteredIds={filteredIds}
+        hasActiveFilters={hasActiveFilters}
         page={page}
-        totalPages={totalPages}
+        pageSize={activePageSize}
+        total={total}
       />
+
+      {!showFullEmpty ? (
+        <StudioPagination
+          buildHref={(nextPage) =>
+            buildStudioManagerHref(basePath, { ...query, page: String(nextPage) })
+          }
+          page={page}
+          totalPages={totalPages}
+        />
+      ) : null}
     </div>
   );
 }

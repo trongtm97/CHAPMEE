@@ -115,7 +115,7 @@ export async function getAdminUserDetailFull(
       .limit(20),
     supabase
       .from("creator_profiles")
-      .select("id, pen_name, status")
+      .select("id, status")
       .eq("user_id", userId)
       .maybeSingle(),
     supabase
@@ -222,7 +222,10 @@ export async function getAdminUserDetailFull(
       })),
       creatorStudio: creatorProfile.data
         ? {
-            penName: creatorProfile.data.pen_name as string,
+            displayName:
+              (profile.display_name as string | null)?.trim() ||
+              (profile.username as string | null)?.trim() ||
+              "Tác giả",
             status: creatorProfile.data.status as string,
             storyCount: storyCountVal
           }

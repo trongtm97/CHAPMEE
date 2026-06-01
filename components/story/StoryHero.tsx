@@ -1,11 +1,13 @@
+import Link from "next/link";
+import { AuthorNameLink } from "@/components/profile/AuthorNameLink";
 import { OriginalsBadge } from "@/components/story/OriginalsBadge";
-import { VerifiedName } from "@/components/profile/VerifiedBadge";
 import { getStoryImage } from "@/lib/images/get-story-image";
 import {
   STORY_IMAGE_PLACEHOLDER_GRADIENT_CLASS,
   getStoryPlaceholderInitial
 } from "@/lib/images/placeholders";
-import { formatSwipeCount } from "@/lib/swipe/formatCount";
+import { formatReelsCount } from "@/lib/reels/formatCount";
+import { getStoryCardMeta, isStandaloneStory } from "@/lib/stories/story-structure";
 import type { StoryDetail } from "@/lib/stories/getStoryBySlug";
 
 type StoryHeroProps = {
@@ -27,6 +29,18 @@ export function StoryHero({ showOriginalsBadge, story }: StoryHeroProps) {
     { title: story.title, coverUrl: story.coverUrl, currentImage: story.currentImage },
     "portrait"
   );
+  const cardMeta = getStoryCardMeta({
+    structureType: story.structureType,
+    standaloneReadingTimeMinutes: story.standaloneReadingTimeMinutes,
+    episodeCount: story.episodeCount
+  });
+  const statsLine = isStandaloneStory(story)
+    ? [
+        cardMeta.secondaryLabel ?? cardMeta.primaryLabel,
+        `${formatReelsCount(story.likeCount)} lượt thích`,
+        `${formatReelsCount(story.saveCount)} lượt lưu`
+      ].join(" · ")
+    : `${story.episodeCount} chương · ${formatReelsCount(story.likeCount)} lượt thích · ${formatReelsCount(story.saveCount)} lượt lưu`;
 
   return (
     <section className="flex gap-3.5 sm:gap-4">
@@ -68,19 +82,29 @@ export function StoryHero({ showOriginalsBadge, story }: StoryHeroProps) {
 
         <p className="text-sm font-semibold text-zinc-300">
           Tác giả:{" "}
-          <VerifiedName
+          <AuthorNameLink
             badge={story.authorVerification}
             className="text-cyan-100"
             name={story.creatorName ?? "ChapMee"}
             nameClassName="text-cyan-100"
+            username={story.creatorUsername}
           />
         </p>
 
         <div className="flex flex-wrap gap-1.5">
           {story.genreName ? (
-            <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs text-zinc-300">
-              {story.genreName}
-            </span>
+            story.genreSlug ? (
+              <Link
+                className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs text-cyan-200/90 transition hover:bg-white/10"
+                href={`/the-loai/${story.genreSlug}`}
+              >
+                {story.genreName}
+              </Link>
+            ) : (
+              <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs text-zinc-300">
+                {story.genreName}
+              </span>
+            )
           ) : null}
           {story.tags.slice(0, 3).map((tag) => (
             <span
@@ -92,10 +116,7 @@ export function StoryHero({ showOriginalsBadge, story }: StoryHeroProps) {
           ))}
         </div>
 
-        <p className="text-xs text-zinc-500">
-          {story.episodeCount} chương · {formatSwipeCount(story.likeCount)} lượt thích ·{" "}
-          {formatSwipeCount(story.saveCount)} lượt lưu
-        </p>
+        <p className="text-xs text-zinc-500">{statsLine}</p>
 
         {description ? (
           <p className="line-clamp-3 text-sm leading-6 text-zinc-400">{description}</p>

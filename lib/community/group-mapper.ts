@@ -1,3 +1,4 @@
+import { resolveCreatorRowName } from "@/lib/creator/resolve-creator-row-name";
 import type { CommunityGroupBadge, StoryCommunityGroup } from "@/types/community";
 import type { CommunityGroupItem } from "@/types/community-group";
 
@@ -8,12 +9,14 @@ type StoryRowForGroup = {
   cover_url: string | null;
   published_at: string | null;
   creator_profiles:
-    | { pen_name: string | null }
-    | { pen_name: string | null }[]
-    | null;
-  genres:
-    | { name: string | null; slug: string | null }
-    | { name: string | null; slug: string | null }[]
+    | {
+        pen_name: string | null;
+        profiles?: { display_name: string | null; username: string | null } | null;
+      }
+    | {
+        pen_name: string | null;
+        profiles?: { display_name: string | null; username: string | null } | null;
+      }[]
     | null;
 };
 
@@ -76,10 +79,12 @@ function statusLineForGroup(
 export function mapStoryRowToCommunityGroup(
   row: StoryRowForGroup,
   index: number,
-  counts: { postCount: number; commentCount: number }
+  counts: { postCount: number; commentCount: number },
+  genre?: { name: string | null; slug: string | null }
 ): CommunityGroupItem {
   const creator = firstRelation(row.creator_profiles);
-  const genre = firstRelation(row.genres);
+  const genreName = genre?.name ?? null;
+  const genreSlug = genre?.slug ?? null;
   const badge = badgeForStory(row.id, index);
   const memberCount = 80 + (hashString(row.id) % 420);
   const postCount = counts.postCount;
@@ -93,16 +98,16 @@ export function mapStoryRowToCommunityGroup(
     storyId: row.id,
     name: row.title,
     storyTitle: row.title,
-    authorName: creator?.pen_name ?? null,
-    genreName: genre?.name ?? null,
-    genreSlug: genre?.slug ?? null,
+    authorName: resolveCreatorRowName(creator),
+    genreName,
+    genreSlug,
     coverUrl: row.cover_url,
     memberCount,
     postCount,
     newCommentCount,
     lastActivityAt: row.published_at,
     badge,
-    statusLine: statusLineForGroup(row.id, postCount, badge, genre?.name ?? null),
+    statusLine: statusLineForGroup(row.id, postCount, badge, genreName),
     hotScore,
     groupType: "story"
   };

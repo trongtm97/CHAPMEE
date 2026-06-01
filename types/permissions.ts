@@ -11,7 +11,8 @@ export const PERMISSION_GROUPS = [
   "moderation",
   "admin",
   "notification",
-  "feedback"
+  "feedback",
+  "content_hub"
 ] as const;
 
 export type PermissionGroup = (typeof PERMISSION_GROUPS)[number];
@@ -85,6 +86,12 @@ export type PermissionCode =
   | "finance.revenue_share.update"
   | "finance.withdrawal_settings.update"
   | "finance.risk_settings.update"
+  | "finance.creator_fee.view"
+  | "finance.creator_fee.create"
+  | "finance.creator_fee.update"
+  | "finance.creator_fee.pause"
+  | "finance.creator_fee.revoke"
+  | "finance.creator_fee.export"
   | "finance.audit.view"
   | "report.create"
   | "report.review"
@@ -108,7 +115,51 @@ export type PermissionCode =
   | "notification.settings.update.own"
   | "feedback.create"
   | "feedback.view.all"
-  | "feedback.update.status";
+  | "feedback.view.own"
+  | "feedback.update.status"
+  | "feedback.assign"
+  | "feedback.reply"
+  | "feedback.export"
+  | "campaign.view"
+  | "campaign.create"
+  | "campaign.update"
+  | "campaign.pause"
+  | "campaign.archive"
+  | "sponsor.view"
+  | "sponsor.create"
+  | "sponsor.update"
+  | "campaign.finance.view"
+  | "campaign.settings.update"
+  | "content.post.view"
+  | "content.post.create"
+  | "content.post.update"
+  | "platform.announcement.view"
+  | "platform.announcement.create"
+  | "platform.announcement.update"
+  | "notification.campaign.view"
+  | "notification.campaign.create"
+  | "notification.campaign.update"
+  | "seo.rule.view"
+  | "seo.rule.update"
+  | "seo.audit.view"
+  | "policies.view"
+  | "policies.create"
+  | "policies.edit"
+  | "policies.publish"
+  | "policies.version.view"
+  | "taxonomy.view"
+  | "taxonomy.create"
+  | "taxonomy.edit"
+  | "taxonomy.delete"
+  | "taxonomy.import"
+  | "taxonomy.export"
+  | "taxonomy.requests.review"
+  | "taxonomy.templates.manage"
+  | "content_taxonomy_quality.view"
+  | "content_taxonomy_quality.review"
+  | "content_taxonomy_quality.edit_story_taxonomy"
+  | "content_taxonomy_quality.request_creator_revision"
+  | "content_taxonomy_quality.manage_rules";
 
 export type RoleCode =
   | "guest"
@@ -131,5 +182,6 @@ export type ClientPermissionFlags = {
   canModerateComments: boolean;
   canViewAdmin: boolean;
   canManageFinance: boolean;
+  canManageCampaigns: boolean;
   isBanned: boolean;
 };

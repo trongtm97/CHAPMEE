@@ -6,7 +6,18 @@ import {
 } from "@/lib/seo/parse-seo-form";
 import { validateKeywordsList } from "@/lib/seo/suggest-keywords";
 import { isUrlSafeSlug } from "@/lib/slugify";
+import { parseStoryTaxonomyFormFields } from "@/lib/creator/parse-story-taxonomy-form";
+import { normalizeStorySlugInput } from "@/lib/creator/resolve-unique-story-slug";
+import { normalizeStoryStructureType } from "@/lib/stories/story-structure";
+import type { ParsedStoryTaxonomyForm } from "@/lib/creator/parse-story-taxonomy-form";
 import type { SensitiveFlag, StoryAgeRating } from "@/types/moderation";
+import type { StoryStructureType } from "@/types/story-structure";
+
+export type StoryFormIntent =
+  | "draft"
+  | "create"
+  | "create_and_chapter"
+  | "review";
 
 export type StoryFormValues = {
   title: string;
@@ -15,17 +26,18 @@ export type StoryFormValues = {
   shortDescription: string | null;
   longDescription: string | null;
   coverUrl: string | null;
-  genreId: string;
-  tagIds: string[];
   isCompleted: boolean;
   visibility: "public" | "private";
-  intent: "draft" | "review";
+  intent: StoryFormIntent;
   ageRating: StoryAgeRating;
   sensitiveFlags: SensitiveFlag[];
   seoTitle: string | null;
   seoDescription: string | null;
   seoKeywords: string[];
   canonicalUrl: string | null;
+  useTaxonomy: boolean;
+  taxonomy: ParsedStoryTaxonomyForm;
+  structureType: StoryStructureType;
 };
 
 const AGE_RATINGS = new Set<StoryAgeRating>([
@@ -61,31 +73,88 @@ export function parseStoryFormData(
   const title = String(formData.get("title") ?? "").trim();
   const slug = String(formData.get("slug") ?? "").trim();
   const hook = String(formData.get("hook") ?? "").trim();
-  const genreId = String(formData.get("genre_id") ?? "").trim();
+  const useTaxonomy = formData.get("use_taxonomy") === "1";
+  const taxonomy = parseStoryTaxonomyFormFields(formData);
   const visibilityInput = String(formData.get("visibility") ?? "private");
+  const structureType = normalizeStoryStructureType(
+    String(formData.get("structure_type") ?? "chaptered")
+  );
   const intentInput = String(formData.get("intent") ?? "draft");
+  const intent: StoryFormIntent =
+    intentInput === "review"
+      ? "review"
+      : intentInput === "create_and_chapter"
+        ? "create_and_chapter"
+        : intentInput === "create"
+          ? "create"
+          : "draft";
+
+  const normalizedSlug = slug ? normalizeStorySlugInput(slug) : "";
 
   if (!title) {
     return { ok: false, error: "Vui lòng nhập tiêu đề truyện." };
   }
 
-  if (!slug) {
-    return { ok: false, error: "Vui lòng nhập slug." };
+  if (intent !== "draft") {
+    if (!normalizedSlug) {
+      return { ok: false, error: "Vui lòng nhập slug." };
+    }
+
+    if (!isUrlSafeSlug(normalizedSlug)) {
+      return {
+        ok: false,
+        error: "Slug chỉ dùng chữ thường, số và dấu gạch ngang."
+      };
+    }
+
+    const shortDescription = String(formData.get("short_description") ?? "").trim();
+    if (!shortDescription) {
+      return { ok: false, error: "Vui lòng nhập mô tả ngắn." };
+    }
+
+    if (!useTaxonomy) {
+      return {
+        ok: false,
+        error: "Hệ thống taxonomy chưa sẵn sàng. Liên hệ quản trị viên."
+      };
+    }
+
+    if (useTaxonomy && taxonomy.taxonomyTermIds.length === 0) {
+      return {
+        ok: false,
+        error: "Vui lòng chọn loại nội dung và thể loại chính (taxonomy)."
+      };
+    }
+
+    if (useTaxonomy && !taxonomy.presentationMode) {
+      return {
+        ok: false,
+        error: "Vui lòng chọn cách trình bày (presentation mode)."
+      };
+    }
+
+    if (useTaxonomy && !taxonomy.contentWarningsConfirmed) {
+      return {
+        ok: false,
+        error: "Vui lòng xác nhận cảnh báo nội dung."
+      };
+    }
   }
 
-  if (!isUrlSafeSlug(slug)) {
-    return {
-      ok: false,
-      error: "Slug chỉ dùng chữ thường, số và dấu gạch ngang."
-    };
-  }
-
-  if (!hook) {
+  if (intent === "review" && !hook) {
     return { ok: false, error: "Vui lòng nhập hook cho truyện." };
   }
 
-  if (!genreId) {
-    return { ok: false, error: "Vui lòng chọn thể loại." };
+  if (
+    intent === "review" &&
+    useTaxonomy &&
+    !taxonomy.contentWarningsConfirmed
+  ) {
+    return {
+      ok: false,
+      error:
+        "Vui lòng xác nhận cảnh báo nội dung (có hoặc không có) trước khi gửi duyệt."
+    };
   }
 
   const ageRatingInput = String(formData.get("age_rating") ?? "all_ages");
@@ -99,8 +168,6 @@ export function parseStoryFormData(
     .filter((flag): flag is SensitiveFlag =>
       SENSITIVE_FLAGS.has(flag as SensitiveFlag)
     );
-
-  const intent = intentInput === "review" ? "review" : "draft";
 
   if (intent === "review" && formData.get("guidelines_ack") !== "on") {
     return {
@@ -121,15 +188,13 @@ export function parseStoryFormData(
     ok: true,
     values: {
       title,
-      slug,
+      slug: normalizedSlug || normalizeStorySlugInput(title),
       hook,
       shortDescription:
         String(formData.get("short_description") ?? "").trim() || null,
       longDescription:
         String(formData.get("long_description") ?? "").trim() || null,
       coverUrl: String(formData.get("cover_url") ?? "").trim() || null,
-      genreId,
-      tagIds: formData.getAll("tags").map(String),
       isCompleted: formData.get("is_completed") === "on",
       visibility:
         visibilityInput === "public" || visibilityInput === "private"
@@ -141,7 +206,10 @@ export function parseStoryFormData(
       seoTitle: parseSeoTitleField(formData) || null,
       seoDescription: parseSeoDescriptionField(formData) || null,
       seoKeywords,
-      canonicalUrl: parseCanonicalUrlField(formData)
+      canonicalUrl: parseCanonicalUrlField(formData),
+      useTaxonomy,
+      taxonomy,
+      structureType
     }
   };
 }

@@ -1,4 +1,5 @@
 import { CHAPTER_IMAGE_STORAGE_BUCKET } from "@/types/chapter-images";
+import { registerStorageAsset } from "@/lib/storage/asset-service";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export function getChapterImageStoragePrefix(input: {
@@ -45,6 +46,20 @@ export async function uploadChapterImageVariant(
   const { data } = supabase.storage
     .from(CHAPTER_IMAGE_STORAGE_BUCKET)
     .getPublicUrl(path);
+  await registerStorageAsset(supabase, {
+    bucket: CHAPTER_IMAGE_STORAGE_BUCKET,
+    isOriginal: path.endsWith("/image.webp"),
+    isPublic: true,
+    linkedEntityType: "chapter_image",
+    linkedField: path.endsWith("/thumb.webp") ? "thumb" : "image",
+    metadata: { module: "chapter_image" },
+    mimeType: "image/webp",
+    path,
+    publicUrl: data.publicUrl,
+    sizeBytes: buffer.byteLength,
+    extension: "webp",
+    usageType: "chapter_image"
+  });
 
   return data.publicUrl;
 }

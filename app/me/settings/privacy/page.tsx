@@ -3,6 +3,7 @@ import { MobileBackHeader } from "@/components/me/MobileBackHeader";
 import { ProfilePrivacySettingsForm } from "@/components/profile/ProfilePrivacySettings";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { ensureProfilePrivacySettings } from "@/lib/profile/get-profile-privacy";
+import { getProfileUrlOrFallback } from "@/lib/profile/profile-url";
 import { getShareUrl } from "@/lib/share/getShareUrl";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export default async function MePrivacySettingsPage() {
 
   const settings = await ensureProfilePrivacySettings(profile.id);
   const profileUrl = profile.username
-    ? getShareUrl(`/profile/${profile.username}`)
+    ? getShareUrl(getProfileUrlOrFallback(profile.username))
     : null;
 
   return (

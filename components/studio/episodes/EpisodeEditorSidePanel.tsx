@@ -1,11 +1,11 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { Badge, Card } from "@/components/ui";
 import { EpisodeWritingChecklist } from "@/components/studio/episodes/EpisodeWritingChecklist";
 
 type EpisodeEditorSidePanelProps = {
   basePath?: string;
   previewReaderHref?: string;
-  previewSwipeHref?: string;
+  previewReelsHref?: string;
   storyStatus: string;
   storyTitle: string;
   wordCount: number;
@@ -18,7 +18,7 @@ export function EpisodeEditorSidePanel({
   excerpt,
   episodeStatus,
   previewReaderHref,
-  previewSwipeHref,
+  previewReelsHref,
   storyStatus,
   storyTitle,
   wordCount
@@ -70,16 +70,16 @@ export function EpisodeEditorSidePanel({
               Preview Reader
             </span>
           )}
-          {previewSwipeHref ? (
+          {previewReelsHref ? (
             <Link
               className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:border-white/20 hover:bg-white/10"
-              href={previewSwipeHref}
+              href={previewReelsHref}
             >
-              Preview Swipe
+              Preview Reels
             </Link>
           ) : (
             <span className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-500">
-              Preview Swipe
+              Preview Reels
             </span>
           )}
         </div>

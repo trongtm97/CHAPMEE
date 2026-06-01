@@ -18,6 +18,7 @@ import {
   updateCreatorAdminOverridesAction,
   updateCreatorStudioStatusAction
 } from "@/lib/admin/creator-monetization-actions";
+import { CreatorAccessControls } from "@/components/admin/creators/CreatorAccessControls";
 import type {
   AdminCreatorDetail,
   CreatorAdminCapabilities,
@@ -131,7 +132,7 @@ export function CreatorDetailPanel({
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {detail.username ? (
-              <QuickLink href={`/tac-gia/${detail.username}`}>Mở hồ sơ</QuickLink>
+              <QuickLink href={`/@${detail.username}`}>Mở hồ sơ</QuickLink>
             ) : null}
             <QuickLink href="/studio">Mở Studio</QuickLink>
             {capabilities.canManageMonetization ? (
@@ -173,6 +174,7 @@ export function CreatorDetailPanel({
               capabilities={capabilities}
               detail={detail}
               onOpenModal={setModal}
+              onRefresh={onRefresh}
             />
           )}
           {tab === "revenue" && (
@@ -353,7 +355,7 @@ function StudioSection({
   return (
     <div className="space-y-3">
       <p>
-        <strong className="text-zinc-400">Bút danh:</strong> {detail.studioName ?? "—"}
+        <strong className="text-zinc-400">Tên hiển thị:</strong> {detail.studioName ?? "—"}
       </p>
       <p>
         <strong className="text-zinc-400">Mô tả:</strong> {detail.studioBio ?? "—"}
@@ -399,21 +401,29 @@ function StudioSection({
 function MonetizationTab({
   detail,
   capabilities,
-  onOpenModal
+  onOpenModal,
+  onRefresh
 }: {
   detail: AdminCreatorDetail;
   capabilities: CreatorAdminCapabilities;
   onOpenModal: (m: CreatorModalType) => void;
+  onRefresh: () => void;
 }) {
   return (
     <div className="space-y-4">
+      <CreatorAccessControls
+        access={detail.creatorAccess}
+        canManage={capabilities.canManageMonetization}
+        onRefresh={onRefresh}
+        userId={detail.userId}
+      />
       <span
         className={`inline-flex rounded px-2 py-0.5 text-xs ${monetizationStatusBadgeClass(detail.monetizationStatus)}`}
       >
-        {formatMonetizationStatusLabel(detail.monetizationStatus)}
+        Hồ sơ cũ: {formatMonetizationStatusLabel(detail.monetizationStatus)}
       </span>
       <div>
-        <h4 className="text-xs font-medium uppercase text-zinc-500">Điều kiện</h4>
+        <h4 className="text-xs font-medium uppercase text-zinc-500">Gợi ý phát triển</h4>
         <ul className="mt-2 space-y-1">
           {detail.eligibility.map((e) => (
             <li key={e.key}>
@@ -430,6 +440,11 @@ function MonetizationTab({
       ) : null}
       {capabilities.canManageMonetization ? (
         <div className="flex flex-wrap gap-2">
+          <Link href={`/admin/creator-fee-policies?creator=${detail.userId}&create=1`}>
+            <Button type="button" variant="secondary">
+              Chính sách phí riêng
+            </Button>
+          </Link>
           <Button onClick={() => onOpenModal("approve_monetization")} type="button">
             Duyệt kiếm tiền
           </Button>

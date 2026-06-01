@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { ReaderPreview } from "@/components/creator/episodes/ReaderPreview";
-import { SwipePreview } from "@/components/creator/episodes/SwipePreview";
+import { ReelsPreview } from "@/components/creator/episodes/ReelsPreview";
 
 type EpisodePreviewProps = {
   content: string;
@@ -11,12 +11,12 @@ type EpisodePreviewProps = {
   episodeTitle: string;
   excerpt: string;
   storyTitle: string;
-  initialMode?: "reader" | "swipe";
+  initialMode?: "reader" | "reels";
 };
 
 export function EpisodePreview(props: EpisodePreviewProps) {
-  const [mode, setMode] = useState<"reader" | "swipe">(
-    props.initialMode ?? "reader"
+  const [mode, setMode] = useState<"reader" | "reels">(
+    props.initialMode === "reels" ? "reels" : "reader"
   );
 
   return (
@@ -35,12 +35,12 @@ export function EpisodePreview(props: EpisodePreviewProps) {
         </button>
         <button
           className={`min-h-10 rounded-md px-3 py-2 text-sm font-semibold ${
-            mode === "swipe" ? "bg-cyan-300 text-zinc-950" : "text-zinc-300"
+            mode === "reels" ? "bg-cyan-300 text-zinc-950" : "text-zinc-300"
           }`}
-          onClick={() => setMode("swipe")}
+          onClick={() => setMode("reels")}
           type="button"
         >
-          Swipe Preview
+          Reels Preview
         </button>
       </div>
 
@@ -51,7 +51,7 @@ export function EpisodePreview(props: EpisodePreviewProps) {
           storyTitle={props.storyTitle}
         />
       ) : (
-        <SwipePreview
+        <ReelsPreview
           creatorName={props.creatorName}
           episodeNumber={props.episodeNumber}
           episodeTitle={props.episodeTitle}

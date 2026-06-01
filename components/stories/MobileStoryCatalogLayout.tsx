@@ -8,6 +8,9 @@ import type { StoryCatalogLayoutProps } from "@/components/stories/DesktopStoryC
 export function MobileStoryCatalogLayout({
   genre,
   genres,
+  hideCatalogHeader = false,
+  filters,
+  filterOptions,
   page,
   pageSize,
   query,
@@ -15,29 +18,48 @@ export function MobileStoryCatalogLayout({
   status,
   stories,
   totalCount,
-  totalPages
+  totalPages,
+  trackingContext
 }: StoryCatalogLayoutProps) {
+  const trackingSurface = query.trim() ? "search" : "category";
+
   return (
     <div className="pb-2 lg:hidden">
-      <header className="space-y-1">
-        <p className="text-[11px] text-zinc-500">
-          <Link className="text-zinc-400 hover:text-zinc-200" href="/discover">
-            Khám phá
-          </Link>
-          <span className="text-zinc-600"> / </span>
-          <span>Danh mục truyện</span>
-        </p>
-        <h1 className="text-xl font-black text-zinc-50">Danh mục truyện</h1>
-      </header>
+      {hideCatalogHeader ? null : (
+        <header className="space-y-1">
+          <p className="text-[11px] text-zinc-500">
+            <Link className="text-zinc-400 hover:text-zinc-200" href="/discover">
+              Khám phá
+            </Link>
+            <span className="text-zinc-600"> / </span>
+            <span>Danh mục truyện</span>
+          </p>
+          <h1 className="text-xl font-black text-zinc-50">Danh mục truyện</h1>
+        </header>
+      )}
 
-      <div className="mt-3 space-y-3">
-        <StoryCatalogFilters genre={genre} genres={genres} query={query} sort={sort} status={status} />
+      <div className={hideCatalogHeader ? "space-y-3" : "mt-3 space-y-3"}>
+        <StoryCatalogFilters
+          featuredGenreSlugs={filterOptions.featuredGenreSlugs}
+          filterOptions={filterOptions}
+          filters={filters}
+          genre={genre}
+          genres={genres}
+          query={query}
+          sort={sort}
+          status={status}
+        />
 
         <StoryCatalogSummary page={page} totalCount={totalCount} totalPages={totalPages} />
 
-        <StoryCatalogList stories={stories} />
+        <StoryCatalogList
+          stories={stories}
+          trackingContext={trackingContext}
+          trackingSurface={trackingSurface}
+        />
 
         <StoryPagination
+          filters={filters}
           genre={genre}
           layout="mobile"
           page={page}

@@ -1,5 +1,9 @@
 import { getStoryImageStorageObjectPath } from "@/lib/images/get-current-story-image";
 import type { GeneratedStoryImageVariant } from "@/lib/images/generate-story-image-variants";
+import {
+  registerStorageAsset,
+  registerStorageDerivative
+} from "@/lib/storage/asset-service";
 import { STORY_IMAGE_STORAGE_BUCKET, type StoryImageVariant } from "@/types/story-images";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -42,6 +46,21 @@ async function uploadVariantBuffer(
   }
 
   const { data } = supabase.storage.from(STORY_IMAGE_STORAGE_BUCKET).getPublicUrl(path);
+  await registerStorageAsset(supabase, {
+    bucket: STORY_IMAGE_STORAGE_BUCKET,
+    isOriginal: variant === "original",
+    isPublic: true,
+    linkedEntityId: storyId,
+    linkedEntityType: "story",
+    linkedField: variant === "original" ? "story_image_original" : `story_image_${variant}`,
+    metadata: { imageId, module: "story_cover", variant },
+    mimeType: "image/webp",
+    path,
+    publicUrl: data.publicUrl,
+    sizeBytes: buffer.byteLength,
+    extension: "webp",
+    usageType: "story_cover"
+  });
 
   return {
     variant,
@@ -82,6 +101,39 @@ export async function uploadStoryImageSet(
   const urlByVariant = Object.fromEntries(
     uploadedVariants.map((item) => [item.variant, item.publicUrl])
   ) as Record<Exclude<StoryImageVariant, "original">, string>;
+  const { assetId } = await registerStorageAsset(supabase, {
+    bucket: STORY_IMAGE_STORAGE_BUCKET,
+    isOriginal: true,
+    isPublic: true,
+    linkedEntityId: storyId,
+    linkedEntityType: "story",
+    linkedField: "story_image_original",
+    metadata: { imageId, module: "story_cover", variant: "original" },
+    mimeType: "image/webp",
+    path: original.path,
+    publicUrl: original.publicUrl,
+    sizeBytes: originalBuffer.byteLength,
+    extension: "webp",
+    usageType: "story_cover",
+    variants: Object.fromEntries(uploadedVariants.map((item) => [item.variant, item.publicUrl]))
+  });
+  if (assetId) {
+    await Promise.all(
+      uploadedVariants.map((item) =>
+        registerStorageDerivative(supabase, {
+          assetId,
+          bucket: STORY_IMAGE_STORAGE_BUCKET,
+          metadata: { imageId, module: "story_cover" },
+          mimeType: "image/webp",
+          path: item.path,
+          sizeBytes:
+            generatedVariants.find((variant) => variant.variant === item.variant)?.buffer
+              .byteLength ?? 0,
+          variant: item.variant
+        })
+      )
+    );
+  }
 
   return {
     original,

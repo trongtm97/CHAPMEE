@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChapterFormatBadge } from "@/components/studio/presentation/ChapterFormatBadge";
 import { Badge, Button, Card, EmptyState } from "@/components/ui";
 import type { CreatorEpisode } from "@/lib/creator/getCreatorStoryEpisodes";
 import { submitEpisodeForReviewAction } from "@/lib/creator/submitEpisodeForReview";
@@ -21,8 +22,8 @@ function previewReaderHref(storyId: string, episodeId: string) {
   return `/studio/stories/${storyId}/episodes/${episodeId}/preview?mode=reader`;
 }
 
-function previewSwipeHref(storyId: string, episodeId: string) {
-  return `/studio/stories/${storyId}/episodes/${episodeId}/preview?mode=swipe`;
+function previewReelsHref(storyId: string, episodeId: string) {
+  return `/studio/stories/${storyId}/episodes/${episodeId}/preview?mode=reels`;
 }
 
 export function StudioEpisodeTable({
@@ -67,7 +68,10 @@ export function StudioEpisodeTable({
               <p className="font-semibold text-white">
                 {episode.episode_number}
               </p>
-              <p className="truncate text-zinc-100">{episode.title}</p>
+              <p className="flex min-w-0 items-center gap-2 truncate text-zinc-100">
+                <span className="truncate">{episode.title}</span>
+                <ChapterFormatBadge contentFormat={episode.content_format} />
+              </p>
               <p className="text-zinc-200">{episode.word_count}</p>
               <Badge className="w-fit">{episode.status}</Badge>
               <p className="text-zinc-400">{formatDate(episode.updated_at)}</p>
@@ -86,9 +90,9 @@ export function StudioEpisodeTable({
                 </Link>
                 <Link
                   className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-100 transition hover:border-white/20 hover:bg-white/10"
-                  href={previewSwipeHref(storyId, episode.id)}
+                  href={previewReelsHref(storyId, episode.id)}
                 >
-                  Swipe
+                  Reels
                 </Link>
                 {episode.status === "draft" ? (
                   <form action={submitEpisodeForReviewAction}>
@@ -122,8 +126,9 @@ export function StudioEpisodeTable({
                 <p className="text-sm font-medium text-sky-300">
                   Episode {episode.episode_number}
                 </p>
-                <h3 className="mt-1 text-lg font-semibold text-white">
+                <h3 className="mt-1 flex flex-wrap items-center gap-2 text-lg font-semibold text-white">
                   {episode.title}
+                  <ChapterFormatBadge contentFormat={episode.content_format} />
                 </h3>
               </div>
               <Badge>{episode.status}</Badge>
@@ -149,9 +154,9 @@ export function StudioEpisodeTable({
               </Link>
               <Link
                 className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-zinc-100 transition hover:border-white/20 hover:bg-white/10"
-                href={previewSwipeHref(storyId, episode.id)}
+                href={previewReelsHref(storyId, episode.id)}
               >
-                Swipe
+                Reels
               </Link>
               {episode.status === "draft" ? (
                 <form action={submitEpisodeForReviewAction}>

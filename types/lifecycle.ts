@@ -1,6 +1,6 @@
 export const readerLifecycleSegments = [
   "new_user_no_action",
-  "swipe_viewer_no_follow",
+  "reels_viewer_no_follow",
   "reader_no_comment",
   "active_reader",
   "dormant_reader_3d",
@@ -38,7 +38,7 @@ export type LifecycleState = {
 
 export const lifecycleNudgeKeys = [
   "new_user_no_action",
-  "swipe_viewer_no_follow",
+  "reels_viewer_no_follow",
   "reader_no_comment",
   "author_no_story",
   "author_has_story_no_recent_update",
@@ -47,7 +47,7 @@ export const lifecycleNudgeKeys = [
 
 export type LifecycleNudgeKey = (typeof lifecycleNudgeKeys)[number];
 
-export type LifecycleNudgePlacement = "home" | "me" | "creator";
+export type LifecycleNudgePlacement = "reels" | "me" | "creator";
 
 export type LifecycleNudgeConfig = {
   key: LifecycleNudgeKey;

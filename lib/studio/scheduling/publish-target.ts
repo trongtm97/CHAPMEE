@@ -1,11 +1,12 @@
-import {
+﻿import {
   validateChapterForPublish,
   validationErrorMessage,
   validateStoryForPublish
 } from "@/lib/studio/scheduling/validate-publish";
-import { publishSwipeItem } from "@/lib/swipe/publish-swipe-item";
-import { mapSwipeRow } from "@/lib/swipe/map-swipe-row";
-import type { ScheduledTargetType } from "@/types/scheduling";
+import { publishReelsItem } from "@/lib/reels/publish-reels-item";
+import { mapReelsRow } from "@/lib/reels/map-reels-row";
+import { isReelsScheduledTarget, type ScheduledTargetType } from "@/types/scheduling";
+import { triggerColdStartAfterReelPublish, triggerColdStartAfterStoryPublish } from "@/lib/cold-start/hooks";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type PublishTargetResult = {
@@ -28,15 +29,27 @@ export async function publishStoryTarget(
     };
   }
 
+  const { data: storyRow } = await supabase
+    .from("stories")
+    .select("structure_type")
+    .eq("id", storyId)
+    .eq("creator_id", creatorProfileId)
+    .maybeSingle();
+
   const now = new Date().toISOString();
+  const publishPatch: Record<string, string> = {
+    published_at: now,
+    status: "published",
+    visibility: "public"
+  };
+
+  if (storyRow?.structure_type === "standalone") {
+    publishPatch.standalone_published_at = now;
+  }
 
   const { error } = await supabase
     .from("stories")
-    .update({
-      published_at: now,
-      status: "published",
-      visibility: "public"
-    })
+    .update(publishPatch)
     .eq("id", storyId)
     .eq("creator_id", creatorProfileId)
     .neq("status", "published");
@@ -44,6 +57,8 @@ export async function publishStoryTarget(
   if (error) {
     return { error: error.message, ok: false };
   }
+
+  void triggerColdStartAfterStoryPublish(storyId);
 
   return { ok: true, storyId };
 }
@@ -103,25 +118,25 @@ export async function publishChapterTarget(
   return { ok: true, storyId };
 }
 
-export async function publishSwipeTarget(
+export async function publishReelsTarget(
   supabase: SupabaseClient,
-  swipeId: string,
+  reelId: string,
   ownerProfileId: string
 ): Promise<PublishTargetResult> {
   const { data, error: readError } = await supabase
-    .from("swipe_items")
+    .from("reels_items")
     .select("*")
-    .eq("id", swipeId)
+    .eq("id", reelId)
     .eq("owner_id", ownerProfileId)
     .maybeSingle();
 
   if (readError || !data) {
-    return { error: readError?.message ?? "Không tìm thấy Swipe.", ok: false };
+    return { error: readError?.message ?? "Không tìm thấy Reels.", ok: false };
   }
 
-  const row = mapSwipeRow(data);
+  const row = mapReelsRow(data);
 
-  const result = await publishSwipeItem(supabase, swipeId, ownerProfileId, {
+  const result = await publishReelsItem(supabase, reelId, ownerProfileId, {
     backgroundImageUrl: row.backgroundImageUrl,
     body: row.body,
     chapterId: row.chapterId,
@@ -158,7 +173,7 @@ export async function publishTargetByType(
     return publishChapterTarget(supabase, targetId, storyId, creatorProfileId);
   }
 
-  if (targetType === "swipe") {
+  if (isReelsScheduledTarget(targetType)) {
     const { data: profile } = await supabase
       .from("creator_profiles")
       .select("user_id")
@@ -169,7 +184,7 @@ export async function publishTargetByType(
       return { error: "Không xác định được tác giả.", ok: false };
     }
 
-    return publishSwipeTarget(supabase, targetId, profile.user_id);
+    return publishReelsTarget(supabase, targetId, profile.user_id);
   }
 
   return { error: "Loại nội dung không hỗ trợ.", ok: false };

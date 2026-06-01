@@ -132,6 +132,8 @@ export async function getUserVerificationSummary(
     records,
     publicBadge,
     requestsEnabled,
+    latestApproved: records.find((row) => row.status === "approved") ?? null,
+    latestNeedsMoreInfo: records.find((row) => row.status === "needs_more_info") ?? null,
     latestPending: records.find((row) => row.status === "pending") ?? null,
     latestRejected: records.find((row) => row.status === "rejected") ?? null,
     latestRevoked: records.find((row) => row.status === "revoked") ?? null

@@ -32,6 +32,8 @@ export type ReportReasonCode =
   | "copyright"
   | "impersonation_scam"
   | "wrong_age_rating"
+  | "wrong_taxonomy_tag"
+  | "missing_content_warning"
   | "illegal_content"
   | "other";
 
@@ -112,6 +114,7 @@ export type ReporterQualitySummary = {
   spamSuspected: boolean;
   accuracyPercent: number | null;
   displayName: string | null;
+  username: string | null;
 };
 
 export type AppealStatus = "open" | "reviewing" | "accepted" | "rejected";

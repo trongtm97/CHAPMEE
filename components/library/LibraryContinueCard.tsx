@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getStoryChapterHref, getStoryDetailHref } from "@/lib/stories/story-routes";
 import { StoryImageThumb } from "@/components/common/StoryImageView";
 import type { ContinueReadingEnriched } from "@/types/library";
 
@@ -12,7 +13,12 @@ export function LibraryContinueCard({ item }: LibraryContinueCardProps) {
   return (
     <article className="rounded-xl border border-white/6 bg-white/[0.02] p-2">
       <div className="flex gap-2.5">
-        <Link href={`/stories/${item.story.slug}`}>
+        <Link
+          href={getStoryDetailHref({
+            slug: item.story.slug,
+            public_code: item.story.publicCode
+          })}
+        >
           <StoryImageThumb
             className="relative h-[3.1rem] w-[2.2rem] shrink-0 overflow-hidden rounded-md border border-white/8 bg-white/5"
             story={item.story}
@@ -23,7 +29,12 @@ export function LibraryContinueCard({ item }: LibraryContinueCardProps) {
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <Link href={`/stories/${item.story.slug}`}>
+              <Link
+          href={getStoryDetailHref({
+            slug: item.story.slug,
+            public_code: item.story.publicCode
+          })}
+        >
                 <h3 className="line-clamp-1 text-[0.8125rem] font-bold text-white">
                   {item.story.title}
                 </h3>
@@ -53,7 +64,10 @@ export function LibraryContinueCard({ item }: LibraryContinueCardProps) {
           <div className="mt-1.5 flex justify-end">
             <Link
               className="inline-flex min-h-7 items-center rounded-full bg-cyan-300 px-2.5 text-[0.65rem] font-bold text-zinc-950 transition hover:bg-cyan-200"
-              href={`/stories/${item.story.slug}/episodes/${item.episode.episodeNumber}`}
+              href={getStoryChapterHref(
+                { slug: item.story.slug, public_code: item.story.publicCode },
+                { slug: item.episode.slug, public_code: item.episode.publicCode }
+              )}
             >
               Đọc tiếp
             </Link>

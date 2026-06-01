@@ -3,7 +3,9 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { CreatorDetailDrawer } from "@/components/admin/creators/CreatorDetailDrawer";
+import { getProfileUrlOrFallback } from "@/lib/profile/profile-url";
 import { AvatarFallback, Button } from "@/components/ui";
+import { VerificationDocumentsTab } from "@/components/admin/VerificationDocumentsTab";
 import { VerificationNotesTab } from "@/components/admin/VerificationNotesTab";
 import { VerificationHistoryTab } from "@/components/admin/VerificationHistoryTab";
 import { VerificationAuditLogTab } from "@/components/admin/VerificationAuditLogTab";
@@ -25,6 +27,7 @@ const TABS = [
   "overview",
   "profile",
   "request",
+  "documents",
   "history",
   "activity",
   "notes",
@@ -37,6 +40,7 @@ const TAB_LABELS: Record<Tab, string> = {
   overview: "Tổng quan",
   profile: "Hồ sơ",
   request: "Yêu cầu",
+  documents: "Giấy tờ",
   history: "Lịch sử xác thực",
   activity: "Hoạt động",
   notes: "Ghi chú nội bộ",
@@ -195,6 +199,9 @@ export function VerificationDetailDrawer({
               {tab === "overview" ? <OverviewTab detail={detail} /> : null}
               {tab === "profile" ? <ProfileTab detail={detail} /> : null}
               {tab === "request" ? <RequestTab detail={detail} /> : null}
+              {tab === "documents" ? (
+                <VerificationDocumentsTab verificationId={detail.id} />
+              ) : null}
               {tab === "history" ? (
                 <VerificationHistoryTab history={detail.history} />
               ) : null}
@@ -278,7 +285,7 @@ function ProfileTab({ detail }: { detail: VerificationDetail }) {
         {p.username ? (
           <Link
             className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-cyan-300 hover:border-cyan-400/30"
-            href={`/profile/${p.username}`}
+            href={getProfileUrlOrFallback(p.username)}
             target="_blank"
           >
             Hồ sơ công khai

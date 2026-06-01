@@ -28,15 +28,6 @@ export function CreatorFeePolicyForm({ creatorId, editing, onSuccess }: CreatorF
     editing?.creator_revenue_share_percent?.toString() ?? ""
   );
   const [platformFee, setPlatformFee] = useState(editing?.platform_fee_percent?.toString() ?? "");
-  const [processingFee, setProcessingFee] = useState(
-    editing?.payment_processing_fee_percent?.toString() ?? ""
-  );
-  const [processingFixed, setProcessingFixed] = useState(
-    editing?.payment_processing_fixed_fee?.toString() ?? ""
-  );
-  const [tipPlatformFee, setTipPlatformFee] = useState(
-    editing?.tip_platform_fee_percent?.toString() ?? ""
-  );
   const [minWithdraw, setMinWithdraw] = useState(
     editing?.min_withdraw_amount_override?.toString() ?? ""
   );
@@ -61,9 +52,9 @@ export function CreatorFeePolicyForm({ creatorId, editing, onSuccess }: CreatorF
         policyName,
         creatorRevenueSharePercent: parseOptionalNumber(creatorShare),
         platformFeePercent: parseOptionalNumber(platformFee),
-        paymentProcessingFeePercent: parseOptionalNumber(processingFee),
-        paymentProcessingFixedFee: parseOptionalNumber(processingFixed),
-        tipPlatformFeePercent: parseOptionalNumber(tipPlatformFee),
+        paymentProcessingFeePercent: null,
+        paymentProcessingFixedFee: null,
+        tipPlatformFeePercent: null,
         minWithdrawAmountOverride: parseOptionalNumber(minWithdraw),
         note,
         publicNote,
@@ -89,8 +80,11 @@ export function CreatorFeePolicyForm({ creatorId, editing, onSuccess }: CreatorF
   return (
     <Card className="space-y-4">
       <h3 className="text-lg font-semibold text-white">
-        {editing ? "Sửa chính sách phí" : "Tạo chính sách phí riêng"}
+        {editing ? "Sửa chính sách ăn chia" : "Tạo chính sách ăn chia riêng"}
       </h3>
+      <p className="text-sm text-zinc-400">
+        Chỉ cấu hình tỉ lệ bạn nhận / ChapMee giữ. Hai tỉ lệ cộng lại = 100%.
+      </p>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block space-y-1 sm:col-span-2">
@@ -102,50 +96,23 @@ export function CreatorFeePolicyForm({ creatorId, editing, onSuccess }: CreatorF
           />
         </label>
         <label className="block space-y-1">
-          <span className="text-xs text-zinc-400">Creator revenue share %</span>
+          <span className="text-xs text-zinc-400">Bạn nhận (%)</span>
           <input
             className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
             inputMode="decimal"
             onChange={(e) => setCreatorShare(e.target.value)}
-            placeholder="VD: 90"
+            placeholder="VD: 60"
             value={creatorShare}
           />
         </label>
         <label className="block space-y-1">
-          <span className="text-xs text-zinc-400">Platform fee %</span>
+          <span className="text-xs text-zinc-400">ChapMee giữ (%)</span>
           <input
             className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
             inputMode="decimal"
             onChange={(e) => setPlatformFee(e.target.value)}
-            placeholder="VD: 10"
+            placeholder="VD: 40"
             value={platformFee}
-          />
-        </label>
-        <label className="block space-y-1">
-          <span className="text-xs text-zinc-400">Payment processing fee %</span>
-          <input
-            className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
-            inputMode="decimal"
-            onChange={(e) => setProcessingFee(e.target.value)}
-            value={processingFee}
-          />
-        </label>
-        <label className="block space-y-1">
-          <span className="text-xs text-zinc-400">Processing fixed fee (VND)</span>
-          <input
-            className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
-            inputMode="numeric"
-            onChange={(e) => setProcessingFixed(e.target.value)}
-            value={processingFixed}
-          />
-        </label>
-        <label className="block space-y-1">
-          <span className="text-xs text-zinc-400">Tip platform fee %</span>
-          <input
-            className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
-            inputMode="decimal"
-            onChange={(e) => setTipPlatformFee(e.target.value)}
-            value={tipPlatformFee}
           />
         </label>
         <label className="block space-y-1">

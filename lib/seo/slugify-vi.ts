@@ -1,11 +1,12 @@
-import { isUrlSafeSlug, slugify } from "@/lib/slugify";
+import { normalizeVietnameseSlug } from "@/lib/seo/slug";
 import { SEO_SLUG_MAX_LENGTH } from "@/types/seo";
 
-export { isUrlSafeSlug };
+export { isUrlSafeSlug } from "@/lib/slugify";
+export { normalizeVietnameseSlug, validateSeoSlug, isValidSeoSlug } from "@/lib/seo/slug";
 
 /** Slug tiếng Việt không dấu, tối đa 80 ký tự. */
 export function slugifyVietnamese(input: string, maxLength = SEO_SLUG_MAX_LENGTH) {
-  return slugify(input).slice(0, maxLength).replace(/-+$/g, "");
+  return normalizeVietnameseSlug(input, maxLength);
 }
 
 export function appendSlugSuffix(base: string, suffix: number) {

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getStoryChapterHref } from "@/lib/stories/story-routes";
 import { EmptyState, SectionHeader } from "@/components/ui";
 import type { StoryDetail } from "@/lib/stories/getStoryBySlug";
 
@@ -32,7 +33,10 @@ export function EpisodeList({ story }: EpisodeListProps) {
           {story.episodes.map((episode) => (
             <Link
               className="tap-highlight block rounded-[1.25rem] border border-white/10 bg-[var(--surface)] p-4 shadow-[0_16px_32px_rgba(0,0,0,0.22)] transition hover:-translate-y-0.5 hover:border-cyan-300/30 hover:bg-[var(--surface-soft)]"
-              href={`/stories/${story.slug}/episodes/${episode.episodeNumber}`}
+              href={getStoryChapterHref(
+                { slug: story.slug, public_code: story.publicCode },
+                { slug: episode.slug, public_code: episode.publicCode }
+              )}
               key={episode.id}
             >
               <div className="flex items-start justify-between gap-3">

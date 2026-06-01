@@ -24,7 +24,7 @@ export function AdminEngagementMetrics({
   return (
     <section className="space-y-3">
       <SectionHeader
-        subtitle="Sự kiện đọc và Swipe từ analytics_events."
+        subtitle="Sự kiện đọc và Reels từ analytics_events."
         title="Tương tác đọc"
       />
       {hasData ? (
@@ -47,7 +47,7 @@ export function AdminEngagementMetrics({
         </Card>
       ) : (
         <EmptyState
-          description="Reader events will appear here after users open stories, read chapters, or use Swipe."
+          description="Reader events will appear here after users open stories, read chapters, or use Reels."
           title="Chưa có sự kiện tương tác"
         />
       )}

@@ -1,4 +1,7 @@
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { resolveCreatorRowName } from "@/lib/creator/resolve-creator-row-name";
 import { createClient } from "@/lib/supabase/server";
+import { mapStoryStructureFromRow } from "@/lib/stories/story-structure";
 import { createExcerpt } from "@/lib/text/createExcerpt";
 import type { ProfilePrivacySettings, PublicWorkItem } from "@/types/public-profile";
 
@@ -8,10 +11,13 @@ type StoryRow = {
   id: string;
   title: string;
   slug: string;
+  public_code: string;
   hook: string | null;
   cover_url: string | null;
   is_completed: boolean | null;
   status: string;
+  structure_type?: string | null;
+  standalone_reading_time_minutes?: number | null;
   creator_profiles: { pen_name: string | null } | { pen_name: string | null }[] | null;
 };
 
@@ -47,16 +53,16 @@ export async function getPublicWorksForUser(
   const { count } = await supabase
     .from("stories")
     .select("id", { count: "exact", head: true })
-    .eq("creator_id", creatorId)
+    .eq("owner_user_id", userId)
     .eq("visibility", "public")
     .in("status", ["published", "approved"]);
 
   const { data, error } = await supabase
     .from("stories")
     .select(
-      "id, title, slug, hook, cover_url, is_completed, status, creator_profiles(pen_name)"
+      `id, title, slug, public_code, hook, cover_url, is_completed, status, structure_type, standalone_reading_time_minutes, ${CREATOR_PROFILE_STORY_JOIN}`
     )
-    .eq("creator_id", creatorId)
+    .eq("owner_user_id", userId)
     .eq("visibility", "public")
     .in("status", ["published", "approved"])
     .order("updated_at", { ascending: false })
@@ -84,16 +90,20 @@ export async function getPublicWorksForUser(
 
   const items: PublicWorkItem[] = (data as unknown as StoryRow[]).map((row) => {
     const creator = firstRelation(row.creator_profiles);
+    const structure = mapStoryStructureFromRow(row);
     return {
       id: row.id,
       slug: row.slug,
+      publicCode: row.public_code,
       title: row.title,
       description: row.hook ? createExcerpt(row.hook, 120) : null,
       coverUrl: row.cover_url,
       chapterCount: episodeCounts.get(row.id) ?? 0,
       readCount: includeReadCount ? null : null,
       statusLabel: statusLabel(row.is_completed, row.status),
-      authorName: creator?.pen_name ?? null
+      authorName: resolveCreatorRowName(creator),
+      structureType: structure.structureType,
+      standaloneReadingTimeMinutes: structure.standaloneReadingTimeMinutes
     };
   });
 

@@ -17,28 +17,31 @@ import type { ContactSettings } from "@/types/contact-settings";
 type ContactChapMeeBoxProps = {
   settings: ContactSettings;
   userEmail?: string | null;
+  feedbackOpen?: boolean;
+  onFeedbackOpenChange?: (open: boolean) => void;
 };
 
-/**
- * Fallback khi admin chưa bật kênh liên hệ.
- * TODO: bổ sung kênh mặc định trong admin Contact Settings thay vì hiển thị placeholder.
- */
 const CONTACT_FALLBACK_MESSAGE =
-  "ChapMee đang cập nhật kênh liên hệ chính thức. Bạn có thể xem Điều khoản và Chính sách nội dung, hoặc quay lại sau khi admin bật email/fanpage/Telegram.";
+  "ChapMee đang cập nhật kênh liên hệ chính thức. Bạn có thể gửi góp ý / báo lỗi hoặc xem Chính sách nội dung.";
 
 export function ContactChapMeeBox({
+  feedbackOpen: controlledOpen,
+  onFeedbackOpenChange,
   settings,
   userEmail
 }: ContactChapMeeBoxProps) {
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const feedbackOpen = controlledOpen ?? internalOpen;
+  const setFeedbackOpen = onFeedbackOpenChange ?? setInternalOpen;
   const hasChannels = hasVisibleContactChannel(settings);
+  const showFeedbackButton = isFeedbackFormVisible(settings) || !hasChannels;
 
   return (
     <section className="scroll-mt-24 space-y-3" id="lien-he-chapmee">
       <div>
-        <h2 className="text-lg font-bold text-white">Liên hệ ChapMee</h2>
+        <h2 className="text-lg font-bold text-white">Cần hỗ trợ thêm?</h2>
         <p className="mt-1 text-sm text-zinc-400">
-          Kênh hỗ trợ do quản trị viên cấu hình — không cố định trong mã nguồn.
+          Liên hệ ChapMee qua các kênh được cấu hình hoặc gửi góp ý trực tiếp.
         </p>
       </div>
 
@@ -48,64 +51,62 @@ export function ContactChapMeeBox({
             {settings.contactTitle || "Liên hệ ChapMee"}
           </p>
           {settings.contactDescription ? (
-            <p className="mt-2 text-sm leading-6 text-zinc-400">
-              {settings.contactDescription}
-            </p>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">{settings.contactDescription}</p>
           ) : null}
         </div>
 
-        {hasChannels ? (
-          <div className="flex flex-wrap gap-2">
-            {isSupportEmailVisible(settings) ? (
-              <a
-                className="inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-100 transition hover:border-sky-300/40 hover:text-sky-200"
-                href={`mailto:${encodeURIComponent(settings.supportEmail)}`}
-              >
-                Email: {settings.supportEmail}
-              </a>
-            ) : null}
+        <div className="flex flex-wrap gap-2">
+          {showFeedbackButton ? (
+            <button
+              className="inline-flex min-h-10 items-center rounded-full border border-cyan-300/40 bg-cyan-300/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
+              onClick={() => setFeedbackOpen(true)}
+              type="button"
+            >
+              Gửi góp ý / báo lỗi
+            </button>
+          ) : null}
 
-            {isFacebookVisible(settings) ? (
-              <a
-                className="inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-100 transition hover:border-sky-300/40 hover:text-sky-200"
-                href={settings.facebookUrl}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                Fanpage Facebook
-              </a>
-            ) : null}
+          {isSupportEmailVisible(settings) ? (
+            <a
+              className="inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-100 transition hover:border-cyan-300/40 hover:text-cyan-100"
+              href={`mailto:${encodeURIComponent(settings.supportEmail)}`}
+            >
+              {settings.emailLabel || "Email"}
+            </a>
+          ) : null}
 
-            {isTelegramVisible(settings) ? (
-              <a
-                className="inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-100 transition hover:border-sky-300/40 hover:text-sky-200"
-                href={settings.telegramUrl}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                Telegram
-              </a>
-            ) : null}
+          {isFacebookVisible(settings) ? (
+            <a
+              className="inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-100 transition hover:border-cyan-300/40 hover:text-cyan-100"
+              href={settings.facebookUrl}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              {settings.fanpageLabel || "Fanpage"}
+            </a>
+          ) : null}
 
-            {isFeedbackFormVisible(settings) ? (
-              <button
-                className="inline-flex min-h-10 items-center rounded-full border border-sky-300/40 bg-sky-300/10 px-4 text-sm font-semibold text-sky-100 transition hover:bg-sky-300/20"
-                onClick={() => setFeedbackOpen(true)}
-                type="button"
-              >
-                Gửi góp ý / báo lỗi
-              </button>
-            ) : null}
-          </div>
-        ) : (
+          {isTelegramVisible(settings) ? (
+            <a
+              className="inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-100 transition hover:border-cyan-300/40 hover:text-cyan-100"
+              href={settings.telegramUrl}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              {settings.telegramLabel || "Telegram"}
+            </a>
+          ) : null}
+        </div>
+
+        {!hasChannels && !showFeedbackButton ? (
           <p className="rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-sm leading-6 text-amber-100">
             {CONTACT_FALLBACK_MESSAGE}
           </p>
-        )}
+        ) : null}
 
         <p className="text-xs text-zinc-500">
           Cần hỗ trợ về kiếm tiền? Xem thêm{" "}
-          <Link className="text-sky-300 hover:text-sky-200" href={studioPath("/monetization")}>
+          <Link className="text-cyan-300 hover:text-cyan-200" href={studioPath("/monetization")}>
             trang Kiếm tiền
           </Link>
           .
@@ -115,6 +116,7 @@ export function ContactChapMeeBox({
       {feedbackOpen ? (
         <FeedbackSheet
           onClose={() => setFeedbackOpen(false)}
+          settings={settings}
           userEmail={userEmail}
         />
       ) : null}

@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import { CommunityLayout } from "@/components/community/MobileCommunityLayout";
 import { SponsoredChallengeBanner } from "@/components/campaigns/SponsoredChallengeBanner";
-import { isSponsoredContentEnabled } from "@/lib/campaigns/feature";
+import { loadPublicCampaignContext, sponsoredBannerProps } from "@/lib/campaigns/load-public-campaigns";
 import { getAuthorGroups } from "@/lib/community/get-author-groups";
 import { getCommunitySession } from "@/lib/community/get-community-feed";
 import { getStoryGroups } from "@/lib/community/get-story-groups";
 import { buildCanonicalUrl } from "@/lib/seo/metadata";
-import { getActiveCampaignByType } from "@/lib/supabase/campaigns";
 
 export const dynamic = "force-dynamic";
 
@@ -32,15 +31,13 @@ export const metadata: Metadata = {
 };
 
 export default async function CommunityPage() {
-  const [session, storyGroupsData, authorGroupsData, sponsoredEnabled] = await Promise.all([
+  const [session, storyGroupsData, authorGroupsData, campaignContext] = await Promise.all([
     getCommunitySession(),
     getStoryGroups(),
     getAuthorGroups(),
-    isSponsoredContentEnabled()
+    loadPublicCampaignContext()
   ]);
-  const sponsoredBanner = sponsoredEnabled
-    ? await getActiveCampaignByType("banner")
-    : null;
+  const sponsoredBanner = campaignContext.communityBanner;
 
   return (
     <section className="page-stack overflow-x-hidden">
@@ -52,15 +49,7 @@ export default async function CommunityPage() {
 
       {sponsoredBanner ? (
         <div className="mx-auto mt-6 w-full max-w-2xl xl:max-w-3xl">
-          <SponsoredChallengeBanner
-            campaignId={sponsoredBanner.id}
-            ctaText={sponsoredBanner.ctaText}
-            ctaUrl={sponsoredBanner.ctaUrl}
-            disclosureText={sponsoredBanner.disclosureText}
-            sponsorId={sponsoredBanner.sponsor?.id ?? null}
-            sponsorLogoUrl={sponsoredBanner.sponsor?.logoUrl}
-            sponsorName={sponsoredBanner.sponsor?.name ?? "Nhà tài trợ"}
-          />
+          <SponsoredChallengeBanner {...sponsoredBannerProps(sponsoredBanner)} />
         </div>
       ) : null}
     </section>

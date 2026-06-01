@@ -1,4 +1,5 @@
 import { getMonetizationConfig } from "@/lib/monetization/config";
+import { readPayoutProcessingDaysLabel } from "@/lib/finance/payout-processing-display";
 import { buildStudioMonetizationConfigView } from "@/lib/studio/monetization-config";
 import type { CreatorFinanceConfigView } from "@/types/finance";
 
@@ -26,7 +27,7 @@ export async function getCreatorFinanceConfig(): Promise<CreatorFinanceConfigVie
     coinToVndRate: studioView.coinExchangeRateVnd,
     creatorRevenueSharePercent: studioView.revenueSharePaidChapterCreatorPercent,
     platformFeePercent: studioView.revenueSharePlatformPercent,
-    payoutProcessingDays: numberSetting(raw, "payout.processing_days", studioView.payoutHoldDays),
+    payoutProcessingDaysLabel: readPayoutProcessingDaysLabel(raw),
     payoutMethodsEnabled: studioView.payoutAllowedMethods,
     coinDisplayName: studioView.coinDisplayName,
     policyNote: processingNote

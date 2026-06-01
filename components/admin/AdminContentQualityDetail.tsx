@@ -53,7 +53,7 @@ export function AdminContentQualityDetail({ storyId, payload }: AdminContentQual
       <header className="space-y-2">
         <h1 className="text-2xl font-bold text-white">{story.title}</h1>
         <p className="text-sm text-zinc-400">
-          {author.penName} · {qualityStatusLabel(story.qualityStatus as never)} · Lần{" "}
+          {author.displayName} · {qualityStatusLabel(story.qualityStatus as never)} · Lần{" "}
           {story.attemptCount}
         </p>
         {story.description ? (

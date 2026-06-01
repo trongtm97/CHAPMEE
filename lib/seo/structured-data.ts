@@ -1,6 +1,7 @@
 import type { EpisodeReaderData } from "@/lib/episodes/getEpisodeReaderData";
 import type { StoryDetail } from "@/lib/stories/getStoryBySlug";
 import { buildCanonicalUrl, resolvePublicUrl } from "@/lib/seo/metadata";
+import { getChapterUrl, getStoryUrl } from "@/lib/seo/canonical";
 
 type BreadcrumbItem = {
   name: string;
@@ -21,7 +22,9 @@ export function buildBreadcrumbJsonLd(items: BreadcrumbItem[]) {
 }
 
 export function buildStoryBookJsonLd(story: StoryDetail) {
-  const storyUrl = buildCanonicalUrl(`/truyen/${story.slug}`);
+  const storyUrl = buildCanonicalUrl(
+    getStoryUrl({ slug: story.slug, public_code: story.publicCode })
+  );
   return {
     "@context": "https://schema.org",
     "@type": "Book",
@@ -42,7 +45,10 @@ export function buildStoryBookJsonLd(story: StoryDetail) {
 
 export function buildEpisodeArticleJsonLd(data: EpisodeReaderData) {
   const episodeUrl = buildCanonicalUrl(
-    `/truyen/${data.story.slug}/chuong/${data.episode.episodeNumber}`
+    getChapterUrl(
+      { slug: data.story.slug, public_code: data.story.publicCode },
+      { slug: data.episode.slug, public_code: data.episode.publicCode }
+    )
   );
 
   return {
@@ -60,7 +66,9 @@ export function buildEpisodeArticleJsonLd(data: EpisodeReaderData) {
     isPartOf: {
       "@type": "Book",
       name: data.story.title,
-      url: buildCanonicalUrl(`/truyen/${data.story.slug}`)
+      url: buildCanonicalUrl(
+        getStoryUrl({ slug: data.story.slug, public_code: data.story.publicCode })
+      )
     }
   };
 }

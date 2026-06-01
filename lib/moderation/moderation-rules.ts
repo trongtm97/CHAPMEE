@@ -18,6 +18,8 @@ export const REPORT_REASON_OPTIONS: {
   { value: "copyright", label: "Vi phạm bản quyền" },
   { value: "impersonation_scam", label: "Giả mạo / lừa đảo" },
   { value: "wrong_age_rating", label: "Sai phân loại độ tuổi" },
+  { value: "wrong_taxonomy_tag", label: "Sai thể loại / tag" },
+  { value: "missing_content_warning", label: "Thiếu cảnh báo nội dung" },
   { value: "illegal_content", label: "Nội dung bất hợp pháp" },
   { value: "other", label: "Khác" }
 ];
@@ -82,6 +84,8 @@ export function reasonCodeToPolicyArea(reason: ReportReasonCode): PolicyArea {
     copyright: "copyright",
     impersonation_scam: "scam",
     wrong_age_rating: "age_rating",
+    wrong_taxonomy_tag: "platform_integrity",
+    missing_content_warning: "age_rating",
     illegal_content: "safety",
     other: "platform_integrity"
   };

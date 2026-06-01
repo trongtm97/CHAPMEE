@@ -6,7 +6,7 @@ export type GrowthKpis = {
   wau: number;
   mau: number;
   sessions: number;
-  swipeItemViews: number;
+  reelsItemViews: number;
   storyViews: number;
   chapterOpens: number;
   chapterCompletions: number;
@@ -58,7 +58,7 @@ export type TopStoryMetric = {
 
 export type TopAuthorMetric = {
   authorId: string;
-  penName: string;
+  displayName: string;
   value: number;
 };
 
@@ -84,7 +84,7 @@ export type RevenueMetrics = {
   netCreatorRevenue: number;
   paidReaders: number;
   payingConversion: number;
-  topEarningAuthors: Array<{ authorId: string; penName: string; grossRevenue: number }>;
+  topEarningAuthors: Array<{ authorId: string; displayName: string; grossRevenue: number }>;
   topSupporters: Array<{ userId: string; displayName: string; totalSupported: number }>;
 };
 
@@ -92,7 +92,7 @@ export type GrowthDashboardData = {
   range: GrowthRange;
   kpis: GrowthKpis;
   onboardingFunnel: GrowthFunnelStep[];
-  swipeFunnel: GrowthFunnelStep[];
+  reelsFunnel: GrowthFunnelStep[];
   creatorFunnel: GrowthFunnelStep[];
   rates: GrowthRates;
   creatorMetrics: CreatorGrowthMetrics;

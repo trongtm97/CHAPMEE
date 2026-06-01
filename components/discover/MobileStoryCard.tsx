@@ -1,4 +1,6 @@
-import Link from "next/link";
+import { TrackedStoryLink } from "@/components/tracking/TrackedStoryLink";
+import { DiscoverAuthorLine } from "@/components/discover/DiscoverAuthorLine";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import { getStoryImageForUsage } from "@/lib/images/get-story-image";
 import {
   STORY_IMAGE_PLACEHOLDER_GRADIENT_CLASS,
@@ -8,6 +10,8 @@ import type { DiscoverStory } from "@/lib/discover/getDiscoverData";
 
 type MobileStoryCardProps = {
   story: DiscoverStory;
+  surface?: import("@/types/tracking").TrackingSurface;
+  position?: number;
 };
 
 const gradientByGenre: Record<string, string> = {
@@ -19,19 +23,42 @@ const gradientByGenre: Record<string, string> = {
   "doi-thuong": "from-emerald-300/35 via-teal-300/20 to-cyan-500/20"
 };
 
+const gradientPalette = [
+  "from-cyan-300/35 via-sky-300/20 to-indigo-400/30",
+  "from-violet-400/35 via-fuchsia-300/20 to-rose-400/25",
+  "from-emerald-300/35 via-teal-300/20 to-cyan-500/20",
+  "from-amber-300/40 via-orange-300/25 to-rose-300/25"
+];
+
+function hashSlug(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
 function getGradient(story: DiscoverStory) {
   if (story.genreSlug && gradientByGenre[story.genreSlug]) {
     return gradientByGenre[story.genreSlug];
   }
 
-  return "from-cyan-300/35 via-sky-300/20 to-indigo-400/30";
+  if (story.genreSlug) {
+    return gradientPalette[hashSlug(story.genreSlug) % gradientPalette.length]!;
+  }
+
+  return gradientPalette[0]!;
 }
 
 function compactNumber(value: number) {
   return new Intl.NumberFormat("vi-VN", { notation: "compact" }).format(value);
 }
 
-export function MobileStoryCard({ story }: MobileStoryCardProps) {
+export function MobileStoryCard({
+  story,
+  surface = "discover",
+  position
+}: MobileStoryCardProps) {
   const excerpt = story.hook ?? story.shortDescription ?? "Một truyện ngắn đang chờ bạn khám phá.";
   const mood = story.tagNames[0] ?? story.genreName ?? "Khám phá";
   const publishedDate = story.publishedAt ? new Date(story.publishedAt) : null;
@@ -44,9 +71,18 @@ export function MobileStoryCard({ story }: MobileStoryCardProps) {
   );
 
   return (
-    <Link
+    <TrackedStoryLink
+      algorithmVersion={story.feed?.algorithmVersion}
+      authorUserId={story.creatorUserId}
+      candidatePool={story.feed?.candidatePool}
       className="tap-highlight block w-[13.75rem] shrink-0 snap-start md:w-[15rem]"
-      href={`/truyen/${story.slug}`}
+      href={getStoryDetailHref({ slug: story.slug, public_code: story.publicCode })}
+      position={position ?? story.feed?.rankPosition}
+      requestId={story.feed?.requestId}
+      sectionKey={story.feed?.sectionKey}
+      sourceSurface="discover"
+      storyId={story.id}
+      surface={surface}
     >
       <article className="h-full rounded-2xl border border-white/10 bg-[var(--surface)] p-2.5 transition hover:border-cyan-300/30 hover:bg-[var(--surface-soft)]">
         <div
@@ -76,7 +112,11 @@ export function MobileStoryCard({ story }: MobileStoryCardProps) {
         <h3 className="line-clamp-2 text-sm font-black leading-5 text-white">{story.title}</h3>
         <p className="mt-1 line-clamp-2 text-xs leading-[1.15rem] text-zinc-300">{excerpt}</p>
 
-        <p className="mt-1.5 truncate text-[11px] text-zinc-400">{story.creatorName ?? "Tác giả ChapMee"}</p>
+        <DiscoverAuthorLine
+          className="mt-1.5 truncate text-[11px] text-zinc-400"
+          creatorName={story.creatorName}
+          creatorUsername={story.creatorUsername}
+        />
 
         <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-zinc-400">
           <span className="truncate">🔥 {compactNumber(Math.max(story.score, 0))}</span>
@@ -88,6 +128,6 @@ export function MobileStoryCard({ story }: MobileStoryCardProps) {
           <span aria-hidden="true">→</span>
         </span>
       </article>
-    </Link>
+    </TrackedStoryLink>
   );
 }

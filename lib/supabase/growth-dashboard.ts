@@ -1,3 +1,4 @@
+import { allReelsDashboardEventNames } from "@/lib/analytics/reels-event-names";
 import { createClient } from "@/lib/supabase/server";
 import type {
   CreatorGrowthMetrics,
@@ -49,7 +50,7 @@ function buildEmpty(range: GrowthRange): GrowthDashboardData {
     wau: 0,
     mau: 0,
     sessions: 0,
-    swipeItemViews: 0,
+    reelsItemViews: 0,
     storyViews: 0,
     chapterOpens: 0,
     chapterCompletions: 0,
@@ -109,7 +110,7 @@ function buildEmpty(range: GrowthRange): GrowthDashboardData {
     range,
     kpis: emptyKpis,
     onboardingFunnel: [],
-    swipeFunnel: [],
+    reelsFunnel: [],
     creatorFunnel: [],
     rates: emptyRates,
     creatorMetrics: emptyCreator,
@@ -272,25 +273,15 @@ export async function getGrowthDashboardData(range: GrowthRange): Promise<Growth
   try {
     const supabase = await createClient();
     const eventNames = [
-      "swipe_item_viewed",
-      "feed_impression",
+      ...allReelsDashboardEventNames(),
       "story_viewed",
       "open_story",
       "chapter_opened",
       "chapter_completed",
       "complete_chap",
-      "swipe_read_more_clicked",
-      "feed_read_more",
-      "swipe_like_clicked",
-      "feed_save",
-      "swipe_save_clicked",
       "follow_creator",
-      "swipe_follow_author_clicked",
       "comment_created",
-      "swipe_comment_opened",
       "share_clicked",
-      "swipe_share_clicked",
-      "feed_share",
       "onboarding_started",
       "role_selected",
       "onboarding_role_selected",
@@ -298,7 +289,6 @@ export async function getGrowthDashboardData(range: GrowthRange): Promise<Growth
       "onboarding_genres_selected",
       "onboarding_completed",
       "onboarding_skipped",
-      "swipe_feed_viewed",
       "creator_dashboard_viewed",
       "story_created",
       "story_published",
@@ -386,14 +376,15 @@ export async function getGrowthDashboardData(range: GrowthRange): Promise<Growth
         .select("id", { count: "exact", head: true })
         .is("read_at", null),
       fetchDistinctUsersForEvents(rangeStart, [
-        "swipe_item_viewed",
+        "reels_item_viewed",
+        "reels_feed_viewed",
         "feed_impression",
         "story_viewed",
         "open_story",
         "chapter_opened",
         "chapter_completed",
         "complete_chap",
-        "swipe_read_more_clicked",
+        "reels_read_more_clicked",
         "feed_read_more"
       ]),
       fetchDistinctUsersForEvents(dayStart, ["session_started", "app_opened", "page_viewed"]),
@@ -419,12 +410,12 @@ export async function getGrowthDashboardData(range: GrowthRange): Promise<Growth
       }),
       fetchTopStoriesByEvent({
         rangeStart,
-        eventNames: ["feed_read_more", "swipe_read_more_clicked"],
+        eventNames: ["feed_read_more", "reels_read_more_clicked"],
         fromMetadataStoryId: true
       }),
       fetchTopStoriesByEvent({
         rangeStart,
-        eventNames: ["share_clicked", "swipe_share_clicked", "feed_share"],
+        eventNames: ["share_clicked", "reels_share_clicked", "feed_share"],
         fromMetadataStoryId: true
       })
     ]);
@@ -469,23 +460,23 @@ export async function getGrowthDashboardData(range: GrowthRange): Promise<Growth
       activeAuthorsPrevWeek
     );
 
-    const swipeItemViews =
-      (eventCounts.swipe_item_viewed ?? 0) + (eventCounts.feed_impression ?? 0);
+    const reelsItemViews =
+      (eventCounts.reels_item_viewed ?? 0) + (eventCounts.feed_impression ?? 0);
     const storyViews = (eventCounts.story_viewed ?? 0) + (eventCounts.open_story ?? 0);
     const chapterOpens = eventCounts.chapter_opened ?? 0;
     const chapterCompletions =
       (eventCounts.chapter_completed ?? 0) + (eventCounts.complete_chap ?? 0);
     const readMoreClicks =
-      (eventCounts.swipe_read_more_clicked ?? 0) + (eventCounts.feed_read_more ?? 0);
-    const likes = eventCounts.swipe_like_clicked ?? 0;
-    const saves = (eventCounts.feed_save ?? 0) + (eventCounts.swipe_save_clicked ?? 0);
+      (eventCounts.reels_read_more_clicked ?? 0) + (eventCounts.feed_read_more ?? 0);
+    const likes = eventCounts.reels_like_clicked ?? 0;
+    const saves = (eventCounts.feed_save ?? 0) + (eventCounts.reels_save_clicked ?? 0);
     const follows =
-      (eventCounts.follow_creator ?? 0) + (eventCounts.swipe_follow_author_clicked ?? 0);
+      (eventCounts.follow_creator ?? 0) + (eventCounts.reels_follow_author_clicked ?? 0);
     const comments =
-      (eventCounts.comment_created ?? 0) + (eventCounts.swipe_comment_opened ?? 0);
+      (eventCounts.comment_created ?? 0) + (eventCounts.reels_comment_opened ?? 0);
     const shares =
       (eventCounts.share_clicked ?? 0) +
-      (eventCounts.swipe_share_clicked ?? 0) +
+      (eventCounts.reels_share_clicked ?? 0) +
       (eventCounts.feed_share ?? 0);
 
     const kpis: GrowthKpis = {
@@ -494,7 +485,7 @@ export async function getGrowthDashboardData(range: GrowthRange): Promise<Growth
       wau: wauCount,
       mau: mauCount,
       sessions: eventCounts.session_started ?? 0,
-      swipeItemViews,
+      reelsItemViews,
       storyViews,
       chapterOpens,
       chapterCompletions,
@@ -525,10 +516,10 @@ export async function getGrowthDashboardData(range: GrowthRange): Promise<Growth
       { key: "onboarding_completed", label: "Onboarding completed", value: eventCounts.onboarding_completed ?? 0 },
       { key: "onboarding_skipped", label: "Onboarding skipped", value: eventCounts.onboarding_skipped ?? 0 }
     ];
-    const swipeFunnel: GrowthFunnelStep[] = [
-      { key: "swipe_feed_viewed", label: "Swipe feed viewed", value: eventCounts.swipe_feed_viewed ?? 0 },
-      { key: "swipe_item_viewed", label: "Swipe item viewed", value: swipeItemViews },
-      { key: "swipe_read_more_clicked", label: "Swipe read more clicked", value: readMoreClicks },
+    const reelsFunnel: GrowthFunnelStep[] = [
+      { key: "reels_feed_viewed", label: "Reels feed viewed", value: eventCounts.reels_feed_viewed ?? 0 },
+      { key: "reels_item_viewed", label: "Reels item viewed", value: reelsItemViews },
+      { key: "reels_read_more_clicked", label: "Reels read more clicked", value: readMoreClicks },
       { key: "story_viewed", label: "Story viewed", value: storyViews },
       { key: "chapter_opened", label: "Chapter opened", value: chapterOpens },
       { key: "chapter_completed", label: "Chapter completed", value: chapterCompletions }
@@ -542,10 +533,10 @@ export async function getGrowthDashboardData(range: GrowthRange): Promise<Growth
     ];
 
     const rates: GrowthRates = {
-      readMoreRate: safeRate(readMoreClicks, swipeItemViews),
+      readMoreRate: safeRate(readMoreClicks, reelsItemViews),
       chapterCompletionRate: safeRate(chapterCompletions, chapterOpens),
       commentRate: safeRate(comments, chapterOpens || storyViews),
-      shareRate: safeRate(shares, storyViews || swipeItemViews),
+      shareRate: safeRate(shares, storyViews || reelsItemViews),
       followRate: safeRate(follows, storyViews),
       onboardingCompletionRate: safeRate(
         eventCounts.onboarding_completed ?? 0,
@@ -699,7 +690,7 @@ export async function getGrowthDashboardData(range: GrowthRange): Promise<Growth
         .slice(0, 5)
         .map(([authorId, gross]) => ({
           authorId,
-          penName: authorNameMap.get(authorId) ?? "Unknown author",
+          displayName: authorNameMap.get(authorId) ?? "Unknown author",
           grossRevenue: gross
         })),
       topSupporters: [...supporterMap.entries()]
@@ -736,7 +727,7 @@ export async function getGrowthDashboardData(range: GrowthRange): Promise<Growth
         .from("stories")
         .select("id, creator_profiles(id, pen_name)")
         .in("id", topStories);
-      const authorMap = new Map<string, { penName: string; value: number }>();
+      const authorMap = new Map<string, { displayName: string; value: number }>();
       for (const story of storyRows.data ?? []) {
         const creator = Array.isArray(story.creator_profiles)
           ? story.creator_profiles[0]
@@ -749,7 +740,7 @@ export async function getGrowthDashboardData(range: GrowthRange): Promise<Growth
         const views = storyViewMap.get(story.id) ?? 0;
         const prev = authorMap.get(creatorId);
         authorMap.set(creatorId, {
-          penName:
+          displayName:
             (creator &&
               typeof creator === "object" &&
               "pen_name" in creator &&
@@ -762,7 +753,7 @@ export async function getGrowthDashboardData(range: GrowthRange): Promise<Growth
       return [...authorMap.entries()]
         .map(([authorId, payload]) => ({
           authorId,
-          penName: payload.penName,
+          displayName: payload.displayName,
           value: payload.value
         }))
         .sort((a, b) => b.value - a.value)
@@ -773,7 +764,7 @@ export async function getGrowthDashboardData(range: GrowthRange): Promise<Growth
       range,
       kpis,
       onboardingFunnel,
-      swipeFunnel,
+      reelsFunnel,
       creatorFunnel,
       rates,
       creatorMetrics,

@@ -42,7 +42,7 @@ export function getStoryRankingStart(window: StoryRankingWindow) {
 }
 
 // MVP rule-based ranking. This intentionally combines reading depth,
-// saves, comments, follow intent, Swipe behavior, and report penalties
+// saves, comments, follow intent, Reels behavior, and report penalties
 // instead of ranking by raw views alone.
 // TODO: Replace or augment this with anti-fraud checks and a recommendation
 // model when ChapMee has enough clean engagement data.

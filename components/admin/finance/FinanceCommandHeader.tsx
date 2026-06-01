@@ -68,6 +68,11 @@ export function FinanceCommandHeader({
               </Button>
             </Link>
           ) : null}
+          <Link href="/admin/creator-fee-policies">
+            <Button type="button" variant="ghost">
+              Chính sách phí tác giả
+            </Button>
+          </Link>
           <Link href="/admin/payments" onClick={() => logNavAudit("payment_reconciliation_opened")}>
             <Button type="button" variant="ghost">
               Đối soát thanh toán

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getChapterUrl, getStoryUrl } from "@/lib/urls/paths";
 
 export type ReportStatus = "pending" | "reviewing" | "resolved" | "rejected";
 
@@ -58,41 +59,58 @@ async function getTargetHref(targetType: string, targetId: string) {
   if (targetType === "story") {
     const { data } = await supabase
       .from("stories")
-      .select("slug")
+      .select("slug, public_code")
       .eq("id", targetId)
       .maybeSingle();
 
-    return data?.slug ? `/stories/${data.slug}` : null;
+    return data?.slug && data.public_code
+      ? getStoryUrl({ slug: data.slug, public_code: data.public_code })
+      : null;
   }
 
   if (targetType === "episode") {
     const { data } = await supabase
       .from("episodes")
-      .select("episode_number, stories(slug)")
+      .select("slug, public_code, episode_number, stories(slug, public_code)")
       .eq("id", targetId)
       .maybeSingle();
     const story = firstRelation(data?.stories);
 
-    return story?.slug
-      ? `/stories/${story.slug}/episodes/${data?.episode_number}`
+    return story?.slug && story.public_code && data?.slug && data.public_code
+      ? getChapterUrl(
+          { slug: story.slug, public_code: story.public_code },
+          { slug: data.slug, public_code: data.public_code }
+        )
       : null;
   }
 
   if (targetType === "comment") {
     const { data } = await supabase
       .from("comments")
-      .select("story_id, episode_id, stories(slug), episodes(episode_number, stories(slug))")
+      .select(
+        "story_id, episode_id, stories(slug, public_code), episodes(slug, public_code, episode_number, stories(slug, public_code))"
+      )
       .eq("id", targetId)
       .maybeSingle();
     const story = firstRelation(data?.stories);
     const episode = firstRelation(data?.episodes);
     const episodeStory = firstRelation(episode?.stories);
 
-    if (episode?.episode_number && episodeStory?.slug) {
-      return `/stories/${episodeStory.slug}/episodes/${episode.episode_number}`;
+    if (
+      episode?.slug &&
+      episode.public_code &&
+      episodeStory?.slug &&
+      episodeStory.public_code
+    ) {
+      return getChapterUrl(
+        { slug: episodeStory.slug, public_code: episodeStory.public_code },
+        { slug: episode.slug, public_code: episode.public_code }
+      );
     }
 
-    return story?.slug ? `/stories/${story.slug}` : null;
+    return story?.slug && story.public_code
+      ? getStoryUrl({ slug: story.slug, public_code: story.public_code })
+      : null;
   }
 
   return null;

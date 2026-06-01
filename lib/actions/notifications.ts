@@ -20,17 +20,16 @@ async function guardNotificationReadAccess() {
   return { ok: true as const, error: null };
 }
 
-export async function markNotificationAsReadAction(formData: FormData) {
-  const notificationId = String(formData.get("notificationId") ?? "");
+export async function markNotificationAsReadByIdAction(notificationId: string) {
   const { user } = await getCurrentProfile();
 
   if (!user || !notificationId) {
-    return;
+    return { ok: false as const };
   }
 
   const access = await guardNotificationReadAccess();
   if (!access.ok) {
-    return;
+    return { ok: false as const };
   }
 
   try {
@@ -40,9 +39,16 @@ export async function markNotificationAsReadAction(formData: FormData) {
       "[notifications] mark as read failed",
       error instanceof Error ? error.message : "Unknown notification error"
     );
+    return { ok: false as const };
   }
 
   revalidatePath("/notifications");
+  return { ok: true as const };
+}
+
+export async function markNotificationAsReadAction(formData: FormData) {
+  const notificationId = String(formData.get("notificationId") ?? "");
+  await markNotificationAsReadByIdAction(notificationId);
 }
 
 export async function markAllNotificationsAsReadAction() {

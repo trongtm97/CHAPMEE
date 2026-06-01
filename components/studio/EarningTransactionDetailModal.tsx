@@ -123,13 +123,15 @@ export function EarningTransactionDetailModal({
                   <span>{formatVnd(detail.gross_amount_vnd)}</span>
                 </li>
                 <li className="flex justify-between text-amber-200/90">
-                  <span>Phí nền tảng</span>
+                  <span>ChapMee giữ ({detail.platform_fee_percent ?? "—"}%)</span>
                   <span>−{formatVnd(detail.platform_fee_vnd)}</span>
                 </li>
-                <li className="flex justify-between text-amber-200/90">
-                  <span>Phí xử lý / thanh toán</span>
-                  <span>−{formatVnd(detail.payment_processing_fee_vnd)}</span>
-                </li>
+                {detail.payment_processing_fee_vnd > 0 ? (
+                  <li className="flex justify-between text-amber-200/90">
+                    <span>Phí xử lý / thanh toán (giao dịch cũ)</span>
+                    <span>−{formatVnd(detail.payment_processing_fee_vnd)}</span>
+                  </li>
+                ) : null}
                 {detail.tax_or_adjustment_vnd > 0 ? (
                   <li className="flex justify-between text-amber-200/90">
                     <span>Điều chỉnh / thuế</span>
@@ -144,13 +146,11 @@ export function EarningTransactionDetailModal({
             </div>
 
             <dl className="space-y-1 text-xs text-zinc-500">
-              {detail.creator_revenue_share_percent != null ? (
-                <div>
-                  Tỷ lệ tác giả: {detail.creator_revenue_share_percent}%
-                </div>
-              ) : null}
               {detail.platform_fee_percent != null ? (
-                <div>Phí nền tảng (ước tính trên gộp): {detail.platform_fee_percent}%</div>
+                <div>ChapMee giữ: {detail.platform_fee_percent}%</div>
+              ) : null}
+              {detail.creator_revenue_share_percent != null ? (
+                <div>Bạn nhận: {detail.creator_revenue_share_percent}%</div>
               ) : null}
               <div className="text-zinc-600">
                 Tính theo chính sách tại thời điểm giao dịch (đã lưu snapshot).

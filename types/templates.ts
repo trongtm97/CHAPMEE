@@ -2,7 +2,7 @@ export const STUDIO_TEMPLATE_TYPES = [
   "story_description",
   "chapter",
   "author_note",
-  "swipe",
+  "reels",
   "seo",
   "community_post"
 ] as const;
@@ -41,8 +41,26 @@ export type StudioTemplateListItem = Pick<
   | "updatedAt"
 >;
 
-export type StudioTemplateTab = "system" | "mine";
+export type StudioTemplateTab = "system" | "mine" | "favorites" | "recent";
 
 export type StudioTemplateTypeFilter = StudioTemplateType | "all";
+
+export type StudioTemplateCategoryFilter =
+  | StudioTemplateTypeFilter
+  | "content_warning"
+  | "dialogue"
+  | "cta"
+  | "chapter_opening"
+  | "chapter_ending";
+
+export type StudioTemplateSort = "newest" | "used" | "az" | "favorite";
+
+export type StudioTemplatesPageStats = {
+  systemCount: number;
+  mineCount: number;
+  favoriteCount: number;
+  recentCount: number;
+  typeCount: number;
+};
 
 export const STUDIO_TEMPLATE_TITLE_MAX = 80;

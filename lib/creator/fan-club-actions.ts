@@ -3,7 +3,7 @@
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
 import { getCurrentCreatorProfile } from "@/lib/creator/getCreatorProfile";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { getCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
+import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
 import { upsertFanClubPlan } from "@/lib/supabase/fan-club";
 
 function parseNumber(value: FormDataEntryValue | null, fallback = 0) {
@@ -35,9 +35,9 @@ export async function saveFanClubPlanAction(
     throw error;
   }
 
-  const [config, creatorMonetization] = await Promise.all([
+  const [config, creatorCanEarn] = await Promise.all([
     getMonetizationConfig({ includePrivate: true }),
-    getCreatorMonetizationProfile(creatorProfile.user_id)
+    isCreatorMonetizationAllowed(creatorProfile.user_id)
   ]);
   const enabled =
     Boolean(config.settings["monetization.enabled"]) &&
@@ -46,13 +46,8 @@ export async function saveFanClubPlanAction(
     Boolean(config.settings["fan_club.enabled"]);
   if (!enabled) return { ok: false, error: "Fan Club đang tắt." };
 
-  const requiresApproval = Boolean(config.settings["fan_club.requires_creator_approval"]);
-  if (
-    requiresApproval &&
-    (creatorMonetization.data?.status !== "approved" ||
-      !creatorMonetization.data?.monetization_enabled)
-  ) {
-    return { ok: false, error: "Bạn cần được duyệt kiếm tiền để tạo Fan Club." };
+  if (!creatorCanEarn) {
+    return { ok: false, error: "Kiếm tiền đang bị tắt bởi ChapMee." };
   }
 
   const minPrice = Number(config.settings["fan_club.min_coin_price"] ?? 10);

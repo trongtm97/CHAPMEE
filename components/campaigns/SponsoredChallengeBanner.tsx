@@ -1,13 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef } from "react";
-import { Card } from "@/components/ui";
+import { CampaignCtaLink } from "@/components/campaigns/CampaignCtaLink";
 import { SponsoredBadge } from "@/components/campaigns/SponsoredBadge";
+import { Card } from "@/components/ui";
 import {
   trackSponsoredCampaignClicked,
   trackSponsoredCampaignViewed
 } from "@/lib/campaigns/campaign-tracking";
+import type { BrandCampaignRecord } from "@/types/campaign";
 
 type SponsoredChallengeBannerProps = {
   campaignId: string;
@@ -18,6 +19,9 @@ type SponsoredChallengeBannerProps = {
   disclosureText: string;
   ctaText?: string | null;
   ctaUrl?: string | null;
+  targetType?: BrandCampaignRecord["targetType"];
+  targetId?: BrandCampaignRecord["targetId"];
+  description?: string | null;
 };
 
 export function SponsoredChallengeBanner(props: SponsoredChallengeBannerProps) {
@@ -32,6 +36,13 @@ export function SponsoredChallengeBanner(props: SponsoredChallengeBannerProps) {
       challengeId: props.challengeId ?? null
     });
   }, [props.campaignId, props.challengeId, props.sponsorId]);
+
+  const campaignCta = {
+    ctaText: props.ctaText ?? null,
+    ctaUrl: props.ctaUrl ?? null,
+    targetType: props.targetType ?? (props.ctaUrl ? ("external_url" as const) : ("none" as const)),
+    targetId: props.targetId ?? null
+  };
 
   return (
     <Card className="space-y-3 border-amber-300/25 bg-amber-500/5 p-4">
@@ -49,26 +60,25 @@ export function SponsoredChallengeBanner(props: SponsoredChallengeBannerProps) {
           />
         ) : null}
         <p className="text-sm text-zinc-200">
-          Challenge này được tài trợ bởi <span className="font-semibold">{props.sponsorName}</span>.
+          {props.description?.trim() || (
+            <>
+              Nội dung được tài trợ bởi{" "}
+              <span className="font-semibold">{props.sponsorName}</span>.
+            </>
+          )}
         </p>
       </div>
-      {props.ctaUrl ? (
-        <Link
-          className="inline-flex min-h-11 items-center justify-center rounded-full bg-amber-300 px-4 text-sm font-black uppercase tracking-[0.12em] text-zinc-950"
-          href={props.ctaUrl}
-          onClick={() => {
-            void trackSponsoredCampaignClicked({
-              campaignId: props.campaignId,
-              sponsorId: props.sponsorId,
-              challengeId: props.challengeId ?? null
-            });
-          }}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          {props.ctaText?.trim() || "Tìm hiểu thêm"}
-        </Link>
-      ) : null}
+      <CampaignCtaLink
+        campaign={campaignCta}
+        className="inline-flex min-h-11 items-center justify-center rounded-full bg-amber-300 px-4 text-sm font-black uppercase tracking-[0.12em] text-zinc-950"
+        onClick={() => {
+          void trackSponsoredCampaignClicked({
+            campaignId: props.campaignId,
+            sponsorId: props.sponsorId,
+            challengeId: props.challengeId ?? null
+          });
+        }}
+      />
     </Card>
   );
 }

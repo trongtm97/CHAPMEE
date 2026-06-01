@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { validateDisplayName } from "@/lib/username/validate-display-name";
+import { suggestDefaultUsername } from "@/lib/username/suggest-default-username";
 import { awardBadge } from "@/lib/supabase/badges";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,20 +15,8 @@ export async function createCreatorProfileAction(
   _previousState: CreatorSetupState,
   formData: FormData
 ): Promise<CreatorSetupState> {
-  const penName = String(formData.get("pen_name") ?? "").trim();
+  const displayNameInput = String(formData.get("display_name") ?? "").trim();
   const bio = String(formData.get("bio") ?? "").trim();
-
-  if (!penName) {
-    return { error: "Vui lòng nhập bút danh tác giả.", success: false };
-  }
-
-  if (penName.length > 80) {
-    return { error: "Bút danh tối đa 80 ký tự.", success: false };
-  }
-
-  if (bio.length > 500) {
-    return { error: "Bio tối đa 500 ký tự.", success: false };
-  }
 
   const supabase = await createClient();
   const {
@@ -43,9 +32,33 @@ export async function createCreatorProfileAction(
     redirect("/login?next=/studio/setup");
   }
 
-  const penNamePolicy = await validateDisplayName(penName, user.id);
-  if (!penNamePolicy.valid) {
-    return { error: penNamePolicy.message ?? "Bút danh không hợp lệ.", success: false };
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("display_name, username, bio")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const displayName = displayNameInput || profile?.display_name?.trim() || "";
+
+  if (!displayName) {
+    return {
+      error: "Vui lòng nhập tên hiển thị hoặc cập nhật hồ sơ trước khi bật quyền viết truyện.",
+      success: false
+    };
+  }
+
+  if (displayName.length > 80) {
+    return { error: "Tên hiển thị tối đa 80 ký tự.", success: false };
+  }
+
+  const bioValue = bio || profile?.bio?.trim() || "";
+  if (bioValue.length > 500) {
+    return { error: "Giới thiệu tối đa 500 ký tự.", success: false };
+  }
+
+  const displayNamePolicy = await validateDisplayName(displayName, user.id);
+  if (!displayNamePolicy.valid) {
+    return { error: displayNamePolicy.message ?? "Tên hiển thị không hợp lệ.", success: false };
   }
 
   const { data: existingProfile, error: existingError } = await supabase
@@ -63,14 +76,30 @@ export async function createCreatorProfileAction(
     redirect("/studio");
   }
 
-  const { error: insertError } = await supabase
-    .from("creator_profiles")
-    .insert({
-      user_id: user.id,
-      pen_name: penName,
-      bio: bio || null,
-      status: "active"
-    });
+  let username = profile?.username?.trim() || null;
+  if (!username) {
+    username = await suggestDefaultUsername(displayName, user.id);
+  }
+
+  const { error: profileUpdateError } = await supabase
+    .from("profiles")
+    .update({
+      bio: bioValue || null,
+      display_name: displayName,
+      ...(username ? { username } : {})
+    })
+    .eq("id", user.id);
+
+  if (profileUpdateError) {
+    return { error: profileUpdateError.message, success: false };
+  }
+
+  const { error: insertError } = await supabase.from("creator_profiles").insert({
+    bio: bioValue || null,
+    pen_name: displayName,
+    status: "active",
+    user_id: user.id
+  });
 
   if (insertError) {
     if (insertError.code === "23505") {
@@ -81,11 +110,11 @@ export async function createCreatorProfileAction(
   }
 
   await awardBadge({
-    userId: user.id,
-    badgeKey: "author_new",
     metadata: {
-      pen_name: penName
-    }
+      display_name: displayName
+    },
+    userId: user.id,
+    badgeKey: "author_new"
   });
 
   redirect("/studio");

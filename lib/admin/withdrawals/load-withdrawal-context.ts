@@ -1,3 +1,4 @@
+import { resolveAdminStudioFromProfile } from "@/lib/admin/creator-display";
 import { createClient } from "@/lib/supabase/server";
 import { listPayoutRequestsForAdmin } from "@/lib/supabase/payouts";
 import { fetchEmailsForUsers } from "@/lib/admin/withdrawals/fetch-emails";
@@ -55,7 +56,7 @@ export async function loadWithdrawalEnrichedContext(limit = 500): Promise<Withdr
   ];
 
   const supabase = await createClient();
-  const [profiles, creators, monetization, wallets, reviewers, emailMap] = await Promise.all([
+  const [profiles, monetization, wallets, reviewers, emailMap] = await Promise.all([
     creatorIds.length
       ? supabase
           .from("profiles")
@@ -63,9 +64,6 @@ export async function loadWithdrawalEnrichedContext(limit = 500): Promise<Withdr
             "id, display_name, username, avatar_url, is_verified, verification_type, status"
           )
           .in("id", creatorIds)
-      : Promise.resolve({ data: [] }),
-    creatorIds.length
-      ? supabase.from("creators").select("user_id, pen_name").in("user_id", creatorIds)
       : Promise.resolve({ data: [] }),
     creatorIds.length
       ? supabase
@@ -110,7 +108,10 @@ export async function loadWithdrawalEnrichedContext(limit = 500): Promise<Withdr
   );
 
   const studioByUserId = new Map(
-    (creators.data ?? []).map((c) => [c.user_id as string, (c.pen_name as string | null) ?? null])
+    creatorIds.map((id) => [
+      id,
+      resolveAdminStudioFromProfile(profileByUserId.get(id))
+    ])
   );
 
   const monetizationByUserId = new Map(

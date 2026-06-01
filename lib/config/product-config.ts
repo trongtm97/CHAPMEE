@@ -1,19 +1,10 @@
-import { readEnv, readEnvFlag } from "@/lib/env/legacy-env";
+import { readEnvFlag } from "@/lib/env/legacy-env";
 import { unstable_cache } from "next/cache";
 import { fetchMonetizationSettings } from "@/lib/supabase/monetization-settings";
-import type {
-  DesktopHomeMode,
-  MobileDefaultTab,
-  ProductConfig
-} from "@/types/product-config";
+import type { ProductConfig } from "@/types/product-config";
 
 const DEFAULT_PRODUCT_CONFIG: ProductConfig = {
-  product: {
-    swipeFirstEnabled: true,
-    mobileDefaultTab: "home",
-    desktopHomeMode: "swipe_feed"
-  },
-  swipe: {
+  reels: {
     desktopShowLeftPanel: true,
     desktopShowRightPanel: true,
     desktopCenterCardWidth: 480,
@@ -26,14 +17,6 @@ const DEFAULT_PRODUCT_CONFIG: ProductConfig = {
 
 function asBoolean(value: unknown, fallback: boolean) {
   return typeof value === "boolean" ? value : fallback;
-}
-
-function asMobileDefaultTab(value: unknown, fallback: MobileDefaultTab): MobileDefaultTab {
-  return value === "home" || value === "swipe" ? value : fallback;
-}
-
-function asDesktopHomeMode(value: unknown, fallback: DesktopHomeMode): DesktopHomeMode {
-  return value === "swipe_feed" || value === "portal_home" ? value : fallback;
 }
 
 function asCenterCardWidth(value: unknown, fallback: number) {
@@ -68,48 +51,34 @@ async function loadProductConfig(): Promise<ProductConfig> {
   }
 
   return {
-    product: {
-      swipeFirstEnabled: asBoolean(
-        rawSettings.get("product.swipe_first_enabled"),
-        DEFAULT_PRODUCT_CONFIG.product.swipeFirstEnabled
-      ),
-      mobileDefaultTab: asMobileDefaultTab(
-        rawSettings.get("product.mobile_default_tab"),
-        DEFAULT_PRODUCT_CONFIG.product.mobileDefaultTab
-      ),
-      desktopHomeMode: asDesktopHomeMode(
-        rawSettings.get("product.desktop_home_mode"),
-        DEFAULT_PRODUCT_CONFIG.product.desktopHomeMode
-      )
-    },
-    swipe: {
+    reels: {
       desktopShowLeftPanel: asBoolean(
-        rawSettings.get("swipe.desktop_show_left_panel"),
-        DEFAULT_PRODUCT_CONFIG.swipe.desktopShowLeftPanel
+        rawSettings.get("reels.desktop_show_left_panel"),
+        DEFAULT_PRODUCT_CONFIG.reels.desktopShowLeftPanel
       ),
       desktopShowRightPanel: asBoolean(
-        rawSettings.get("swipe.desktop_show_right_panel"),
-        DEFAULT_PRODUCT_CONFIG.swipe.desktopShowRightPanel
+        rawSettings.get("reels.desktop_show_right_panel"),
+        DEFAULT_PRODUCT_CONFIG.reels.desktopShowRightPanel
       ),
       desktopCenterCardWidth: asCenterCardWidth(
-        rawSettings.get("swipe.desktop_center_card_width"),
-        DEFAULT_PRODUCT_CONFIG.swipe.desktopCenterCardWidth
+        rawSettings.get("reels.desktop_center_card_width"),
+        DEFAULT_PRODUCT_CONFIG.reels.desktopCenterCardWidth
       ),
       showStoryInfoPanel: asBoolean(
-        rawSettings.get("swipe.show_story_info_panel"),
-        DEFAULT_PRODUCT_CONFIG.swipe.showStoryInfoPanel
+        rawSettings.get("reels.show_story_info_panel"),
+        DEFAULT_PRODUCT_CONFIG.reels.showStoryInfoPanel
       ),
       showCommentPanel: asBoolean(
-        rawSettings.get("swipe.show_comment_panel"),
-        DEFAULT_PRODUCT_CONFIG.swipe.showCommentPanel
+        rawSettings.get("reels.show_comment_panel"),
+        DEFAULT_PRODUCT_CONFIG.reels.showCommentPanel
       ),
       showAuthorPanel: asBoolean(
-        rawSettings.get("swipe.show_author_panel"),
-        DEFAULT_PRODUCT_CONFIG.swipe.showAuthorPanel
+        rawSettings.get("reels.show_author_panel"),
+        DEFAULT_PRODUCT_CONFIG.reels.showAuthorPanel
       ),
       showRankingPanel: asBoolean(
-        rawSettings.get("swipe.show_ranking_panel"),
-        DEFAULT_PRODUCT_CONFIG.swipe.showRankingPanel
+        rawSettings.get("reels.show_ranking_panel"),
+        DEFAULT_PRODUCT_CONFIG.reels.showRankingPanel
       )
     }
   };

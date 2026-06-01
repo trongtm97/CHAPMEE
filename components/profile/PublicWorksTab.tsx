@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { getStoryCardMeta } from "@/lib/stories/story-structure";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
+import { getProfileTabUrl } from "@/lib/profile/profile-url";
 import { StoryImageThumb } from "@/components/common/StoryImageView";
 import { Button, Card, EmptyState } from "@/components/ui";
 import type { PublicWorkItem } from "@/types/public-profile";
@@ -24,7 +27,17 @@ export function PublicWorksTab({ page, total, username, works }: PublicWorksTabP
 
   return (
     <div className="space-y-3">
-      {works.map((work) => (
+      {works.map((work) => {
+        const cardMeta = getStoryCardMeta({
+          structureType: work.structureType,
+          standaloneReadingTimeMinutes: work.standaloneReadingTimeMinutes,
+          episodeCount: work.chapterCount
+        });
+        const metaLine = cardMeta.secondaryLabel
+          ? `${cardMeta.primaryLabel} · ${cardMeta.secondaryLabel}`
+          : cardMeta.primaryLabel;
+
+        return (
         <Card className="p-3" key={work.id}>
           <div className="flex gap-3">
             <StoryImageThumb
@@ -40,9 +53,12 @@ export function PublicWorksTab({ page, total, username, works }: PublicWorksTabP
                 </p>
               ) : null}
               <p className="mt-1 text-[0.65rem] text-zinc-500">
-                {work.chapterCount} chương · {work.statusLabel}
+                {metaLine} · {work.statusLabel}
               </p>
-              <Link className="mt-2 inline-block" href={`/stories/${work.slug}`}>
+              <Link
+                className="mt-2 inline-block"
+                href={getStoryDetailHref({ slug: work.slug, public_code: work.publicCode })}
+              >
                 <Button className="min-h-8 px-3 text-xs" type="button" variant="primary">
                   Đọc ngay
                 </Button>
@@ -50,11 +66,12 @@ export function PublicWorksTab({ page, total, username, works }: PublicWorksTabP
             </div>
           </div>
         </Card>
-      ))}
+        );
+      })}
       {hasMore ? (
         <a
           className="block text-center text-sm font-semibold text-cyan-200"
-          href={`/profile/${username}?tab=works&page=${page + 1}`}
+          href={getProfileTabUrl(username, "works", page + 1) ?? "#"}
         >
           Trang sau
         </a>

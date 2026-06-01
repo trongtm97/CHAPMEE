@@ -57,7 +57,7 @@ export default async function StudioEditChapterPage({
     <section className="space-y-4">
       <StudioChapterEditor
         action={updateEpisodeAction}
-        authorPenName={creatorProfile.pen_name}
+        authorDisplayName={creatorProfile.display_name}
         backHref={studioStoryEpisodesHref(storyId)}
         defaultEpisodeNumber={data.episode.episode_number}
         episode={data.episode}

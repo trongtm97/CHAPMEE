@@ -11,6 +11,7 @@ import {
   rejectRequestAction
 } from "@/lib/actions/messages";
 import { ReportMessageRequestDialog } from "@/components/messages/ReportMessageRequestDialog";
+import { getProfileUrl } from "@/lib/profile/profile-url";
 import type { MessageRequestItem } from "@/types/messages";
 
 type MessageRequestCardProps = {
@@ -32,9 +33,7 @@ export function MessageRequestCard({ request }: MessageRequestCardProps) {
     router.refresh();
   }
 
-  const profileHref = request.requester.username
-    ? `/profile/${request.requester.username}`
-    : null;
+  const profileHref = getProfileUrl(request.requester.username);
 
   return (
     <>

@@ -6,6 +6,7 @@ type CreatorQuickActionsProps = {
   basePath?: string;
   qualityNeedsActionCount?: number;
   writeChapterHref?: string;
+  writeActionLabel?: string;
   defaultStorySlug?: string | null;
 };
 
@@ -21,11 +22,10 @@ export function CreatorQuickActions({
   basePath = STUDIO_BASE_PATH,
   defaultStorySlug = null,
   qualityNeedsActionCount = 0,
+  writeActionLabel = "Viết chương mới",
   writeChapterHref = `${basePath}/stories`
 }: CreatorQuickActionsProps) {
-  const swipeHref = defaultStorySlug
-    ? studioPath(`/stories/${defaultStorySlug}/episodes`)
-    : studioPath("/stories");
+  const reelsHref = studioPath("/reels/new");
 
   const actions: QuickAction[] = [
     {
@@ -34,9 +34,11 @@ export function CreatorQuickActions({
       label: "Tạo truyện"
     },
     {
-      description: "Tiếp tục soạn chương cho truyện hiện có.",
+      description: writeActionLabel.includes("nội dung")
+        ? "Tiếp tục soạn nội dung truyện một phần."
+        : "Tiếp tục soạn chương cho truyện hiện có.",
       href: writeChapterHref,
-      label: "Viết chương mới"
+      label: writeActionLabel
     },
     {
       description: "Dán hoặc tải file .txt theo mẫu để tạo nhiều chương nháp.",
@@ -62,8 +64,8 @@ export function CreatorQuickActions({
     },
     {
       description: "Tối ưu đoạn trích và ảnh nền khi sửa chương.",
-      href: swipeHref,
-      label: "Tạo nội dung Swipe"
+      href: reelsHref,
+      label: "Tạo Reels"
     }
   ];
 

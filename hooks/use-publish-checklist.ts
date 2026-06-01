@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
@@ -8,13 +8,14 @@ import {
 import { getPublishChecklistAction } from "@/lib/studio/scheduling/scheduling-actions";
 import { validateChapterBeforePublish } from "@/lib/publish/validate-chapter-before-publish";
 import { validateStoryBeforePublish } from "@/lib/publish/validate-story-before-publish";
-import { validateSwipeBeforePublish } from "@/lib/publish/validate-swipe-before-publish";
+import { validateReelsBeforePublish } from "@/lib/publish/validate-reels-before-publish";
 import { mergeChecklistResults } from "@/lib/publish/checklist-utils";
 import type { ChapterPublishInput } from "@/lib/publish/validate-chapter-before-publish";
 import type { StoryPublishInput } from "@/lib/publish/validate-story-before-publish";
-import type { SwipePublishInput } from "@/lib/publish/validate-swipe-before-publish";
+import type { ReelsPublishInput } from "@/lib/publish/validate-reels-before-publish";
 import type { PublishChecklistRule } from "@/types/publish-checklist";
 import type { ScheduledTargetType } from "@/types/scheduling";
+import { isReelsScheduledTarget } from "@/types/scheduling";
 
 type UsePublishChecklistOptions = {
   targetType: ScheduledTargetType;
@@ -23,14 +24,14 @@ type UsePublishChecklistOptions = {
   enabled?: boolean;
   localStory?: StoryPublishInput | null;
   localChapter?: ChapterPublishInput | null;
-  localSwipe?: SwipePublishInput | null;
+  localReels?: ReelsPublishInput | null;
 };
 
 export function usePublishChecklist({
   enabled = true,
   localChapter,
+  localReels,
   localStory,
-  localSwipe,
   storyId,
   targetId,
   targetType
@@ -48,12 +49,12 @@ export function usePublishChecklist({
       return validateChapterBeforePublish(localChapter, localStory ?? undefined).rules;
     }
 
-    if (targetType === "swipe" && localSwipe) {
-      return validateSwipeBeforePublish(localSwipe).rules;
+    if (isReelsScheduledTarget(targetType) && localReels) {
+      return validateReelsBeforePublish(localReels).rules;
     }
 
     return [];
-  }, [localChapter, localStory, localSwipe, targetType]);
+  }, [localChapter, localReels, localStory, targetType]);
 
   const refresh = useCallback(() => {
     if (!enabled || !targetId) {

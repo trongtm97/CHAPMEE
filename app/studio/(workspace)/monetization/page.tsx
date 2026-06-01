@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { StudioMonetizationPage } from "@/components/studio/StudioMonetizationPage";
-import { ErrorState, SectionHeader } from "@/components/ui";
+import { ErrorState } from "@/components/ui";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getStudioAccess } from "@/lib/creator/getStudioAccess";
+import { getCreatorAdRevenueDashboard } from "@/lib/studio/get-creator-ad-revenue-dashboard";
 import { getStudioMonetizationSummary } from "@/lib/studio/get-monetization-summary";
+import { STUDIO_PAGE_WIDTH_CLASS } from "@/lib/studio/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -13,30 +15,34 @@ export default async function StudioMonetizationRoute() {
 
   if (error || !creatorProfile || !profile?.id) {
     return (
-      <section className="space-y-6">
-        <SectionHeader title="Kiếm tiền" />
+      <section className={`${STUDIO_PAGE_WIDTH_CLASS} space-y-6`}>
+        <h1 className="text-2xl font-bold text-white">Kiếm tiền</h1>
         <ErrorState message={error} title="Không tải được quyền truy cập Studio" />
+        <p className="text-sm text-zinc-500">
+          <Link className="text-cyan-300 hover:underline" href="/studio/setup">
+            Đăng ký tác giả
+          </Link>{" "}
+          để bật kiếm tiền và xem doanh thu.
+        </p>
       </section>
     );
   }
 
-  const data = await getStudioMonetizationSummary(creatorProfile, profile.id);
+  const [data, adDashboard] = await Promise.all([
+    getStudioMonetizationSummary(creatorProfile, profile.id),
+    getCreatorAdRevenueDashboard(profile.id)
+  ]);
 
   return (
-    <section className="space-y-6">
+    <section className={STUDIO_PAGE_WIDTH_CLASS}>
       <Link
-        className="text-sm font-semibold text-sky-300 hover:text-sky-200"
+        className="mb-6 inline-flex text-sm font-semibold text-cyan-300 hover:text-cyan-200"
         href="/studio"
       >
-        Trở về tổng quan
+        ← Trở về tổng quan
       </Link>
 
-      <SectionHeader
-        subtitle="Quản lý doanh thu, thiết lập trả phí và yêu cầu rút tiền của bạn."
-        title="Kiếm tiền"
-      />
-
-      <StudioMonetizationPage data={data} />
+      <StudioMonetizationPage adDashboard={adDashboard} data={data} />
     </section>
   );
 }

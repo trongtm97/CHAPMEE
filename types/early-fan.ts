@@ -2,6 +2,7 @@ export type EarlyFanStoryItem = {
   id: string;
   storyId: string;
   slug: string;
+  publicCode: string;
   title: string;
   coverUrl: string | null;
   hook: string | null;

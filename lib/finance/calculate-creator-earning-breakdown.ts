@@ -2,7 +2,6 @@ import {
   resolveCreatorFeePolicy,
   toCreatorFeePolicySnapshot
 } from "@/lib/finance/resolve-creator-fee-policy";
-import { getMonetizationConfig } from "@/lib/monetization/config";
 import { roundVnd } from "@/lib/finance/round-vnd";
 import type { CreatorFeePolicySnapshot } from "@/types/creator-fee-policy";
 import type { CreatorRevenueBreakdown } from "@/types/revenue-share";
@@ -73,39 +72,19 @@ function readFeePolicyFromRevenue(
 export async function calculateCreatorEarningBreakdown(
   input: CreatorEarningBreakdownInput
 ): Promise<CreatorEarningBreakdownResult> {
-  const [{ settings }, feePolicy] = await Promise.all([
-    getMonetizationConfig({ includePrivate: true }),
-    resolveCreatorFeePolicy({
-      creatorId: input.creatorUserId,
-      transactionType: input.sourceType
-    })
-  ]);
+  const feePolicy = await resolveCreatorFeePolicy({
+    creatorId: input.creatorUserId,
+    transactionType: input.sourceType
+  });
 
   const revenueFeePolicy = readFeePolicyFromRevenue(input.revenue);
   const effectiveFeePolicy = revenueFeePolicy ?? toCreatorFeePolicySnapshot(feePolicy);
 
-  const configTaxPercent = Number(settings["finance.tax_percent"] ?? 0);
-  const extraProcessingPercent = effectiveFeePolicy.payment_processing_fee_percent;
-  const extraProcessingFixed = effectiveFeePolicy.payment_processing_fixed_fee_vnd;
-
   const grossAmountVnd = roundVnd(input.revenue.grossValueVnd);
-  const paymentProcessingFeeVnd = roundVnd(
-    input.revenue.providerFeeVnd +
-      input.revenue.storeFeeVnd +
-      (grossAmountVnd * extraProcessingPercent) / 100 +
-      extraProcessingFixed
-  );
   const platformFeeVnd = roundVnd(input.revenue.platformRevenueVnd);
-  const taxOrAdjustmentVnd = roundVnd((grossAmountVnd * configTaxPercent) / 100);
-
-  let creatorNetAmountVnd = roundVnd(input.revenue.creatorWithdrawableVnd);
-
-  const computedNet =
-    grossAmountVnd - platformFeeVnd - paymentProcessingFeeVnd - taxOrAdjustmentVnd;
-
-  if (Math.abs(creatorNetAmountVnd - computedNet) > 1) {
-    creatorNetAmountVnd = Math.max(0, computedNet);
-  }
+  const creatorNetAmountVnd = roundVnd(input.revenue.creatorWithdrawableVnd);
+  const paymentProcessingFeeVnd = 0;
+  const taxOrAdjustmentVnd = 0;
 
   const snapshot: CreatorEarningCalculationSnapshot = {
     roundingRule: "round_half_up_integer_vnd",
@@ -116,26 +95,32 @@ export async function calculateCreatorEarningBreakdown(
     paymentProcessingFeeVnd,
     taxOrAdjustmentVnd,
     creatorNetAmountVnd,
-    revenueBasis: input.revenue.revenueBasis,
+    revenueBasis: "gross",
     moduleType: input.revenue.moduleType,
     creatorPercent: input.revenue.creatorPercent,
-    feePercentApplied: input.revenue.feePercentApplied,
+    feePercentApplied: 0,
     paymentChannel: input.revenue.paymentChannel,
     provider: input.revenue.provider,
     policySource: effectiveFeePolicy.policy_source,
     policyId: effectiveFeePolicy.policy_id,
     policyName: effectiveFeePolicy.policy_name,
+    appliedPolicyType: effectiveFeePolicy.applied_policy_type,
+    revenueSourceSnapshot: effectiveFeePolicy.revenue_source_snapshot,
+    policyEffectiveFromSnapshot: effectiveFeePolicy.policy_effective_from_snapshot,
+    authorPercentSnapshot: effectiveFeePolicy.author_percent_snapshot,
+    platformPercentSnapshot: effectiveFeePolicy.platform_percent_snapshot,
     platformFeePercent: effectiveFeePolicy.platform_fee_percent,
     creatorRevenueSharePercent: effectiveFeePolicy.creator_revenue_share_percent,
-    paymentProcessingFeePercent: effectiveFeePolicy.payment_processing_fee_percent,
-    paymentProcessingFixedFeeVnd: effectiveFeePolicy.payment_processing_fixed_fee_vnd,
+    paymentProcessingFeePercent: 0,
+    paymentProcessingFixedFeeVnd: 0,
     minWithdrawAmountOverride: effectiveFeePolicy.min_withdraw_amount_override ?? null,
     feeRules: {
+      split_model: "gross_share_only",
       platform_from_revenue_split: true,
-      channel_fees_included: true,
-      extra_processing_percent: extraProcessingPercent,
-      extra_processing_fixed_vnd: extraProcessingFixed,
-      tax_percent: configTaxPercent
+      channel_fees_included: false,
+      extra_processing_percent: 0,
+      extra_processing_fixed_vnd: 0,
+      tax_percent: 0
     },
     calculatedAt: new Date().toISOString()
   };
@@ -146,13 +131,9 @@ export async function calculateCreatorEarningBreakdown(
     paymentProcessingFeeVnd,
     taxOrAdjustmentVnd,
     creatorNetAmountVnd,
-    platformFeePercent: roundVnd(
-      grossAmountVnd > 0 ? (platformFeeVnd / grossAmountVnd) * 100 : 0
-    ),
+    platformFeePercent: effectiveFeePolicy.platform_fee_percent,
     creatorRevenueSharePercent: effectiveFeePolicy.creator_revenue_share_percent,
-    paymentProcessingFeePercent: roundVnd(
-      grossAmountVnd > 0 ? (paymentProcessingFeeVnd / grossAmountVnd) * 100 : 0
-    ),
+    paymentProcessingFeePercent: 0,
     calculationSnapshot: snapshot
   };
 }

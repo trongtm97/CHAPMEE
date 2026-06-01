@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getProfileUrl } from "@/lib/profile/profile-url";
 import { COMMUNITY_PAGE_SHELL_CLASS } from "@/components/community/community-page-shell";
 import { AuthorGroupFeed } from "@/components/community/AuthorGroupFeed";
 import { AvatarFallback, ErrorState } from "@/components/ui";
@@ -32,6 +33,7 @@ export default async function AuthorGroupPage({ params }: AuthorGroupPageProps) 
   }
 
   const authorPosts = feed.posts.filter((post) => post.creatorId === authorId);
+  const profileHref = getProfileUrl(group.authorUsername);
 
   return (
     <section className={`page-stack space-y-4 ${COMMUNITY_PAGE_SHELL_CLASS}`}>
@@ -52,12 +54,22 @@ export default async function AuthorGroupPage({ params }: AuthorGroupPageProps) 
           <p className="text-xs text-zinc-500">
             {group.followerCount} theo dõi · {group.storyCount} truyện
           </p>
-          <button
-            className="tap-highlight mt-2 inline-flex min-h-10 items-center rounded-full bg-cyan-300 px-4 text-xs font-black uppercase text-zinc-950"
-            type="button"
-          >
-            Theo dõi tác giả
-          </button>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {profileHref ? (
+              <Link
+                className="tap-highlight inline-flex min-h-10 items-center rounded-full border border-white/15 bg-white/[0.04] px-4 text-xs font-bold text-zinc-100"
+                href={profileHref}
+              >
+                Xem hồ sơ @{group.authorUsername}
+              </Link>
+            ) : null}
+            <button
+              className="tap-highlight inline-flex min-h-10 items-center rounded-full bg-cyan-300 px-4 text-xs font-black uppercase text-zinc-950"
+              type="button"
+            >
+              Theo dõi tác giả
+            </button>
+          </div>
         </div>
       </header>
 

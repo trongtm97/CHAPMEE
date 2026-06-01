@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import { Card, EmptyState } from "@/components/ui";
+import { getProfileTabUrl } from "@/lib/profile/profile-url";
 import type { PublicCommentItem } from "@/types/public-profile";
 
 function formatTime(value: string) {
@@ -45,7 +47,10 @@ export function PublicCommentsTab({
             </span>
             <Link
               className="inline-flex min-h-8 items-center rounded-full px-3 text-xs font-semibold text-cyan-200 hover:bg-white/5"
-              href={`/stories/${item.storySlug}`}
+              href={getStoryDetailHref({
+                slug: item.storySlug,
+                public_code: item.storyPublicCode
+              })}
             >
               Xem thảo luận
             </Link>
@@ -55,7 +60,7 @@ export function PublicCommentsTab({
       {hasMore ? (
         <a
           className="block text-center text-sm font-semibold text-cyan-200"
-          href={`/profile/${username}?tab=comments&page=${page + 1}`}
+          href={getProfileTabUrl(username, "comments", page + 1) ?? "#"}
         >
           Trang sau
         </a>

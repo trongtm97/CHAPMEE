@@ -5,9 +5,14 @@ import type { StoryReadingProgress } from "@/types/chapter";
 type ContinueReadingCardProps = {
   progress: StoryReadingProgress;
   storySlug: string;
+  storyPublicCode: string;
 };
 
-export function ContinueReadingCard({ progress, storySlug }: ContinueReadingCardProps) {
+export function ContinueReadingCard({
+  progress,
+  storyPublicCode,
+  storySlug
+}: ContinueReadingCardProps) {
   return (
     <div className="rounded-xl border border-cyan-300/25 bg-cyan-300/[0.06] p-3.5">
       <p className="text-xs font-bold uppercase tracking-wide text-cyan-200">Đọc tiếp</p>
@@ -16,7 +21,10 @@ export function ContinueReadingCard({ progress, storySlug }: ContinueReadingCard
       </p>
       <Link
         className="tap-highlight mt-3 inline-flex min-h-10 items-center justify-center rounded-full bg-cyan-300 px-4 text-sm font-bold text-zinc-950"
-        href={getStoryChapterHref(storySlug, progress.episodeNumber)}
+        href={getStoryChapterHref(
+          { slug: storySlug, public_code: storyPublicCode },
+          { slug: progress.episodeSlug, public_code: progress.episodePublicCode }
+        )}
       >
         Tiếp tục đọc
       </Link>

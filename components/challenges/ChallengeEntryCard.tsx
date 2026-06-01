@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge, Card } from "@/components/ui";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import type { ChallengeEntryView } from "@/types/challenge";
 
 type ChallengeEntryCardProps = {
@@ -19,8 +20,14 @@ export function ChallengeEntryCard({ entry, onVoteHref }: ChallengeEntryCardProp
       </div>
       {entry.description ? <p className="line-clamp-3 text-sm leading-6 text-zinc-300">{entry.description}</p> : null}
       <div className="flex items-center justify-between gap-3">
-        {entry.storySlug ? (
-          <Link className="text-sm font-bold text-cyan-200 underline-offset-2 hover:underline" href={`/stories/${entry.storySlug}`}>
+        {entry.storySlug && entry.storyPublicCode ? (
+          <Link
+            className="text-sm font-bold text-cyan-200 underline-offset-2 hover:underline"
+            href={getStoryDetailHref({
+              slug: entry.storySlug,
+              public_code: entry.storyPublicCode
+            })}
+          >
             Mở truyện
           </Link>
         ) : <span className="text-sm text-zinc-500">Entry challenge</span>}

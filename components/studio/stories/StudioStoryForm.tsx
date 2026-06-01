@@ -8,23 +8,31 @@ import { VersionHistoryPanel } from "@/components/editor/VersionHistoryPanel";
 import { Button, Card, Input, Textarea } from "@/components/ui";
 import { useAutosave } from "@/hooks/useAutosave";
 import { parseStoryDraftContent } from "@/lib/studio/draft-content";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import {
   GuidelinesAcknowledgementField,
   useGuidelinesSubmitGuard
 } from "@/components/creator/GuidelinesSubmitAcknowledgement";
 import { StoryContentClassification } from "@/components/creator/StoryContentClassification";
 import { StoryCoverField } from "@/components/story/StoryCoverField";
+import { StoryStructureBadge } from "@/components/studio/stories/StoryStructureSelector";
 import { StoryFormSidePanel } from "@/components/studio/stories/StoryFormSidePanel";
+import { isStandaloneStory } from "@/lib/stories/story-structure";
 import { SchedulePicker } from "@/components/studio/SchedulePicker";
 import { StoryPublishChecklistPanel } from "@/components/studio/stories/StoryPublishChecklistPanel";
+import { StoryTaxonomyFields } from "@/components/studio/stories/StoryTaxonomyFields";
+import { TaxonomyRequestPanel } from "@/components/studio/stories/TaxonomyRequestPanel";
 import { SEOAssistantPanel } from "@/components/studio/SEOAssistantPanel";
 import { shouldIndexStory } from "@/lib/seo/should-index";
 import type { SensitiveFlag, StoryAgeRating } from "@/types/moderation";
 import type { StoryFormActionState } from "@/lib/creator/createStory";
+import type { StoryFormTaxonomyBundle } from "@/lib/creator/get-story-form-taxonomy";
+import {
+  collectSelectedTaxonomyTagNames,
+  getSelectedMainGenreTerm
+} from "@/lib/creator/taxonomy-form-display";
 import type {
-  CreatorStoryFormStory,
-  StoryFormGenre,
-  StoryFormTag
+  CreatorStoryFormStory
 } from "@/lib/creator/getStoryFormData";
 import type { StoryImage } from "@/types/story-images";
 import type { StoryDraftContent } from "@/types/drafts";
@@ -35,14 +43,13 @@ type StudioStoryFormProps = {
     previousState: StoryFormActionState,
     formData: FormData
   ) => Promise<StoryFormActionState>;
-  authorPenName?: string | null;
+  authorDisplayName?: string | null;
   basePath?: string;
   currentImage?: StoryImage | null;
-  genres: StoryFormGenre[];
   profileId: string;
   savedDraft?: StudioDraftRecord | null;
   story?: CreatorStoryFormStory | null;
-  tags: StoryFormTag[];
+  taxonomy: StoryFormTaxonomyBundle;
 };
 
 function buildInitialStoryState(
@@ -68,14 +75,13 @@ const initialState: StoryFormActionState = {
 
 export function StudioStoryForm({
   action,
-  authorPenName,
+  authorDisplayName,
   basePath = "/studio",
   currentImage = null,
-  genres,
   profileId,
   savedDraft,
   story,
-  tags
+  taxonomy
 }: StudioStoryFormProps) {
   const initial = buildInitialStoryState(story, savedDraft);
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -88,12 +94,9 @@ export function StudioStoryForm({
   const [seoDescription, setSeoDescription] = useState(story?.seo_description ?? "");
   const [seoKeywords, setSeoKeywords] = useState<string[]>(story?.seo_keywords ?? []);
   const [canonicalUrl, setCanonicalUrl] = useState(story?.canonical_url ?? "");
-  const selectedTags = new Set(story?.tagIds ?? []);
-  const genreName =
-    genres.find((genre) => genre.id === story?.genre_id)?.name ?? null;
-  const tagNames = tags
-    .filter((tag) => selectedTags.has(tag.id))
-    .map((tag) => tag.name);
+  const mainGenreTerm = getSelectedMainGenreTerm(taxonomy);
+  const genreName = mainGenreTerm?.name ?? null;
+  const tagNames = collectSelectedTaxonomyTagNames(taxonomy);
   const isPublishedStory = story?.status === "published";
   const isIndexable = shouldIndexStory({
     status: story?.status,
@@ -206,7 +209,33 @@ export function StudioStoryForm({
           }}
         >
           {story ? <input name="story_id" type="hidden" value={story.id} /> : null}
+          <input
+            name="structure_type"
+            type="hidden"
+            value={story?.structureType ?? "chaptered"}
+          />
           <input name="return_base_path" type="hidden" value={basePath} />
+
+          {story ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <StoryStructureBadge structureType={story.structureType} />
+              {isStandaloneStory({ structureType: story.structureType }) ? (
+                <Link
+                  className="text-sm font-semibold text-cyan-300 hover:underline"
+                  href={`${basePath}/stories/${story.id}/content`}
+                >
+                  Sửa nội dung
+                </Link>
+              ) : (
+                <Link
+                  className="text-sm font-semibold text-cyan-300 hover:underline"
+                  href={`${basePath}/stories/${story.id}/chapters`}
+                >
+                  Quản lý chương
+                </Link>
+              )}
+            </div>
+          ) : null}
 
           <div className="grid gap-5 lg:grid-cols-2">
             <Input
@@ -276,7 +305,7 @@ export function StudioStoryForm({
             canonicalUrl={canonicalUrl}
             disabled={pending}
             hasCover={Boolean(story?.cover_url || currentImage)}
-            hasGenre={Boolean(story?.genre_id)}
+            hasGenre={Boolean(mainGenreTerm)}
             hasTags={tagNames.length > 0}
             isIndexable={isIndexable}
             isPublishedStory={isPublishedStory}
@@ -306,7 +335,7 @@ export function StudioStoryForm({
             seoTitle={seoTitle}
             slug={slug}
             storyContext={{
-              authorName: authorPenName,
+              authorName: authorDisplayName,
               genreName,
               hook,
               longDescription,
@@ -323,71 +352,33 @@ export function StudioStoryForm({
             storyId={story?.id}
           />
 
-          <div className="grid gap-5 sm:grid-cols-2 lg:max-w-xl">
-              <label className="space-y-2">
-                <span className="block text-sm font-bold text-zinc-200">
-                  Genre
-                </span>
-                <select
-                  className="min-h-12 w-full rounded-xl border border-white/10 bg-zinc-950/70 px-4 py-3 text-base text-white outline-none transition focus:border-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
-                  defaultValue={story?.genre_id ?? ""}
-                  disabled={pending}
-                  name="genre_id"
-                  required
-                >
-                  <option value="">Choose genre</option>
-                  {genres.map((genre) => (
-                    <option key={genre.id} value={genre.id}>
-                      {genre.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+          {taxonomy.enabled ? (
+            <StoryTaxonomyFields bundle={taxonomy} disabled={pending} />
+          ) : (
+            <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+              Taxonomy chưa được cấu hình trên hệ thống. Liên hệ quản trị viên trước khi
+              lưu truyện.
+            </p>
+          )}
 
-              <label className="flex min-h-12 items-center gap-3 rounded-xl border border-white/10 bg-zinc-950/70 px-4 py-3 text-sm text-zinc-200">
-                <input
-                  className="size-4 accent-sky-300"
-                  defaultChecked={story?.is_completed ?? false}
-                  disabled={pending}
-                  name="is_completed"
-                  type="checkbox"
-                />
-                <span>Completed</span>
-              </label>
-            </div>
+          <label className="flex min-h-12 items-center gap-3 rounded-xl border border-white/10 bg-zinc-950/70 px-4 py-3 text-sm text-zinc-200 lg:max-w-md">
+            <input
+              className="size-4 accent-sky-300"
+              defaultChecked={story?.is_completed ?? false}
+              disabled={pending}
+              name="is_completed"
+              type="checkbox"
+            />
+            <span>Đã hoàn thành</span>
+          </label>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-bold text-zinc-200">Tags</p>
-              <p className="text-xs text-zinc-500">
-                Reflect motif and genre.
-              </p>
-            </div>
-            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-              {tags.map((tag) => (
-                <label
-                  className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-zinc-200"
-                  key={tag.id}
-                >
-                  <input
-                    className="size-4 accent-sky-300"
-                    defaultChecked={selectedTags.has(tag.id)}
-                    disabled={pending}
-                    name="tags"
-                    type="checkbox"
-                    value={tag.id}
-                  />
-                  <span>{tag.name}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <StoryContentClassification
-            defaultAgeRating={(story?.age_rating ?? "all_ages") as StoryAgeRating}
-            defaultSensitiveFlags={(story?.sensitive_flags ?? []) as SensitiveFlag[]}
-            disabled={pending}
-          />
+          {!taxonomy.enabled ? (
+            <StoryContentClassification
+              defaultAgeRating={(story?.age_rating ?? "all_ages") as StoryAgeRating}
+              defaultSensitiveFlags={(story?.sensitive_flags ?? []) as SensitiveFlag[]}
+              disabled={pending}
+            />
+          ) : null}
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <label className="space-y-2">
@@ -462,14 +453,16 @@ export function StudioStoryForm({
             <StoryPublishChecklistPanel
               input={{
                 coverUrl: story.cover_url,
-                genreId: story.genre_id,
+                genreId: mainGenreTerm?.id ?? null,
                 hasCover: Boolean(story.cover_url || currentImage),
                 hook,
                 longDescription,
                 seoDescription,
                 shortDescription,
                 status: story.status,
-                tagIds: story.tagIds,
+                structureType: story.structureType,
+                standalonePlainText: story.standalonePlainText,
+                tagCount: tagNames.length,
                 title,
                 visibility: story.visibility
               }}
@@ -494,12 +487,20 @@ export function StudioStoryForm({
           canSaveDraft={canSaveDraft}
           story={story}
         />
+        {taxonomy.enabled ? <TaxonomyRequestPanel /> : null}
         {canViewPublicPage ? (
           <Card className="space-y-2">
             <p className="text-sm font-bold text-white">View public page</p>
             <Link
               className="inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-300 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-200"
-              href={`/stories/${story?.slug ?? ""}`}
+              href={
+                story?.slug && story.publicCode
+                  ? getStoryDetailHref({
+                      slug: story.slug,
+                      public_code: story.publicCode
+                    })
+                  : "#"
+              }
             >
               Open public story
             </Link>

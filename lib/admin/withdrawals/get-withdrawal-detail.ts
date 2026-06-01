@@ -76,8 +76,8 @@ export async function loadAdminWithdrawalDetailAction(
   const financeConfig = await getCreatorFinanceConfig();
 
   const creatorRes = await supabase
-    .from("creators")
-    .select("id, pen_name")
+    .from("creator_profiles")
+    .select("id")
     .eq("user_id", req.creator_user_id)
     .maybeSingle();
 
@@ -300,7 +300,10 @@ export async function loadAdminWithdrawalDetailAction(
       username: (profile?.username as string) ?? null,
       email,
       avatarUrl: (profile?.avatar_url as string) ?? null,
-      studioName: (creatorRes.data?.pen_name as string) ?? null,
+      studioName:
+        (profile?.display_name as string | null)?.trim() ||
+        (profile?.username as string | null)?.trim() ||
+        null,
       isVerified: Boolean(profile?.is_verified),
       hasBlueTick: Boolean(profile?.is_verified && profile?.verification_type),
       monetizationStatus: (monetizationRes.data?.status as string) ?? null,

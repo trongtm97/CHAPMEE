@@ -1,3 +1,6 @@
+import { resolveCreatorRowName } from "@/lib/creator/resolve-creator-row-name";
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { mapStoryStructureFromRow } from "@/lib/stories/story-structure";
 import { createClient } from "@/lib/supabase/server";
 import type { LibrarySavedStory } from "@/types/library";
 
@@ -8,10 +11,12 @@ type BookshelfRow = {
         id: string;
         title: string;
         slug: string;
+        public_code: string;
         cover_url: string | null;
         is_completed: boolean | null;
         published_at: string | null;
-        genres: { name: string | null } | { name: string | null }[] | null;
+        structure_type?: string | null;
+        standalone_reading_time_minutes?: number | null;
         creator_profiles:
           | { pen_name: string | null }
           | { pen_name: string | null }[]
@@ -21,10 +26,12 @@ type BookshelfRow = {
         id: string;
         title: string;
         slug: string;
+        public_code: string;
         cover_url: string | null;
         is_completed: boolean | null;
         published_at: string | null;
-        genres: { name: string | null } | { name: string | null }[] | null;
+        structure_type?: string | null;
+        standalone_reading_time_minutes?: number | null;
         creator_profiles:
           | { pen_name: string | null }
           | { pen_name: string | null }[]
@@ -36,7 +43,10 @@ type BookshelfRow = {
 type ProgressRow = {
   story_id: string;
   progress_percent: number | null;
-  episodes: { episode_number: number } | { episode_number: number }[] | null;
+  episodes:
+    | { episode_number: number; slug: string; public_code: string }
+    | { episode_number: number; slug: string; public_code: string }[]
+    | null;
 };
 
 function firstRelation<T>(relation: T | T[] | null | undefined) {
@@ -55,7 +65,7 @@ export async function getSavedStoriesForLibrary(
     const { data, error, count } = await supabase
       .from("bookshelf_items")
       .select(
-        "created_at, stories(id, title, slug, cover_url, is_completed, published_at, genres(name), creator_profiles(pen_name))",
+        `created_at, stories(id, title, slug, public_code, cover_url, is_completed, published_at, structure_type, standalone_reading_time_minutes, ${CREATOR_PROFILE_STORY_JOIN})`,
         { count: "exact" }
       )
       .eq("user_id", userId)
@@ -74,13 +84,18 @@ export async function getSavedStoriesForLibrary(
 
     const progressByStory = new Map<
       string,
-      { progressPercent: number; episodeNumber: number }
+      {
+        progressPercent: number;
+        episodeNumber: number;
+        episodeSlug: string;
+        episodePublicCode: string;
+      }
     >();
 
     if (storyIds.length > 0) {
       const { data: progressRows } = await supabase
         .from("reading_progress")
-        .select("story_id, progress_percent, episodes(episode_number)")
+        .select("story_id, progress_percent, episodes(episode_number, slug, public_code)")
         .eq("user_id", userId)
         .in("story_id", storyIds);
 
@@ -88,7 +103,9 @@ export async function getSavedStoriesForLibrary(
         const episode = firstRelation(row.episodes);
         progressByStory.set(row.story_id, {
           progressPercent: Number(row.progress_percent ?? 0),
-          episodeNumber: episode?.episode_number ?? 0
+          episodeNumber: episode?.episode_number ?? 0,
+          episodeSlug: episode?.slug ?? "",
+          episodePublicCode: episode?.public_code ?? ""
         });
       }
     }
@@ -112,32 +129,38 @@ export async function getSavedStoriesForLibrary(
       }
     }
 
-    const items: LibrarySavedStory[] = rows
-      .map((row) => {
+    const items = rows
+      .map((row): LibrarySavedStory | null => {
         const story = firstRelation(row.stories);
         if (!story) {
           return null;
         }
         const creator = firstRelation(story.creator_profiles);
         const progress = progressByStory.get(story.id);
+        const structure = mapStoryStructureFromRow(story);
 
         return {
           id: story.id,
           slug: story.slug,
+          publicCode: story.public_code,
           title: story.title,
           coverUrl: story.cover_url,
-          authorName: creator?.pen_name ?? null,
+          authorName: resolveCreatorRowName(creator),
           isCompleted: Boolean(story.is_completed),
           episodeCount: episodeCountByStory.get(story.id) ?? 0,
+          structureType: structure.structureType,
+          standaloneReadingTimeMinutes: structure.standaloneReadingTimeMinutes,
           savedAt: row.created_at,
           latestEpisodePublishedAt:
             latestPublishedByStory.get(story.id) ?? story.published_at,
           hasReadingProgress: Boolean(progress),
           progressPercent: progress?.progressPercent ?? null,
-          currentEpisodeNumber: progress?.episodeNumber ?? null
+          currentEpisodeNumber: progress?.episodeNumber ?? null,
+          currentEpisodeSlug: progress?.episodeSlug ?? null,
+          currentEpisodePublicCode: progress?.episodePublicCode ?? null
         };
       })
-      .filter((item): item is LibrarySavedStory => Boolean(item));
+      .filter((item): item is LibrarySavedStory => item !== null);
 
     return {
       items,

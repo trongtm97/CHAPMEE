@@ -5,12 +5,10 @@ import { Button, Card, Input, Textarea } from "@/components/ui";
 import { GuidelinesAcknowledgementField, useGuidelinesSubmitGuard } from "@/components/creator/GuidelinesSubmitAcknowledgement";
 import { StoryContentClassification } from "@/components/creator/StoryContentClassification";
 import { StoryCoverField } from "@/components/story/StoryCoverField";
+import { StoryTaxonomyFields } from "@/components/studio/stories/StoryTaxonomyFields";
 import type { StoryFormActionState } from "@/lib/creator/createStory";
-import type {
-  CreatorStoryFormStory,
-  StoryFormGenre,
-  StoryFormTag
-} from "@/lib/creator/getStoryFormData";
+import type { StoryFormTaxonomyBundle } from "@/lib/creator/get-story-form-taxonomy";
+import type { CreatorStoryFormStory } from "@/lib/creator/getStoryFormData";
 import type { SensitiveFlag, StoryAgeRating } from "@/types/moderation";
 import type { StoryImage } from "@/types/story-images";
 
@@ -19,11 +17,10 @@ type StoryFormProps = {
     previousState: StoryFormActionState,
     formData: FormData
   ) => Promise<StoryFormActionState>;
-  genres: StoryFormGenre[];
-  tags: StoryFormTag[];
   story?: CreatorStoryFormStory | null;
   currentImage?: StoryImage | null;
   returnBasePath?: string;
+  taxonomy?: StoryFormTaxonomyBundle;
 };
 
 const initialState: StoryFormActionState = {
@@ -33,13 +30,12 @@ const initialState: StoryFormActionState = {
 export function StoryForm({
   action,
   currentImage = null,
-  genres,
   returnBasePath = "/studio",
   story,
-  tags
+  taxonomy
 }: StoryFormProps) {
+  const useTaxonomy = taxonomy?.enabled ?? false;
   const [state, formAction, pending] = useActionState(action, initialState);
-  const selectedTags = new Set(story?.tagIds ?? []);
   const canSaveDraft =
     !story || (story.status !== "approved" && story.status !== "published");
 
@@ -108,51 +104,13 @@ export function StoryForm({
           storyId={story?.id}
         />
 
-        <div className="space-y-2">
-          <label
-            className="block text-sm font-medium text-zinc-200"
-            htmlFor="genre_id"
-          >
-            Thể loại
-          </label>
-          <select
-            className="min-h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
-            defaultValue={story?.genre_id ?? ""}
-            disabled={pending}
-            id="genre_id"
-            name="genre_id"
-            required
-          >
-            <option value="">Chọn thể loại</option>
-            {genres.map((genre) => (
-              <option key={genre.id} value={genre.id}>
-                {genre.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-zinc-200">Tags</p>
-          <div className="grid grid-cols-2 gap-2">
-            {tags.map((tag) => (
-              <label
-                className="flex min-h-11 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-200"
-                key={tag.id}
-              >
-                <input
-                  className="size-4 accent-cyan-300"
-                  defaultChecked={selectedTags.has(tag.id)}
-                  disabled={pending}
-                  name="tags"
-                  type="checkbox"
-                  value={tag.id}
-                />
-                <span>{tag.name}</span>
-              </label>
-            ))}
-          </div>
-        </div>
+        {useTaxonomy && taxonomy ? (
+          <StoryTaxonomyFields bundle={taxonomy} disabled={pending} />
+        ) : (
+          <p className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
+            Taxonomy chưa được cấu hình. Liên hệ quản trị viên.
+          </p>
+        )}
 
         <StoryContentClassification
           defaultAgeRating={(story?.age_rating ?? "all_ages") as StoryAgeRating}

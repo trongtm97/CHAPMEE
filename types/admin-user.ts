@@ -147,7 +147,7 @@ export type AdminUserDetailFull = {
     createdAt: string;
   }[];
   creatorStudio: {
-    penName: string;
+    displayName: string;
     status: string;
     storyCount: number;
   } | null;

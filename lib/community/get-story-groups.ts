@@ -1,3 +1,5 @@
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { resolveCreatorRowName } from "@/lib/creator/resolve-creator-row-name";
 import { createClient } from "@/lib/supabase/server";
 import type { StoryCommunityGroup } from "@/types/community";
 
@@ -74,7 +76,7 @@ export async function getStoryGroups(): Promise<{
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("stories")
-      .select("id, title, slug, cover_url, creator_profiles(id, pen_name)")
+      .select(`id, title, slug, cover_url, ${CREATOR_PROFILE_STORY_JOIN}`)
       .eq("visibility", "public")
       .in("status", ["approved", "published"])
       .order("published_at", { ascending: false })
@@ -119,7 +121,7 @@ export async function getStoryGroups(): Promise<{
         name: row.title,
         slug: row.slug,
         coverUrl: row.cover_url,
-        authorName: creator?.pen_name ?? null,
+        authorName: resolveCreatorRowName(creator),
         memberCount,
         todayPostCount,
         badge,

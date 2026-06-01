@@ -6,6 +6,7 @@ import { QualityHistoryTimeline } from "@/components/studio/QualityHistoryTimeli
 import { QualityMonetizationImpactBox } from "@/components/admin/QualityMonetizationImpactBox";
 import { qualityRiskLabel } from "@/lib/admin/content-quality-labels";
 import { qualityReasonLabel, qualityStatusLabel } from "@/lib/content-quality/labels";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import type { AdminContentQualityQueueItem } from "@/types/admin";
 
 type DetailPayload = NonNullable<
@@ -85,12 +86,26 @@ export function ContentQualityDetailDrawer({
                   <Badge>Truyện</Badge>
                   <Badge variant="warning">{qualityStatusLabel(item.qualityStatus)}</Badge>
                   <Badge variant="danger">{qualityRiskLabel(item.riskLevel)}</Badge>
+                  {item.structureType === "standalone" ? (
+                    <Badge>Một phần</Badge>
+                  ) : (
+                    <Badge>Nhiều chương</Badge>
+                  )}
                 </div>
                 <h3 className="mt-2 text-xl font-bold text-white">{payload.story.title}</h3>
                 <p className="mt-2 text-sm text-zinc-400">
-                  {payload.author.penName} · Lần {payload.story.attemptCount}/{item.maxAttempts}
+                  {payload.author.displayName} · Lần {payload.story.attemptCount}/{item.maxAttempts}
                 </p>
               </div>
+
+              {item.structureWarnings.length > 0 ? (
+                <section className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-3">
+                  <h4 className="text-sm font-medium text-amber-100">Cảnh báo cấu trúc</h4>
+                  <p className="mt-1 text-sm text-amber-100/90">
+                    {item.structureWarnings.join(" · ")}
+                  </p>
+                </section>
+              ) : null}
 
               <section>
                 <h4 className="text-sm font-medium text-zinc-300">Tín hiệu chất lượng</h4>
@@ -158,10 +173,13 @@ export function ContentQualityDetailDrawer({
                 </section>
               ) : null}
 
-              {item.slug ? (
+              {item.slug && item.publicCode ? (
                 <Link
                   className="text-sm font-semibold text-cyan-300 hover:text-cyan-200"
-                  href={`/stories/${item.slug}`}
+                  href={getStoryDetailHref({
+                    slug: item.slug,
+                    public_code: item.publicCode
+                  })}
                   target="_blank"
                 >
                   Mở trang truyện →

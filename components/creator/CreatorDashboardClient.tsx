@@ -65,7 +65,7 @@ export function CreatorDashboardClient({
     return (
       <div className="space-y-6">
         <DashboardHeader
-          penName={initialData.creatorProfile.pen_name}
+          displayName={initialData.creatorProfile.display_name}
           bio={initialData.creatorProfile.bio}
         />
         <EmptyState
@@ -87,7 +87,7 @@ export function CreatorDashboardClient({
   return (
     <div className="space-y-8">
       <DashboardHeader
-        penName={initialData.creatorProfile.pen_name}
+        displayName={initialData.creatorProfile.display_name}
         bio={initialData.creatorProfile.bio}
       />
 
@@ -192,17 +192,17 @@ export function CreatorDashboardClient({
 }
 
 function DashboardHeader({
-  penName,
+  displayName,
   bio
 }: {
-  penName: string;
+  displayName: string;
   bio: string | null;
 }) {
   return (
     <div>
       <p className="page-kicker">ChapMee Studio</p>
       <h1 className="page-title">
-        Chào mừng, {penName}
+        Chào mừng, {displayName}
       </h1>
       {bio ? (
         <p className="page-copy">{bio}</p>

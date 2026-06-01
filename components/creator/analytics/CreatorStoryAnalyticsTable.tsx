@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card, EmptyState, SectionHeader } from "@/components/ui";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import type { CreatorStoryAnalytics } from "@/lib/creator/getCreatorAnalytics";
 
 type CreatorStoryAnalyticsTableProps = {
@@ -22,7 +23,10 @@ export function CreatorStoryAnalyticsTable({
               <div>
                 <Link
                   className="text-base font-semibold text-white hover:text-cyan-200"
-                  href={`/stories/${story.slug}`}
+                  href={getStoryDetailHref({
+                    slug: story.slug,
+                    public_code: story.publicCode
+                  })}
                 >
                   {story.title}
                 </Link>

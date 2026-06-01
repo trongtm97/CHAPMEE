@@ -28,7 +28,7 @@ export function CreatorRowMenu({ row, onView, onOpenModal, onOpenTab }: Props) {
   const items: { label: string; onClick?: () => void; href?: string }[] = [
     { label: "Xem chi tiết", onClick: () => { setOpen(false); onView(); } },
     row.username
-      ? { label: "Mở hồ sơ công khai", href: `/tac-gia/${row.username}` }
+      ? { label: "Mở hồ sơ công khai", href: `/@${row.username}` }
       : { label: "Mở hồ sơ công khai", href: "#", onClick: () => setOpen(false) },
     { label: "Mở Studio admin", href: "/studio" },
     {
@@ -92,7 +92,7 @@ export function CreatorRowMenu({ row, onView, onOpenModal, onOpenTab }: Props) {
                 href={item.href}
                 key={item.label}
                 onClick={() => setOpen(false)}
-                target={item.href.startsWith("/tac-gia") ? "_blank" : undefined}
+                target={item.href.startsWith("/@") ? "_blank" : undefined}
               >
                 {item.label}
               </Link>

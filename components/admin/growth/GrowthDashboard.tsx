@@ -48,7 +48,7 @@ export function GrowthDashboard({ data }: GrowthDashboardProps) {
         <KpiCard label="WAU" value={data.kpis.wau} />
         <KpiCard label="MAU" value={data.kpis.mau} />
         <KpiCard label="Sessions" value={data.kpis.sessions} />
-        <KpiCard label="Swipe item views" value={data.kpis.swipeItemViews} />
+        <KpiCard label="Reels item views" value={data.kpis.reelsItemViews} />
         <KpiCard label="Story views" value={data.kpis.storyViews} />
         <KpiCard label="Chapter opens" value={data.kpis.chapterOpens} />
         <KpiCard label="Chapter completions" value={data.kpis.chapterCompletions} />
@@ -71,9 +71,9 @@ export function GrowthDashboard({ data }: GrowthDashboardProps) {
           title="Phễu onboarding"
         />
         <FunnelTable
-          steps={data.swipeFunnel}
-          subtitle="Swipe exposure -> chapter completion"
-          title="Phễu swipe"
+          steps={data.reelsFunnel}
+          subtitle="Reels exposure -> chapter completion"
+          title="Phễu Reels"
         />
         <FunnelTable
           steps={data.creatorFunnel}
@@ -141,7 +141,7 @@ export function GrowthDashboard({ data }: GrowthDashboardProps) {
             subLabel: item.creatorName,
             value: item.value
           }))}
-          subtitle="Truyện read-more nhiều nhất clicks from swipe."
+          subtitle="Truyện read-more nhiều nhất clicks from Reels."
           title="Truyện read-more nhiều nhất"
           valueLabel="Read more"
         />
@@ -159,7 +159,7 @@ export function GrowthDashboard({ data }: GrowthDashboardProps) {
         <TopContentTable
           rows={data.topAuthorsByGrowth.map((item) => ({
             id: item.authorId,
-            label: item.penName,
+            label: item.displayName,
             value: item.value
           }))}
           subtitle="Top authors by story-view growth."
@@ -276,7 +276,7 @@ export function GrowthDashboard({ data }: GrowthDashboardProps) {
           <TopContentTable
             rows={data.revenue.topEarningAuthors.map((item) => ({
               id: item.authorId,
-              label: item.penName,
+              label: item.displayName,
               value: item.grossRevenue
             }))}
             subtitle="Highest grossing authors in selected range."

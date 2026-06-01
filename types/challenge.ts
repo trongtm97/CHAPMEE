@@ -34,6 +34,7 @@ export type ChallengeEntryView = ChallengeEntryRecord & {
   authorName: string | null;
   storyTitle: string | null;
   storySlug: string | null;
+  storyPublicCode: string | null;
 };
 
 export type ChallengeFormValues = {

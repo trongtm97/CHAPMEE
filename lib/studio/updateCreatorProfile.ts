@@ -17,24 +17,25 @@ function parseAvatarUrl(value: FormDataEntryValue | null) {
   return raw ? raw : null;
 }
 
+/** @deprecated Use updateStudioSettingsAction — kept for legacy forms. */
 export async function updateCreatorProfileAction(
   _previousState: CreatorProfileSettingsActionState,
   formData: FormData
 ): Promise<CreatorProfileSettingsActionState> {
-  const penName = String(formData.get("pen_name") ?? "").trim();
+  const displayName = String(formData.get("display_name") ?? formData.get("pen_name") ?? "").trim();
   const bio = String(formData.get("bio") ?? "").trim();
   const avatarUrl = parseAvatarUrl(formData.get("avatar_url"));
 
-  if (!penName) {
-    return { error: "Vui lòng nhập bút danh creator.", success: false };
+  if (!displayName) {
+    return { error: "Vui lòng nhập tên hiển thị.", success: false };
   }
 
-  if (penName.length > 80) {
-    return { error: "Bút danh tối đa 80 ký tự.", success: false };
+  if (displayName.length > 80) {
+    return { error: "Tên hiển thị tối đa 80 ký tự.", success: false };
   }
 
   if (bio.length > 500) {
-    return { error: "Bio tối đa 500 ký tự.", success: false };
+    return { error: "Giới thiệu tối đa 500 ký tự.", success: false };
   }
 
   const { creatorProfile, user } = await getCurrentCreatorProfile();
@@ -44,34 +45,22 @@ export async function updateCreatorProfileAction(
   }
 
   if (!creatorProfile) {
-    redirect("/creator/setup");
+    redirect("/studio/setup");
   }
 
-  const penNamePolicy = await validateDisplayName(penName, user.id);
-  if (!penNamePolicy.valid) {
-    return { error: penNamePolicy.message ?? "Bút danh không hợp lệ.", success: false };
+  const displayNamePolicy = await validateDisplayName(displayName, user.id);
+  if (!displayNamePolicy.valid) {
+    return { error: displayNamePolicy.message ?? "Tên hiển thị không hợp lệ.", success: false };
   }
 
   const supabase = await createClient();
-
-  const { error: creatorError } = await supabase
-    .from("creator_profiles")
-    .update({
-      bio: bio || null,
-      pen_name: penName
-    })
-    .eq("id", creatorProfile.id)
-    .eq("user_id", user.id);
-
-  if (creatorError) {
-    return { error: creatorError.message, success: false };
-  }
 
   const { error: profileError } = await supabase
     .from("profiles")
     .update({
       avatar_url: avatarUrl,
-      bio: bio || null
+      bio: bio || null,
+      display_name: displayName
     })
     .eq("id", user.id);
 
@@ -81,9 +70,6 @@ export async function updateCreatorProfileAction(
 
   revalidatePath("/studio/settings");
   revalidatePath("/studio");
-  revalidatePath("/me");
-  revalidatePath(`/me/${user.id}`);
-  revalidatePath(`/creators/${creatorProfile.id}`);
 
   return { error: null, success: true };
 }

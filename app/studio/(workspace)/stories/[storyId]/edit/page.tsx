@@ -59,14 +59,13 @@ export default async function StudioEditStoryPage({
           />
           <StudioStoryForm
             action={updateStoryAction}
-            authorPenName={creatorProfile.pen_name}
+            authorDisplayName={creatorProfile.display_name}
             basePath="/studio"
             currentImage={formData.currentImage}
-            genres={formData.genres}
             profileId={profile?.id ?? ""}
             savedDraft={savedDraft}
             story={formData.story}
-            tags={formData.tags}
+            taxonomy={formData.taxonomy}
           />
         </>
       ) : (

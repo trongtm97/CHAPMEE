@@ -1,16 +1,21 @@
-import Link from "next/link";
 import { StudioAnalyticsPage } from "@/components/studio/analytics/StudioAnalyticsPage";
-import { ErrorState, SectionHeader } from "@/components/ui";
+import { ErrorState } from "@/components/ui";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getStudioAccess } from "@/lib/creator/getStudioAccess";
 import {
-  getStudioAnalytics,
-  getStudioAnalyticsRange
-} from "@/lib/studio/get-studio-analytics";
+  buildAnalyticsQuery,
+  normalizeAnalyticsContentFilter,
+  normalizeAnalyticsRange
+} from "@/lib/studio/analytics-query";
+import { getStudioAnalytics } from "@/lib/studio/get-studio-analytics";
+import { studioPath } from "@/lib/studio/constants";
 
 type StudioAnalyticsRouteProps = {
   searchParams: Promise<{
+    content?: string;
+    q?: string;
     range?: string;
+    story?: string;
   }>;
 };
 
@@ -20,36 +25,46 @@ export default async function StudioAnalyticsRoute({
   searchParams
 }: StudioAnalyticsRouteProps) {
   const params = await searchParams;
-  const activeRange = getStudioAnalyticsRange(params.range);
-  const { creatorProfile, error } = await getStudioAccess("/studio/analytics");
+  const basePath = studioPath("/analytics");
+  const activeRange = normalizeAnalyticsRange(params.range);
+  const activeContent = normalizeAnalyticsContentFilter(params.content);
+  const search = (params.q ?? "").trim();
+
+  const { creatorProfile, error } = await getStudioAccess(basePath);
   const { profile } = await getCurrentUser();
 
   if (error || !creatorProfile || !profile?.id) {
     return (
-      <section className="space-y-6">
-        <SectionHeader title="Thống kê" />
+      <section className="w-full min-w-0 space-y-6">
+        <h1 className="text-xl font-black text-white">Thống kê Studio</h1>
         <ErrorState message={error} title="Không tải được quyền truy cập Studio" />
       </section>
     );
   }
 
-  const data = await getStudioAnalytics(creatorProfile, profile.id, activeRange);
+  const data = await getStudioAnalytics(creatorProfile, profile.id, {
+    content: activeContent,
+    range: activeRange,
+    search,
+    storyId: params.story
+  });
+
+  const query = buildAnalyticsQuery({
+    content: activeContent,
+    range: activeRange,
+    search,
+    story: params.story
+  });
 
   return (
-    <section className="space-y-6">
-      <Link
-        className="text-sm font-semibold text-sky-300 hover:text-sky-200"
-        href="/studio"
-      >
-        Trở về tổng quan
-      </Link>
-
-      <SectionHeader
-        subtitle="Theo dõi hiệu quả truyện, chương và nội dung Swipe của bạn."
-        title="Thống kê"
+    <section className="w-full min-w-0">
+      <StudioAnalyticsPage
+        activeContent={activeContent}
+        activeRange={activeRange}
+        activeStoryId={params.story}
+        data={data}
+        query={query}
       />
-
-      <StudioAnalyticsPage data={data} />
     </section>
   );
 }

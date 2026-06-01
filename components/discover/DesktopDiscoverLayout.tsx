@@ -1,5 +1,6 @@
 import { SponsoredChallengeBanner } from "@/components/campaigns/SponsoredChallengeBanner";
 import { DiscoverFeed } from "@/components/discover/DiscoverFeed";
+import { sponsoredBannerProps } from "@/lib/campaigns/load-public-campaigns";
 import type { DiscoverData } from "@/lib/discover/getDiscoverData";
 import type { CampaignWithSponsor } from "@/types/campaign";
 
@@ -24,15 +25,7 @@ export function DesktopDiscoverLayout({ data, query, sponsoredBanner }: DesktopD
         query={query}
         sponsoredBanner={
           sponsoredBanner ? (
-            <SponsoredChallengeBanner
-              campaignId={sponsoredBanner.id}
-              ctaText={sponsoredBanner.ctaText}
-              ctaUrl={sponsoredBanner.ctaUrl}
-              disclosureText={sponsoredBanner.disclosureText}
-              sponsorId={sponsoredBanner.sponsor?.id ?? null}
-              sponsorLogoUrl={sponsoredBanner.sponsor?.logoUrl}
-              sponsorName={sponsoredBanner.sponsor?.name ?? "Nhà tài trợ"}
-            />
+            <SponsoredChallengeBanner {...sponsoredBannerProps(sponsoredBanner)} />
           ) : null
         }
       />

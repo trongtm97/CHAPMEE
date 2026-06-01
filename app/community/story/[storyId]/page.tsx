@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import { notFound } from "next/navigation";
 import { getStoryImageForUsage } from "@/lib/images/get-story-image";
 import { COMMUNITY_PAGE_SHELL_CLASS } from "@/components/community/community-page-shell";
@@ -81,7 +82,7 @@ export default async function StoryGroupPage({ params }: StoryGroupPageProps) {
             </button>
             <Link
               className="inline-flex min-h-10 items-center rounded-full border border-white/15 px-4 text-xs font-bold text-zinc-200"
-              href={`/stories/${story.slug}`}
+              href={getStoryDetailHref({ slug: story.slug, public_code: story.publicCode })}
             >
               Đọc truyện
             </Link>

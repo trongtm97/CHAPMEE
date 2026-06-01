@@ -140,7 +140,7 @@ export async function validateUsername(
   const { data: existing } = await uniquenessQuery.maybeSingle();
 
   if (existing) {
-    return fail("taken", "Username này đã được sử dụng.");
+    return fail("taken", "Username đã được sử dụng.");
   }
 
   return ok(normalized);

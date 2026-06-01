@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { getProfileTabUrl } from "@/lib/profile/profile-url";
 import type { PublicProfileTab } from "@/types/public-profile";
 
 const tabLabels: Record<PublicProfileTab, string> = {
@@ -42,7 +43,7 @@ export function PublicProfileTabs({
                   ? "border-cyan-300/30 bg-cyan-300/10 text-cyan-100"
                   : "border-transparent bg-white/[0.02] text-zinc-500 hover:text-zinc-300"
               }`}
-              href={`/profile/${username}?tab=${tab}`}
+              href={getProfileTabUrl(username, tab) ?? "#"}
               key={tab}
               role="tab"
             >

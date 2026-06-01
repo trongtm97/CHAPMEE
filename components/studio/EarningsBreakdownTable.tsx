@@ -75,7 +75,7 @@ export function EarningsBreakdownTable({ rows, activeFilter }: EarningsBreakdown
                 <th className="pb-2 pr-3 font-medium">Loại</th>
                 <th className="pb-2 pr-3 font-medium">Truyện / chương</th>
                 <th className="pb-2 pr-3 font-medium text-right">Doanh thu gộp</th>
-                <th className="pb-2 pr-3 font-medium text-right">Phí đã trừ</th>
+                <th className="pb-2 pr-3 font-medium text-right">ChapMee giữ</th>
                 <th className="pb-2 pr-3 font-medium text-right">Tác giả nhận</th>
                 <th className="pb-2 pr-3 font-medium">Trạng thái</th>
                 <th className="pb-2 font-medium" />
@@ -89,7 +89,7 @@ export function EarningsBreakdownTable({ rows, activeFilter }: EarningsBreakdown
                   <td className="py-2 pr-3">{row.contentLabel}</td>
                   <td className="py-2 pr-3 text-right">{formatVnd(row.grossVnd)}</td>
                   <td className="py-2 pr-3 text-right text-amber-200/90">
-                    {formatVnd(row.totalFeesVnd)}
+                    {formatVnd(row.platformFeeVnd)}
                   </td>
                   <td className="py-2 pr-3 text-right font-semibold text-emerald-200">
                     {formatVnd(row.creatorNetVnd)}

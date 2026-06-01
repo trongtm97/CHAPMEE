@@ -11,6 +11,9 @@ import {
   RevenueSourceCustomEditor
 } from "@/components/admin/RevenueRuleTable";
 import { SettingsConfirmModal } from "@/components/admin/SettingsConfirmModal";
+import { CoinTopupPackagesSection } from "@/components/admin/monetization/CoinTopupPackagesSection";
+import { MonetizationSectionNav } from "@/components/admin/monetization/MonetizationSectionNav";
+import { SepaySettingsSection } from "@/components/admin/monetization/SepaySettingsSection";
 import { Button, Input } from "@/components/ui";
 import type { CreatorFeeOverrideStats } from "@/lib/admin/get-creator-fee-override-stats";
 import type { MonetizationAuditLogEntry } from "@/lib/admin/get-monetization-audit-logs";
@@ -29,6 +32,8 @@ import {
 } from "@/lib/admin/monetization";
 import type { MonetizationSettingsPermissions } from "@/lib/auth/monetization-settings-permissions";
 import type { MonetizationConfigKey, MonetizationSettingsMap } from "@/types/monetization";
+import type { CoinTopupPackage } from "@/types/topup-package";
+import type { PaymentProviderSetting } from "@/types/payment";
 
 type MonetizationSettingsDashboardProps = {
   initialSettings: MonetizationSettingsMap;
@@ -36,6 +41,8 @@ type MonetizationSettingsDashboardProps = {
   permissions: MonetizationSettingsPermissions;
   auditLogs: MonetizationAuditLogEntry[];
   overrideStats: CreatorFeeOverrideStats;
+  topupPackages: CoinTopupPackage[];
+  sepaySetting: PaymentProviderSetting | null;
 };
 
 function num(v: MonetizationSettingsMap[MonetizationConfigKey]) {
@@ -57,7 +64,9 @@ export function MonetizationSettingsDashboard({
   updatedAt,
   permissions,
   auditLogs,
-  overrideStats
+  overrideStats,
+  topupPackages,
+  sepaySetting
 }: MonetizationSettingsDashboardProps) {
   const [baseline, setBaseline] = useState(initialSettings);
   const [draft, setDraft] = useState(initialSettings);
@@ -213,17 +222,13 @@ export function MonetizationSettingsDashboard({
   ];
 
   return (
-    <div className={`space-y-8 ${unsaved ? "pb-28 md:pb-32" : "pb-8"}`}>
-      <header className="space-y-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white sm:text-3xl">
-            Cấu hình kiếm tiền
-          </h1>
-          <p className="mt-1 text-sm text-zinc-400">
-            Quản lý coin, chia doanh thu, chương trả phí, tip và rút tiền.
-          </p>
-        </div>
+    <div className={`space-y-5 ${unsaved ? "pb-28 md:pb-32" : "pb-4"}`}>
+      <p className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-3 py-2 text-xs leading-5 text-cyan-100/90">
+        Công tắc toàn nền tảng. Khóa từng tài khoản:{" "}
+        <span className="text-cyan-200">Admin → Tác giả → Kiếm tiền</span>.
+      </p>
 
+      <header className="space-y-3">
         <div className="flex flex-wrap gap-2">
           {statusBadges.map((item) => (
             <span
@@ -278,7 +283,7 @@ export function MonetizationSettingsDashboard({
                 className="tap-highlight inline-flex min-h-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-bold uppercase tracking-[0.12em] text-zinc-100"
                 href="/admin/audit?targetType=monetization_settings"
               >
-                Xem audit log
+                Nhật ký kiểm tra
               </Link>
             </>
           ) : null}
@@ -307,7 +312,10 @@ export function MonetizationSettingsDashboard({
         ) : null}
       </header>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
+        <MonetizationSectionNav showHistory={permissions.canViewAudit} />
+
+        <div className="grid min-w-0 flex-1 gap-5 lg:grid-cols-2">
         <MoneySettingCard
           description="Bật/tắt từng module. Tắt hệ sinh thái tiền sẽ vô hiệu hóa các toggle phụ thuộc."
           id="ecosystem"
@@ -426,8 +434,16 @@ export function MonetizationSettingsDashboard({
           </p>
         </MoneySettingCard>
 
+        <CoinTopupPackagesSection
+          canEdit={permissions.canUpdateCoin}
+          exchangeRateVnd={coinRate}
+          packages={topupPackages}
+        />
+
+        <SepaySettingsSection setting={sepaySetting} />
+
         <MoneySettingCard
-          className="xl:col-span-2"
+          className="lg:col-span-2"
           description="Tác giả đã có % riêng trong profile hoặc chính sách phí sẽ không bị ảnh hưởng khi đổi % mặc định."
           id="default-share"
           title="Chia doanh thu mặc định"
@@ -480,7 +496,7 @@ export function MonetizationSettingsDashboard({
         <CreatorOverrideStatsCard stats={overrideStats} />
 
         <MoneySettingCard
-          className="xl:col-span-2"
+          className="lg:col-span-2"
           description="Tỷ lệ riêng cho từng nguồn doanh thu."
           id="revenue-sources"
           title="Tỷ lệ theo nguồn doanh thu"
@@ -535,6 +551,40 @@ export function MonetizationSettingsDashboard({
                 onChange={(e) => update("payout.hold_days", Number(e.target.value))}
               />
               <FieldError message={validation.fieldErrors["payout.hold_days"]} />
+            </label>
+            <label className="block text-sm">
+              <span className="text-zinc-400">Xử lý rút tiền — tối thiểu (ngày)</span>
+              <Input
+                className="mt-1"
+                disabled={inputDisabled(permissions.canUpdateWithdrawal)}
+                max={30}
+                min={1}
+                type="number"
+                value={num(draft["payout.processing_days_min"])}
+                onChange={(e) =>
+                  update("payout.processing_days_min", Number(e.target.value))
+                }
+              />
+              <FieldError
+                message={validation.fieldErrors["payout.processing_days_min"]}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-zinc-400">Xử lý rút tiền — tối đa (ngày)</span>
+              <Input
+                className="mt-1"
+                disabled={inputDisabled(permissions.canUpdateWithdrawal)}
+                max={30}
+                min={1}
+                type="number"
+                value={num(draft["payout.processing_days_max"])}
+                onChange={(e) =>
+                  update("payout.processing_days_max", Number(e.target.value))
+                }
+              />
+              <FieldError
+                message={validation.fieldErrors["payout.processing_days_max"]}
+              />
             </label>
             <label className="block text-sm">
               <span className="text-zinc-400">Số yêu cầu rút tối đa/ngày</span>
@@ -628,7 +678,7 @@ export function MonetizationSettingsDashboard({
           <div className="space-y-2">
             {(
               [
-                ["fraud.lock_revenue_on_severe_report", "Tự khóa khi report nghiêm trọng"],
+                ["fraud.lock_revenue_on_severe_report", "Tự khóa khi báo cáo nghiêm trọng"],
                 ["fraud.lock_revenue_on_low_quality", "Tự khóa khi chất lượng thấp"],
                 ["fraud.lock_revenue_on_creator_warning", "Tự khóa khi tác giả bị cảnh báo"],
                 ["fraud.lock_revenue_on_refund_dispute", "Tự khóa khi tranh chấp hoàn coin"],
@@ -690,7 +740,7 @@ export function MonetizationSettingsDashboard({
                 <option value="chapter_unlock">Chương trả phí</option>
                 <option value="tip">Tip</option>
                 <option value="vip">VIP</option>
-                <option value="fan_club">Fan club</option>
+                <option value="fan_club">Câu lạc bộ fan</option>
               </select>
             </label>
           </div>
@@ -766,10 +816,10 @@ export function MonetizationSettingsDashboard({
             Đây chỉ là xem thử, không tạo giao dịch thật.
           </p>
         </MoneySettingCard>
-      </div>
 
       {permissions.canViewAudit ? (
         <MoneySettingCard
+          className="lg:col-span-2"
           description="Các thay đổi gần nhất từ nhật ký hệ thống."
           id="history"
           title="Lịch sử thay đổi gần đây"
@@ -823,10 +873,12 @@ export function MonetizationSettingsDashboard({
             className="mt-3 inline-block text-sm font-semibold text-cyan-300"
             href="/admin/audit?targetType=monetization_settings"
           >
-            Xem audit log chi tiết →
+            Xem nhật ký kiểm tra chi tiết →
           </Link>
         </MoneySettingCard>
       ) : null}
+        </div>
+      </div>
 
       <MonetizationStickyBar
         canSave={validation.ok && permissions.canUpdateAny}

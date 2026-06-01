@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { TrackedStoryLink } from "@/components/tracking/TrackedStoryLink";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import { Card, Badge } from "@/components/ui";
 import type { StoryRankingItem } from "@/types/ranking";
 
@@ -22,7 +23,13 @@ export function StoryRankingCard({ item }: StoryRankingCardProps) {
       : "bg-white/[0.04] border-white/8";
 
   return (
-    <Link className="tap-highlight block" href={`/stories/${item.slug}`}>
+    <TrackedStoryLink
+      className="tap-highlight block"
+      href={getStoryDetailHref({ slug: item.slug, public_code: item.publicCode })}
+      position={item.rank}
+      storyId={item.id}
+      surface="ranking"
+    >
       <Card className="space-y-3 transition hover:-translate-y-0.5 hover:border-cyan-300/30 hover:bg-[var(--surface-soft)]">
         <div className="flex items-start gap-3">
           <div
@@ -54,6 +61,6 @@ export function StoryRankingCard({ item }: StoryRankingCardProps) {
           Đọc ngay
         </span>
       </Card>
-    </Link>
+    </TrackedStoryLink>
   );
 }

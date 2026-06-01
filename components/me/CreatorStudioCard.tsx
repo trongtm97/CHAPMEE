@@ -58,7 +58,7 @@ export function CreatorStudioCard({
         <p className="text-[0.62rem] font-bold uppercase tracking-[0.16em] text-cyan-200/90">
           ChapMee Studio
         </p>
-        <h2 className="mt-0.5 text-base font-bold text-white">{creatorProfile.pen_name}</h2>
+        <h2 className="mt-0.5 text-base font-bold text-white">{creatorProfile.display_name}</h2>
         <p className="mt-1 text-xs leading-5 text-zinc-500">
           Quản lý truyện và chương của bạn
         </p>

@@ -1,10 +1,13 @@
 import { loadUsernamePolicyContext } from "@/lib/username/load-policy-context";
 import { findPolicyViolation } from "@/lib/username/policy-matcher";
 import { normalizeDisplayNamePolicyText } from "@/lib/username/normalize-policy-text";
+import {
+  DISPLAY_NAME_MAX_LENGTH,
+  DISPLAY_NAME_MIN_LENGTH
+} from "@/lib/username/display-name-limits";
 import type { UsernamePolicyValidationResult } from "@/types/username-policy";
 
-export const DISPLAY_NAME_MIN_LENGTH = 2;
-export const DISPLAY_NAME_MAX_LENGTH = 50;
+export { DISPLAY_NAME_MIN_LENGTH, DISPLAY_NAME_MAX_LENGTH } from "@/lib/username/display-name-limits";
 
 const URL_PATTERN = /(?:https?:\/\/|www\.)/i;
 const JUNK_ONLY_PATTERN = /^[\W\d_]+$/u;

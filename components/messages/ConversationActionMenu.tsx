@@ -16,6 +16,7 @@ import {
 } from "@/components/messages/ConversationActionSheet";
 import { MessageToast } from "@/components/messages/MessageToast";
 import { ReportMessageDialog } from "@/components/messages/ReportMessageDialog";
+import { getProfileUrlOrFallback } from "@/lib/profile/profile-url";
 
 type ConversationActionMenuProps = {
   conversationId: string;
@@ -184,7 +185,7 @@ export function ConversationActionMenu({
         headerSlot={
           username ? (
             <ConversationProfileSheetRow
-              href={`/profile/${username}`}
+              href={getProfileUrlOrFallback(username)}
               icon={<ProfileIcon />}
               onClose={() => setSheetOpen(false)}
               subtitle="Xem trang cá nhân công khai."

@@ -8,29 +8,6 @@ type MoodChipCarouselProps = {
   variant?: "catalog" | "discover";
 };
 
-const catalogMoods = [
-  { label: "Tất cả", href: "/truyen" },
-  { label: "Drama", href: "/truyen?genre=drama&page=1" },
-  { label: "Ngôn tình", href: "/truyen?genre=ngon-tinh&page=1" },
-  { label: "Chữa lành", href: "/truyen?genre=chua-lanh&page=1" },
-  { label: "Kinh dị", href: "/truyen?genre=kinh-di&page=1" },
-  { label: "Trinh thám", href: "/truyen?genre=trinh-tham&page=1" },
-  { label: "Chat story", href: "/truyen?genre=chat-story&page=1" },
-  { label: "Đọc nhanh", href: "/truyen?sort=quick&page=1" }
-] as const;
-
-const preferredMoodOrder = [
-  "chat story",
-  "chữa lành",
-  "drama",
-  "kinh dị",
-  "ngôn tình",
-  "trinh thám",
-  "hài hước",
-  "đời thường",
-  "cực ngắn"
-];
-
 export function MoodChipCarousel({
   activeGenre = "",
   genres = [],
@@ -38,12 +15,21 @@ export function MoodChipCarousel({
   variant = "discover"
 }: MoodChipCarouselProps) {
   if (variant === "catalog") {
+    const dynamicMoods = [
+      { label: "Tất cả", href: "/truyen" },
+      ...genres.slice(0, 8).map((genre) => ({
+        label: genre.name,
+        href: `/truyen?genre=${encodeURIComponent(genre.slug)}&page=1`
+      })),
+      { label: "Đọc nhanh", href: "/truyen?sort=quick&page=1" }
+    ];
+
     return (
       <section className="space-y-2">
-        <h2 className="text-sm font-bold tracking-[0.01em] text-white">Mood hôm nay</h2>
+        <h2 className="text-sm font-bold tracking-[0.01em] text-white">Thể loại nổi bật</h2>
         <div className="no-scrollbar -mx-4 overflow-x-auto px-4 md:mx-0 md:overflow-visible md:px-0">
           <div className="flex min-w-max snap-x snap-mandatory gap-2 pb-0.5 pr-4 md:min-w-0 md:flex-wrap md:snap-none md:pr-0">
-            {catalogMoods.map((mood) => (
+            {dynamicMoods.map((mood) => (
               <Chip href={mood.href} isActive={false} key={mood.href}>
                 {mood.label}
               </Chip>
@@ -53,14 +39,6 @@ export function MoodChipCarousel({
       </section>
     );
   }
-
-  const sortedGenres = [...genres].sort((first, second) => {
-    const firstIndex = preferredMoodOrder.indexOf(first.name.toLowerCase());
-    const secondIndex = preferredMoodOrder.indexOf(second.name.toLowerCase());
-    const a = firstIndex === -1 ? Number.MAX_SAFE_INTEGER : firstIndex;
-    const b = secondIndex === -1 ? Number.MAX_SAFE_INTEGER : secondIndex;
-    return a - b;
-  });
 
   return (
     <section className="space-y-2">
@@ -80,7 +58,7 @@ export function MoodChipCarousel({
           <Chip href={query ? `/discover?q=${encodeURIComponent(query)}` : "/discover"} isActive={!activeGenre}>
             Tất cả
           </Chip>
-          {sortedGenres.slice(0, 12).map((genre) => {
+          {genres.slice(0, 12).map((genre) => {
             const params = new URLSearchParams();
             if (query) {
               params.set("q", query);

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getStoryChapterHref } from "@/lib/stories/story-routes";
 import type { StoryDetail } from "@/lib/stories/getStoryBySlug";
 
 type DesktopEpisodeSidebarProps = {
@@ -27,7 +28,10 @@ export function DesktopEpisodeSidebar({
                     ? "bg-cyan-300/12 font-bold text-cyan-100"
                     : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200"
                 }`}
-                href={`/stories/${story.slug}/episodes/${episode.episodeNumber}`}
+                href={getStoryChapterHref(
+                  { slug: story.slug, public_code: story.publicCode },
+                  { slug: episode.slug, public_code: episode.publicCode }
+                )}
               >
                 <span className="font-semibold text-zinc-500">#{episode.episodeNumber}</span>{" "}
                 <span className="line-clamp-1">{episode.title}</span>

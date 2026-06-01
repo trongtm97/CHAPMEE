@@ -115,3 +115,50 @@ export async function deleteStudioDraftAction(draftId: string) {
     };
   }
 }
+
+export async function bulkDeleteStudioDraftsAction(draftIds: string[]) {
+  const { error, profileId } = await getProfileId();
+
+  if (!profileId) {
+    return { error, failedCount: draftIds.length, ok: false as const, successCount: 0 };
+  }
+
+  if (draftIds.length === 0) {
+    return { error: "Chưa chọn nháp nào.", failedCount: 0, ok: false as const, successCount: 0 };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { error: deleteError, count } = await supabase
+      .from("creator_drafts")
+      .delete({ count: "exact" })
+      .eq("owner_id", profileId)
+      .in("id", draftIds);
+
+    if (deleteError) {
+      throw new Error(deleteError.message);
+    }
+
+    revalidatePath(studioPath("/drafts"));
+
+    const successCount = count ?? draftIds.length;
+    const failedCount = Math.max(0, draftIds.length - successCount);
+
+    return {
+      error: failedCount > 0 ? "Một số nháp không xóa được." : undefined,
+      failedCount,
+      ok: successCount > 0,
+      successCount
+    };
+  } catch (deleteFailure) {
+    return {
+      error:
+        deleteFailure instanceof Error
+          ? deleteFailure.message
+          : "Không thể xóa nháp.",
+      failedCount: draftIds.length,
+      ok: false as const,
+      successCount: 0
+    };
+  }
+}

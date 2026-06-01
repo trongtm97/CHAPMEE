@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { revalidatePublicProfilePaths } from "@/lib/profile/revalidate-public-profile";
 import { getProfilePrivacySettings } from "@/lib/profile/get-profile-privacy";
 
 type FollowUserInput = {
@@ -53,9 +54,7 @@ export async function followUserAction(input: FollowUserInput) {
   }
 
   revalidatePath(input.returnTo);
-  if (input.username) {
-    revalidatePath(`/profile/${input.username}`);
-  }
+  revalidatePublicProfilePaths(input.username);
 
   const toast = input.following ? "followed" : "unfollowed";
   redirect(

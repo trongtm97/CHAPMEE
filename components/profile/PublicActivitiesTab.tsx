@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getProfileTabUrl } from "@/lib/profile/profile-url";
 import { Card, EmptyState } from "@/components/ui";
 import type { PublicActivityItem } from "@/types/public-profile";
 
@@ -69,7 +70,7 @@ export function PublicActivitiesTab({
       {hasMore ? (
         <a
           className="block text-center text-sm font-semibold text-cyan-200"
-          href={`/profile/${username}?tab=activity&page=${page + 1}`}
+          href={getProfileTabUrl(username, "activity", page + 1) ?? "#"}
         >
           Trang sau
         </a>

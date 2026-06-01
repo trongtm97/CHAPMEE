@@ -31,7 +31,7 @@ export function DiscoverPageSkeleton() {
   );
 }
 
-export function SwipePageSkeleton() {
+export function ReelsPageSkeleton() {
   return (
     <section className="relative flex h-[calc(100dvh-6.5rem)] min-h-[24rem] flex-col overflow-hidden bg-[#06090d] md:h-[calc(100dvh-4rem)]">
       <div
@@ -80,26 +80,6 @@ export function MePageSkeleton() {
   );
 }
 
-export function HomePageSkeleton() {
-  return (
-    <div className="w-full space-y-6 sm:space-y-7">
-      <Pulse className="h-40 w-full rounded-[1.6rem]" />
-      <div className="space-y-3">
-        <Pulse className="h-4 w-24" />
-        <div className="flex gap-3 overflow-hidden">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Pulse className="h-44 w-32 shrink-0 rounded-2xl" key={index} />
-          ))}
-        </div>
-      </div>
-      <div className="space-y-3">
-        <Pulse className="h-4 w-28" />
-        <Pulse className="h-52 w-full rounded-2xl" />
-      </div>
-    </div>
-  );
-}
-
 export function TruyenPageSkeleton() {
   return (
     <section className="page-stack space-y-4">
@@ -120,5 +100,48 @@ export function CommunityTabSkeleton() {
       <CommunityPostCardSkeleton />
       <CommunityPostCardSkeleton />
     </div>
+  );
+}
+
+export function AdminPageSkeleton() {
+  return (
+    <section className="mx-auto w-full max-w-[1320px] space-y-5 p-4 lg:p-6">
+      <div className="space-y-2 border-b border-white/10 pb-5">
+        <Pulse className="h-4 w-28" />
+        <Pulse className="h-8 w-64" />
+        <Pulse className="h-4 w-full max-w-2xl" />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Pulse className="h-24 rounded-xl" key={index} />
+        ))}
+      </div>
+      <div className="flex gap-2 overflow-hidden">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <Pulse className="h-10 w-32 shrink-0 rounded-full" key={index} />
+        ))}
+      </div>
+      <Pulse className="h-80 rounded-xl" />
+    </section>
+  );
+}
+
+export function StudioPageSkeleton() {
+  return (
+    <section className="mx-auto w-full max-w-[1280px] space-y-5 p-4 lg:p-6">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 flex-1 space-y-2">
+          <Pulse className="h-7 w-56" />
+          <Pulse className="h-4 w-full max-w-xl" />
+        </div>
+        <Pulse className="h-10 w-28 rounded-full" />
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Pulse className="h-28 rounded-xl" key={index} />
+        ))}
+      </div>
+      <Pulse className="h-72 rounded-xl" />
+    </section>
   );
 }

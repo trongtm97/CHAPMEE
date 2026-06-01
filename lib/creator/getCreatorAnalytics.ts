@@ -19,6 +19,7 @@ export type CreatorStoryAnalytics = {
   id: string;
   title: string;
   slug: string;
+  publicCode: string;
   opens: number;
   episodeStarts: number;
   completions: number;
@@ -49,6 +50,7 @@ type StoryRow = {
   id: string;
   title: string;
   slug: string;
+  public_code: string;
 };
 
 type EpisodeRow = {
@@ -146,7 +148,7 @@ export async function getCreatorAnalytics(
 
     const { data: storyRows, error: storiesError } = await supabase
       .from("stories")
-      .select("id, title, slug")
+      .select("id, title, slug, public_code")
       .eq("creator_id", creatorProfile.id)
       .order("updated_at", { ascending: false });
 
@@ -191,6 +193,7 @@ export async function getCreatorAnalytics(
           id: story.id,
           title: story.title,
           slug: story.slug,
+          publicCode: story.public_code,
           comments: 0,
           completions: 0,
           episodeStarts: 0,

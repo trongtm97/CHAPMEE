@@ -12,6 +12,8 @@ import type {
   NotificationFilterTab,
   NotificationItem
 } from "@/types/notification";
+import { useAbortableAsync } from "@/hooks/useAbortableAsync";
+import { isAbortError, useLatestRequestGuard } from "@/hooks/useLatestRequestGuard";
 
 type NotificationsPageProps = {
   initialItems: NotificationItem[];
@@ -35,6 +37,8 @@ export function NotificationsPage({
   const [isLoading, startLoading] = useTransition();
   const [isLoadingMore, startLoadMore] = useTransition();
   const [isMarkingAll, startMarkAll] = useTransition();
+  const createAbortController = useAbortableAsync();
+  const requestGuard = useLatestRequestGuard();
 
   const visibleItems = useMemo(() => filterNotificationsByTab(items, tab), [items, tab]);
 
@@ -51,12 +55,14 @@ export function NotificationsPage({
       }
 
       const run = append ? startLoadMore : startLoading;
+      const requestId = requestGuard.nextRequestId();
+      const controller = createAbortController();
       run(async () => {
         setLoadError(null);
         try {
           const response = await fetch(
             `/api/notifications?tab=${nextTab}&offset=${nextOffset}&limit=${pageSize}`,
-            { cache: "no-store" }
+            { cache: "no-store", signal: controller.signal }
           );
           if (!response.ok) {
             throw new Error("Không thể tải thông báo.");
@@ -65,18 +71,24 @@ export function NotificationsPage({
             items: NotificationItem[];
             unreadCount: number;
           };
+          if (!requestGuard.onlyLatest(requestId)) {
+            return;
+          }
           setUnreadCount(payload.unreadCount);
           setHasMore(payload.items.length >= pageSize);
           setOffset(nextOffset + payload.items.length);
           setItems((prev) => (append ? [...prev, ...payload.items] : payload.items));
         } catch (error) {
+          if (isAbortError(error) || !requestGuard.onlyLatest(requestId)) {
+            return;
+          }
           setLoadError(
             error instanceof Error ? error.message : "Không thể tải thông báo."
           );
         }
       });
     },
-    [items, pageSize, usingMockData]
+    [createAbortController, items, pageSize, requestGuard, usingMockData]
   );
 
   function onChangeTab(nextTab: NotificationFilterTab) {

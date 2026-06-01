@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui";
-import { formatSwipeCount } from "@/lib/swipe/formatCount";
+import { formatReelsCount } from "@/lib/reels/formatCount";
 
 type StatCardProps = {
   label: string;
@@ -9,7 +9,7 @@ type StatCardProps = {
 
 export function StatCard({ hint, label, value }: StatCardProps) {
   const displayValue =
-    typeof value === "number" ? formatSwipeCount(value) : value;
+    typeof value === "number" ? formatReelsCount(value) : value;
 
   return (
     <Card className="space-y-1.5 p-3">

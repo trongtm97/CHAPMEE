@@ -2,12 +2,17 @@
 
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getCreatorFinanceConfig } from "@/lib/finance/get-creator-finance-config";
+import { resolveStudioFinanceEligibility } from "@/lib/finance/finance-eligibility";
 import { verifyWithdrawalPin } from "@/lib/finance/verify-withdrawal-pin";
 import { logFinanceSecurityEvent } from "@/lib/finance/log-finance-security";
 import { insertCreatorWalletLedgerEntry } from "@/lib/supabase/creator-finance";
 import { requestPayoutAction } from "@/lib/monetization/payouts";
 import { getCreatorWithdrawalSecurity } from "@/lib/supabase/creator-finance";
 import { calculateCreatorBalance } from "@/lib/finance/calculate-creator-balance";
+import { getCreatorAccessStatus } from "@/lib/creator-access";
+import { getFinanceIdentityStatus } from "@/lib/finance/get-finance-identity-status";
+import { mapBankAccountViews } from "@/lib/finance/map-bank-account-view";
+import { getCreatorPayoutAccountById, listCreatorPayoutAccounts } from "@/lib/supabase/payouts";
 import type { PayoutMethod } from "@/types/payout";
 
 export type CreateWithdrawalInput = {
@@ -36,6 +41,60 @@ export async function createWithdrawalRequest(
   if (!config.creatorMonetizationEnabled) {
     return { ok: false, error: "Kiếm tiền chưa được bật cho tài khoản của bạn." };
   }
+
+  const [creatorAccess, balance, security, payoutAccounts, identity] = await Promise.all([
+    getCreatorAccessStatus(profile.id, {
+      minWithdrawAmountVnd: config.minWithdrawAmountVnd,
+      availableBalanceVnd: 0
+    }),
+    calculateCreatorBalance(profile.id),
+    getCreatorWithdrawalSecurity(profile.id),
+    listCreatorPayoutAccounts(profile.id),
+    getFinanceIdentityStatus(profile.id)
+  ]);
+
+  const bankAccounts = mapBankAccountViews(payoutAccounts.data ?? [], identity);
+  const selectedView = bankAccounts.find((a) => a.id === input.payoutAccountId);
+
+  const pinLocked = isLocked(security.data?.locked_until ?? null);
+  const eligibility = resolveStudioFinanceEligibility({
+    config,
+    creatorAccessWithdrawalEnabled: creatorAccess.withdrawalEnabled,
+    creatorAccessWithdrawalDisabledReason: creatorAccess.withdrawalDisabledReason,
+    identity,
+    bankAccounts,
+    pinConfigured: Boolean(security.data?.pin_hash),
+    pinLocked,
+    availableBalanceVnd: balance.data?.availableBalanceVnd ?? 0
+  });
+
+  if (!eligibility.canWithdraw) {
+    return {
+      ok: false,
+      error: eligibility.primaryBlockReason ?? "Chưa đủ điều kiện rút tiền."
+    };
+  }
+
+  if (!selectedView?.canUseForWithdrawal) {
+    const account = await getCreatorPayoutAccountById(input.payoutAccountId, profile.id);
+    if (!account.data) {
+      return { ok: false, error: "Tài khoản nhận tiền không hợp lệ." };
+    }
+    if (selectedView?.accountStatus === "locked_24h") {
+      return {
+        ok: false,
+        error: "Tài khoản này đang bị khóa rút 24h sau khi thay đổi."
+      };
+    }
+    if (selectedView?.identityNameMatchStatus === "mismatched") {
+      return {
+        ok: false,
+        error: "Tên chủ tài khoản không khớp với hồ sơ xác thực."
+      };
+    }
+    return { ok: false, error: "Tài khoản nhận tiền chưa sẵn sàng để rút." };
+  }
+
   if (!config.withdrawalsEnabled) {
     return { ok: false, error: "Yêu cầu rút tiền hiện chưa được mở." };
   }
@@ -51,8 +110,8 @@ export async function createWithdrawalRequest(
     };
   }
 
-  const balance = await calculateCreatorBalance(profile.id);
-  if (!balance.data || amount > balance.data.availableBalanceVnd) {
+  const balanceData = balance.data;
+  if (!balanceData || amount > balanceData.availableBalanceVnd) {
     return { ok: false, error: "Số dư có thể rút không đủ." };
   }
 
@@ -60,12 +119,11 @@ export async function createWithdrawalRequest(
     return { ok: false, error: "Phương thức nhận tiền không được hỗ trợ." };
   }
 
-  const security = await getCreatorWithdrawalSecurity(profile.id);
   if (config.withdrawalPinRequired) {
     if (!security.data?.pin_hash) {
       return { ok: false, error: "Vui lòng thiết lập mã PIN rút tiền trước." };
     }
-    if (isLocked(security.data.locked_until)) {
+    if (pinLocked) {
       return {
         ok: false,
         error: "Mã PIN đang bị khóa tạm thời. Vui lòng thử lại sau."

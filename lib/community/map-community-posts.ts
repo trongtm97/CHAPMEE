@@ -1,4 +1,5 @@
 import type { CommunityPost, CommunityPostType } from "@/lib/community/getCommunityFeed";
+import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
 import { createClient } from "@/lib/supabase/server";
 
 type CommunityPostRow = {
@@ -16,19 +17,37 @@ type CommunityPostRow = {
     | {
         title: string | null;
         slug: string | null;
+        public_code: string | null;
         creator_id: string | null;
         creator_profiles:
-          | { id: string; pen_name: string | null }
-          | { id: string; pen_name: string | null }[]
+          | {
+              id: string;
+              pen_name: string | null;
+              profiles?: { display_name: string | null; username: string | null } | null;
+            }
+          | {
+              id: string;
+              pen_name: string | null;
+              profiles?: { display_name: string | null; username: string | null } | null;
+            }[]
           | null;
       }
     | {
         title: string | null;
         slug: string | null;
+        public_code: string | null;
         creator_id: string | null;
         creator_profiles:
-          | { id: string; pen_name: string | null }
-          | { id: string; pen_name: string | null }[]
+          | {
+              id: string;
+              pen_name: string | null;
+              profiles?: { display_name: string | null; username: string | null } | null;
+            }
+          | {
+              id: string;
+              pen_name: string | null;
+              profiles?: { display_name: string | null; username: string | null } | null;
+            }[]
           | null;
       }[]
     | null;
@@ -59,11 +78,18 @@ export function mapCommunityPostRows(rows: CommunityPostRow[]): CommunityPost[] 
       contentPreview: previewCommunityContent(post.content),
       authorName:
         author?.display_name ?? author?.username ?? "Độc giả ChapMee",
+      authorUsername: author?.username?.trim().toLowerCase() ?? null,
       relatedStoryTitle: story?.title ?? null,
       relatedStorySlug: story?.slug ?? null,
+      relatedStoryPublicCode: story?.public_code ?? null,
       storyId: post.story_id,
       creatorId: story?.creator_id ?? storyCreator?.id ?? null,
-      creatorName: storyCreator?.pen_name ?? null,
+      creatorName: storyCreator
+        ? resolvePublicDisplayName(firstRelation(storyCreator.profiles), storyCreator)
+        : null,
+      creatorUsername:
+        firstRelation(storyCreator?.profiles ?? null)?.username?.trim().toLowerCase() ??
+        null,
       createdAt: post.created_at,
       commentCount: 0
     };

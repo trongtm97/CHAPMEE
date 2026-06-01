@@ -2,27 +2,8 @@ import type { ExperimentDefinition } from "@/types/experiment";
 
 export const experimentDefinitions: ExperimentDefinition[] = [
   {
-    experiment_key: "landing_hero_copy",
-    description: "Test hero headline on landing page.",
-    status: "active",
-    variants: [
-      {
-        key: "A",
-        label: "Luot truyen cuon nhu TikTok",
-        payload: { hero_title: "Lướt truyện cuốn như TikTok" }
-      },
-      {
-        key: "B",
-        label: "Cau chu cung co the viral",
-        payload: { hero_title: "Câu chữ cũng có thể viral" }
-      }
-    ],
-    traffic_allocation: [50, 50],
-    default_variant: "A"
-  },
-  {
-    experiment_key: "swipe_cta_copy",
-    description: "Test CTA copy in swipe overlay.",
+    experiment_key: "reels_cta_copy",
+    description: "Test CTA copy in Reels overlay.",
     status: "active",
     variants: [
       {
@@ -71,7 +52,7 @@ export const experimentDefinitions: ExperimentDefinition[] = [
       {
         key: "B",
         label: "Luot truyen nay tren ChapMee",
-        payload: { cta_label: "Lướt truyện này trên ChapMee" }
+        payload: { cta_label: "Xem Reels truyện này trên ChapMee" }
       }
     ],
     traffic_allocation: [50, 50],

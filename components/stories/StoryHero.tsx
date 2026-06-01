@@ -3,6 +3,7 @@ import { EarlyFanBadge } from "@/components/stories/EarlyFanBadge";
 import { StoryActions } from "@/components/stories/StoryActions";
 import { StoryMeta } from "@/components/stories/StoryMeta";
 import { OriginalsBadge } from "@/components/story/OriginalsBadge";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import type { StoryDetail } from "@/lib/stories/getStoryBySlug";
 import type { StoryUserState } from "@/lib/stories/getStoryUserState";
 
@@ -80,7 +81,7 @@ export function StoryHero({ story, userState, showOriginalsBadge }: StoryHeroPro
           </p>
         ) : null}
         <StoryActions
-          returnTo={`/stories/${story.slug}`}
+          returnTo={getStoryDetailHref({ slug: story.slug, public_code: story.publicCode })}
           story={story}
           userState={userState}
         />

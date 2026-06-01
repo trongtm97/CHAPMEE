@@ -27,7 +27,7 @@ export function MessageNavLink({
 
   return (
     <Link
-      className={`relative inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-semibold transition ${
+      className={`relative inline-flex h-10 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm font-semibold leading-none transition ${
         active ? activeClassName : inactiveClassName
       } ${className}`}
       href={href}

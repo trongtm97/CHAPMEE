@@ -1,11 +1,11 @@
-import {
+﻿import {
   validateChapterForPublish,
   validationErrorMessage,
   validateStoryForPublish
 } from "@/lib/studio/scheduling/validate-publish";
-import { validateSwipeBeforePublishFromDb } from "@/lib/publish/validate-swipe-before-publish-server";
+import { validateReelsBeforePublishFromDb } from "@/lib/publish/validate-reels-before-publish-server";
 import { publishTargetByType } from "@/lib/studio/scheduling/publish-target";
-import { STUDIO_DEFAULT_TIMEZONE } from "@/types/scheduling";
+import { STUDIO_DEFAULT_TIMEZONE, isReelsScheduledTarget } from "@/types/scheduling";
 import type { ScheduledTargetType } from "@/types/scheduling";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -64,8 +64,8 @@ export async function schedulePublication(
     }
   }
 
-  if (input.targetType === "swipe") {
-    const validation = await validateSwipeBeforePublishFromDb(
+  if (isReelsScheduledTarget(input.targetType)) {
+    const validation = await validateReelsBeforePublishFromDb(
       input.supabase,
       input.targetId,
       input.profileId

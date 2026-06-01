@@ -7,6 +7,7 @@ import type { StoryDetail } from "@/lib/stories/getStoryBySlug";
 import type { StoryUserState } from "@/lib/stories/getStoryUserState";
 import { studioStoryEditHref } from "@/lib/studio/ownership";
 import { storyToggleFollowStoryAction } from "@/lib/stories/story-detail-actions";
+import { hasStandaloneContent, isStandaloneStory } from "@/lib/stories/story-structure";
 import type { ShareCardPayload } from "@/types/share";
 
 type StoryActionsProps = {
@@ -18,6 +19,10 @@ type StoryActionsProps = {
   readHref: string | null;
 };
 
+function readingProgressLabel(_story: StoryDetail, _readHref: string) {
+  return "Đọc ngay";
+}
+
 export function StoryActions({
   isStoryOwner,
   readHref,
@@ -28,16 +33,25 @@ export function StoryActions({
 }: StoryActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
+  const standalone = isStandaloneStory(story);
+  const canRead = standalone
+    ? hasStandaloneContent(story)
+    : Boolean(readHref);
+
   return (
     <section className="space-y-3">
       <div className="flex gap-2">
-        {readHref ? (
+        {canRead && readHref ? (
           <Link
             className="tap-highlight inline-flex min-h-11 flex-1 items-center justify-center rounded-full bg-cyan-300 px-4 text-sm font-black text-zinc-950 shadow-[0_12px_28px_rgba(103,232,249,0.2)]"
             href={readHref}
           >
-            Đọc ngay
+            {standalone ? "Đọc ngay" : readingProgressLabel(story, readHref)}
           </Link>
+        ) : standalone ? (
+          <span className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full bg-white/[0.06] px-4 text-sm font-semibold text-zinc-500">
+            Chưa có nội dung
+          </span>
         ) : (
           <span className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full bg-white/[0.06] px-4 text-sm font-semibold text-zinc-500">
             Chưa có chương

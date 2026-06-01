@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import type { NormalizedCommunityGroupsParams } from "@/lib/community/community-groups-query";
 import {
   filterCommunityGroupsByStatus,
@@ -16,7 +17,7 @@ import {
 } from "@/types/community-group";
 
 const STORY_GROUP_SELECT =
-  "id, title, slug, cover_url, published_at, creator_profiles(pen_name), genres(name, slug)";
+  "id, title, slug, cover_url, published_at, creator_profiles(pen_name)";
 
 /** Cap rows pulled from community_posts when estimating counts (avoids loading entire table). */
 const POST_COUNT_SAMPLE_LIMIT = 400;
@@ -31,10 +32,22 @@ type StoryRow = {
     | { pen_name: string | null }
     | { pen_name: string | null }[]
     | null;
-  genres:
-    | { name: string | null; slug: string | null }
-    | { name: string | null; slug: string | null }[] | null;
 };
+
+function mapRowsToGroups(
+  rows: StoryRow[],
+  taxonomyByStory: Map<string, { mainGenreName: string | null; mainGenreSlug: string | null }>,
+  counts: { postCount: number; commentCount: number },
+  startIndex = 0
+) {
+  return rows.map((row, index) => {
+    const taxonomy = taxonomyByStory.get(row.id);
+    return mapStoryRowToCommunityGroup(row, startIndex + index, counts, {
+      name: taxonomy?.mainGenreName ?? null,
+      slug: taxonomy?.mainGenreSlug ?? null
+    });
+  });
+}
 
 async function getStoryIdsForPersonalFilters(
   userId: string | null,
@@ -93,7 +106,11 @@ async function enrichPostCounts(storyIds: string[]) {
   return postCountByStory;
 }
 
-function filterRowsBySearch(rows: StoryRow[], q: string) {
+function filterRowsBySearch(
+  rows: StoryRow[],
+  q: string,
+  taxonomyByStory: Map<string, { mainGenreName: string | null; mainGenreSlug: string | null }>
+) {
   const lower = q.trim().toLowerCase();
   if (!lower) {
     return rows;
@@ -101,13 +118,13 @@ function filterRowsBySearch(rows: StoryRow[], q: string) {
 
   return rows.filter((row) => {
     const creator = firstRelation(row.creator_profiles);
-    const genre = firstRelation(row.genres);
+    const taxonomy = taxonomyByStory.get(row.id);
     return (
       row.title.toLowerCase().includes(lower) ||
       row.slug.toLowerCase().includes(lower) ||
       creator?.pen_name?.toLowerCase().includes(lower) ||
-      genre?.name?.toLowerCase().includes(lower) ||
-      (genre?.slug?.toLowerCase().includes(lower) ?? false)
+      taxonomy?.mainGenreName?.toLowerCase().includes(lower) ||
+      (taxonomy?.mainGenreSlug?.toLowerCase().includes(lower) ?? false)
     );
   });
 }
@@ -167,7 +184,18 @@ async function fetchPublicStoryRows(options: {
   }
 
   if (options.genre) {
-    query = query.eq("genres.slug", options.genre);
+    const { getPublicStoryIdsForMainGenreSlug } = await import(
+      "@/lib/taxonomy/public-genres"
+    );
+    const taxonomyStoryIds = await getPublicStoryIdsForMainGenreSlug(
+      supabase,
+      options.genre,
+      COMMUNITY_GROUPS_MAX_SCAN
+    );
+    if (!taxonomyStoryIds || taxonomyStoryIds.length === 0) {
+      return { rows: [], totalCount: 0, usedDbPagination: false };
+    }
+    query = query.in("id", taxonomyStoryIds);
   }
 
   const { data, error } = await query;
@@ -176,7 +204,12 @@ async function fetchPublicStoryRows(options: {
     throw new Error(error.message);
   }
 
-  const rows = filterRowsBySearch((data ?? []) as unknown as StoryRow[], options.q);
+  const fetchedRows = (data ?? []) as unknown as StoryRow[];
+  const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(
+    supabase,
+    fetchedRows.map((row) => row.id)
+  );
+  const rows = filterRowsBySearch(fetchedRows, options.q, taxonomyByStory);
 
   return {
     rows,
@@ -188,15 +221,16 @@ async function fetchPublicStoryRows(options: {
 export async function getCommunityGroupGenres(): Promise<CommunityGroupGenre[]> {
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase.from("genres").select("slug, name").order("name");
+    const { getPublicMainGenresWithStoryCounts } = await import(
+      "@/lib/taxonomy/public-genres"
+    );
+    const taxonomyGenres = await getPublicMainGenresWithStoryCounts(supabase);
 
-    if (error) {
-      throw error;
+    if (taxonomyGenres.length > 0) {
+      return taxonomyGenres.map((row) => ({ slug: row.slug, name: row.name }));
     }
 
-    return (data ?? [])
-      .filter((row): row is { slug: string; name: string } => Boolean(row.slug && row.name))
-      .map((row) => ({ slug: row.slug, name: row.name }));
+    return [];
   } catch {
     return [];
   }
@@ -245,12 +279,17 @@ async function getRecommendedGroupsQuick(
 
     const rows = (data ?? []) as unknown as StoryRow[];
     const postCountByStory = await enrichPostCounts(rows.map((row) => row.id));
-    let groups = rows.map((row, index) =>
-      mapStoryRowToCommunityGroup(row, index, {
-        postCount: postCountByStory.get(row.id) ?? 0,
-        commentCount: 0
-      })
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(
+      supabase,
+      rows.map((row) => row.id)
     );
+    let groups = mapRowsToGroups(rows, taxonomyByStory, {
+      postCount: 0,
+      commentCount: 0
+    }).map((group) => ({
+      ...group,
+      postCount: postCountByStory.get(group.storyId) ?? 0
+    }));
     groups = sortCommunityGroups(groups, "hot");
 
     const exclude = new Set<string>();
@@ -311,13 +350,19 @@ export async function getCommunityGroupsCatalog(
     let items: CommunityGroupItem[] = [];
 
     if (fetchResult.usedDbPagination) {
+      const supabase = await createClient();
       const postCountByStory = await enrichPostCounts(fetchResult.rows.map((row) => row.id));
-      items = fetchResult.rows.map((row, index) =>
-        mapStoryRowToCommunityGroup(row, index, {
-          postCount: postCountByStory.get(row.id) ?? 0,
-          commentCount: 0
-        })
+      const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(
+        supabase,
+        fetchResult.rows.map((row) => row.id)
       );
+      items = mapRowsToGroups(fetchResult.rows, taxonomyByStory, {
+        postCount: 0,
+        commentCount: 0
+      }).map((group, index) => ({
+        ...group,
+        postCount: postCountByStory.get(fetchResult.rows[index]?.id ?? "") ?? 0
+      }));
       const totalPages = getTotalPages(totalCount, params.pageSize);
       page = Math.min(params.page, totalPages);
 
@@ -337,12 +382,13 @@ export async function getCommunityGroupsCatalog(
       };
     }
 
-    let groups = fetchResult.rows.map((row, index) =>
-      mapStoryRowToCommunityGroup(row, index, {
-        postCount: 0,
-        commentCount: 0
-      })
-    );
+    let groups = mapRowsToGroups(fetchResult.rows, await getStoryTaxonomyLabelsByStoryIds(
+      await createClient(),
+      fetchResult.rows.map((row) => row.id)
+    ), {
+      postCount: 0,
+      commentCount: 0
+    });
 
     if (
       params.status === "hot" ||
@@ -439,14 +485,16 @@ export async function getMyCommunityGroups(userId: string | null): Promise<{
 
     const rows = (data ?? []) as unknown as StoryRow[];
     const postCountByStory = await enrichPostCounts(storyIds);
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
     const order = new Map(storyIds.map((id, index) => [id, index]));
-    const groups = rows
-      .map((row, index) =>
-        mapStoryRowToCommunityGroup(row, index, {
-          postCount: postCountByStory.get(row.id) ?? 0,
-          commentCount: 0
-        })
-      )
+    const groups = mapRowsToGroups(rows, taxonomyByStory, {
+      postCount: 0,
+      commentCount: 0
+    })
+      .map((group) => ({
+        ...group,
+        postCount: postCountByStory.get(group.storyId) ?? 0
+      }))
       .sort((a, b) => (order.get(a.storyId) ?? 99) - (order.get(b.storyId) ?? 99));
 
     return { groups, isLoggedIn: true };
@@ -509,21 +557,45 @@ export async function getCommunityGroupById(groupId: string): Promise<{
       }
 
       const postCountByStory = await enrichPostCounts([bySlug.id as string]);
+      const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, [
+        bySlug.id as string
+      ]);
+      const taxonomy = taxonomyByStory.get(bySlug.id as string);
       return {
-        group: mapStoryRowToCommunityGroup(bySlug as unknown as StoryRow, 0, {
-          postCount: postCountByStory.get(bySlug.id as string) ?? 0,
-          commentCount: 0
-        }),
+        group: mapStoryRowToCommunityGroup(
+          bySlug as unknown as StoryRow,
+          0,
+          {
+            postCount: postCountByStory.get(bySlug.id as string) ?? 0,
+            commentCount: 0
+          },
+          {
+            name: taxonomy?.mainGenreName ?? null,
+            slug: taxonomy?.mainGenreSlug ?? null
+          }
+        ),
         error: null
       };
     }
 
     const postCountByStory = await enrichPostCounts([data.id as string]);
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, [
+      data.id as string
+    ]);
+    const taxonomy = taxonomyByStory.get(data.id as string);
     return {
-      group: mapStoryRowToCommunityGroup(data as unknown as StoryRow, 0, {
-        postCount: postCountByStory.get(data.id as string) ?? 0,
-        commentCount: 0
-      }),
+      group: mapStoryRowToCommunityGroup(
+        data as unknown as StoryRow,
+        0,
+        {
+          postCount: postCountByStory.get(data.id as string) ?? 0,
+          commentCount: 0
+        },
+        {
+          name: taxonomy?.mainGenreName ?? null,
+          slug: taxonomy?.mainGenreSlug ?? null
+        }
+      ),
       error: null
     };
   } catch (error) {

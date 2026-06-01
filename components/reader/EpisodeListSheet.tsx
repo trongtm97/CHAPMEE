@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ReaderSheet } from "@/components/reader/ReaderSheet";
 import { AppSearchField } from "@/components/ui/AppSearchField";
+import { getStoryChapterHref } from "@/lib/stories/story-routes";
 import type { StoryEpisode } from "@/lib/stories/getStoryBySlug";
 
 type EpisodeListSheetProps = {
@@ -11,6 +12,7 @@ type EpisodeListSheetProps = {
   onClose: () => void;
   storyTitle: string;
   storySlug: string;
+  storyPublicCode: string;
   episodes: StoryEpisode[];
   currentEpisodeNumber: number;
 };
@@ -20,6 +22,7 @@ export function EpisodeListSheet({
   episodes,
   onClose,
   open,
+  storyPublicCode,
   storySlug,
   storyTitle
 }: EpisodeListSheetProps) {
@@ -71,7 +74,10 @@ export function EpisodeListSheet({
                         ? "bg-cyan-300/12 text-cyan-100 ring-1 ring-cyan-300/30"
                         : "text-zinc-200 hover:bg-white/[0.04]"
                     }`}
-                    href={`/stories/${storySlug}/episodes/${episode.episodeNumber}`}
+                    href={getStoryChapterHref(
+                      { slug: storySlug, public_code: storyPublicCode },
+                      { slug: episode.slug, public_code: episode.publicCode }
+                    )}
                     onClick={onClose}
                   >
                     <span

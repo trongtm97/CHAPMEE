@@ -1,5 +1,5 @@
+import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
 import { calculateCreatorRevenue } from "@/lib/monetization/creator-revenue";
-import { getCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
 import { createClient } from "@/lib/supabase/server";
 
 type RevenueShareType =
@@ -38,10 +38,8 @@ export async function calculateRevenueShare(input: RevenueShareInput) {
     };
   }
 
-  const creatorMonetization = await getCreatorMonetizationProfile(input.creatorUserId);
-
-  const profile = creatorMonetization.data;
-  if (!profile || profile.status !== "approved" || !profile.monetization_enabled) {
+  const monetizationAllowed = await isCreatorMonetizationAllowed(input.creatorUserId);
+  if (!monetizationAllowed) {
     return {
       gross_amount: amount,
       platform_fee: amount,

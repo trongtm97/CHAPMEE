@@ -3,29 +3,32 @@
 import { useActionState, useEffect } from "react";
 import { submitFeedbackAction } from "@/lib/actions/feedback-actions";
 import { INITIAL_SUBMIT_FEEDBACK_STATE } from "@/lib/actions/feedback-state";
+import { FEEDBACK_TYPE_LABELS } from "@/lib/feedback/constants";
 import { Button, Card, Input, Textarea } from "@/components/ui";
-import type { FeedbackCategory } from "@/types/contact-settings";
+import type { ContactSettings, FeedbackType } from "@/types/contact-settings";
 
 type FeedbackSheetProps = {
   onClose: () => void;
+  settings: ContactSettings;
   userEmail?: string | null;
 };
 
-const categoryOptions: { value: FeedbackCategory; label: string }[] = [
-  { value: "feedback", label: "Góp ý chung" },
-  { value: "bug", label: "Báo lỗi" },
-  { value: "feature", label: "Đề xuất tính năng" }
-];
-
-export function FeedbackSheet({ onClose, userEmail }: FeedbackSheetProps) {
+export function FeedbackSheet({ onClose, settings, userEmail }: FeedbackSheetProps) {
   const [state, formAction, pending] = useActionState(
     submitFeedbackAction,
     INITIAL_SUBMIT_FEEDBACK_STATE
   );
 
+  const categoryOptions = settings.allowedFeedbackTypes.map((type) => ({
+    value: type,
+    label: FEEDBACK_TYPE_LABELS[type as FeedbackType]
+  }));
+
+  const defaultCategory = categoryOptions[0]?.value ?? "other";
+
   useEffect(() => {
     if (state.ok) {
-      const timer = window.setTimeout(onClose, 1200);
+      const timer = window.setTimeout(onClose, 1500);
       return () => window.clearTimeout(timer);
     }
   }, [state.ok, onClose]);
@@ -33,8 +36,8 @@ export function FeedbackSheet({ onClose, userEmail }: FeedbackSheetProps) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-end bg-black/60 p-3 backdrop-blur-sm sm:items-center sm:justify-center"
-      role="presentation"
       onClick={onClose}
+      role="presentation"
     >
       <Card
         className="w-full max-h-[88vh] space-y-4 overflow-y-auto rounded-[1.5rem] p-4 sm:max-w-md"
@@ -45,7 +48,9 @@ export function FeedbackSheet({ onClose, userEmail }: FeedbackSheetProps) {
             <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-cyan-200">
               Gửi góp ý
             </p>
-            <h3 className="text-lg font-black text-white">Chia sẻ với ChapMee</h3>
+            <h3 className="text-lg font-black text-white">
+              Gửi góp ý cho ChapMee
+            </h3>
           </div>
           <Button onClick={onClose} type="button" variant="ghost">
             Đóng
@@ -63,7 +68,7 @@ export function FeedbackSheet({ onClose, userEmail }: FeedbackSheetProps) {
                 >
                   <input
                     className="sr-only"
-                    defaultChecked={option.value === "feedback"}
+                    defaultChecked={option.value === defaultCategory}
                     name="category"
                     type="radio"
                     value={option.value}
@@ -73,6 +78,13 @@ export function FeedbackSheet({ onClose, userEmail }: FeedbackSheetProps) {
               ))}
             </div>
           </div>
+
+          <Input
+            label="Tiêu đề ngắn"
+            maxLength={120}
+            name="title"
+            placeholder="Tóm tắt góp ý của bạn"
+          />
 
           <Textarea
             label="Nội dung"
@@ -84,11 +96,35 @@ export function FeedbackSheet({ onClose, userEmail }: FeedbackSheetProps) {
 
           <Input
             defaultValue={userEmail ?? ""}
-            label="Email liên hệ (tuỳ chọn)"
+            label={
+              settings.requireContactEmail
+                ? "Email liên hệ *"
+                : "Email liên hệ (tuỳ chọn)"
+            }
             name="contactEmail"
             placeholder="email@example.com"
+            required={settings.requireContactEmail}
             type="email"
           />
+
+          <Input
+            label="URL trang liên quan (tuỳ chọn)"
+            name="relatedUrl"
+            placeholder="https://chapmee.vn/..."
+            type="url"
+          />
+
+          {settings.requireScreenshot ? (
+            <div className="rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100">
+              TODO: Upload ảnh chụp màn hình đang được phát triển. Hiện chưa thể
+              gửi khi bắt buộc có ảnh.
+            </div>
+          ) : (
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs leading-5 text-zinc-500">
+              TODO: Upload ảnh chụp màn hình sẽ được bổ sung trong bản cập nhật
+              tiếp theo.
+            </div>
+          )}
 
           {state.message ? (
             <p

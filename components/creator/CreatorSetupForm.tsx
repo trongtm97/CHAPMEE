@@ -13,7 +13,11 @@ const initialState: CreatorSetupState = {
   success: false
 };
 
-export function CreatorSetupForm() {
+type CreatorSetupFormProps = {
+  defaultDisplayName?: string | null;
+};
+
+export function CreatorSetupForm({ defaultDisplayName }: CreatorSetupFormProps) {
   const [state, formAction, pending] = useActionState(
     createCreatorProfileAction,
     initialState
@@ -22,18 +26,22 @@ export function CreatorSetupForm() {
   return (
     <Card>
       <form action={formAction} className="space-y-5">
+        <p className="text-sm text-zinc-400">
+          Bật quyền viết truyện trên cùng tài khoản ChapMee của bạn. Không cần tạo hồ sơ riêng.
+        </p>
         <Input
           autoComplete="nickname"
+          defaultValue={defaultDisplayName ?? ""}
           disabled={pending}
-          label="Bút danh"
+          label="Tên hiển thị"
           maxLength={80}
-          name="pen_name"
+          name="display_name"
           placeholder="VD: Mây Kể Chuyện"
-          required
+          required={!defaultDisplayName}
         />
         <Textarea
           disabled={pending}
-          label="Giới thiệu"
+          label="Giới thiệu (tuỳ chọn)"
           maxLength={500}
           name="bio"
           placeholder="Giới thiệu ngắn về phong cách viết của bạn."
@@ -46,11 +54,11 @@ export function CreatorSetupForm() {
         ) : null}
         {state.success ? (
           <p className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-100">
-            Hồ sơ tác giả đã sẵn sàng. Đang chuyển đến {STUDIO_FULL_NAME}...
+            Đã bật quyền viết truyện. Đang chuyển đến {STUDIO_FULL_NAME}...
           </p>
         ) : null}
         <Button className="w-full" loading={pending} type="submit">
-          Tạo hồ sơ tác giả
+          Bật quyền viết truyện
         </Button>
       </form>
     </Card>

@@ -9,6 +9,7 @@ import { awardStoryEarlyFanForStory } from "@/lib/supabase/early-fans";
 import { safeRecordFanScoreAction } from "@/lib/supabase/fan-scores";
 import { getSiteOrigin } from "@/lib/brand/site-origin";
 import { createNotification } from "@/lib/notifications/create-notification";
+import { trackServerUserAction } from "@/lib/tracking/track-server";
 
 type FollowStoryInput = {
   storyId: string;
@@ -132,6 +133,15 @@ export async function followStoryAction(input: FollowStoryInput) {
   revalidatePath(input.returnTo);
   revalidatePath(`/stories/${input.storySlug}`);
   revalidatePath("/me/library");
+
+  await trackServerUserAction(userId, {
+    surface: "story_detail",
+    actionType: input.following ? "follow_author" : "unfollow_author",
+    itemType: "story",
+    itemId: input.storyId,
+    storyId: input.storyId,
+    valueText: "story_follow"
+  });
 
   if (fanNotice) {
     await createNotification(userId, "became_early_fan", {

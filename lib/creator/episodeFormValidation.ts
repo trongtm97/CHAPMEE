@@ -1,3 +1,7 @@
+import { parseEpisodePresentationFields } from "@/lib/creator/parse-episode-presentation";
+import { modeUsesStructuredContent } from "@/lib/presentation/constants";
+import { runComposerImportValidation } from "@/lib/composer/publish-validation";
+import { buildPlainContentFallback } from "@/lib/presentation/plain-fallback-content";
 import {
   parseSeoDescriptionField,
   parseSeoKeywordsField,
@@ -6,6 +10,7 @@ import {
 import { validateKeywordsList } from "@/lib/seo/suggest-keywords";
 import { createExcerpt } from "@/lib/text/createExcerpt";
 import { countWords } from "@/lib/text/countWords";
+import type { ContentFormat, PresentationMode } from "@/types/presentation";
 
 export type EpisodeFormValues = {
   episodeNumber: number;
@@ -35,6 +40,10 @@ export type EpisodeFormValues = {
   seoTitle: string | null;
   seoDescription: string | null;
   seoKeywords: string[];
+  presentationMode: PresentationMode;
+  contentFormat: ContentFormat | null;
+  structuredContent: unknown | null;
+  chapterPresentationMode: string | null;
 };
 
 export type EpisodeValidationResult =
@@ -80,15 +89,55 @@ export function parseEpisodeFormData(formData: FormData): EpisodeValidationResul
     return { ok: false, error: "Vui lòng nhập tiêu đề chap." };
   }
 
-  if (!content) {
+  const storyPresentationMode = String(
+    formData.get("story_presentation_mode") ?? "standard_prose"
+  ).trim();
+
+  const presentationParsed = parseEpisodePresentationFields(
+    formData,
+    storyPresentationMode
+  );
+  if (!presentationParsed.ok) {
+    return presentationParsed;
+  }
+
+  const usesStructured =
+    modeUsesStructuredContent(presentationParsed.values.presentationMode) &&
+    presentationParsed.values.structuredContent !== null &&
+    (presentationParsed.values.contentFormat === "structured_json" ||
+      presentationParsed.values.contentFormat === "structured_blocks");
+
+  if (!content && !usesStructured) {
     return { ok: false, error: "Vui lòng nhập nội dung chap." };
   }
 
-  if (content.length < 100) {
+  if (!usesStructured && content.length < 100) {
     return {
       ok: false,
       error: "Nội dung chap nên có ít nhất 100 ký tự."
     };
+  }
+
+  if (usesStructured && content.length > 0 && content.length < 20) {
+    return {
+      ok: false,
+      error:
+        "Bản văn xuôi dự phòng (nếu có) nên có ít nhất 20 ký tự hoặc để trống."
+    };
+  }
+
+  if (
+    intent === "review" &&
+    presentationParsed.values.contentFormat === "structured_blocks" &&
+    presentationParsed.values.structuredContent
+  ) {
+    const composerCheck = runComposerImportValidation(
+      presentationParsed.values.presentationMode,
+      presentationParsed.values.structuredContent
+    );
+    if (!composerCheck.ok) {
+      return { ok: false, error: composerCheck.error };
+    }
   }
 
   if (intent === "review" && formData.get("guidelines_ack") !== "on") {
@@ -119,14 +168,31 @@ export function parseEpisodeFormData(formData: FormData): EpisodeValidationResul
     return { ok: false, error: keywordCheck.error };
   }
 
+  const resolvedContent = usesStructured
+    ? buildPlainContentFallback(
+        presentationParsed.values.presentationMode,
+        presentationParsed.values.structuredContent,
+        content
+      )
+    : content;
+
   return {
     ok: true,
     values: {
       episodeNumber,
       title,
-      content,
-      excerpt: excerptInput || createExcerpt(content),
-      wordCount: countWords(content),
+      content: resolvedContent,
+      excerpt:
+        excerptInput ||
+        createExcerpt(
+          content ||
+            (usesStructured
+              ? JSON.stringify(presentationParsed.values.structuredContent)
+              : "")
+        ),
+      wordCount: usesStructured
+        ? Math.max(1, countWords(JSON.stringify(presentationParsed.values.structuredContent)))
+        : countWords(content),
       status: intent === "review" ? "pending" : "draft",
       poll: hasPollInput
         ? {
@@ -168,7 +234,11 @@ export function parseEpisodeFormData(formData: FormData): EpisodeValidationResul
       },
       seoTitle: parseSeoTitleField(formData) || null,
       seoDescription: parseSeoDescriptionField(formData) || null,
-      seoKeywords
+      seoKeywords,
+      presentationMode: presentationParsed.values.presentationMode,
+      contentFormat: presentationParsed.values.contentFormat,
+      structuredContent: presentationParsed.values.structuredContent,
+      chapterPresentationMode: presentationParsed.values.chapterPresentationMode
     }
   };
 }

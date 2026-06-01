@@ -3,49 +3,42 @@ import { createClient } from "@/lib/supabase/server";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 import type { CreatorStoryStatus } from "@/lib/creator/getCreatorStories";
 import type { SensitiveFlag, StoryAgeRating } from "@/types/moderation";
+import {
+  getStoryFormTaxonomyBundle,
+  type StoryFormTaxonomyBundle
+} from "@/lib/creator/get-story-form-taxonomy";
+import type { StoryStructureType } from "@/types/story-structure";
 import type { StoryImage } from "@/types/story-images";
-
-export type StoryFormGenre = {
-  id: string;
-  name: string;
-};
-
-export type StoryFormTag = {
-  id: string;
-  name: string;
-};
 
 export type CreatorStoryFormStory = {
   id: string;
   title: string;
   slug: string;
+  publicCode: string;
   hook: string | null;
   short_description: string | null;
   long_description: string | null;
   cover_url: string | null;
-  genre_id: string | null;
   status: CreatorStoryStatus;
   visibility: "public" | "private";
   is_completed: boolean;
-  tagIds: string[];
   age_rating: StoryAgeRating;
   sensitive_flags: SensitiveFlag[];
   seo_title: string | null;
   seo_description: string | null;
   seo_keywords: string[] | null;
   canonical_url: string | null;
+  content_warnings_confirmed?: boolean;
+  structureType: StoryStructureType;
+  contentFormat: string | null;
+  standalonePlainText: string | null;
 };
 
 export type StoryFormData = {
-  genres: StoryFormGenre[];
-  tags: StoryFormTag[];
+  taxonomy: StoryFormTaxonomyBundle;
   story: CreatorStoryFormStory | null;
   currentImage: StoryImage | null;
   error: string | null;
-};
-
-type StoryTagRow = {
-  tag_id: string;
 };
 
 export async function getStoryFormData(
@@ -54,18 +47,7 @@ export async function getStoryFormData(
 ): Promise<StoryFormData> {
   try {
     const supabase = await createClient();
-    const [genresResult, tagsResult] = await Promise.all([
-      supabase.from("genres").select("id, name").order("name"),
-      supabase.from("tags").select("id, name").order("name")
-    ]);
-
-    if (genresResult.error) {
-      throw genresResult.error;
-    }
-
-    if (tagsResult.error) {
-      throw tagsResult.error;
-    }
+    const taxonomy = await getStoryFormTaxonomyBundle(storyId);
 
     let story: CreatorStoryFormStory | null = null;
     let currentImage: StoryImage | null = null;
@@ -74,7 +56,7 @@ export async function getStoryFormData(
       const { data: storyRow, error: storyError } = await supabase
         .from("stories")
         .select(
-          "id, title, slug, hook, short_description, long_description, cover_url, genre_id, status, visibility, is_completed, age_rating, sensitive_flags, seo_title, seo_description, seo_keywords, canonical_url"
+          "id, title, slug, public_code, hook, short_description, long_description, cover_url, status, visibility, is_completed, age_rating, sensitive_flags, seo_title, seo_description, seo_keywords, canonical_url, content_warnings_confirmed, structure_type, content_format, standalone_plain_text"
         )
         .eq("id", storyId)
         .eq("creator_id", creatorProfile.id)
@@ -85,17 +67,7 @@ export async function getStoryFormData(
       }
 
       if (storyRow) {
-        const [{ data: storyTagRows, error: storyTagsError }, currentImageResult] =
-          await Promise.all([
-            supabase.from("story_tags").select("tag_id").eq("story_id", storyRow.id),
-            getCurrentStoryImage(supabase, storyRow.id)
-          ]);
-
-        if (storyTagsError) {
-          throw storyTagsError;
-        }
-
-        currentImage = currentImageResult.image;
+        currentImage = (await getCurrentStoryImage(supabase, storyRow.id)).image;
 
         const coverUrl =
           currentImage?.portraitUrl ??
@@ -104,11 +76,19 @@ export async function getStoryFormData(
           null;
 
         story = {
-          ...(storyRow as Omit<CreatorStoryFormStory, "tagIds" | "cover_url">),
+          ...(storyRow as Omit<
+            CreatorStoryFormStory,
+            "cover_url" | "publicCode" | "structureType" | "contentFormat" | "standalonePlainText"
+          >),
           cover_url: coverUrl,
-          tagIds: ((storyTagRows ?? []) as StoryTagRow[]).map(
-            (row) => row.tag_id
-          )
+          publicCode: (storyRow as { public_code: string }).public_code,
+          structureType:
+            (storyRow as { structure_type?: string }).structure_type === "standalone"
+              ? "standalone"
+              : "chaptered",
+          contentFormat: (storyRow as { content_format?: string | null }).content_format ?? null,
+          standalonePlainText:
+            (storyRow as { standalone_plain_text?: string | null }).standalone_plain_text ?? null
         };
       }
     }
@@ -116,24 +96,24 @@ export async function getStoryFormData(
     return {
       error: null,
       currentImage,
-      genres: (genresResult.data ?? []).map((genre) => ({
-        id: String(genre.id),
-        name: String(genre.name)
-      })),
-      story,
-      tags: (tagsResult.data ?? []).map((tag) => ({
-        id: String(tag.id),
-        name: String(tag.name)
-      }))
+      taxonomy,
+      story
     };
   } catch (error) {
     return {
       error:
         error instanceof Error ? error.message : "Không thể tải dữ liệu form.",
       currentImage: null,
-      genres: [],
-      story: null,
-      tags: []
+      taxonomy: {
+        enabled: false,
+        optionsByType: {},
+        selectedByType: {},
+        presentationMode: "standard_prose",
+        formatTemplatesByMode: {},
+        selectedFormatTemplateId: null,
+        contentWarningsConfirmed: false
+      },
+      story: null
     };
   }
 }

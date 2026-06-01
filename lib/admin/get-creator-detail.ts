@@ -1,6 +1,7 @@
 "use server";
 
 import { assertAnyPermission } from "@/lib/auth/require-permission";
+import { getCreatorAccessStatus } from "@/lib/creator-access";
 import { getMonetizationConfig } from "@/lib/monetization/config";
 import { getCreatorEligibilityStats } from "@/lib/supabase/creator-stats";
 import { createClient } from "@/lib/supabase/server";
@@ -91,31 +92,31 @@ async function buildEligibility(
     {
       key: "email",
       label: "Email đã xác minh",
-      description: "Tài khoản đăng nhập đã xác thực email.",
+      description: "Gợi ý tăng độ tin cậy — không bắt buộc để kiếm tiền.",
       met: emailVerified
     },
     {
       key: "age",
       label: "Tài khoản đủ tuổi",
-      description: "Tài khoản tạo ít nhất 7 ngày.",
+      description: "Gợi ý chất lượng hồ sơ — không chặn kiếm tiền.",
       met: stats.account_age_days >= 7
     },
     {
       key: "stories",
-      label: "Số truyện tối thiểu",
-      description: `Cần ít nhất ${minStories} truyện.`,
+      label: "Số truyện",
+      description: `Gợi ý: có ít nhất ${minStories} truyện để phát triển nội dung.`,
       met: storyCount >= minStories
     },
     {
       key: "chapters",
-      label: "Số chương tối thiểu",
-      description: `Cần ít nhất ${minChapters} chương.`,
+      label: "Số chương",
+      description: `Gợi ý: có ít nhất ${minChapters} chương.`,
       met: stats.chapters_count >= minChapters
     },
     {
       key: "reads",
-      label: "Lượt đọc tối thiểu",
-      description: `Cần ít nhất ${minReads.toLocaleString("vi-VN")} lượt đọc.`,
+      label: "Lượt đọc",
+      description: `Gợi ý: đạt ${minReads.toLocaleString("vi-VN")} lượt đọc.`,
       met: stats.total_reads >= minReads
     },
     {
@@ -154,7 +155,7 @@ export async function getAdminCreatorDetail(
 
   const { data: creatorProfileRow } = await supabase
     .from("creator_profiles")
-    .select("id, pen_name, bio, status, created_at")
+    .select("id, bio, status, created_at")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -308,7 +309,10 @@ export async function getAdminCreatorDetail(
     ])
   );
 
-  const eligibility = await buildEligibility(userId, creatorId ?? null, supabase);
+  const [eligibility, creatorAccess] = await Promise.all([
+    buildEligibility(userId, creatorId ?? null, supabase),
+    getCreatorAccessStatus(userId)
+  ]);
 
   const detail: AdminCreatorDetail = {
     userId,
@@ -320,7 +324,10 @@ export async function getAdminCreatorDetail(
     avatarUrl: profile.avatar_url as string | null,
     accountCreatedAt: profile.created_at as string,
     studioCreatedAt: (creatorProfileRow?.created_at as string) ?? null,
-    studioName: (creatorProfileRow?.pen_name as string) ?? null,
+    studioName:
+      (profile.display_name as string | null)?.trim() ||
+      (profile.username as string | null)?.trim() ||
+      null,
     studioBio: (creatorProfileRow?.bio as string) ?? null,
     studioStatus: creatorProfileRow
       ? creatorProfileRow.status === "suspended"
@@ -329,8 +336,9 @@ export async function getAdminCreatorDetail(
       : "none",
     monetizationStatus:
       (monetization.data?.status as AdminCreatorDetail["monetizationStatus"]) ?? "none",
-    monetizationEnabled: Boolean(monetization.data?.monetization_enabled),
-    payoutEnabled: Boolean(monetization.data?.payout_enabled),
+    monetizationEnabled: creatorAccess.monetizationEnabled,
+    payoutEnabled: creatorAccess.withdrawalEnabled,
+    creatorAccess,
     isVerified: Boolean(profile.is_verified),
     verificationType: (profile.verification_type as string) ?? null,
     verificationLabel: (profile.verification_label as string) ?? null,

@@ -1,0 +1,36 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/taxonomy-analytics",
+      "schedule": "15 2 * * *"
+    },
+    {
+      "path": "/api/cron/taxonomy-quality-check",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/catalog-metrics",
+      "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/cron/score-snapshots",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/ranking-snapshots",
+      "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/exposure-snapshots",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/cold-start",
+      "schedule": "30 5 * * *"
+    },
+    {
+      "path": "/api/cron/fair-distribution-rollups",
+      "schedule": "45 5 * * *"
+    }
+  ]
+}

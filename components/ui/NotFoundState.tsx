@@ -31,7 +31,7 @@ export function NotFoundState({
             className="inline-flex min-h-11 items-center justify-center rounded-full bg-cyan-300 px-4 py-2 text-sm font-bold uppercase tracking-[0.12em] text-zinc-950 transition hover:bg-cyan-200"
             href="/"
           >
-            Back to home
+            Về Reels
           </Link>
         )}
       </div>

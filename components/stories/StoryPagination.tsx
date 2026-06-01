@@ -2,6 +2,7 @@ import Link from "next/link";
 import { StoryPageSizeSelector } from "@/components/stories/StoryPageSizeSelector";
 import { buildCatalogHref } from "@/lib/stories/catalog-url";
 import { getPaginationItems } from "@/lib/stories/story-catalog-query";
+import type { StoryCatalogFilterParams } from "@/lib/discovery/types";
 import type { StoryCatalogSort, StoryCatalogStatus } from "@/types/story";
 import type { ReactNode } from "react";
 
@@ -14,6 +15,7 @@ type StoryPaginationProps = {
   sort: StoryCatalogSort;
   pageSize: number;
   layout: "mobile" | "desktop";
+  filters: StoryCatalogFilterParams;
 };
 
 function buildPageHref(
@@ -22,8 +24,9 @@ function buildPageHref(
   targetPageSize = props.pageSize
 ) {
   return buildCatalogHref({
+    ...props.filters,
     q: props.query,
-    genre: props.genre,
+    genre: props.genre || props.filters.genre,
     status: props.status,
     sort: props.sort,
     page: targetPage,
@@ -178,12 +181,11 @@ export function StoryPagination({ layout, ...props }: StoryPaginationProps) {
         className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[var(--surface)] p-4"
       >
         <StoryPageSizeSelector
+          filters={props.filters}
           genre={props.genre}
           page={props.page}
           pageSize={props.pageSize}
           query={props.query}
-          sort={props.sort}
-          status={props.status}
         />
         <div className="flex flex-wrap items-center justify-center gap-1.5">
           <PaginationControls items={items} page={page} pageProps={pageProps} />

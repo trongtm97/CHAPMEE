@@ -8,7 +8,7 @@ type CombinedEmptyStateProps = {
 };
 
 export function CombinedEmptyState({
-  description = "Khám phá truyện, lướt Swipe hoặc bắt đầu viết để tạo hoạt động đầu tiên.",
+  description = "Khám phá truyện, xem Reels hoặc bắt đầu viết để tạo hoạt động đầu tiên.",
   title = "Bạn chưa có nhiều hoạt động.",
   variant = "default"
 }: CombinedEmptyStateProps) {
@@ -24,9 +24,9 @@ export function CombinedEmptyState({
           </Link>
           <Link
             className="inline-flex min-h-9 items-center justify-center rounded-full border border-white/12 bg-white/[0.03] px-4 text-xs font-semibold text-zinc-200 transition hover:border-cyan-300/25"
-            href="/swipe"
+            href="/reels"
           >
-            Lướt Swipe
+            Xem Reels
           </Link>
           {variant === "default" ? (
             <Link

@@ -1,4 +1,7 @@
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { resolveCreatorRowName } from "@/lib/creator/resolve-creator-row-name";
 import { createClient } from "@/lib/supabase/server";
+import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 
 export type ContinueReadingItem = {
   id: string;
@@ -7,6 +10,7 @@ export type ContinueReadingItem = {
     id: string;
     title: string;
     slug: string;
+    publicCode: string;
     hook: string | null;
     genreName: string | null;
     creatorName: string | null;
@@ -16,6 +20,8 @@ export type ContinueReadingItem = {
     id: string;
     episodeNumber: number;
     title: string;
+    slug: string;
+    publicCode: string;
   };
 };
 
@@ -27,8 +33,9 @@ type ProgressRow = {
         id: string;
         title: string;
         slug: string;
+        public_code: string;
         hook: string | null;
-        genres: { name: string | null } | { name: string | null }[] | null;
+        cover_url?: string | null;
         creator_profiles:
           | { pen_name: string | null }
           | { pen_name: string | null }[]
@@ -38,8 +45,9 @@ type ProgressRow = {
         id: string;
         title: string;
         slug: string;
+        public_code: string;
         hook: string | null;
-        genres: { name: string | null } | { name: string | null }[] | null;
+        cover_url?: string | null;
         creator_profiles:
           | { pen_name: string | null }
           | { pen_name: string | null }[]
@@ -51,11 +59,15 @@ type ProgressRow = {
         id: string;
         episode_number: number;
         title: string;
+        slug: string;
+        public_code: string;
       }
     | {
         id: string;
         episode_number: number;
         title: string;
+        slug: string;
+        public_code: string;
       }[]
     | null;
 };
@@ -77,7 +89,7 @@ export async function getContinueReading(userId?: string, limit = 3) {
     const { data, error } = await supabase
       .from("reading_progress")
       .select(
-        "id, progress_percent, stories(id, title, slug, hook, cover_url, genres(name), creator_profiles(pen_name)), episodes(id, episode_number, title)"
+        `id, progress_percent, stories(id, title, slug, public_code, hook, cover_url, ${CREATOR_PROFILE_STORY_JOIN}), episodes(id, episode_number, title, slug, public_code)`
       )
       .eq("user_id", userId)
       .order("updated_at", { ascending: false })
@@ -87,11 +99,20 @@ export async function getContinueReading(userId?: string, limit = 3) {
       throw error;
     }
 
-    const items = ((data ?? []) as unknown as ProgressRow[])
+    const rows = (data ?? []) as unknown as ProgressRow[];
+    const storyIds = [
+      ...new Set(
+        rows
+          .map((row) => firstRelation(row.stories)?.id)
+          .filter((id): id is string => Boolean(id))
+      )
+    ];
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
+
+    const items = rows
       .map((row) => {
         const story = firstRelation(row.stories);
         const episode = firstRelation(row.episodes);
-        const genre = firstRelation(story?.genres);
         const creator = firstRelation(story?.creator_profiles);
 
         if (!story || !episode) {
@@ -105,19 +126,22 @@ export async function getContinueReading(userId?: string, limit = 3) {
             id: story.id,
             title: story.title,
             slug: story.slug,
+            publicCode: story.public_code,
             hook: story.hook,
-            genreName: genre?.name ?? null,
-            creatorName: creator?.pen_name ?? null,
+            genreName: taxonomyByStory.get(story.id)?.mainGenreName ?? null,
+            creatorName: resolveCreatorRowName(creator),
             coverUrl: (story as { cover_url?: string | null }).cover_url ?? null
           },
           episode: {
             id: episode.id,
             episodeNumber: episode.episode_number,
-            title: episode.title
+            title: episode.title,
+            slug: episode.slug,
+            publicCode: episode.public_code
           }
         };
       })
-      .filter((item): item is ContinueReadingItem => Boolean(item));
+      .filter((item): item is ContinueReadingItem => item !== null);
 
     return { items, error: null };
   } catch (error) {

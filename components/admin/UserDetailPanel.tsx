@@ -139,7 +139,7 @@ export function UserDetailPanel({
           {detail.username ? (
             <Link
               className="inline-flex items-center rounded-full border border-white/10 px-3 py-1.5 text-xs text-cyan-300"
-              href={`/profile/${detail.username}`}
+              href={`/@${detail.username}`}
               target="_blank"
             >
               Hồ sơ công khai
@@ -527,7 +527,7 @@ function StudioTab({ detail }: { detail: AdminUserDetailFull }) {
   }
   return (
     <Card className="space-y-1 p-3 text-sm">
-      <p className="font-medium text-white">{detail.creatorStudio.penName}</p>
+      <p className="font-medium text-white">{detail.creatorStudio.displayName}</p>
       <p>Trạng thái: {detail.creatorStudio.status}</p>
       <p>Số truyện: {detail.creatorStudio.storyCount}</p>
     </Card>

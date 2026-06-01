@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
 import { getNudgesForPlacement } from "@/lib/lifecycle/segments";
 import type {
@@ -31,7 +31,7 @@ type NudgeStateRow = {
 type LifecycleSignals = {
   lastActiveAt: string | null;
   hasAnyReaderAction: boolean;
-  swipeCount: number;
+  reelsCount: number;
   readCount: number;
   followOrSaveCount: number;
   commentOrVoteCount: number;
@@ -42,6 +42,7 @@ type LifecycleSignals = {
   hasCreatorProfile: boolean;
   storyCount: number;
   chapterCount: number;
+  standaloneContentCount: number;
   chaptersPublishedIn7d: number;
   lastChapterPublishedAt: string | null;
   unrepliedCommentCount: number;
@@ -80,8 +81,8 @@ function computeSegments(signals: LifecycleSignals): LifecycleSegment[] {
   if (!signals.hasAnyReaderAction) {
     segments.push("new_user_no_action");
   }
-  if (signals.swipeCount > 0 && signals.followOrSaveCount === 0) {
-    segments.push("swipe_viewer_no_follow");
+  if (signals.reelsCount > 0 && signals.followOrSaveCount === 0) {
+    segments.push("reels_viewer_no_follow");
   }
   if (signals.readCount > 0 && signals.commentOrVoteCount === 0) {
     segments.push("reader_no_comment");
@@ -107,7 +108,7 @@ function computeSegments(signals: LifecycleSignals): LifecycleSegment[] {
   if (signals.hasAuthorIntent && signals.storyCount === 0) {
     segments.push("author_no_story");
   }
-  if (signals.storyCount > 0 && signals.chapterCount === 0) {
+  if (signals.storyCount > 0 && signals.chapterCount === 0 && signals.standaloneContentCount === 0) {
     segments.push("author_first_story_no_chapter");
   }
   if (signals.storyCount > 0 && daysSince(signals.lastChapterPublishedAt) >= 7) {
@@ -135,13 +136,13 @@ export async function calculateUserLifecycleSegments(userId: string): Promise<{
   const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
-  const swipeEventNames = ["swipe_item_viewed", "swipe_item_changed", "feed_impression", "feed_skip"];
+  const reelsEventNames = ["reels_item_viewed", "reels_item_changed", "feed_impression", "feed_skip"];
   const readEventNames = ["open_story", "chapter_opened", "chapter_completed", "complete_chap"];
 
   const [
     profileResult,
     lastActiveResult,
-    swipeResult,
+    reelsResult,
     readResult,
     recentReaderResult,
     followResult,
@@ -168,7 +169,7 @@ export async function calculateUserLifecycleSegments(userId: string): Promise<{
       .from("analytics_events")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
-      .in("event_name", swipeEventNames),
+      .in("event_name", reelsEventNames),
     supabase
       .from("analytics_events")
       .select("id", { count: "exact", head: true })
@@ -179,7 +180,7 @@ export async function calculateUserLifecycleSegments(userId: string): Promise<{
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       .gte("created_at", threeDaysAgo)
-      .in("event_name", [...swipeEventNames, ...readEventNames]),
+      .in("event_name", [...reelsEventNames, ...readEventNames]),
     supabase
       .from("follows")
       .select("id", { count: "exact", head: true })
@@ -222,6 +223,7 @@ export async function calculateUserLifecycleSegments(userId: string): Promise<{
 
   let storyCount = 0;
   let chapterCount = 0;
+  let standaloneContentCount = 0;
   let chaptersPublishedIn7d = 0;
   let lastChapterPublishedAt: string | null = null;
   let unrepliedCommentCount = 0;
@@ -230,11 +232,17 @@ export async function calculateUserLifecycleSegments(userId: string): Promise<{
   if (creatorId) {
     const storiesResult = await supabase
       .from("stories")
-      .select("id")
+      .select("id, structure_type, standalone_word_count")
       .eq("creator_id", creatorId)
       .in("status", ["published", "approved", "pending", "draft"]);
     const storyIds = (storiesResult.data ?? []).map((item) => item.id);
     storyCount = storyIds.length;
+
+    standaloneContentCount = (storiesResult.data ?? []).filter(
+      (item) =>
+        item.structure_type === "standalone" &&
+        Number((item as { standalone_word_count?: number }).standalone_word_count ?? 0) > 0
+    ).length;
 
     if (storyIds.length > 0) {
       const [chaptersResult, chaptersRecentResult, commentsResult, milestonesResult] =
@@ -301,11 +309,11 @@ export async function calculateUserLifecycleSegments(userId: string): Promise<{
   const signals: LifecycleSignals = {
     lastActiveAt,
     hasAnyReaderAction:
-      (swipeResult.count ?? 0) > 0 ||
+      (reelsResult.count ?? 0) > 0 ||
       (readResult.count ?? 0) > 0 ||
       followOrSaveCount > 0 ||
       commentOrVoteCount > 0,
-    swipeCount: swipeResult.count ?? 0,
+    reelsCount: reelsResult.count ?? 0,
     readCount: readResult.count ?? 0,
     followOrSaveCount,
     commentOrVoteCount,
@@ -316,6 +324,7 @@ export async function calculateUserLifecycleSegments(userId: string): Promise<{
     hasCreatorProfile: Boolean(creatorId),
     storyCount,
     chapterCount,
+    standaloneContentCount,
     chaptersPublishedIn7d,
     lastChapterPublishedAt,
     unrepliedCommentCount,
@@ -327,7 +336,7 @@ export async function calculateUserLifecycleSegments(userId: string): Promise<{
     segments,
     lastActiveAt,
     metadata: {
-      swipeCount: signals.swipeCount,
+      reelsCount: signals.reelsCount,
       readCount: signals.readCount,
       followOrSaveCount: signals.followOrSaveCount,
       commentOrVoteCount: signals.commentOrVoteCount,

@@ -1,3 +1,4 @@
+import { mapStoryStructureFromRow } from "@/lib/stories/story-structure";
 import { createClient } from "@/lib/supabase/server";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 
@@ -8,6 +9,8 @@ export type StudioDashboardStory = {
   status: "draft" | "pending" | "approved" | "rejected" | "published" | "archived";
   updatedAt: string;
   episodeCount: number;
+  structureType: "chaptered" | "standalone";
+  standaloneReadingTimeMinutes: number;
 };
 
 export type StudioDashboardEpisode = {
@@ -44,6 +47,8 @@ type StoryRow = {
   slug: string;
   status: StudioDashboardStory["status"];
   updated_at: string;
+  structure_type?: string | null;
+  standalone_reading_time_minutes?: number | null;
 };
 
 type EpisodeRow = {
@@ -110,7 +115,7 @@ export async function getStudioDashboard(
     ] = await Promise.all([
       supabase
         .from("stories")
-        .select("id, title, slug, status, updated_at")
+        .select("id, title, slug, status, updated_at, structure_type, standalone_reading_time_minutes")
         .eq("creator_id", creatorProfile.id)
         .order("updated_at", { ascending: false })
         .limit(5),
@@ -216,14 +221,19 @@ export async function getStudioDashboard(
           updatedAt: episode.updated_at
         };
       }),
-      recentStories: recentStories.map((story) => ({
-        id: story.id,
-        episodeCount: episodeCountByStory.get(story.id) ?? 0,
-        slug: story.slug,
-        status: story.status,
-        title: story.title,
-        updatedAt: story.updated_at
-      })),
+      recentStories: recentStories.map((story) => {
+        const structure = mapStoryStructureFromRow(story);
+        return {
+          id: story.id,
+          episodeCount: episodeCountByStory.get(story.id) ?? 0,
+          slug: story.slug,
+          status: story.status,
+          structureType: structure.structureType,
+          standaloneReadingTimeMinutes: structure.standaloneReadingTimeMinutes,
+          title: story.title,
+          updatedAt: story.updated_at
+        };
+      }),
       stats: {
         draftEpisodes: draftEpisodesResult.count,
         pendingEpisodes: pendingEpisodesResult.count,

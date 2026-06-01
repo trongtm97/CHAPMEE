@@ -12,6 +12,7 @@ export const MONETIZATION_DASHBOARD_KEYS = [
   "vip_subscription.enabled",
   "fan_club.enabled",
   "creator_monetization.enabled",
+  "monetization.show_money_ui_to_creators",
   "payout.enabled",
   "coin.exchange_rate_vnd",
   "coin.min_purchase_coins",
@@ -40,6 +41,8 @@ export const MONETIZATION_DASHBOARD_KEYS = [
   "revenue_share.gift_use_default",
   "payout.min_withdraw_amount_vnd",
   "payout.hold_days",
+  "payout.processing_days_min",
+  "payout.processing_days_max",
   "payout.hold_revenue_enabled",
   "payout.manual_review_required",
   "payout.withdrawal_pin_required",
@@ -112,7 +115,7 @@ export const REVENUE_SOURCE_DEFINITIONS: RevenueSourceDefinition[] = [
   },
   {
     id: "fan_club_subscription",
-    label: "Fan club",
+    label: "Câu lạc bộ fan",
     enabledKey: "fan_club.enabled",
     creatorPercentKey: "revenue_share.fan_club_creator_percent",
     platformPercentKey: "revenue_share.fan_club_platform_percent",
@@ -202,23 +205,34 @@ export const ECOSYSTEM_TOGGLES: EcosystemToggleDefinition[] = [
   },
   {
     key: "fan_club.enabled",
-    label: "Cho phép Fan club",
+    label: "Cho phép câu lạc bộ fan",
     description: "Fan club theo truyện hoặc tác giả.",
     requiresMonetization: true
   },
   {
     key: "creator_monetization.enabled",
     label: "Cho phép tác giả kiếm tiền",
-    description: "Tác giả được ghi nhận doanh thu từ nội dung.",
-    impactNote: "Yêu cầu hệ sinh thái tiền đang bật.",
+    description:
+      "Công tắc toàn nền tảng. Mặc định mỗi tác giả được kiếm tiền; chỉ tài khoản bị admin tắt thủ công mới bị chặn.",
+    impactNote: "Yêu cầu hệ sinh thái tiền đang bật. Không dùng để chặn từng user vì thiếu điều kiện.",
     important: true,
+    requiresMonetization: true
+  },
+  {
+    key: "monetization.show_money_ui_to_creators",
+    label: "Hiển thị số tiền cho tác giả trong Studio",
+    description:
+      "Ẩn số dư/doanh thu trên dashboard; trang Kiếm tiền vẫn hoạt động khi tác giả đã được duyệt.",
+    impactNote: "Không chặn duyệt kiếm tiền hay cấu hình chương trả phí.",
     requiresMonetization: true
   },
   {
     key: "payout.enabled",
     label: "Cho phép tác giả rút tiền",
-    description: "Tắt sẽ chặn mọi yêu cầu rút tiền mới.",
-    impactNote: "Không ảnh hưởng số dư đã ghi nhận.",
+    description:
+      "Công tắc toàn nền tảng. Mặc định tác giả có thể rút khi đủ số dư; admin có thể khóa rút riêng từng user.",
+    impactNote:
+      "Tắt sẽ chặn mọi yêu cầu rút tiền mới trên nền tảng. Không ảnh hưởng số dư đã ghi nhận.",
     dangerous: true,
     important: true,
     requiresMonetization: true
@@ -246,6 +260,7 @@ export const FIELD_LABELS: Record<MonetizationDashboardKey, string> = {
   "vip_subscription.enabled": "VIP",
   "fan_club.enabled": "Fan club",
   "creator_monetization.enabled": "Tác giả kiếm tiền",
+  "monetization.show_money_ui_to_creators": "Hiển thị số tiền (Studio)",
   "payout.enabled": "Rút tiền tác giả",
   "coin.exchange_rate_vnd": "Tỷ giá coin → VND",
   "coin.min_purchase_coins": "Coin tối thiểu/lần mua",
@@ -274,6 +289,8 @@ export const FIELD_LABELS: Record<MonetizationDashboardKey, string> = {
   "revenue_share.gift_use_default": "Quà tặng dùng mặc định",
   "payout.min_withdraw_amount_vnd": "Rút tối thiểu (VND)",
   "payout.hold_days": "Số ngày giữ tiền",
+  "payout.processing_days_min": "Xử lý rút — tối thiểu (ngày)",
+  "payout.processing_days_max": "Xử lý rút — tối đa (ngày)",
   "payout.hold_revenue_enabled": "Giữ doanh thu trước khi khả dụng",
   "payout.manual_review_required": "Duyệt rút thủ công",
   "payout.withdrawal_pin_required": "Bắt buộc PIN rút tiền",
@@ -438,6 +455,25 @@ export function validateMonetizationDashboard(
   const holdDays = num(settings["payout.hold_days"]);
   if (holdDays < 0 || holdDays > 90) {
     fieldErrors["payout.hold_days"] = "Số ngày giữ tiền phải từ 0 đến 90.";
+  }
+
+  const processingDaysMin = num(settings["payout.processing_days_min"]);
+  const processingDaysMax = num(settings["payout.processing_days_max"]);
+  if (processingDaysMin < 1 || processingDaysMin > 30) {
+    fieldErrors["payout.processing_days_min"] =
+      "Thời gian xử lý rút tối thiểu phải từ 1 đến 30 ngày.";
+  }
+  if (processingDaysMax < 1 || processingDaysMax > 30) {
+    fieldErrors["payout.processing_days_max"] =
+      "Thời gian xử lý rút tối đa phải từ 1 đến 30 ngày.";
+  }
+  if (
+    !fieldErrors["payout.processing_days_min"] &&
+    !fieldErrors["payout.processing_days_max"] &&
+    processingDaysMin > processingDaysMax
+  ) {
+    fieldErrors["payout.processing_days_max"] =
+      "Thời gian xử lý tối đa phải ≥ tối thiểu.";
   }
 
   const minWithdraw = num(settings["payout.min_withdraw_amount_vnd"]);

@@ -4,27 +4,28 @@ import type {
   LifecycleNudgePlacement,
   LifecycleSegment
 } from "@/types/lifecycle";
+import { REELS_PUBLIC_PATH } from "@/lib/routes/reels-paths";
 
 export const lifecycleNudges: LifecycleNudgeConfig[] = [
   {
     key: "new_user_no_action",
     segment: "new_user_no_action",
-    title: "Bat dau luot truyen dau tien",
-    description: "Thu vai swipe de tim mot truyen hop gu voi ban.",
-    ctaLabel: "Vao Luot",
-    ctaHref: "/swipe",
-    placements: ["home", "me"],
+    title: "Bắt đầu xem Reels đầu tiên",
+    description: "Lướt xem Reels để tìm một truyện hợp gu với bạn.",
+    ctaLabel: "Xem Reels",
+    ctaHref: REELS_PUBLIC_PATH,
+    placements: ["reels", "me"],
     cooldownHours: 24,
     dismissCooldownHours: 72
   },
   {
-    key: "swipe_viewer_no_follow",
-    segment: "swipe_viewer_no_follow",
+    key: "reels_viewer_no_follow",
+    segment: "reels_viewer_no_follow",
     title: "Thay truyen cuon? Follow de khong mat dau",
     description: "Luu hoac follow truyen de nhan chap moi nhanh hon.",
     ctaLabel: "Kham pha truyen hot",
     ctaHref: "/discover",
-    placements: ["home", "me"],
+    placements: ["reels", "me"],
     cooldownHours: 24,
     dismissCooldownHours: 72
   },
@@ -35,7 +36,7 @@ export const lifecycleNudges: LifecycleNudgeConfig[] = [
     description: "Vote hoac binh luan nhe de tac gia biet y kien cua ban.",
     ctaLabel: "Vote hoac binh luan",
     ctaHref: "/community",
-    placements: ["home", "me"],
+    placements: ["reels", "me"],
     cooldownHours: 24,
     dismissCooldownHours: 72
   },
@@ -93,7 +94,7 @@ export function getHighestPrioritySegment(segments: LifecycleSegment[]) {
     "author_no_story",
     "author_first_story_no_chapter",
     "reader_no_comment",
-    "swipe_viewer_no_follow",
+    "reels_viewer_no_follow",
     "new_user_no_action",
     "dormant_reader_7d",
     "dormant_reader_3d",

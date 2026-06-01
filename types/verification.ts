@@ -7,7 +7,12 @@ export const VERIFICATION_TYPES = [
   "admin_manual",
   "identity_verified",
   "notable_author",
-  "brand_account"
+  "brand_account",
+  "official_creator",
+  "payout_individual",
+  "organization_brand",
+  "ip_owner",
+  "appeal_reverification"
 ] as const;
 
 export type VerificationType = (typeof VERIFICATION_TYPES)[number];
@@ -30,7 +35,8 @@ export const VERIFICATION_STATUSES = [
   "rejected",
   "revoked",
   "needs_more_info",
-  "expired"
+  "expired",
+  "cancelled"
 ] as const;
 
 export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
@@ -53,17 +59,23 @@ export const VERIFICATION_TYPE_LABELS: Record<VerificationType, string> = {
   admin_manual: "Admin cấp thủ công",
   identity_verified: "Tác giả xác thực",
   notable_author: "Tác giả xác thực",
-  brand_account: "Tổ chức"
+  brand_account: "Tổ chức",
+  official_creator: "Tác giả chính thức",
+  payout_individual: "Cá nhân nhận tiền",
+  organization_brand: "Tổ chức / thương hiệu",
+  ip_owner: "Chủ sở hữu bản quyền / IP",
+  appeal_reverification: "Khiếu nại / khôi phục"
 };
 
 export const VERIFICATION_STATUS_LABELS: Record<VerificationStatus, string> = {
   none: "Chưa xác thực",
-  pending: "Chờ duyệt",
+  pending: "Đang xét duyệt",
   approved: "Đã xác thực",
   rejected: "Bị từ chối",
   revoked: "Đã thu hồi",
   needs_more_info: "Cần bổ sung",
-  expired: "Hết hạn"
+  expired: "Hết hạn",
+  cancelled: "Đã hủy"
 };
 
 export const VERIFICATION_SOURCE_LABELS: Record<VerificationSource, string> = {
@@ -106,8 +118,22 @@ export type UserVerificationSummary = {
   publicBadge: PublicVerificationBadge | null;
   requestsEnabled: boolean;
   latestPending: AccountVerificationRow | null;
+  latestNeedsMoreInfo: AccountVerificationRow | null;
   latestRejected: AccountVerificationRow | null;
   latestRevoked: AccountVerificationRow | null;
+  latestApproved: AccountVerificationRow | null;
+};
+
+export type VerificationDocumentRow = {
+  id: string;
+  requestId: string | null;
+  uploadSessionId: string | null;
+  documentType: string;
+  originalFileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  status: "uploaded" | "deleted" | "error";
+  createdAt: string;
 };
 
 export type AdminVerificationListItem = {

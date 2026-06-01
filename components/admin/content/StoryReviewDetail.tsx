@@ -3,6 +3,7 @@ import { ApproveButton } from "@/components/admin/content/ApproveButton";
 import { RejectWithNoteForm } from "@/components/admin/content/RejectWithNoteForm";
 import { Badge, Card, SectionHeader } from "@/components/ui";
 import { StoryQualityModerationPanel } from "@/components/admin/content/StoryQualityModerationPanel";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import {
   approveStoryAction,
   rejectStoryAction
@@ -101,7 +102,10 @@ export function StoryReviewDetail({ story }: StoryReviewDetailProps) {
       {canPublicPreview(story.status) ? (
         <Link
           className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-zinc-800 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-700"
-          href={`/stories/${story.slug}`}
+          href={getStoryDetailHref({
+            slug: story.slug,
+            public_code: story.publicCode
+          })}
         >
           Mở public preview
         </Link>

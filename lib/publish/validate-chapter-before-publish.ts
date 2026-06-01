@@ -1,4 +1,4 @@
-import {
+﻿import {
   createRule,
   formatBlockingErrors,
   isEpisodeStatusBlockedForPublish,
@@ -23,7 +23,7 @@ export type ChapterPublishInput = {
   hasDuplicateNumber?: boolean;
   story?: StoryPublishInput | null;
   storyValid?: boolean;
-  hasSwipePromo?: boolean;
+  hasReelsPromo?: boolean;
 };
 
 export function validateChapterBeforePublish(
@@ -119,10 +119,10 @@ export function validateChapterBeforePublish(
       warnIfFail: true
     }),
     createRule({
-      id: "swipe-promo",
-      label: "Chưa tạo Swipe quảng bá",
-      message: "Tạo Swipe quảng bá cho chương (khuyến nghị).",
-      ok: Boolean(chapter.hasSwipePromo),
+      id: "reels-promo",
+      label: "Chưa tạo Reels quảng bá",
+      message: "Tạo Reels quảng bá cho chương (khuyến nghị).",
+      ok: Boolean(chapter.hasReelsPromo),
       targetType: "chapter",
       warnIfFail: true
     })
@@ -164,7 +164,6 @@ type EpisodeRow = {
         short_description: string | null;
         long_description: string | null;
         cover_url: string | null;
-        genre_id: string | null;
         status: string;
         visibility: string;
         creator_id: string;
@@ -177,7 +176,6 @@ type EpisodeRow = {
         short_description: string | null;
         long_description: string | null;
         cover_url: string | null;
-        genre_id: string | null;
         status: string;
         visibility: string;
         creator_id: string;
@@ -204,7 +202,7 @@ export async function validateChapterBeforePublishFromDb(
     .from("episodes")
     .select(
       `id, title, content, episode_number, status, updated_at, story_id, seo_description,
-      stories(id, title, hook, short_description, long_description, cover_url, genre_id, status, visibility, creator_id, seo_description)`
+      stories(id, title, hook, short_description, long_description, cover_url, status, visibility, creator_id, seo_description)`
     )
     .eq("id", episodeId)
     .eq("story_id", storyId)
@@ -241,7 +239,7 @@ export async function validateChapterBeforePublishFromDb(
 
   const episodeNumber = options?.episodeNumber ?? episode.episode_number;
 
-  const [duplicateCount, tagCount, hasCover, hasSwipePromo, savedFresh] =
+  const [duplicateCount, taxonomyTagCount, mainGenreCount, hasCover, hasReelsPromo, savedFresh] =
     await Promise.all([
       supabase
         .from("episodes")
@@ -251,9 +249,16 @@ export async function validateChapterBeforePublishFromDb(
         .neq("id", episodeId)
         .then((r) => r.count ?? 0),
       supabase
-        .from("story_tags")
-        .select("tag_id", { count: "exact", head: true })
+        .from("story_taxonomy_terms")
+        .select("id", { count: "exact", head: true })
         .eq("story_id", storyId)
+        .in("type", ["trope_tag", "subgenre"])
+        .then((r) => r.count ?? 0),
+      supabase
+        .from("story_taxonomy_terms")
+        .select("id", { count: "exact", head: true })
+        .eq("story_id", storyId)
+        .eq("type", "main_genre")
         .then((r) => r.count ?? 0),
       supabase
         .from("story_images")
@@ -262,7 +267,7 @@ export async function validateChapterBeforePublishFromDb(
         .eq("is_current", true)
         .then((r) => (r.count ?? 0) > 0 || Boolean(story.cover_url?.trim())),
       supabase
-        .from("swipe_items")
+        .from("reels_items")
         .select("id", { count: "exact", head: true })
         .eq("chapter_id", episodeId)
         .eq("status", "published")
@@ -270,13 +275,16 @@ export async function validateChapterBeforePublishFromDb(
       checkChapterSavedFresh(supabase, storyId, episodeId, episode.updated_at)
     ]);
 
+  const tagCount = taxonomyTagCount;
+  const hasMainGenre = mainGenreCount > 0;
+
   return validateChapterBeforePublish(
     {
       authorNote: options?.authorNote ?? null,
       content: episode.content,
       episodeNumber,
       hasDuplicateNumber: duplicateCount > 0,
-      hasSwipePromo,
+      hasReelsPromo,
       isSaved: savedFresh,
       seoDescription: episode.seo_description,
       status: episode.status,
@@ -285,7 +293,7 @@ export async function validateChapterBeforePublishFromDb(
     },
     {
       coverUrl: story.cover_url,
-      genreId: story.genre_id,
+      genreId: hasMainGenre ? "taxonomy" : null,
       hasCover,
       hook: story.hook,
       longDescription: story.long_description,

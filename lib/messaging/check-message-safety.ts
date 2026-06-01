@@ -56,7 +56,8 @@ function isInternalLink(text: string) {
   return (
     lower.includes("chapmee") ||
     lower.includes("/stories/") ||
-    lower.includes("/profile/")
+    lower.includes("/profile/") ||
+    lower.includes("/me/")
   );
 }
 

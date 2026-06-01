@@ -263,6 +263,11 @@ export type CreatorEarningCalculationSnapshot = {
   policySource?: "default_config" | "creator_override";
   policyId?: string | null;
   policyName?: string | null;
+  appliedPolicyType?: "default" | "custom";
+  revenueSourceSnapshot?: string;
+  policyEffectiveFromSnapshot?: string | null;
+  authorPercentSnapshot?: number;
+  platformPercentSnapshot?: number;
   platformFeePercent?: number;
   creatorRevenueSharePercent?: number;
   paymentProcessingFeePercent?: number;
@@ -327,10 +332,122 @@ export type FinanceSecurityEventType =
   | "withdrawal_pin_set"
   | "withdrawal_pin_changed"
   | "withdrawal_pin_failed"
+  | "withdrawal_pin_reset"
   | "payout_profile_created"
   | "payout_profile_changed"
+  | "payout_verification_requested"
+  | "payout_verification_completed"
+  | "payout_bank_change_locked"
+  | "bank_account_added"
+  | "bank_account_updated"
+  | "bank_account_deleted"
+  | "bank_account_default_set"
+  | "bank_account_email_verified"
+  | "finance_email_code_sent"
   | "withdrawal_requested"
   | "withdrawal_canceled";
+
+export type PayoutVerificationStatus =
+  | "none"
+  | "pending_email"
+  | "verified"
+  | "needs_reverification"
+  | "rejected";
+
+export type FinancePinStatus = "not_set" | "set" | "locked_temp";
+
+export type PayoutLockReason =
+  | "bank_account_changed"
+  | "pin_failed_too_many_times"
+  | "admin_manual";
+
+export type FinanceEmailCodePurpose =
+  | "setup_pin"
+  | "change_pin"
+  | "reset_pin"
+  | "verify_payout"
+  | "change_bank_account"
+  | "verify_bank_account"
+  | "withdrawal_request";
+
+export type CreatorPayoutProfileView = {
+  userId: string;
+  legalName: string | null;
+  verificationEmail: string | null;
+  verificationStatus: PayoutVerificationStatus;
+  verifiedAt: string | null;
+  needsReverificationReason: string | null;
+  lastBankChangeAt: string | null;
+  withdrawalLockedUntil: string | null;
+  withdrawalLockReason: PayoutLockReason | null;
+  defaultPayoutAccountId: string | null;
+};
+
+export type FinanceIdentityStatus = {
+  status: "unverified" | "pending" | "verified" | "rejected";
+  verifiedName: string | null;
+  canWithdraw: boolean;
+  ctaLabel: string;
+  ctaHref: string;
+  description: string;
+};
+
+export type BankAccountStatus =
+  | "pending_email"
+  | "verified"
+  | "locked_24h"
+  | "locked_by_admin"
+  | "pending_identity";
+
+export type IdentityNameMatchStatus = "unknown" | "matched" | "mismatched";
+
+export type BankAccountView = {
+  id: string;
+  bankName: string;
+  accountNumberMasked: string | null;
+  accountNumberDisplay: string;
+  accountHolderName: string;
+  branchNote: string | null;
+  isDefault: boolean;
+  emailVerifiedAt: string | null;
+  accountStatus: BankAccountStatus;
+  identityNameMatchStatus: IdentityNameMatchStatus;
+  withdrawalLockedUntil: string | null;
+  lockRemainingLabel: string | null;
+  canUseForWithdrawal: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FinanceWithdrawalChecklistItem = {
+  id: string;
+  label: string;
+  met: boolean;
+  ctaLabel?: string;
+  ctaHref?: string;
+  ctaAction?: "add-bank" | "setup-pin";
+};
+
+export type StudioFinanceEligibility = {
+  withdrawalDisabledByAdmin: boolean;
+  identityVerified: boolean;
+  hasWithdrawableBankAccount: boolean;
+  pinReady: boolean;
+  minBalanceMet: boolean;
+  pinStatus: FinancePinStatus;
+  checklist: FinanceWithdrawalChecklistItem[];
+  blockReasons: string[];
+  canWithdraw: boolean;
+  primaryBlockReason: string | null;
+  /** @deprecated use identityVerified */
+  payoutVerified?: boolean;
+  /** @deprecated */
+  bankNameMatchesLegal?: boolean;
+  /** @deprecated */
+  payoutLockActive?: boolean;
+  payoutLockUntil?: string | null;
+  payoutLockReason?: PayoutLockReason | null;
+};
 
 export type FinanceSecurityLogRow = {
   id: string;
@@ -351,7 +468,7 @@ export type CreatorFinanceConfigView = {
   coinToVndRate: number;
   creatorRevenueSharePercent: number;
   platformFeePercent: number;
-  payoutProcessingDays: number;
+  payoutProcessingDaysLabel: string;
   payoutMethodsEnabled: PayoutMethod[];
   coinDisplayName: string;
   policyNote: string;
@@ -431,5 +548,10 @@ export type StudioFinancePageData = {
   payoutsEnabled: boolean;
   canWithdraw: boolean;
   withdrawBlockReason: string | null;
+  payoutProfile: CreatorPayoutProfileView | null;
+  userEmail: string | null;
+  identity: FinanceIdentityStatus;
+  bankAccounts: BankAccountView[];
+  eligibility: StudioFinanceEligibility;
   error: string | null;
 };
