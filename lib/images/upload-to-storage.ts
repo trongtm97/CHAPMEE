@@ -1,7 +1,7 @@
 import { getStoryImageStorageObjectPath } from "@/lib/images/get-current-story-image";
 import { registerStorageAsset } from "@/lib/storage/asset-service";
-import { STORY_IMAGE_STORAGE_BUCKET } from "@/types/story-images";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { getMediaS3Bucket } from "@/lib/storage/s3";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type UploadStoryImageOriginalResult = {
   path: string;
@@ -9,14 +9,15 @@ export type UploadStoryImageOriginalResult = {
 };
 
 export async function uploadStoryImageOriginal(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   imageId: string,
   buffer: Buffer
 ): Promise<UploadStoryImageOriginalResult> {
   const path = getStoryImageStorageObjectPath(storyId, imageId, "original");
 
-  const { error } = await supabase.storage.from(STORY_IMAGE_STORAGE_BUCKET).upload(path, buffer, {
+  const bucket = getMediaS3Bucket();
+  const { error } = await db.storage.from(bucket).upload(path, buffer, {
     contentType: "image/webp",
     cacheControl: "31536000",
     upsert: true
@@ -26,9 +27,9 @@ export async function uploadStoryImageOriginal(
     throw new Error(error.message);
   }
 
-  const { data } = supabase.storage.from(STORY_IMAGE_STORAGE_BUCKET).getPublicUrl(path);
-  await registerStorageAsset(supabase, {
-    bucket: STORY_IMAGE_STORAGE_BUCKET,
+  const { data } = db.storage.from(bucket).getPublicUrl(path);
+  await registerStorageAsset(db, {
+    bucket,
     isOriginal: true,
     isPublic: true,
     linkedEntityId: storyId,

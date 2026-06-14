@@ -1,0 +1,36 @@
+# ChapMee production — mount into caddy service (see docker-compose.production.yml).
+# Automatic HTTPS via Let's Encrypt when DNS points to this VPS.
+# Do not proxy MinIO console (:9001).
+
+{
+	email admin@chapmee.com
+}
+
+(chapmee_security) {
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options SAMEORIGIN
+	}
+}
+
+chapmee.com {
+	import chapmee_security
+	encode zstd gzip
+
+	@postgrest path /api/postgrest/*
+	handle @postgrest {
+		uri strip_prefix /api/postgrest
+		reverse_proxy postgrest:3000
+	}
+
+	reverse_proxy web:3000
+}
+
+www.chapmee.com {
+	redir https://chapmee.com{uri} permanent
+}
+
+# Public read-only media API is served directly by Vietnix S3 CDN
+# (S3_MEDIA_PUBLIC_BASE_URL), not via Caddy. Upload/presign also goes
+# directly to S3_ENDPOINT from the app container.

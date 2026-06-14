@@ -1,12 +1,14 @@
 import { mapStoryImageRow } from "@/lib/images/map-story-image";
 import { STORY_IMAGE_SELECT_COLUMNS } from "@/lib/images/get-current-story-image";
-import { STORY_IMAGE_STORAGE_BUCKET } from "@/types/story-images";
+import { getMediaS3Bucket } from "@/lib/storage/s3";
 import type { StoryImage, StoryImageRow } from "@/types/story-images";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type SaveStoryImageRecordInput = {
   storyId: string;
   imageId: string;
+  /** storage_assets id for portrait cover — stories.cover_media_asset_id FK. */
+  coverMediaAssetId?: string | null;
   urls: {
     original: string;
     portrait: string;
@@ -33,10 +35,10 @@ export type SaveStoryImageRecordResult = {
  * Syncs stories.cover_url for backward compatibility with legacy UI.
  */
 export async function saveStoryImageRecord(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: SaveStoryImageRecordInput
 ): Promise<SaveStoryImageRecordResult> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("story_images")
     .insert({
       id: input.imageId,
@@ -52,7 +54,7 @@ export async function saveStoryImageRecord(
       original_file_size_bytes: input.originalFileSizeBytes,
       processed_file_size_bytes: input.processedFileSizeBytes,
       mime_type: "image/webp",
-      storage_bucket: STORY_IMAGE_STORAGE_BUCKET,
+      storage_bucket: getMediaS3Bucket(),
       focal_x: input.focalX ?? 0.5,
       focal_y: input.focalY ?? 0.5,
       is_current: true
@@ -64,9 +66,14 @@ export async function saveStoryImageRecord(
     return { image: null, error: error.message };
   }
 
-  const { error: coverError } = await supabase
+  const coverMediaAssetId = input.coverMediaAssetId?.trim() || null;
+
+  const { error: coverError } = await db
     .from("stories")
-    .update({ cover_url: input.urls.portrait })
+    .update({
+      cover_url: input.urls.portrait,
+      ...(coverMediaAssetId ? { cover_media_asset_id: coverMediaAssetId } : {})
+    })
     .eq("id", input.storyId);
 
   if (coverError) {

@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
+import { resolveProfileAvatarUrlForUser } from "@/lib/profile/resolve-profile-avatar";
 import { getPublicVerificationBadges } from "@/lib/verification/get-user-verification";
 import type { PublicVerificationBadge } from "@/types/verification";
 
@@ -18,6 +19,7 @@ export type CommentView = {
   createdAt: string;
   displayName: string | null;
   username: string | null;
+  avatarUrl: string;
   verification: PublicVerificationBadge | null;
   canDelete: boolean;
   isVip: boolean;
@@ -27,18 +29,39 @@ export type CommentView = {
 type CommentRow = {
   id: string;
   user_id: string;
-  content: string;
+  content: string | null;
   created_at: string;
+  content_storage_type?: string | null;
+  content_object_key?: string | null;
+  content_hash?: string | null;
+  content_preview?: string | null;
   profiles:
-    | { display_name: string | null; username: string | null }
-    | { display_name: string | null; username: string | null }[]
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+        default_avatar_id: number | null;
+      }
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+        default_avatar_id: number | null;
+      }[]
     | null;
 };
 
+function resolveCommentDisplayContent(row: CommentRow): string {
+  if (row.content && row.content.trim().length > 0) {
+    return row.content;
+  }
+  return (row.content_preview ?? "").trim();
+}
+
 async function resolveVipUsers(userIds: string[]) {
   if (userIds.length === 0) return new Set<string>();
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("user_subscriptions")
     .select("user_id, status, expires_at")
     .in("user_id", userIds)
@@ -59,20 +82,22 @@ function firstRelation<T>(relation: T | T[] | null | undefined) {
 }
 
 export async function getCurrentCommentUserId() {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   return user?.id ?? null;
 }
 
 export async function getCommunityPostComments(target: CommunityPostCommentTarget) {
-  const supabase = await createClient();
+  const db = await createClient();
   const currentUserId = await getCurrentCommentUserId();
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("comments")
-    .select("id, user_id, content, created_at, is_pinned, profiles(display_name, username)")
+    .select(
+      "id, user_id, content, content_storage_type, content_object_key, content_hash, content_preview, created_at, is_pinned, profiles(display_name, username, avatar_url, default_avatar_id)"
+    )
     .eq("community_post_id", target.communityPostId)
     .eq("status", "visible")
     .is("parent_id", null)
@@ -104,10 +129,11 @@ export async function getCommunityPostComments(target: CommunityPostCommentTarge
       return {
         id: comment.id,
         userId: comment.user_id,
-        content: comment.content,
+        content: resolveCommentDisplayContent(comment),
         createdAt: comment.created_at,
         displayName: profile?.display_name ?? profile?.username ?? null,
         username: profile?.username?.trim().toLowerCase() ?? null,
+        avatarUrl: resolveProfileAvatarUrlForUser(comment.user_id, profile),
         verification: verificationByUser.get(comment.user_id) ?? null,
         canDelete: currentUserId === comment.user_id,
         isVip: vipUsers.has(comment.user_id),
@@ -120,12 +146,12 @@ export async function getCommunityPostComments(target: CommunityPostCommentTarge
 }
 
 export async function getComments(target: CommentTarget) {
-  const supabase = await createClient();
+  const db = await createClient();
   const currentUserId = await getCurrentCommentUserId();
-  let query = supabase
+  let query = db
     .from("comments")
     .select(
-      "id, user_id, content, created_at, profiles(display_name, username)"
+      "id, user_id, content, content_storage_type, content_object_key, content_hash, content_preview, created_at, profiles(display_name, username, avatar_url, default_avatar_id)"
     )
     .eq("story_id", target.storyId)
     .eq("status", "visible")
@@ -162,10 +188,11 @@ export async function getComments(target: CommentTarget) {
       return {
         id: comment.id,
         userId: comment.user_id,
-        content: comment.content,
+        content: resolveCommentDisplayContent(comment),
         createdAt: comment.created_at,
         displayName: profile?.display_name ?? profile?.username ?? null,
         username: profile?.username?.trim().toLowerCase() ?? null,
+        avatarUrl: resolveProfileAvatarUrlForUser(comment.user_id, profile),
         verification: verificationByUser.get(comment.user_id) ?? null,
         canDelete: currentUserId === comment.user_id,
         isVip: vipUsers.has(comment.user_id)

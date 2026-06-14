@@ -3,7 +3,8 @@
 import { ADMIN_CREATOR_JOIN, resolveAdminStudioName } from "@/lib/admin/creator-display";
 import { DEFAULT_COMMUNITY_SPAM_SETTINGS } from "@/lib/admin/community-admin-labels";
 import { calculateUserTrustScore } from "@/lib/community/calculate-user-trust-score";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
+import { loadCommunityPostContentObject } from "@/lib/storage/community-posts-content-storage";
 import type { CommunityPostDetail, CommunityQueueItem } from "@/types/community-admin";
 
 function firstRelation<T>(relation: unknown): T | null {
@@ -23,19 +24,39 @@ function matchBlockedKeywords(text: string, keywords: string[]) {
 export async function getCommunityPostDetail(
   postId: string
 ): Promise<{ detail: CommunityPostDetail | null; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
 
   try {
-    const { data: post, error } = await supabase
+    const { data: post, error } = await db
       .from("community_posts")
       .select(
-        `id, type, title, content, created_at, status, report_count, risk_level, is_pinned, is_featured, comments_locked, auto_decision, auto_decision_reason_codes, story_id, creator_id, user_id, profiles!community_posts_user_id_fkey(display_name, username, role, created_at), stories(title, slug), ${ADMIN_CREATOR_JOIN}, episodes(episode_number, title)`
+        `id, type, title, content, content_storage_type, content_object_key, content_hash, content_preview, created_at, status, report_count, risk_level, is_pinned, is_featured, comments_locked, auto_decision, auto_decision_reason_codes, story_id, creator_id, user_id, profiles!community_posts_user_id_fkey(display_name, username, role, created_at), stories(title, slug), ${ADMIN_CREATOR_JOIN}, episodes(episode_number, title)`
       )
       .eq("id", postId)
       .maybeSingle();
 
     if (error || !post) {
       return { detail: null, error: error?.message ?? "Không tìm thấy bài viết." };
+    }
+
+    // For S3-stored posts, fetch full content for moderation UI.
+    if (
+      post.content_storage_type === "s3" &&
+      post.content_object_key
+    ) {
+      try {
+        const loaded = await loadCommunityPostContentObject({
+          expectedHash: post.content_hash ?? undefined,
+          objectKey: post.content_object_key
+        });
+        post.content = loaded.envelope.content;
+        if (loaded.envelope.title) {
+          post.title = loaded.envelope.title;
+        }
+      } catch {
+        // Fall back to preview.
+        post.content = (post.content_preview ?? "") as string;
+      }
     }
 
     const profile = firstRelation<{
@@ -64,27 +85,27 @@ export async function getCommunityPostDetail(
       { data: spamRow },
       { data: decisionRow }
     ] = await Promise.all([
-        supabase
+        db
           .from("comments")
           .select("id", { count: "exact", head: true })
           .eq("community_post_id", postId),
-        supabase
+        db
           .from("comments")
           .select("id, content, profiles(display_name, username)")
           .eq("community_post_id", postId)
           .order("created_at", { ascending: false })
           .limit(5),
-        supabase
+        db
           .from("reports")
           .select("id", { count: "exact", head: true })
           .eq("target_type", "community_post")
           .eq("target_id", postId),
-        supabase
+        db
           .from("app_settings")
           .select("value")
           .eq("key", "community_spam_settings")
           .maybeSingle(),
-        supabase
+        db
           .from("community_moderation_decisions")
           .select("trust_score, matched_rules, reason_codes, decision")
           .eq("post_id", postId)
@@ -103,7 +124,7 @@ export async function getCommunityPostDetail(
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    const { count: postsToday } = await supabase
+    const { count: postsToday } = await db
       .from("community_posts")
       .select("id", { count: "exact", head: true })
       .eq("user_id", post.user_id as string)

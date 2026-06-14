@@ -1,13 +1,14 @@
-﻿import {
+import {
   validateChapterForPublish,
   validationErrorMessage,
   validateStoryForPublish
 } from "@/lib/studio/scheduling/validate-publish";
+import { publishChapterLinkedReelsPromo } from "@/lib/reels/publish-chapter-linked-reels-promo";
 import { publishReelsItem } from "@/lib/reels/publish-reels-item";
 import { mapReelsRow } from "@/lib/reels/map-reels-row";
 import { isReelsScheduledTarget, type ScheduledTargetType } from "@/types/scheduling";
 import { triggerColdStartAfterReelPublish, triggerColdStartAfterStoryPublish } from "@/lib/cold-start/hooks";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type PublishTargetResult = {
   ok: boolean;
@@ -16,11 +17,11 @@ export type PublishTargetResult = {
 };
 
 export async function publishStoryTarget(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   creatorProfileId: string
 ): Promise<PublishTargetResult> {
-  const validation = await validateStoryForPublish(supabase, storyId, creatorProfileId);
+  const validation = await validateStoryForPublish(db, storyId, creatorProfileId);
 
   if (!validation.ok) {
     return {
@@ -29,7 +30,7 @@ export async function publishStoryTarget(
     };
   }
 
-  const { data: storyRow } = await supabase
+  const { data: storyRow } = await db
     .from("stories")
     .select("structure_type")
     .eq("id", storyId)
@@ -47,7 +48,7 @@ export async function publishStoryTarget(
     publishPatch.standalone_published_at = now;
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("stories")
     .update(publishPatch)
     .eq("id", storyId)
@@ -64,20 +65,21 @@ export async function publishStoryTarget(
 }
 
 export async function publishChapterTarget(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   episodeId: string,
   storyId: string,
-  creatorProfileId: string
+  creatorProfileId: string,
+  ownerProfileId?: string | null
 ): Promise<PublishTargetResult> {
-  const { data: episode } = await supabase
+  const { data: episode } = await db
     .from("episodes")
-    .select("episode_number, status")
+    .select("episode_number, status, title")
     .eq("id", episodeId)
     .eq("story_id", storyId)
     .maybeSingle();
 
   if (!episode) {
-    return { error: "Không tìm thấy chương.", ok: false };
+    return { error: "Không tìm th?y chuong.", ok: false };
   }
 
   if (episode.status === "published") {
@@ -85,7 +87,7 @@ export async function publishChapterTarget(
   }
 
   const validation = await validateChapterForPublish(
-    supabase,
+    db,
     episodeId,
     storyId,
     creatorProfileId,
@@ -101,7 +103,7 @@ export async function publishChapterTarget(
 
   const now = new Date().toISOString();
 
-  const { error } = await supabase
+  const { error } = await db
     .from("episodes")
     .update({
       published_at: now,
@@ -115,15 +117,56 @@ export async function publishChapterTarget(
     return { error: error.message, ok: false };
   }
 
+  void tryPublishParentStoryIfReady(db, storyId, creatorProfileId);
+
+  if (ownerProfileId) {
+    void publishChapterLinkedReelsPromo(db, {
+      chapterId: episodeId,
+      chapterTitle: String(episode.title ?? `Chương ${episode.episode_number}`),
+      ownerProfileId,
+      storyId
+    });
+  }
+
   return { ok: true, storyId };
 }
 
+/** Sau khi đăng chương, tự đăng truyện nháp nếu đã đủ điều kiện (metadata + có chương public). */
+async function tryPublishParentStoryIfReady(
+  db: DatabaseClient,
+  storyId: string,
+  creatorProfileId: string
+) {
+  const { data: storyRow } = await db
+    .from("stories")
+    .select("status")
+    .eq("id", storyId)
+    .eq("creator_id", creatorProfileId)
+    .maybeSingle();
+
+  if (
+    !storyRow ||
+    storyRow.status === "published" ||
+    storyRow.status === "approved"
+  ) {
+    return;
+  }
+
+  const validation = await validateStoryForPublish(db, storyId, creatorProfileId);
+
+  if (!validation.ok) {
+    return;
+  }
+
+  await publishStoryTarget(db, storyId, creatorProfileId);
+}
+
 export async function publishReelsTarget(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   reelId: string,
   ownerProfileId: string
 ): Promise<PublishTargetResult> {
-  const { data, error: readError } = await supabase
+  const { data, error: readError } = await db
     .from("reels_items")
     .select("*")
     .eq("id", reelId)
@@ -131,18 +174,18 @@ export async function publishReelsTarget(
     .maybeSingle();
 
   if (readError || !data) {
-    return { error: readError?.message ?? "Không tìm thấy Reels.", ok: false };
+    return { error: readError?.message ?? "Không tìm th?y Reels.", ok: false };
   }
 
   const row = mapReelsRow(data);
 
-  const result = await publishReelsItem(supabase, reelId, ownerProfileId, {
+  const result = await publishReelsItem(db, reelId, ownerProfileId, {
     backgroundImageUrl: row.backgroundImageUrl,
-    body: row.body,
+    body: row.body ?? "",
     chapterId: row.chapterId,
     cta: row.cta ?? "",
     ctaType: row.ctaType ?? "custom",
-    hook: row.hook,
+    hook: row.hook ?? "",
     storyId: row.storyId,
     title: row.title ?? ""
   });
@@ -155,26 +198,33 @@ export async function publishReelsTarget(
 }
 
 export async function publishTargetByType(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   targetType: ScheduledTargetType,
   targetId: string,
   storyId: string | null,
-  creatorProfileId: string
+  creatorProfileId: string,
+  ownerProfileId?: string | null
 ): Promise<PublishTargetResult> {
   if (targetType === "story") {
-    return publishStoryTarget(supabase, targetId, creatorProfileId);
+    return publishStoryTarget(db, targetId, creatorProfileId);
   }
 
   if (targetType === "chapter") {
     if (!storyId) {
-      return { error: "Thiếu story_id cho chương.", ok: false };
+      return { error: "Thi?u story_id cho chuong.", ok: false };
     }
 
-    return publishChapterTarget(supabase, targetId, storyId, creatorProfileId);
+    return publishChapterTarget(
+      db,
+      targetId,
+      storyId,
+      creatorProfileId,
+      ownerProfileId
+    );
   }
 
   if (isReelsScheduledTarget(targetType)) {
-    const { data: profile } = await supabase
+    const { data: profile } = await db
       .from("creator_profiles")
       .select("user_id")
       .eq("id", creatorProfileId)
@@ -184,7 +234,7 @@ export async function publishTargetByType(
       return { error: "Không xác định được tác giả.", ok: false };
     }
 
-    return publishReelsTarget(supabase, targetId, profile.user_id);
+    return publishReelsTarget(db, targetId, profile.user_id);
   }
 
   return { error: "Loại nội dung không hỗ trợ.", ok: false };

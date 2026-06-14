@@ -40,6 +40,18 @@ export function sourceLabel(sourceType: ReelsSourceType | null) {
   return "Tạo thủ công";
 }
 
+export function sourceLabelForItem(item: Pick<ReelsItemListItem, "chapterId" | "sourceType">) {
+  if (item.chapterId) {
+    return "Tạo từ chương";
+  }
+
+  if (item.sourceType === "story_description") {
+    return "Từ truyện";
+  }
+
+  return "Tạo từ truyện";
+}
+
 export function computeCtr(viewCount: number, ctaClickCount: number) {
   if (viewCount <= 0) {
     return 0;
@@ -48,16 +60,19 @@ export function computeCtr(viewCount: number, ctaClickCount: number) {
   return Math.round((ctaClickCount / viewCount) * 1000) / 10;
 }
 
+function safeTrim(value: string | null | undefined): string {
+  return (value ?? "").trim();
+}
+
 export function enrichReelsListItem(
   item: ReelsItemListItem & { genreId?: string | null; genreName?: string | null }
 ): ReelsStudioListItem {
   const ctr = computeCtr(item.viewCount, item.ctaClickCount);
-  const isLowCtr =
-    item.status === "published" && item.viewCount >= 20 && ctr < 2;
+  const isLowCtr = item.status === "published" && item.viewCount >= 20 && ctr < 2;
   const needsAttention =
     item.status === "rejected" ||
-    !item.hook.trim() ||
-    !item.body.trim() ||
+    !safeTrim(item.hook) ||
+    !safeTrim(item.body) ||
     !item.storyId ||
     isLowCtr;
 
@@ -65,13 +80,13 @@ export function enrichReelsListItem(
     ...item,
     commentCount: 0,
     ctr,
-    displayTitle: item.title?.trim() || item.hook || "Reels không tiêu đề",
+    displayTitle: safeTrim(item.title) || safeTrim(item.hook) || "Reels không tiêu đề",
     genreId: item.genreId ?? null,
     genreName: item.genreName ?? null,
     isLowCtr,
     needsAttention,
     saveCount: 0,
-    sourceLabel: sourceLabel(item.sourceType)
+    sourceLabel: sourceLabelForItem(item)
   };
 }
 
@@ -87,9 +102,7 @@ function isWithinDays(iso: string | null, days: number, now = Date.now()) {
 export function computeReelsStats(items: ReelsStudioListItem[]): ReelsStudioStats {
   const now = Date.now();
   const recent = items.filter(
-    (item) =>
-      isWithinDays(item.publishedAt, 7, now) ||
-      isWithinDays(item.updatedAt, 7, now)
+    (item) => isWithinDays(item.publishedAt, 7, now) || isWithinDays(item.updatedAt, 7, now)
   );
 
   const views7d = recent.reduce((sum, item) => sum + item.viewCount, 0);
@@ -109,16 +122,13 @@ export function computeReelsStats(items: ReelsStudioListItem[]): ReelsStudioStat
   };
 }
 
-export function buildReelsTasks(
-  items: ReelsStudioListItem[],
-  limit = 5
-): ReelsTaskItem[] {
+export function buildReelsTasks(items: ReelsStudioListItem[], limit = 5): ReelsTaskItem[] {
   const tasks: ReelsTaskItem[] = [];
 
   for (const item of items) {
     const editHref = studioPath(`/reels/${item.id}/edit`);
 
-    if (item.status === "draft" && (!item.hook.trim() || !item.body.trim())) {
+    if (item.status === "draft" && (!safeTrim(item.hook) || !safeTrim(item.body))) {
       tasks.push({
         category: "draft",
         description: "Hoàn thiện hook và nội dung trích dẫn.",
@@ -135,18 +145,10 @@ export function buildReelsTasks(
         primaryAction: { href: editHref, label: "Sửa" },
         title: item.displayTitle
       });
-    } else if (!item.chapterId && item.status !== "hidden") {
-      tasks.push({
-        category: "draft",
-        description: "Gắn chương để CTA dẫn đúng nội dung đọc.",
-        id: `chapter-${item.id}`,
-        primaryAction: { href: editHref, label: "Gắn chương" },
-        title: item.displayTitle
-      });
     } else if (item.isLowCtr) {
       tasks.push({
         category: "low_performance",
-        description: `CTR ${item.ctr}% — thử đổi hook hoặc đoạn mở đầu.`,
+        description: `CTR ${item.ctr}% - thử đổi hook hoặc đoạn mở đầu.`,
         id: `ctr-${item.id}`,
         primaryAction: { href: editHref, label: "Tối ưu" },
         secondaryAction: {
@@ -162,7 +164,7 @@ export function buildReelsTasks(
     ) {
       tasks.push({
         category: "upcoming",
-        description: "Sắp đến giờ đăng — kiểm tra lại trước khi phát hành.",
+        description: "Sắp đến giờ đăng - kiểm tra lại trước khi phát hành.",
         id: `sched-${item.id}`,
         primaryAction: { href: editHref, label: "Lên lịch" },
         secondaryAction: {
@@ -171,10 +173,10 @@ export function buildReelsTasks(
         },
         title: item.displayTitle
       });
-    } else if (!item.hook.trim()) {
+    } else if (!safeTrim(item.hook)) {
       tasks.push({
         category: "draft",
-        description: "Thiếu hook — thêm câu mở đầu thu hút.",
+        description: "Thiếu hook - thêm câu mở đầu thu hút.",
         id: `hook-${item.id}`,
         primaryAction: { href: editHref, label: "Sửa" },
         title: item.displayTitle
@@ -185,10 +187,7 @@ export function buildReelsTasks(
   return tasks.slice(0, limit);
 }
 
-export function filterTasksByCategory(
-  tasks: ReelsTaskItem[],
-  category: ReelsTaskCategory
-) {
+export function filterTasksByCategory(tasks: ReelsTaskItem[], category: ReelsTaskCategory) {
   if (category === "all") {
     return tasks;
   }
@@ -213,8 +212,7 @@ export function sortReelsItems<T extends ReelsStudioListItem>(
       case "reads":
         return b.ctaClickCount - a.ctaClickCount;
       case "needs_attention":
-        return Number(b.needsAttention) - Number(a.needsAttention) ||
-          b.ctr - a.ctr;
+        return Number(b.needsAttention) - Number(a.needsAttention) || b.ctr - a.ctr;
       case "updated":
       default:
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();

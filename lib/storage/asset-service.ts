@@ -1,8 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import type { RegisterStorageAssetInput } from "@/types/storage-cleanup";
 
 export async function registerStorageAsset(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: RegisterStorageAssetInput
 ) {
   const now = new Date().toISOString();
@@ -32,7 +32,7 @@ export async function registerStorageAsset(
     width: input.width ?? null
   };
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("storage_assets")
     .upsert(row, { onConflict: "bucket,path" })
     .select("id")
@@ -51,7 +51,7 @@ export async function registerStorageAsset(
 }
 
 export async function registerStorageDerivative(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     assetId: string;
     bucket: string;
@@ -64,7 +64,7 @@ export async function registerStorageDerivative(
     metadata?: Record<string, unknown>;
   }
 ) {
-  const { error } = await supabase.from("storage_asset_derivatives").upsert(
+  const { error } = await db.from("storage_asset_derivatives").upsert(
     {
       asset_id: input.assetId,
       bucket: input.bucket,
@@ -92,7 +92,7 @@ export async function registerStorageDerivative(
 }
 
 export async function linkStorageAssetToEntity(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     bucket: string;
     path: string;
@@ -102,7 +102,7 @@ export async function linkStorageAssetToEntity(
   }
 ) {
   const now = new Date().toISOString();
-  const { error } = await supabase
+  const { error } = await db
     .from("storage_assets")
     .update({
       last_used_at: now,
@@ -118,10 +118,10 @@ export async function linkStorageAssetToEntity(
 }
 
 export async function markStorageAssetUsed(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: { bucket: string; path: string }
 ) {
-  const { error } = await supabase
+  const { error } = await db
     .from("storage_assets")
     .update({ last_used_at: new Date().toISOString(), status: "active" })
     .eq("bucket", input.bucket)
@@ -131,7 +131,7 @@ export async function markStorageAssetUsed(
 }
 
 export async function unlinkStorageAssetFromEntity(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     bucket?: string;
     path?: string;
@@ -141,7 +141,7 @@ export async function unlinkStorageAssetFromEntity(
     field?: string;
   }
 ) {
-  let query = supabase
+  let query = db
     .from("storage_assets")
     .update({
       linked_entity_id: null,
@@ -171,7 +171,7 @@ export async function unlinkStorageAssetFromEntity(
 }
 
 export async function markStorageAssetReplaced(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     bucket?: string;
     path?: string;
@@ -182,7 +182,7 @@ export async function markStorageAssetReplaced(
   const deleteAfterAt = new Date(
     Date.now() + input.replacedTtlDays * 24 * 60 * 60 * 1000
   ).toISOString();
-  let query = supabase
+  let query = db
     .from("storage_assets")
     .update({
       delete_after_at: deleteAfterAt,
@@ -205,10 +205,10 @@ export async function markStorageAssetReplaced(
 }
 
 export async function markStorageAssetDeleted(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: { bucket?: string; path?: string; publicUrl?: string | null; assetId?: string }
 ) {
-  let query = supabase
+  let query = db
     .from("storage_assets")
     .update({
       deleted_at: new Date().toISOString(),

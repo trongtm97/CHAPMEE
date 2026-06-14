@@ -2,9 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { revalidatePublicProfilePaths } from "@/lib/profile/revalidate-public-profile";
+import { resolveProfileAvatarUrl } from "@/lib/profile/resolve-profile-avatar";
 import { registerStorageAsset, unlinkStorageAssetFromEntity } from "@/lib/storage/asset-service";
+import { buildMediaObjectKey } from "@/lib/storage/media-paths";
+import { getMediaS3Bucket } from "@/lib/storage/s3";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -23,7 +26,7 @@ function parseDataUrl(dataUrl: string) {
   const buffer = Buffer.from(match[2], "base64");
   const extension = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
 
-  return { buffer, extension, mimeType };
+  return { buffer, extension, mimeType, filename: `avatar.${extension}` };
 }
 
 export async function uploadAvatarAction(dataUrl: string): Promise<UploadAvatarResult> {
@@ -36,24 +39,24 @@ export async function uploadAvatarAction(dataUrl: string): Promise<UploadAvatarR
     return { error: "Ảnh quá lớn. Vui lòng chọn ảnh dưới 5MB.", avatarUrl: null };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user },
     error: userError
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (userError || !user) {
     redirect("/login?next=/me/settings");
   }
 
-  const filePath = `${user.id}/avatar-${Date.now()}.${parsed.extension}`;
-  const { error: uploadError } = await supabase.storage
-    .from("avatars")
-    .upload(filePath, parsed.buffer, {
-      cacheControl: "3600",
-      contentType: parsed.mimeType,
-      upsert: true
-    });
+  const objectKey = buildMediaObjectKey("avatars", parsed.filename);
+  const bucket = getMediaS3Bucket();
+
+  const { error: uploadError } = await db.storage.from(bucket).upload(objectKey, parsed.buffer, {
+    cacheControl: "31536000",
+    contentType: parsed.mimeType,
+    upsert: true
+  });
 
   if (uploadError) {
     return {
@@ -62,28 +65,29 @@ export async function uploadAvatarAction(dataUrl: string): Promise<UploadAvatarR
     };
   }
 
-  const { data: publicData } = supabase.storage.from("avatars").getPublicUrl(filePath);
-  const avatarUrl = publicData.publicUrl;
-  await registerStorageAsset(supabase, {
-    bucket: "avatars",
+  const { assetId } = await registerStorageAsset(db, {
+    bucket,
     isOriginal: true,
     isPublic: true,
     linkedEntityId: user.id,
     linkedEntityType: "profile",
-    linkedField: "avatar_url",
+    linkedField: "avatar_media_id",
     metadata: { module: "avatar" },
     mimeType: parsed.mimeType,
     ownerId: user.id,
-    path: filePath,
-    publicUrl: avatarUrl,
+    path: objectKey,
     sizeBytes: parsed.buffer.byteLength,
     extension: parsed.extension,
+    status: "active",
     usageType: "avatar"
   });
 
-  const { data: profileRow, error: profileError } = await supabase
+  const { data: profileRow, error: profileError } = await db
     .from("profiles")
-    .update({ avatar_url: avatarUrl })
+    .update({
+      avatar_url: objectKey,
+      avatar_media_id: assetId
+    })
     .eq("id", user.id)
     .select("username")
     .maybeSingle();
@@ -97,31 +101,34 @@ export async function uploadAvatarAction(dataUrl: string): Promise<UploadAvatarR
   revalidatePath("/studio/settings");
   revalidatePublicProfilePaths(profileRow?.username, { userId: user.id });
 
-  return { error: null, avatarUrl };
+  return {
+    error: null,
+    avatarUrl: resolveProfileAvatarUrl({ avatar_url: objectKey })
+  };
 }
 
 export async function clearAvatarAction(): Promise<UploadAvatarResult> {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user },
     error: userError
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (userError || !user) {
     redirect("/login?next=/studio/settings");
   }
 
-  const { data: currentProfile } = await supabase
+  const { data: currentProfile } = await db
     .from("profiles")
-    .select("avatar_url")
+    .select("avatar_url, avatar_media_id, default_avatar_id")
     .eq("id", user.id)
     .maybeSingle();
 
-  const { data: profileRow, error: profileError } = await supabase
+  const { data: profileRow, error: profileError } = await db
     .from("profiles")
-    .update({ avatar_url: null })
+    .update({ avatar_url: null, avatar_media_id: null })
     .eq("id", user.id)
-    .select("username")
+    .select("username, default_avatar_id")
     .maybeSingle();
 
   if (profileError) {
@@ -129,11 +136,11 @@ export async function clearAvatarAction(): Promise<UploadAvatarResult> {
   }
 
   if (currentProfile?.avatar_url) {
-    await unlinkStorageAssetFromEntity(supabase, {
+    await unlinkStorageAssetFromEntity(db, {
       entityId: user.id,
       entityType: "profile",
-      field: "avatar_url",
-      publicUrl: currentProfile.avatar_url
+      field: "avatar_media_id",
+      path: currentProfile.avatar_url
     });
   }
 
@@ -142,5 +149,12 @@ export async function clearAvatarAction(): Promise<UploadAvatarResult> {
   revalidatePath("/studio/settings");
   revalidatePublicProfilePaths(profileRow?.username, { userId: user.id });
 
-  return { error: null, avatarUrl: null };
+  return {
+    error: null,
+    avatarUrl: resolveProfileAvatarUrl({
+      id: user.id,
+      avatar_url: null,
+      default_avatar_id: profileRow?.default_avatar_id ?? null
+    })
+  };
 }

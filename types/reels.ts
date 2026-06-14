@@ -107,8 +107,8 @@ export type ReelsItemRecord = {
   storyId: string;
   chapterId: string | null;
   title: string | null;
-  hook: string;
-  body: string;
+  hook: string | null;
+  body: string | null;
   cta: string | null;
   ctaType: string | null;
   backgroundImageUrl: string | null;
@@ -122,6 +122,14 @@ export type ReelsItemRecord = {
   ctaClickCount: number;
   createdAt: string;
   updatedAt: string;
+  /** 'db' (legacy inline) or 's3' (canonical in object storage). */
+  contentStorageType: "db" | "s3";
+  contentObjectKey: string | null;
+  contentHash: string | null;
+  contentEncoding: string | null;
+  contentSizeBytes: number | null;
+  /** 280-char preview, kept in DB for feed rendering without S3 fetch. */
+  bodyPreview: string | null;
 };
 
 export type ReelsItemListItem = ReelsItemRecord & {

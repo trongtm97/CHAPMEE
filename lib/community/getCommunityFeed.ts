@@ -1,5 +1,6 @@
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
-import { createClient } from "@/lib/supabase/server";
+import { resolveProfileAvatarUrlForUser } from "@/lib/profile/resolve-profile-avatar";
+import { createClient } from "@/lib/data/server";
 
 export type CommunityPostType =
   | "discussion"
@@ -14,6 +15,9 @@ export type CommunityPost = {
   contentPreview: string;
   authorName: string | null;
   authorUsername: string | null;
+  authorAvatarUrl: string;
+  /** `profiles.id` — người đăng bài. */
+  authorUserId: string | null;
   relatedStoryTitle: string | null;
   relatedStorySlug: string | null;
   relatedStoryPublicCode: string | null;
@@ -21,6 +25,8 @@ export type CommunityPost = {
   creatorId: string | null;
   creatorName: string | null;
   creatorUsername: string | null;
+  /** `profiles.id` — tác giả truyện liên quan. */
+  creatorUserId: string | null;
   createdAt: string;
   commentCount: number;
 };
@@ -34,13 +40,28 @@ export type CommunityFeedData = {
 type CommunityPostRow = {
   id: string;
   type: CommunityPostType;
-  title: string;
-  content: string;
+  title: string | null;
+  content: string | null;
+  content_storage_type?: string | null;
+  content_object_key?: string | null;
+  content_hash?: string | null;
+  content_preview?: string | null;
   created_at: string;
   story_id: string | null;
+  user_id: string;
   profiles:
-    | { display_name: string | null; username: string | null }
-    | { display_name: string | null; username: string | null }[]
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+        default_avatar_id: number | null;
+      }
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+        default_avatar_id: number | null;
+      }[]
     | null;
   stories:
     | {
@@ -51,11 +72,13 @@ type CommunityPostRow = {
         creator_profiles:
           | {
               id: string;
+              user_id: string | null;
               pen_name: string | null;
               profiles?: { display_name: string | null; username: string | null } | null;
             }
           | {
               id: string;
+              user_id: string | null;
               pen_name: string | null;
               profiles?: { display_name: string | null; username: string | null } | null;
             }[]
@@ -69,11 +92,13 @@ type CommunityPostRow = {
         creator_profiles:
           | {
               id: string;
+              user_id: string | null;
               pen_name: string | null;
               profiles?: { display_name: string | null; username: string | null } | null;
             }
           | {
               id: string;
+              user_id: string | null;
               pen_name: string | null;
               profiles?: { display_name: string | null; username: string | null } | null;
             }[]
@@ -100,19 +125,19 @@ function isMissingAuthSession(errorMessage: string) {
 
 export async function getCommunityFeed(): Promise<CommunityFeedData> {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const {
       data: { user },
       error: userError
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
     if (userError && !isMissingAuthSession(userError.message)) {
       throw userError;
     }
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("community_posts")
       .select(
-        "id, type, title, content, created_at, story_id, profiles!community_posts_user_id_fkey(display_name, username), stories(title, slug, public_code, creator_id, creator_profiles(id, pen_name, profiles!creator_profiles_user_id_fkey(display_name, username)))"
+        "id, type, title, content, content_storage_type, content_object_key, content_hash, content_preview, created_at, story_id, user_id, profiles!community_posts_user_id_fkey(display_name, username, avatar_url, default_avatar_id), stories(title, slug, public_code, creator_id, creator_profiles(id, user_id, pen_name, profiles!creator_profiles_user_id_fkey(display_name, username)))"
       )
       .eq("status", "approved")
       .in("type", ["discussion", "review", "poll_placeholder", "challenge"])
@@ -130,7 +155,7 @@ export async function getCommunityFeed(): Promise<CommunityFeedData> {
     const commentCountByStory = new Map<string, number>();
 
     if (storyIds.length > 0) {
-      const { data: comments } = await supabase
+      const { data: comments } = await db
         .from("comments")
         .select("story_id")
         .in("story_id", storyIds)
@@ -161,11 +186,17 @@ export async function getCommunityFeed(): Promise<CommunityFeedData> {
         return {
           id: post.id,
           type: post.type,
-          title: post.title,
-          contentPreview: preview(post.content),
+          title: post.title ?? "",
+          contentPreview: preview(
+            (post.content && post.content.trim().length > 0
+              ? post.content
+              : post.content_preview) ?? ""
+          ),
           authorName:
             author?.display_name ?? author?.username ?? "Độc giả ChapMee",
           authorUsername: author?.username?.trim().toLowerCase() ?? null,
+          authorAvatarUrl: resolveProfileAvatarUrlForUser(post.user_id, author),
+          authorUserId: post.user_id ?? null,
           relatedStoryTitle: story?.title ?? null,
           relatedStorySlug: story?.slug ?? null,
           relatedStoryPublicCode: story?.public_code ?? null,
@@ -177,6 +208,7 @@ export async function getCommunityFeed(): Promise<CommunityFeedData> {
           creatorUsername:
             firstRelation(storyCreator?.profiles ?? null)?.username?.trim().toLowerCase() ??
             null,
+          creatorUserId: storyCreator?.user_id ?? null,
           createdAt: post.created_at,
           commentCount: post.story_id
             ? (commentCountByStory.get(post.story_id) ?? 0)

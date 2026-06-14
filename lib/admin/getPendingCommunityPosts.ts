@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export type CommunityReviewStatus = "pending" | "rejected" | "hidden";
 
@@ -23,8 +23,12 @@ export type CommunityPostsForReviewData = {
 type CommunityPostRow = {
   id: string;
   type: CommunityPostForReview["type"];
-  title: string;
-  content: string;
+  title: string | null;
+  content: string | null;
+  content_storage_type?: string | null;
+  content_object_key?: string | null;
+  content_hash?: string | null;
+  content_preview?: string | null;
   created_at: string;
   status: CommunityReviewStatus;
   profiles:
@@ -41,15 +45,22 @@ function firstRelation<T>(relation: T | T[] | null | undefined) {
   return Array.isArray(relation) ? (relation[0] ?? null) : (relation ?? null);
 }
 
+function resolveContent(row: CommunityPostRow): string {
+  if (row.content && row.content.trim().length > 0) {
+    return row.content;
+  }
+  return (row.content_preview ?? "").trim();
+}
+
 export async function getPendingCommunityPosts(
   status: CommunityReviewStatus = "pending"
 ): Promise<CommunityPostsForReviewData> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("community_posts")
       .select(
-        "id, type, title, content, created_at, status, profiles!community_posts_user_id_fkey(display_name, username), stories(title, slug, public_code)"
+        "id, type, title, content, content_storage_type, content_object_key, content_hash, content_preview, created_at, status, profiles!community_posts_user_id_fkey(display_name, username), stories(title, slug, public_code)"
       )
       .eq("status", status)
       .order("created_at", { ascending: true })
@@ -68,8 +79,8 @@ export async function getPendingCommunityPosts(
         return {
           id: post.id,
           type: post.type,
-          title: post.title,
-          content: post.content,
+          title: post.title ?? "",
+          content: resolveContent(post),
           authorName:
             author?.display_name ?? author?.username ?? "Doc gia ChapMee",
           relatedStoryTitle: story?.title ?? null,

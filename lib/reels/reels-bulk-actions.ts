@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { assertOwnsReelsItem } from "@/lib/reels/assert-reels-ownership";
 import { studioReelsPath } from "@/lib/routes/reels-paths";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 async function getOwnerId() {
   const { profile } = await getCurrentUser();
@@ -32,14 +32,14 @@ export async function bulkHideReelsAction(reelIds: string[]) {
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   let successCount = 0;
   let failedCount = 0;
 
   for (const reelId of reelIds) {
     try {
       await assertOwnsReelsItem(profileId, reelId);
-      const { error: updateError } = await supabase
+      const { error: updateError } = await db
         .from("reels_items")
         .update({ status: "hidden" })
         .eq("id", reelId)
@@ -80,14 +80,14 @@ export async function bulkUnhideReelsAction(reelIds: string[]) {
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   let successCount = 0;
   let failedCount = 0;
 
   for (const reelId of reelIds) {
     try {
       await assertOwnsReelsItem(profileId, reelId);
-      const { error: updateError } = await supabase
+      const { error: updateError } = await db
         .from("reels_items")
         .update({ status: "published" })
         .eq("id", reelId)
@@ -128,14 +128,14 @@ export async function bulkMoveReelsToDraftAction(reelIds: string[]) {
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   let successCount = 0;
   let failedCount = 0;
 
   for (const reelId of reelIds) {
     try {
       await assertOwnsReelsItem(profileId, reelId);
-      const { error: updateError } = await supabase
+      const { error: updateError } = await db
         .from("reels_items")
         .update({ status: "draft" })
         .eq("id", reelId)
@@ -176,7 +176,7 @@ export async function bulkDeleteReelsAction(reelIds: string[]) {
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   let successCount = 0;
   let failedCount = 0;
 
@@ -189,7 +189,7 @@ export async function bulkDeleteReelsAction(reelIds: string[]) {
         continue;
       }
 
-      const { error: deleteError } = await supabase
+      const { error: deleteError } = await db
         .from("reels_items")
         .delete()
         .eq("id", reelId)
@@ -227,10 +227,12 @@ export async function exportReelsCsvAction(reelIds: string[]) {
     return { csv: null, error: error ?? "Không xuất được." };
   }
 
-  const supabase = await createClient();
-  const { data, error: fetchError } = await supabase
+  const db = await createClient();
+  const { data, error: fetchError } = await db
     .from("reels_items")
-    .select("id, hook, body, status, view_count, cta_click_count, stories(title)")
+    .select(
+      "id, hook, body, status, view_count, cta_click_count, body_preview, content_storage_type, stories(title)"
+    )
     .eq("owner_id", profileId)
     .in("id", reelIds);
 
@@ -241,9 +243,10 @@ export async function exportReelsCsvAction(reelIds: string[]) {
   const header = ["ID", "Hook", "Trạng thái", "Lượt xem", "CTA", "Truyện"];
   const rows = (data ?? []).map((row) => {
     const story = Array.isArray(row.stories) ? row.stories[0] : row.stories;
+    const hookValue = (row.hook ?? row.body_preview ?? "").trim();
     return [
       row.id,
-      `"${String(row.hook).replace(/"/g, '""')}"`,
+      `"${hookValue.replace(/"/g, '""')}"`,
       row.status,
       String(row.view_count ?? 0),
       String(row.cta_click_count ?? 0),

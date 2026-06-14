@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/data/server";
 import { resolveMediaObjectUrl } from "@/lib/media/media-resolver";
 import { registerStorageAsset } from "@/lib/storage/asset-service";
@@ -27,7 +26,7 @@ function parseDataUrl(dataUrl: string) {
   return { buffer, extension, mimeType };
 }
 
-export async function uploadContentPostCoverAction(
+export async function uploadContentPostInlineImageAction(
   dataUrl: string
 ): Promise<ContentPostCoverUploadResult> {
   const { checkStaffAnyPermission } = await import("@/lib/auth/staff-guards");
@@ -50,7 +49,7 @@ export async function uploadContentPostCoverAction(
 
   const db = await createClient();
   const bucket = getMediaS3Bucket();
-  const objectKey = `content-posts/covers/${staff.userId}/${Date.now()}.${parsed.extension}`;
+  const objectKey = `content-posts/inline/${staff.userId}/${Date.now()}.${parsed.extension}`;
 
   const { error: uploadError } = await db.storage.from(bucket).upload(objectKey, parsed.buffer, {
     cacheControl: "31536000",
@@ -73,14 +72,14 @@ export async function uploadContentPostCoverAction(
     isOriginal: true,
     isPublic: true,
     linkedEntityType: "content_post",
-    linkedField: "cover_media_asset_id",
-    metadata: { module: "content_post_cover" },
+    linkedField: "content_inline_image",
+    metadata: { module: "content_post_inline" },
     mimeType: parsed.mimeType,
     ownerId: staff.userId,
     path: objectKey,
     sizeBytes: parsed.buffer.byteLength,
     extension: parsed.extension,
-    usageType: "content_post_cover",
+    usageType: "content_post_inline",
     status: "active"
   });
 
@@ -101,18 +100,4 @@ export async function uploadContentPostCoverAction(
     objectKey,
     previewUrl: resolveMediaObjectUrl(objectKey)
   };
-}
-
-export async function requireContentPostAdmin() {
-  const { requireAnyPermission } = await import("@/lib/auth/require-permission");
-  const guard = await requireAnyPermission(
-    ["content.post.view", "admin.dashboard.view"],
-    { returnTo: "/admin/content-hub" }
-  );
-
-  if (!guard.ok) {
-    redirect("/admin");
-  }
-
-  return guard.context;
 }

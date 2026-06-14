@@ -1,7 +1,50 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb"
+    }
+  },
+  serverExternalPackages: [
+    "better-auth",
+    "pg",
+    "drizzle-orm",
+    "@aws-sdk/client-s3",
+    "@aws-sdk/s3-request-presigner"
+  ],
   devIndicators: false,
+  images: {
+    remotePatterns: [
+
+      {
+        protocol: "https",
+        hostname: "chapmee.com",
+        pathname: "/**"
+      },
+      {
+        protocol: "https",
+        hostname: "media.chapmee.com",
+        pathname: "/**"
+      },
+      {
+        protocol: "https",
+        hostname: "images.dmca.com",
+        pathname: "/**"
+      }
+      // TODO: tighten to Vietnix S3 public CDN hostname when production URL is fixed.
+    ]
+  },
+  async rewrites() {
+    return {
+      beforeFiles: [
+        // Custom sitemap index + child files (XSL + pagination).
+        { source: "/sitemap.xml", destination: "/internal/sitemap-index" },
+        { source: "/sitemap/:id.xml", destination: "/internal/sitemap/:id" }
+      ]
+    };
+  },
   async redirects() {
     return [
       {
@@ -116,8 +159,13 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/profile/:username",
-        destination: "/me/:username",
-        permanent: false
+        destination: "/@:username",
+        permanent: true
+      },
+      {
+        source: "/u/:username",
+        destination: "/@:username",
+        permanent: true
       },
       {
         source: "/profile/:username/collections/:collectionId",
@@ -129,7 +177,37 @@ const nextConfig: NextConfig = {
         destination: "/the-loai/:slug",
         permanent: true
       },
+      {
+        source: "/truyensangtac",
+        destination: "/truyen-sang-tac",
+        permanent: false
+      },
+      {
+        source: "/truyen-sangtac",
+        destination: "/truyen-sang-tac",
+        permanent: false
+      },
+      {
+        source: "/truyendich",
+        destination: "/truyen-dich",
+        permanent: false
+      },
+      {
+        source: "/truyen-dich-mien-phi",
+        destination: "/truyen-dich",
+        permanent: false
+      },
     ];
+  },
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.output = {
+        ...config.output,
+        // Dev compile can exceed default chunk load wait during HMR/full reload.
+        chunkLoadTimeout: 300_000
+      };
+    }
+    return config;
   },
   async headers() {
     return [

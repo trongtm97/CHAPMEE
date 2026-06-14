@@ -1,11 +1,13 @@
 import { getCurrentProfile } from "@/lib/auth/getCurrentProfile";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
+import { resolveProfileAvatarUrlForUser } from "@/lib/profile/resolve-profile-avatar";
 
 export type CommentThreadItem = {
   id: string;
   parentId: string | null;
   authorLabel: string;
+  authorAvatarUrl: string;
   content: string;
   createdAt: string;
   likeCount: number;
@@ -26,14 +28,35 @@ type CommentRow = {
   id: string;
   user_id: string;
   parent_id: string | null;
-  content: string;
+  content: string | null;
+  content_storage_type?: string | null;
+  content_object_key?: string | null;
+  content_hash?: string | null;
+  content_preview?: string | null;
   created_at: string;
   is_pinned?: boolean | null;
   profiles:
-    | { display_name: string | null; username: string | null }
-    | { display_name: string | null; username: string | null }[]
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+        default_avatar_id: number | null;
+      }
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+        default_avatar_id: number | null;
+      }[]
     | null;
 };
+
+function resolveCommentDisplayContent(row: CommentRow): string {
+  if (row.content && row.content.trim().length > 0) {
+    return row.content;
+  }
+  return (row.content_preview ?? "").trim();
+}
 
 type IdRow = {
   target_id?: string | null;
@@ -52,17 +75,17 @@ function sortComments(first: CommentThreadItem, second: CommentThreadItem) {
 }
 
 export async function getCommentThread(target: CommentTarget) {
-  const supabase = await createClient();
+  const db = await createClient();
   const { user } = await getCurrentProfile();
   let supportsPin = true;
 
   let commentsData: CommentRow[] = [];
   let commentsError: string | null = null;
 
-  const baseQueryWithPin = supabase
+  const baseQueryWithPin = db
     .from("comments")
     .select(
-      "id, user_id, parent_id, content, created_at, is_pinned, profiles(display_name, username)"
+      "id, user_id, parent_id, content, content_storage_type, content_object_key, content_hash, content_preview, created_at, is_pinned, profiles(display_name, username, avatar_url, default_avatar_id)"
     )
     .eq("story_id", target.storyId)
     .eq("status", "visible")
@@ -77,9 +100,9 @@ export async function getCommentThread(target: CommentTarget) {
 
   if (commentsResult.error?.message?.includes("is_pinned")) {
     supportsPin = false;
-    const baseFallbackQuery = supabase
+    const baseFallbackQuery = db
       .from("comments")
-      .select("id, user_id, parent_id, content, created_at, profiles(display_name, username)")
+      .select("id, user_id, parent_id, content, content_storage_type, content_object_key, content_hash, content_preview, created_at, profiles(display_name, username, avatar_url, default_avatar_id)")
       .eq("story_id", target.storyId)
       .eq("status", "visible")
       .order("created_at", { ascending: false })
@@ -117,14 +140,14 @@ export async function getCommentThread(target: CommentTarget) {
 
   if (commentIds.length > 0) {
     const [likesResult, currentUserLikesResult] = await Promise.all([
-      supabase
+      db
         .from("reactions")
         .select("target_id")
         .eq("target_type", "comment")
         .eq("reaction_type", "like")
         .in("target_id", commentIds),
       user
-        ? supabase
+        ? db
             .from("reactions")
             .select("target_id")
             .eq("user_id", user.id)
@@ -162,7 +185,7 @@ export async function getCommentThread(target: CommentTarget) {
   }
 
   if (!canPinComments && user) {
-    const { data: storyRow } = await supabase
+    const { data: storyRow } = await db
       .from("stories")
       .select("creator_profiles!inner(user_id)")
       .eq("id", target.storyId)
@@ -183,7 +206,8 @@ export async function getCommentThread(target: CommentTarget) {
       parentId: comment.parent_id,
       authorLabel:
         profileRow?.display_name ?? profileRow?.username ?? "Độc giả ChapMee",
-      content: comment.content,
+      authorAvatarUrl: resolveProfileAvatarUrlForUser(comment.user_id, profileRow),
+      content: resolveCommentDisplayContent(comment),
       createdAt: comment.created_at,
       likeCount: likeCountByComment.get(comment.id) ?? 0,
       isLiked: likedIds.has(comment.id),

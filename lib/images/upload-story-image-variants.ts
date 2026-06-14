@@ -4,18 +4,21 @@ import {
   registerStorageAsset,
   registerStorageDerivative
 } from "@/lib/storage/asset-service";
-import { STORY_IMAGE_STORAGE_BUCKET, type StoryImageVariant } from "@/types/story-images";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { getMediaS3Bucket } from "@/lib/storage/s3";
+import type { StoryImageVariant } from "@/types/story-images";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type UploadedStoryImageVariant = {
   variant: StoryImageVariant;
   path: string;
-  publicUrl: string;
+  assetId: string | null;
 };
 
 export type UploadStoryImageSetResult = {
   original: UploadedStoryImageVariant;
   variants: UploadedStoryImageVariant[];
+  /** storage_assets id for portrait variant — use for stories.cover_media_asset_id. */
+  coverMediaAssetId: string | null;
   urls: {
     original: string;
     portrait: string;
@@ -27,7 +30,7 @@ export type UploadStoryImageSetResult = {
 };
 
 async function uploadVariantBuffer(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   imageId: string,
   variant: StoryImageVariant,
@@ -35,7 +38,8 @@ async function uploadVariantBuffer(
 ): Promise<UploadedStoryImageVariant> {
   const path = getStoryImageStorageObjectPath(storyId, imageId, variant);
 
-  const { error } = await supabase.storage.from(STORY_IMAGE_STORAGE_BUCKET).upload(path, buffer, {
+  const bucket = getMediaS3Bucket();
+  const { error } = await db.storage.from(bucket).upload(path, buffer, {
     contentType: "image/webp",
     cacheControl: "31536000",
     upsert: true
@@ -45,9 +49,8 @@ async function uploadVariantBuffer(
     throw new Error(`Không thể tải ${variant}.webp lên storage: ${error.message}`);
   }
 
-  const { data } = supabase.storage.from(STORY_IMAGE_STORAGE_BUCKET).getPublicUrl(path);
-  await registerStorageAsset(supabase, {
-    bucket: STORY_IMAGE_STORAGE_BUCKET,
+  const { assetId } = await registerStorageAsset(db, {
+    bucket,
     isOriginal: variant === "original",
     isPublic: true,
     linkedEntityId: storyId,
@@ -56,28 +59,28 @@ async function uploadVariantBuffer(
     metadata: { imageId, module: "story_cover", variant },
     mimeType: "image/webp",
     path,
-    publicUrl: data.publicUrl,
     sizeBytes: buffer.byteLength,
     extension: "webp",
-    usageType: "story_cover"
+    usageType: "story_cover",
+    status: "active"
   });
 
   return {
     variant,
     path,
-    publicUrl: data.publicUrl
+    assetId
   };
 }
 
 export async function uploadStoryImageSet(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   imageId: string,
   originalBuffer: Buffer,
   generatedVariants: GeneratedStoryImageVariant[]
 ): Promise<UploadStoryImageSetResult> {
   const original = await uploadVariantBuffer(
-    supabase,
+    db,
     storyId,
     imageId,
     "original",
@@ -89,20 +92,22 @@ export async function uploadStoryImageSet(
   try {
     uploadedVariants = await Promise.all(
       generatedVariants.map((item) =>
-        uploadVariantBuffer(supabase, storyId, imageId, item.variant, item.buffer)
+        uploadVariantBuffer(db, storyId, imageId, item.variant, item.buffer)
       )
     );
   } catch (error) {
     const paths = [original.path, ...uploadedVariants.map((item) => item.path)];
-    await supabase.storage.from(STORY_IMAGE_STORAGE_BUCKET).remove(paths);
+    await db.storage.from(getMediaS3Bucket()).remove(paths);
     throw error;
   }
 
-  const urlByVariant = Object.fromEntries(
-    uploadedVariants.map((item) => [item.variant, item.publicUrl])
-  ) as Record<Exclude<StoryImageVariant, "original">, string>;
-  const { assetId } = await registerStorageAsset(supabase, {
-    bucket: STORY_IMAGE_STORAGE_BUCKET,
+  const portraitAsset =
+    uploadedVariants.find((item) => item.variant === "portrait") ??
+    uploadedVariants[0] ??
+    original;
+
+  const { assetId } = await registerStorageAsset(db, {
+    bucket: getMediaS3Bucket(),
     isOriginal: true,
     isPublic: true,
     linkedEntityId: storyId,
@@ -111,18 +116,17 @@ export async function uploadStoryImageSet(
     metadata: { imageId, module: "story_cover", variant: "original" },
     mimeType: "image/webp",
     path: original.path,
-    publicUrl: original.publicUrl,
     sizeBytes: originalBuffer.byteLength,
     extension: "webp",
     usageType: "story_cover",
-    variants: Object.fromEntries(uploadedVariants.map((item) => [item.variant, item.publicUrl]))
+    variants: Object.fromEntries(uploadedVariants.map((item) => [item.variant, item.path]))
   });
   if (assetId) {
     await Promise.all(
       uploadedVariants.map((item) =>
-        registerStorageDerivative(supabase, {
+        registerStorageDerivative(db, {
           assetId,
-          bucket: STORY_IMAGE_STORAGE_BUCKET,
+          bucket: getMediaS3Bucket(),
           metadata: { imageId, module: "story_cover" },
           mimeType: "image/webp",
           path: item.path,
@@ -138,13 +142,14 @@ export async function uploadStoryImageSet(
   return {
     original,
     variants: uploadedVariants,
+    coverMediaAssetId: portraitAsset.assetId ?? assetId,
     urls: {
-      original: original.publicUrl,
-      portrait: urlByVariant.portrait,
-      landscape: urlByVariant.landscape,
-      square: urlByVariant.square,
-      thumb: urlByVariant.thumb,
-      blur: urlByVariant.blur
+      original: original.path,
+      portrait: uploadedVariants.find((v) => v.variant === "portrait")?.path ?? original.path,
+      landscape: uploadedVariants.find((v) => v.variant === "landscape")?.path ?? original.path,
+      square: uploadedVariants.find((v) => v.variant === "square")?.path ?? original.path,
+      thumb: uploadedVariants.find((v) => v.variant === "thumb")?.path ?? original.path,
+      blur: uploadedVariants.find((v) => v.variant === "blur")?.path ?? original.path
     }
   };
 }
@@ -158,32 +163,28 @@ export type StoryImageVariantUrls = {
 };
 
 export async function uploadStoryImageVariantsOnly(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   imageId: string,
   generatedVariants: GeneratedStoryImageVariant[]
 ): Promise<StoryImageVariantUrls> {
   const uploadedVariants = await Promise.all(
     generatedVariants.map((item) =>
-      uploadVariantBuffer(supabase, storyId, imageId, item.variant, item.buffer)
+      uploadVariantBuffer(db, storyId, imageId, item.variant, item.buffer)
     )
   );
 
-  const urlByVariant = Object.fromEntries(
-    uploadedVariants.map((item) => [item.variant, item.publicUrl])
-  ) as Record<Exclude<StoryImageVariant, "original">, string>;
-
   return {
-    portrait: urlByVariant.portrait,
-    landscape: urlByVariant.landscape,
-    square: urlByVariant.square,
-    thumb: urlByVariant.thumb,
-    blur: urlByVariant.blur
+    portrait: uploadedVariants.find((v) => v.variant === "portrait")?.path ?? "",
+    landscape: uploadedVariants.find((v) => v.variant === "landscape")?.path ?? "",
+    square: uploadedVariants.find((v) => v.variant === "square")?.path ?? "",
+    thumb: uploadedVariants.find((v) => v.variant === "thumb")?.path ?? "",
+    blur: uploadedVariants.find((v) => v.variant === "blur")?.path ?? ""
   };
 }
 
 export async function removeStoryImageStorageFolder(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   imageId: string
 ) {
@@ -200,5 +201,5 @@ export async function removeStoryImageStorageFolder(
     getStoryImageStorageObjectPath(storyId, imageId, variant)
   );
 
-  await supabase.storage.from(STORY_IMAGE_STORAGE_BUCKET).remove(paths);
+  await db.storage.from(getMediaS3Bucket()).remove(paths);
 }

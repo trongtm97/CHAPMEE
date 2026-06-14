@@ -38,12 +38,12 @@ export function StudioReelsPreviewDrawer({
         <div className="flex-1 overflow-y-auto">
           <ReelsPreview
             backgroundImageUrl={item.backgroundImageUrl}
-            body={item.body}
+            body={item.body ?? ""}
             creatorName={authorName}
             cta={item.cta ?? "Đọc tiếp"}
             episodeNumber={item.chapterNumber}
             episodeTitle={item.chapterTitle ?? ""}
-            hook={item.hook}
+            hook={item.hook ?? ""}
             storySlug={item.storySlug}
             storyTitle={item.storyTitle}
           />

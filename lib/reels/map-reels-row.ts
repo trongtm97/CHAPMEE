@@ -1,4 +1,5 @@
-﻿import type { ReelsItemListItem, ReelsItemRecord, ReelsItemStatus, ReelsSourceType } from "@/types/reels";
+﻿import type { PostgrestRow } from "@/lib/db/postgrest-row";
+import type { ReelsItemListItem, ReelsItemRecord, ReelsItemStatus, ReelsSourceType } from "@/types/reels";
 
 type ReelsRow = {
   id: string;
@@ -6,8 +7,8 @@ type ReelsRow = {
   story_id: string;
   chapter_id: string | null;
   title: string | null;
-  hook: string;
-  body: string;
+  hook: string | null;
+  body: string | null;
   cta: string | null;
   cta_type: string | null;
   background_image_url: string | null;
@@ -21,18 +22,35 @@ type ReelsRow = {
   cta_click_count: number | null;
   created_at: string;
   updated_at: string;
+  content_storage_type?: string | null;
+  content_object_key?: string | null;
+  content_hash?: string | null;
+  content_encoding?: string | null;
+  content_size_bytes?: number | null;
+  content_blob_format?: string | null;
+  body_preview?: string | null;
 };
 
-export function mapReelsRow(row: ReelsRow): ReelsItemRecord {
+export function mapReelsRow(row: ReelsRow | PostgrestRow): ReelsItemRecord {
+  const storageType =
+    (row as { content_storage_type?: string | null }).content_storage_type ?? "db";
+  const isS3 = storageType === "s3";
+
   return {
     backgroundImageUrl: row.background_image_url,
-    body: row.body,
+    body: isS3 ? (row as { body_preview?: string | null }).body_preview ?? null : row.body,
+    bodyPreview: isS3 ? (row as { body_preview?: string | null }).body_preview ?? null : row.body,
     chapterId: row.chapter_id,
+    contentEncoding: (row as { content_encoding?: string | null }).content_encoding ?? null,
+    contentHash: (row as { content_hash?: string | null }).content_hash ?? null,
+    contentObjectKey: (row as { content_object_key?: string | null }).content_object_key ?? null,
+    contentSizeBytes: (row as { content_size_bytes?: number | null }).content_size_bytes ?? null,
+    contentStorageType: isS3 ? "s3" : "db",
     createdAt: row.created_at,
-    cta: row.cta,
+    cta: isS3 ? null : row.cta,
     ctaClickCount: row.cta_click_count ?? 0,
     ctaType: row.cta_type,
-    hook: row.hook,
+    hook: isS3 ? null : row.hook,
     id: row.id,
     ownerId: row.owner_id,
     publishedAt: row.published_at,
@@ -42,7 +60,7 @@ export function mapReelsRow(row: ReelsRow): ReelsItemRecord {
     sourceType: row.source_type as ReelsSourceType | null,
     status: row.status as ReelsItemStatus,
     storyId: row.story_id,
-    title: row.title,
+    title: isS3 ? null : row.title,
     updatedAt: row.updated_at,
     viewCount: row.view_count ?? 0
   };

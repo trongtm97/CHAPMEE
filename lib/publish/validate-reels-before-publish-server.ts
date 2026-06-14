@@ -1,4 +1,4 @@
-﻿import {
+import {
   createRule,
   formatBlockingErrors,
   summarizeChecklist
@@ -8,9 +8,10 @@ import {
   type ReelsPublishInput
 } from "@/lib/publish/validate-reels-before-publish";
 import { assertLinkedContentIsPublic } from "@/lib/reels/assert-reels-ownership";
+import { loadReelsContentObject } from "@/lib/storage/reels-content-storage";
 import type { PublishChecklistResult } from "@/types/publish-checklist";
 import type { ReelsFormValues } from "@/types/reels";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export async function validateReelsBeforePublishWithLinks(
   reelsInput: ReelsPublishInput
@@ -31,14 +32,14 @@ export async function validateReelsBeforePublishWithLinks(
 }
 
 export async function validateReelsBeforePublishFromDb(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   reelId: string,
   ownerProfileId: string
 ): Promise<PublishChecklistResult> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("reels_items")
     .select(
-      "id, hook, body, cta, story_id, chapter_id, background_image_url, owner_id"
+      "id, hook, body, cta, story_id, chapter_id, background_image_url, owner_id, content_storage_type, content_object_key, content_hash, body_preview"
     )
     .eq("id", reelId)
     .eq("owner_id", ownerProfileId)
@@ -49,33 +50,55 @@ export async function validateReelsBeforePublishFromDb(
       createRule({
         blocking: true,
         id: "reels",
-        label: "Không tìm thấy Reels",
-        message: "Không tìm thấy Reels.",
+        label: "Không tìm th?y Reels",
+        message: "Không tìm th?y Reels.",
         ok: false,
         targetType: "reels"
       })
     ]);
   }
 
+  // For S3-stored reels, fetch the canonical text before validating.
+  let hook = data.hook;
+  let body = data.body;
+  let cta = data.cta;
+  if (
+    data.content_storage_type === "s3" &&
+    data.content_object_key
+  ) {
+    try {
+      const loaded = await loadReelsContentObject({
+        expectedHash: data.content_hash ?? undefined,
+        objectKey: data.content_object_key
+      });
+      hook = loaded.envelope.hook;
+      body = loaded.envelope.body;
+      cta = loaded.envelope.cta;
+    } catch {
+      // Fall back to preview if S3 read fails.
+      body = data.body_preview ?? body;
+    }
+  }
+
   return validateReelsBeforePublishWithLinks({
     backgroundImageUrl: data.background_image_url,
-    body: data.body,
+    body,
     chapterId: data.chapter_id,
-    cta: data.cta,
-    hook: data.hook,
+    cta,
+    hook,
     storyId: data.story_id
   });
 }
 
 export async function assertReelsCanPublish(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   reelId: string,
   ownerProfileId: string,
   values?: Partial<ReelsFormValues>
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const result = values
     ? await validateReelsBeforePublishWithLinks(values)
-    : await validateReelsBeforePublishFromDb(supabase, reelId, ownerProfileId);
+    : await validateReelsBeforePublishFromDb(db, reelId, ownerProfileId);
 
   if (!result.ok) {
     return { error: formatBlockingErrors(result.rules), ok: false };

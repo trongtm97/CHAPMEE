@@ -1,28 +1,38 @@
-﻿import { getReelsFeed } from "@/lib/feed/getReelsFeed";
+import { getReelsFeed } from "@/lib/feed/getReelsFeed";
 import type { FeedDeliveryMeta } from "@/types/feed-mixer";
 import { resolveCreatorRowName } from "@/lib/creator/resolve-creator-row-name";
+import { profileAvatarUrlFromRow } from "@/lib/profile/map-profile-row";
+import { resolveReelsBackgroundUrl } from "@/lib/reels/resolve-reels-background";
 import { getReelsBackgroundSrc } from "@/lib/images/get-story-image";
 import {
   resolveReelsCtaLabel,
   resolveReelsReadHref
 } from "@/lib/reels/resolve-reels-cta";
 import { getStoryUrl, getReelUrl } from "@/lib/urls/paths";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   loadMainGenreLabelsByStoryIds,
   pickMainGenreFromLabels
 } from "@/lib/taxonomy/story-genre-labels";
+import {
+  sanitizeReelsExcerpt,
+  sanitizeReelsHookTitle
+} from "@/lib/reels/clean-reels-source-text";
 import { createExcerpt } from "@/lib/text/createExcerpt";
 import { getPublicVerificationBadges } from "@/lib/verification/get-user-verification";
 import type { PublicVerificationBadge } from "@/types/verification";
+import { getOptionalSessionUser } from "@/lib/auth/get-optional-session-user";
 
 export type ReelsItemKind = "episode" | "manual";
+export type ReelsContentSource = "chapter" | "story";
 
 export type ReelsItem = {
   kind: ReelsItemKind;
+  contentSource: ReelsContentSource;
   backgroundImageUrl: string | null;
   id: string;
   storyId: string;
+  chapterId: string | null;
   episodeNumber: number;
   episodeTitle: string;
   excerpt: string;
@@ -52,6 +62,8 @@ export type ReelsItem = {
   isSaved: boolean;
   isFollowingCreator: boolean;
   feed?: FeedDeliveryMeta;
+  contentOrigin?: "original" | "translation";
+  rightsStatus?: string | null;
 };
 
 export type ReelsItemsResult = {
@@ -102,10 +114,13 @@ type StoryRelation = {
   cover_url: string | null;
   title: string;
   hook: string | null;
+  short_description: string | null;
   id: string;
   creator_id: string | null;
   slug: string;
   public_code: string;
+  content_origin?: string | null;
+  rights_status?: string | null;
   creator_profiles: CreatorProfileRelation | CreatorProfileRelation[] | null;
 };
 
@@ -126,12 +141,15 @@ type ManualReelsRow = {
   id: string;
   slug: string;
   public_code: string;
-  hook: string;
-  body: string;
+  chapter_id: string | null;
+  hook: string | null;
+  body: string | null;
   cta: string | null;
   cta_type: string | null;
   background_image_url: string | null;
   published_at: string | null;
+  content_storage_type?: string | null;
+  body_preview?: string | null;
   stories: StoryRelation | StoryRelation[] | null;
   episodes:
     | { episode_number: number; title: string; slug: string; public_code: string }
@@ -172,6 +190,22 @@ function buildReelsExcerpt(excerpt: string | null, content: string | null) {
   return "Một đoạn truyện ngắn đang chờ bạn mở tiếp.";
 }
 
+function buildStoryExcerpt(story: Pick<StoryRelation, "hook" | "short_description" | "title">) {
+  const shortDescription = story.short_description?.replace(/\s+/g, " ").trim() ?? "";
+
+  if (shortDescription) {
+    return sanitizeReelsExcerpt(createExcerpt(shortDescription, 80, 160));
+  }
+
+  const hook = story.hook?.replace(/\s+/g, " ").trim() ?? "";
+
+  if (hook) {
+    return sanitizeReelsExcerpt(hook);
+  }
+
+  return `Khám phá truyện "${story.title}" trên ChapMee.`;
+}
+
 function addCount(map: Map<string, number>, key: string | null | undefined) {
   if (!key) {
     return;
@@ -184,7 +218,7 @@ export async function getReelsItems(
   options: GetReelsItemsOptions & { cursor?: string | null } = {}
 ): Promise<ReelsItemsResult> {
   const useMixer = process.env.FEED_MIXER_DISABLED !== "true";
-  const limit = Math.max(1, Math.min(options.limit ?? 12, 20));
+  const limit = Math.max(1, Math.min(options.limit ?? 12, 30));
   const offset = Math.max(0, options.offset ?? 0);
 
   if (useMixer) {
@@ -208,13 +242,11 @@ export async function getReelsItems(
   const fetchCount = offset + limit;
 
   try {
-    const supabase = await createClient();
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
+    const db = await createClient();
+    const user = await getOptionalSessionUser();
 
     async function fetchEpisodes(selectClause: string, rangeEnd: number) {
-      return supabase
+      return db
         .from("episodes")
         .select(selectClause)
         .in("status", ["published", "approved"])
@@ -225,13 +257,13 @@ export async function getReelsItems(
     }
 
     let queryResult = await fetchEpisodes(
-      "id, slug, public_code, episode_number, title, content, excerpt, published_at, background_image_url, stories!inner(id, creator_id, title, slug, public_code, hook, cover_url, status, visibility, creator_profiles(id, pen_name, profiles(username, avatar_url)))",
+      "id, slug, public_code, episode_number, title, content, excerpt, published_at, background_image_url, stories!inner(id, creator_id, title, slug, public_code, hook, short_description, cover_url, content_origin, rights_status, status, visibility, creator_profiles(id, pen_name, profiles(username, avatar_url)))",
       fetchCount
     );
 
     if (queryResult.error?.message?.includes("background_image_url")) {
       queryResult = await fetchEpisodes(
-        "id, slug, public_code, episode_number, title, content, excerpt, published_at, stories!inner(id, creator_id, title, slug, public_code, hook, cover_url, status, visibility, creator_profiles(id, pen_name, profiles(username, avatar_url)))",
+        "id, slug, public_code, episode_number, title, content, excerpt, published_at, stories!inner(id, creator_id, title, slug, public_code, hook, short_description, cover_url, content_origin, rights_status, status, visibility, creator_profiles(id, pen_name, profiles(username, avatar_url)))",
         fetchCount
       );
     }
@@ -242,10 +274,10 @@ export async function getReelsItems(
       throw error;
     }
 
-    const manualResult = await supabase
+    const manualResult = await db
       .from("reels_items")
       .select(
-        "id, slug, public_code, hook, body, cta, cta_type, background_image_url, published_at, stories!inner(id, creator_id, title, slug, public_code, hook, cover_url, status, visibility, creator_profiles(id, pen_name, profiles(username, avatar_url))), episodes(episode_number, title, slug, public_code)"
+        "id, slug, public_code, chapter_id, hook, body, cta, cta_type, background_image_url, published_at, content_storage_type, body_preview, stories!inner(id, creator_id, title, slug, public_code, hook, short_description, cover_url, content_origin, rights_status, status, visibility, creator_profiles(id, pen_name, profiles(username, avatar_url))), episodes(episode_number, title, slug, public_code)"
       )
       .eq("status", "published")
       .order("published_at", { ascending: false })
@@ -262,7 +294,7 @@ export async function getReelsItems(
       )
     ];
     const taxonomyByStory = await loadMainGenreLabelsByStoryIds(
-      supabase,
+      db,
       storyIdsForTaxonomy
     );
 
@@ -288,6 +320,7 @@ export async function getReelsItems(
 
         return {
           kind: "episode" as const,
+          contentSource: "chapter" as const,
           id: episode.id,
           backgroundImageUrl: getReelsBackgroundSrc({
             title: story.title,
@@ -295,10 +328,16 @@ export async function getReelsItems(
             episodeBackgroundUrl: episode.background_image_url
           }),
           storyId: story.id,
+          chapterId: episode.id,
           episodeNumber: episode.episode_number,
           episodeTitle: episode.title,
-          excerpt: buildReelsExcerpt(episode.excerpt, episode.content),
-          hookTitle: story.hook?.trim() || episode.title || story.title,
+          excerpt: sanitizeReelsExcerpt(
+            buildReelsExcerpt(episode.excerpt, episode.content)
+          ),
+          hookTitle: sanitizeReelsHookTitle(
+            story.hook?.trim() || episode.title || story.title,
+            episode.title || story.title
+          ),
           storyTitle: story.title,
           storySlug: story.slug,
           storyPublicCode: story.public_code,
@@ -312,9 +351,11 @@ export async function getReelsItems(
           creatorUserId: creator?.user_id ?? null,
           creatorName: resolveCreatorRowName(creator),
           creatorHandle: profile?.username ?? null,
-          creatorAvatarUrl: profile?.avatar_url ?? null,
+          creatorAvatarUrl: profileAvatarUrlFromRow(profile),
           genreName: picked.genreName,
-          publishedAt: episode.published_at
+          publishedAt: episode.published_at,
+          contentOrigin: story.content_origin === "translation" ? "translation" : "original",
+          rightsStatus: story.rights_status ?? null
         };
       })
       .filter(Boolean) as ReelsFeedItemBase[];
@@ -328,6 +369,7 @@ export async function getReelsItems(
         }
 
         const episode = firstRelation(row.episodes);
+        const contentSource = row.chapter_id ? "chapter" : "story";
         const picked = pickMainGenreFromLabels(taxonomyByStory.get(story.id));
         const creator = firstRelation(story.creator_profiles);
         const profile = firstRelation(creator?.profiles);
@@ -342,21 +384,40 @@ export async function getReelsItems(
         const storyHref = getStoryUrl({ slug: story.slug, public_code: story.public_code });
         const reelHref = getReelUrl({ slug: row.slug, public_code: row.public_code });
 
+        // For S3 storage, body/hook/cta columns are null; fall back to body_preview.
+        const isS3 = row.content_storage_type === "s3";
+        const effectiveBody = isS3
+          ? (row.body_preview ?? null)
+          : (row.body ?? null);
+        const effectiveHook = isS3 ? null : row.hook;
+        const effectiveCta = isS3 ? null : row.cta;
+
         return {
           kind: "manual" as const,
+          contentSource,
           id: row.id,
           backgroundImageUrl:
-            row.background_image_url ??
+            resolveReelsBackgroundUrl(row.background_image_url) ??
             getReelsBackgroundSrc({
               title: story.title,
               storyCoverUrl: story.cover_url,
               episodeBackgroundUrl: null
             }),
           storyId: story.id,
+          chapterId: row.chapter_id,
           episodeNumber,
           episodeTitle: episode?.title ?? "",
-          excerpt: row.body,
-          hookTitle: row.hook,
+          excerpt: sanitizeReelsExcerpt(
+            effectiveBody?.trim() ||
+              (contentSource === "chapter"
+                ? episode?.title ?? story.title
+                : buildStoryExcerpt(story))
+          ),
+          hookTitle: sanitizeReelsHookTitle(
+            effectiveHook?.trim() ||
+              (contentSource === "chapter" ? episode?.title ?? story.title : story.title),
+            contentSource === "chapter" ? episode?.title ?? story.title : story.title
+          ),
           storyTitle: story.title,
           storySlug: story.slug,
           storyPublicCode: story.public_code,
@@ -364,15 +425,19 @@ export async function getReelsItems(
           reelPublicCode: row.public_code,
           reelSlug: row.slug,
           reelHref,
-          ctaLabel: resolveReelsCtaLabel(row.cta, row.cta_type),
+          ctaLabel:
+            effectiveCta?.trim() ||
+            (contentSource === "chapter" ? "Đọc chương" : "Đọc truyện"),
           readMoreHref,
           creatorId: creator?.id ?? story.creator_id ?? null,
           creatorUserId: creator?.user_id ?? null,
           creatorName: resolveCreatorRowName(creator),
           creatorHandle: profile?.username ?? null,
-          creatorAvatarUrl: profile?.avatar_url ?? null,
+          creatorAvatarUrl: profileAvatarUrlFromRow(profile),
           genreName: picked.genreName,
-          publishedAt: row.published_at
+          publishedAt: row.published_at,
+          contentOrigin: story.content_origin === "translation" ? "translation" : "original",
+          rightsStatus: story.rights_status ?? null
         };
       })
       .filter(Boolean) as ReelsFeedItemBase[];
@@ -384,9 +449,41 @@ export async function getReelsItems(
       return rightTime - leftTime;
     });
 
-    const uniqueItemsBase = Array.from(
+    const uniqueItemsBaseRaw = Array.from(
       new Map(merged.map((item) => [`${item.kind}:${item.id}`, item])).values()
     ).slice(offset, offset + limit);
+
+    const userIdsMissingHandle = [
+      ...new Set(
+        uniqueItemsBaseRaw
+          .filter((item) => item.creatorUserId && !item.creatorHandle)
+          .map((item) => item.creatorUserId as string)
+      )
+    ];
+
+    const usernameByUserId = new Map<string, string>();
+    if (userIdsMissingHandle.length > 0) {
+      const { data: profileRows } = await db
+        .from("profiles")
+        .select("id, username")
+        .in("id", userIdsMissingHandle);
+
+      for (const row of profileRows ?? []) {
+        const username =
+          typeof row.username === "string" ? row.username.trim().toLowerCase() : "";
+        if (username) {
+          usernameByUserId.set(String(row.id), username);
+        }
+      }
+    }
+
+    const uniqueItemsBase = uniqueItemsBaseRaw.map((item) => {
+      if (item.creatorHandle || !item.creatorUserId) {
+        return item;
+      }
+      const username = usernameByUserId.get(item.creatorUserId);
+      return username ? { ...item, creatorHandle: username } : item;
+    });
 
     const episodeIds = uniqueItemsBase
       .filter((item) => item.kind === "episode")
@@ -407,7 +504,7 @@ export async function getReelsItems(
     if (episodeIds.length > 0 || storyIds.length > 0) {
       const queries = [
         episodeIds.length > 0
-          ? supabase
+          ? db
               .from("reactions")
               .select("target_id")
               .eq("target_type", "episode")
@@ -415,14 +512,14 @@ export async function getReelsItems(
               .in("target_id", episodeIds)
           : Promise.resolve({ data: [] }),
         episodeIds.length > 0
-          ? supabase
+          ? db
               .from("comments")
               .select("episode_id")
               .eq("status", "visible")
               .in("episode_id", episodeIds)
           : Promise.resolve({ data: [] }),
         storyIds.length > 0
-          ? supabase.rpc("get_public_story_save_counts", {
+          ? db.rpc("get_public_story_save_counts", {
               input_story_ids: storyIds
             })
           : Promise.resolve({ data: [] })
@@ -451,7 +548,7 @@ export async function getReelsItems(
     if (user) {
       const [likedRows, savedRows, followedRows] = await Promise.all([
         episodeIds.length > 0
-          ? supabase
+          ? db
               .from("reactions")
               .select("target_id")
               .eq("user_id", user.id)
@@ -460,14 +557,14 @@ export async function getReelsItems(
               .in("target_id", episodeIds)
           : Promise.resolve({ data: [] }),
         storyIds.length > 0
-          ? supabase
+          ? db
               .from("bookshelf_items")
               .select("story_id")
               .eq("user_id", user.id)
               .in("story_id", storyIds)
           : Promise.resolve({ data: [] }),
         creatorIds.length > 0
-          ? supabase
+          ? db
               .from("follows")
               .select("creator_id")
               .eq("follower_id", user.id)

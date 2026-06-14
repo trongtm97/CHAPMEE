@@ -6,13 +6,16 @@ import { getSiteOrigin } from "@/lib/brand/site-origin";
 import { analyticsEvents } from "@/lib/analytics/events";
 import { detectPotentialSpamContent } from "@/lib/moderation/spam-heuristics";
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { awardMilestone, buildMilestoneToastNotice } from "@/lib/supabase/milestones";
-import { safeRecordFanScoreAction } from "@/lib/supabase/fan-scores";
+import { awardMilestone, buildMilestoneToastNotice } from "@/lib/data/milestones";
+import { safeRecordFanScoreAction } from "@/lib/data/fan-scores";
 import { trackServerEvent } from "@/lib/analytics/trackServerEvent";
 import { createNotification } from "@/lib/notifications/create-notification";
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
 import { assertNotRestricted } from "@/lib/moderation/check-restriction";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
+import { SYNC_SURFACES, type SyncSurface } from "@/lib/community-sync/constants";
+import type { ReelsCommentSyncContext } from "@/lib/community-sync/adapters/types";
+import { saveCommentContentObject } from "@/lib/storage/comments-content-storage";
 
 export type CommentFormState = {
   error: string | null;
@@ -24,6 +27,8 @@ type CreateCommentInput = {
   parentId?: string | null;
   storyId?: string | null;
   communityPostId?: string | null;
+  syncSurface?: SyncSurface;
+  reelsSync?: ReelsCommentSyncContext;
 };
 
 type CreateCommentResult = {
@@ -60,11 +65,11 @@ export async function createCommentRecord(
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user },
     error: userError
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (userError || !user) {
     return {
@@ -116,7 +121,7 @@ export async function createCommentRecord(
   }
 
   if (input.parentId) {
-    const { data: parentComment } = await supabase
+    const { data: parentComment } = await db
       .from("comments")
       .select("id, story_id, episode_id, community_post_id")
       .eq("id", input.parentId)
@@ -170,7 +175,7 @@ export async function createCommentRecord(
     recentSameContentCount: null
   });
 
-  const { data: comment, error } = await supabase
+  const { data: comment, error } = await db
     .from("comments")
     .insert({
       ai_spam_suspected: spam.suspected,
@@ -187,17 +192,83 @@ export async function createCommentRecord(
     .select("id")
     .single();
 
-  if (error) {
+  if (error || !comment) {
     return {
       commentId: null,
-      error: error.message,
+      error: error?.message ?? "Không tạo được bình luận.",
       loginRequired: false,
       milestoneNotice: null
     };
   }
 
+  // Persist canonical comment text to S3, NULL out inline content, keep content_preview.
+  try {
+    const saved = await saveCommentContentObject({
+      commentId: comment.id,
+      content
+    });
+    await db
+      .from("comments")
+      .update({
+        content: null,
+        content_blob_format: saved.blobFormat,
+        content_encoding: saved.encoding,
+        content_hash: saved.hash,
+        content_object_key: saved.objectKey,
+        content_preview: saved.contentPreview,
+        content_size_bytes: saved.sizeBytes,
+        content_storage_type: "s3",
+        content_updated_at: new Date().toISOString()
+      })
+      .eq("id", comment.id);
+  } catch (s3Error) {
+    // Best-effort: keep the comment with inline content so it isn't lost on S3 outage.
+    // A future sweep script can re-try the migration.
+    console.error(
+      "[comments] failed to persist S3 object, kept inline content",
+      s3Error
+    );
+  }
+
+  if (isStoryComment && input.storyId) {
+    const syncCommon = {
+      commentId: comment.id,
+      storyId: input.storyId,
+      episodeId: input.episodeId ?? null,
+      parentCommentId: input.parentId ?? null,
+      actorUserId: user.id,
+      content,
+      moderationStatus: spam.suspected ? "flagged" : "approved",
+      spamSuspected: spam.suspected
+    };
+
+    if (input.reelsSync) {
+      const { syncReelsCommentToStoryGroup } = await import(
+        "@/lib/community-sync/adapters/reels-sync-adapter"
+      );
+      void syncReelsCommentToStoryGroup({
+        ...input.reelsSync,
+        ...syncCommon
+      }).catch((syncError) => {
+        console.error("[community-sync] reels comment sync failed", syncError);
+      });
+    } else {
+      const { syncStoryCommentToGroup } = await import("@/lib/community-sync/comment-sync");
+      const syncSurface =
+        input.syncSurface ??
+        (input.episodeId ? SYNC_SURFACES.chapterReader : SYNC_SURFACES.storyPage);
+
+      void syncStoryCommentToGroup({
+        ...syncCommon,
+        surface: syncSurface
+      }).catch((syncError) => {
+        console.error("[community-sync] comment sync failed", syncError);
+      });
+    }
+  }
+
   const { data: storyRow } = isStoryComment
-    ? await supabase
+    ? await db
         .from("stories")
         .select("creator_id, title")
         .eq("id", input.storyId as string)
@@ -205,7 +276,7 @@ export async function createCommentRecord(
     : { data: null };
 
   const { data: communityPostRow } = isCommunityPost
-    ? await supabase
+    ? await db
         .from("community_posts")
         .select("id, title, story_id, creator_id, user_id")
         .eq("id", input.communityPostId as string)
@@ -215,7 +286,7 @@ export async function createCommentRecord(
   let storyCreatorId = storyRow?.creator_id ?? null;
 
   if (!storyCreatorId && communityPostRow?.story_id) {
-    const { data: postStoryRow } = await supabase
+    const { data: postStoryRow } = await db
       .from("stories")
       .select("creator_id")
       .eq("id", communityPostRow.story_id)
@@ -229,7 +300,7 @@ export async function createCommentRecord(
   }
 
   const { data: creatorRow } = storyCreatorId
-    ? await supabase
+    ? await db
         .from("creator_profiles")
         .select("user_id")
         .eq("id", storyCreatorId)
@@ -250,6 +321,21 @@ export async function createCommentRecord(
     targetId: comment.id,
     targetType: "comment"
   });
+
+  if (isStoryComment && input.storyId) {
+    const { maybeAwardTicketsForStoryComment } = await import(
+      "@/lib/recommendations/award-from-comment"
+    );
+    await maybeAwardTicketsForStoryComment({
+      userId: user.id,
+      commentId: comment.id,
+      storyId: input.storyId,
+      chapterId: input.episodeId ?? null,
+      spamSuspected: spam.suspected
+    }).catch((error) => {
+      console.error("[recommendation-tickets] comment award failed", error);
+    });
+  }
 
   await safeRecordFanScoreAction({
     authorId: storyCreatorId,
@@ -286,7 +372,7 @@ export async function createCommentRecord(
         : "/notifications";
 
     if (input.parentId) {
-      const { data: parentComment } = await supabase
+      const { data: parentComment } = await db
         .from("comments")
         .select("id, user_id")
         .eq("id", input.parentId)
@@ -322,7 +408,7 @@ export async function createCommentRecord(
         ? (input.communityPostId as string)
         : (input.storyId as string);
 
-      const { data: existingUnread } = await supabase
+      const { data: existingUnread } = await db
         .from("notifications")
         .select("id, metadata")
         .eq("user_id", creatorRow.user_id)
@@ -342,7 +428,7 @@ export async function createCommentRecord(
             | undefined) ?? 1
         );
         const nextCount = currentCount + 1;
-        await supabase
+        await db
           .from("notifications")
           .update({
             body:
