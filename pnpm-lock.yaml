@@ -17,6 +17,9 @@ importers:
       '@better-auth/utils':
         specifier: 0.4.1
         version: 0.4.1
+      '@tiptap/core':
+        specifier: ^3.26.1
+        version: 3.26.1(@tiptap/pm@3.26.1)
       '@tiptap/extension-horizontal-rule':
         specifier: ^3.26.1
         version: 3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1)
