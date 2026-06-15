@@ -54,6 +54,16 @@ select {
   font: inherit;
 }
 
+select {
+  color-scheme: dark;
+}
+
+option,
+optgroup {
+  background-color: var(--surface);
+  color: var(--text-main);
+}
+
 ::selection {
   background: rgba(125, 211, 252, 0.3);
 }
@@ -111,6 +121,24 @@ select {
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  .catalog-panel-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+  }
+
+  .catalog-panel-scroll::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .catalog-panel-scroll::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  .catalog-panel-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }
 
 .reader-theme-light {
@@ -129,13 +157,57 @@ select {
   --reader-header-bg: rgba(6, 9, 13, 0.92);
   --reader-header-border: rgba(255, 255, 255, 0.08);
   --reader-header-text: #f4f4f5;
+  --reader-page-bg: transparent;
+}
+
+.reader-theme-black {
+  --reader-header-bg: rgba(0, 0, 0, 0.94);
+  --reader-header-border: rgba(255, 255, 255, 0.06);
+  --reader-header-text: #f4f4f5;
+  --reader-page-bg: #000000;
+}
+
+.reader-theme-light .reader-page,
+.reader-theme-paper .reader-page,
+.reader-theme-black .reader-page {
+  background: var(--reader-page-bg, transparent);
 }
 
 .reader-theme-light .reader-page header,
-.reader-theme-paper .reader-page header {
+.reader-theme-paper .reader-page header,
+.reader-theme-black .reader-page header {
   background: var(--reader-header-bg);
   border-color: var(--reader-header-border);
   color: var(--reader-header-text);
+}
+
+.reader-content p + p {
+  margin-top: 0.15em;
+}
+
+.reader-chapter-image {
+  width: 100%;
+  max-width: 100%;
+}
+
+.reader-chapter-image img {
+  display: block;
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.reader-layout-center {
+  width: 100%;
+  max-width: none;
+}
+
+@media (min-width: 1024px) {
+  .reader-layout-center .reader-content {
+    margin-left: 0;
+    margin-right: 0;
+  }
 }
 
 @keyframes reelsOverlayIn {
@@ -148,4 +220,17 @@ select {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
   }
+}
+
+/* TipTap editor */
+.tiptap-surface .ProseMirror {
+  min-height: inherit;
+}
+
+.tiptap-surface .ProseMirror p.is-editor-empty:first-child::before {
+  color: rgb(113 113 122);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
 }
