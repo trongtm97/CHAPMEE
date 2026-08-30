@@ -5,13 +5,13 @@ import {
   computeQualityPenalty
 } from "@/lib/fair-distribution/quality-penalties";
 import { scoreStoryCandidate } from "@/lib/fair-distribution/score-story-candidate";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type {
   ExplainRecommendationResult,
   FairDistributionSurface
 } from "@/types/fair-distribution";
 import type { FeedCandidate } from "@/types/feed-mixer";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 function sinceIso(days: number) {
   const d = new Date();
@@ -20,11 +20,11 @@ function sinceIso(days: number) {
 }
 
 async function countExposure(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   since: string
 ) {
-  const { count } = await supabase
+  const { count } = await db
     .from("exposure_events")
     .select("id", { count: "exact", head: true })
     .eq("story_id", storyId)
@@ -33,13 +33,13 @@ async function countExposure(
 }
 
 export async function explainRecommendation(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   surface: FairDistributionSurface = "reels"
 ): Promise<ExplainRecommendationResult> {
   const config = await getFairDistributionConfig();
 
-  const { data: story } = await supabase
+  const { data: story } = await db
     .from("stories")
     .select("id, title, published_at, creator_profiles(user_id)")
     .eq("id", storyId)
@@ -51,8 +51,8 @@ export async function explainRecommendation(
   const authorUserId = (creator as { user_id?: string } | null)?.user_id ?? "";
 
   const [taxonomyMeta, scoreRow] = await Promise.all([
-    loadStoryTaxonomyBatch(supabase, [storyId]),
-    supabase
+    loadStoryTaxonomyBatch(db, [storyId]),
+    db
       .from("content_score_snapshots")
       .select("quality_score, discovery_score, freshness_score")
       .eq("item_type", "story")
@@ -88,10 +88,10 @@ export async function explainRecommendation(
 
   const [{ flags, qualityStatuses }, taxonomyShare, exposure24h, exposure7d] =
     await Promise.all([
-      loadQualityContextForCandidates(supabase, [candidate]),
-      loadTaxonomyExposureShare(supabase, surface, 7),
-      countExposure(supabase, storyId, sinceIso(1)),
-      countExposure(supabase, storyId, sinceIso(7))
+      loadQualityContextForCandidates(db, [candidate]),
+      loadTaxonomyExposureShare(db, surface, 7),
+      countExposure(db, storyId, sinceIso(1)),
+      countExposure(db, storyId, sinceIso(7))
     ]);
 
   const penalty = computeQualityPenalty(
@@ -109,7 +109,7 @@ export async function explainRecommendation(
   });
 
   let recentLogs: ExplainRecommendationResult["recentLogs"] = [];
-  const { data: logs, error: logsError } = await supabase
+  const { data: logs, error: logsError } = await db
     .from("recommendation_exposure_logs")
     .select("shown_at, surface, score, reason_json")
     .eq("story_id", storyId)

@@ -8,7 +8,7 @@ import { CommunityPollCard } from "@/components/community/CommunityPollCard";
 import { SpoilerContent } from "@/components/community/SpoilerContent";
 import { AuthorNameLink } from "@/components/profile/AuthorNameLink";
 import { AvatarFallback, Badge } from "@/components/ui";
-import { getProfileUrl } from "@/lib/profile/profile-url";
+import { getCreatorPublicHref } from "@/lib/profile/profile-url";
 import type { EnrichedCommunityPost } from "@/types/community";
 import type { CommunityPostType } from "@/lib/community/getCommunityFeed";
 
@@ -87,23 +87,27 @@ export function CommunityPostCard({ onHide, post }: CommunityPostCardProps) {
     );
   }
 
-  const authorProfileHref = getProfileUrl(post.authorUsername);
+  const authorProfileHref = getCreatorPublicHref({
+    username: post.authorUsername,
+    userId: post.authorUserId
+  });
 
   return (
     <article className="chap-card space-y-3 p-4 transition hover:border-cyan-300/20">
       <header className="flex items-start gap-3">
         {authorProfileHref ? (
           <Link className="shrink-0" href={authorProfileHref}>
-            <AvatarFallback name={post.authorName} size="sm" />
+            <AvatarFallback name={post.authorName} size="sm" src={post.authorAvatarUrl} />
           </Link>
         ) : (
-          <AvatarFallback name={post.authorName} size="sm" />
+          <AvatarFallback name={post.authorName} size="sm" src={post.authorAvatarUrl} />
         )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="truncate text-sm font-bold text-white">
               <AuthorNameLink
                 name={post.authorName}
+                userId={post.authorUserId}
                 username={post.authorUsername}
               />
             </p>

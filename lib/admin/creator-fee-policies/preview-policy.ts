@@ -9,7 +9,7 @@ import {
   buildDefaultSourceRates,
   resolveCreatorFeePolicyForSource
 } from "@/lib/finance/resolve-creator-fee-policy";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CreatorFeePolicyKpiSummary } from "@/types/admin-creator-fee-policy";
 import type { CreatorFeeRevenueSourceId } from "@/types/creator-fee-policy";
 
@@ -34,7 +34,7 @@ export async function getCreatorFeePolicyStatsAction(): Promise<{
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date();
   const expiringBefore = new Date(now.getTime() + EXPIRING_DAYS * 86400000).toISOString();
   const todayStart = new Date(now);
@@ -48,31 +48,31 @@ export async function getCreatorFeePolicyStatsAction(): Promise<{
     { count: pausedCount },
     { count: customPolicyTxToday }
   ] = await Promise.all([
-    supabase
+    db
       .from("creator_fee_policies")
       .select("id", { count: "exact", head: true })
       .eq("status", "active"),
-    supabase
+    db
       .from("creator_fee_policies")
       .select("id", { count: "exact", head: true })
       .eq("status", "active")
       .not("ends_at", "is", null)
       .lte("ends_at", expiringBefore)
       .gte("ends_at", now.toISOString()),
-    supabase
+    db
       .from("creator_fee_policies")
       .select("creator_id", { count: "exact", head: true })
       .in("status", ["active", "scheduled", "paused"]),
-    supabase
+    db
       .from("creator_fee_policies")
       .select("id", { count: "exact", head: true })
       .in("creator_type", ["originals", "strategic_partner"])
       .in("status", ["active", "scheduled"]),
-    supabase
+    db
       .from("creator_fee_policies")
       .select("id", { count: "exact", head: true })
       .in("status", ["paused", "disabled"]),
-    supabase
+    db
       .from("creator_earning_transactions")
       .select("id", { count: "exact", head: true })
       .gte("created_at", todayStart.toISOString())
@@ -129,8 +129,8 @@ export async function previewCreatorFeePolicyAction(input: {
       appliedPolicyType: "custom"
     };
   } else if (input.policyId) {
-    const supabase = await createClient();
-    const { data } = await supabase
+    const db = await createClient();
+    const { data } = await db
       .from("creator_fee_policies")
       .select("*")
       .eq("id", input.policyId)

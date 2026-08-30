@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getNotificationGroup } from "@/lib/notifications/notification-groups";
 import type {
   NotificationItem,
@@ -39,13 +39,13 @@ export async function createNotification(
     return null;
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const dedupeWindowMinutes = data.dedupeWindowMinutes ?? 20;
   const sinceIso = new Date(Date.now() - dedupeWindowMinutes * 60_000).toISOString();
 
   try {
     const group = getNotificationGroup(type);
-    const { data: preferences } = await supabase
+    const { data: preferences } = await db
       .from("notification_preferences")
       .select("reader_enabled, author_enabled, system_enabled")
       .eq("user_id", userId)
@@ -59,7 +59,7 @@ export async function createNotification(
       return null;
     }
 
-    const dedupeQuery = supabase
+    const dedupeQuery = db
       .from("notifications")
       .select("id")
       .eq("user_id", userId)
@@ -77,7 +77,7 @@ export async function createNotification(
     } else if ((existing ?? []).length > 0) {
       const existingId = existing![0].id as string;
       if (data.mergeMode === "update") {
-        const { data: updated, error: updateError } = await supabase
+        const { data: updated, error: updateError } = await db
           .from("notifications")
           .update({
             title: data.title,
@@ -105,7 +105,7 @@ export async function createNotification(
       return null;
     }
 
-    const { data: created, error } = await supabase
+    const { data: created, error } = await db
       .from("notifications")
       .insert({
         user_id: userId,

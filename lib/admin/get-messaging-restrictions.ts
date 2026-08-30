@@ -1,16 +1,16 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { MessagingRestrictionItem } from "@/types/messaging-safety";
 
 export async function getActiveMessagingRestrictionsList(): Promise<
   MessagingRestrictionItem[]
 > {
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date().toISOString();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("messaging_restrictions")
     .select(
       `id, user_id, restriction_type, reason_code, note, starts_at, ends_at, created_by,
@@ -45,7 +45,7 @@ export async function getActiveMessagingRestrictionsList(): Promise<
     } | null;
 
     const userId = row.user_id as string;
-    const { count } = await supabase
+    const { count } = await db
       .from("message_reports")
       .select("id", { count: "exact", head: true })
       .eq("reported_user_id", userId)

@@ -10,6 +10,7 @@ type StorySortControlProps = {
   filters: StoryCatalogFilterParams;
   className?: string;
   hideLabel?: boolean;
+  allowedSorts?: StoryCatalogSort[];
 };
 
 const options: Array<{ value: StoryCatalogSort; label: string }> = [
@@ -29,12 +30,19 @@ const options: Array<{ value: StoryCatalogSort; label: string }> = [
 ];
 
 export function StorySortControl({
+  allowedSorts,
   className = "",
   currentSort,
   filters,
   hideLabel = false
 }: StorySortControlProps) {
   const router = useRouter();
+  const visibleOptions = allowedSorts?.length
+    ? options.filter((option) => allowedSorts.includes(option.value))
+    : options;
+  const safeCurrentSort = visibleOptions.some((option) => option.value === currentSort)
+    ? currentSort
+    : (visibleOptions[0]?.value ?? "updated");
 
   return (
     <label
@@ -46,11 +54,11 @@ export function StorySortControl({
         name="sort"
         onChange={(event) => {
           const nextSort = event.target.value as StoryCatalogSort;
-          router.push(buildCatalogHref({ ...filters, sort: nextSort, page: 1 }));
+            router.push(buildCatalogHref({ ...filters, sort: nextSort, page: 1 }));
         }}
-        value={currentSort}
+        value={safeCurrentSort}
       >
-        {options.map((option) => (
+        {visibleOptions.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>

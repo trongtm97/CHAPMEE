@@ -1,7 +1,7 @@
 import { getAlgorithmConfig } from "@/lib/algorithm/settings";
 import { buildScoringConfig, type ScoringConfig } from "@/lib/scoring/config";
 import { loadExposure7dContext } from "@/lib/fairness/load-exposure-7d";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { isBroadSearchQuery } from "@/lib/search/normalize-query";
 import type { SearchResultItem } from "@/types/search";
 
@@ -135,6 +135,42 @@ export function applySearchFairness(
   }
 
   return picked;
+}
+
+export function applySearchOriginBalance(
+  items: SearchResultItem[],
+  options: {
+    enabled: boolean;
+    originalMinPercent: number;
+    translationMaxPercent: number;
+    topWindow?: number;
+  }
+) {
+  if (!options.enabled) return items;
+  const topWindow = Math.max(4, options.topWindow ?? 10);
+  const head = items.slice(0, topWindow);
+  const tail = items.slice(topWindow);
+  if (head.length === 0) return items;
+
+  const originals = head.filter((item) => item.contentOrigin !== "translation");
+  const translations = head.filter((item) => item.contentOrigin === "translation");
+  const minOriginal = Math.ceil((head.length * options.originalMinPercent) / 100);
+  const maxTranslation = Math.floor((head.length * options.translationMaxPercent) / 100);
+
+  const balanced: SearchResultItem[] = [];
+  balanced.push(...originals.slice(0, minOriginal));
+  balanced.push(...translations.slice(0, Math.max(0, maxTranslation)));
+
+  const used = new Set(balanced.map((item) => `${item.resultType}:${item.id}`));
+  for (const item of head) {
+    if (balanced.length >= head.length) break;
+    const key = `${item.resultType}:${item.id}`;
+    if (used.has(key)) continue;
+    used.add(key);
+    balanced.push(item);
+  }
+
+  return [...balanced, ...tail];
 }
 
 export function filterResultsByType(

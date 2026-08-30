@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StoryImageUploader } from "@/components/story/StoryImageUploader";
 import { StoryImageVariantWarning } from "@/components/story/StoryImageVariantWarning";
+import { resolveStoryCoverPreviewUrl } from "@/lib/images/resolve-story-cover-preview-url";
 import type { StoryImage } from "@/types/story-images";
 
 type StoryCoverFieldProps = {
@@ -10,15 +11,43 @@ type StoryCoverFieldProps = {
   coverUrl?: string | null;
   currentImage?: StoryImage | null;
   disabled?: boolean;
+  onCoverChange?: (coverUrl: string | null) => void;
 };
+
+function resolveStoredCoverUrl(
+  coverUrl?: string | null,
+  currentImage?: StoryImage | null
+) {
+  return (
+    coverUrl?.trim() ||
+    currentImage?.portraitUrl ||
+    currentImage?.originalUrl ||
+    null
+  );
+}
 
 export function StoryCoverField({
   coverUrl,
   currentImage = null,
   disabled = false,
+  onCoverChange,
   storyId
 }: StoryCoverFieldProps) {
-  const [hiddenCoverUrl, setHiddenCoverUrl] = useState(coverUrl ?? "");
+  const [hiddenCoverUrl, setHiddenCoverUrl] = useState(
+    resolveStoredCoverUrl(coverUrl, currentImage) ?? ""
+  );
+
+  useEffect(() => {
+    const next = resolveStoredCoverUrl(coverUrl, currentImage);
+    if (next) {
+      setHiddenCoverUrl(next);
+      onCoverChange?.(next);
+    }
+  }, [coverUrl, currentImage, onCoverChange]);
+  const previewUrl = useMemo(
+    () => resolveStoryCoverPreviewUrl(hiddenCoverUrl || coverUrl, currentImage),
+    [coverUrl, currentImage, hiddenCoverUrl]
+  );
 
   if (!storyId) {
     return (
@@ -38,11 +67,15 @@ export function StoryCoverField({
         <StoryImageVariantWarning currentImage={currentImage} storyId={storyId} />
       ) : null}
       <StoryImageUploader
+        currentImage={currentImage}
         disabled={disabled}
-        initialPreviewUrl={hiddenCoverUrl || coverUrl}
-        onUploaded={({ coverUrl: nextCoverUrl }) => {
-          setHiddenCoverUrl(nextCoverUrl);
+        initialPreviewUrl={previewUrl}
+        onUploaded={({ image }) => {
+          const next = image.portraitUrl ?? image.originalUrl ?? "";
+          setHiddenCoverUrl(next);
+          onCoverChange?.(next || null);
         }}
+        storageKey={hiddenCoverUrl || coverUrl || ""}
         storyId={storyId}
       />
       <input name="cover_url" type="hidden" value={hiddenCoverUrl} />

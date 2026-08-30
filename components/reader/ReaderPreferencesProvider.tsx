@@ -55,7 +55,9 @@ export function ReaderPreferencesProvider({ children }: { children: ReactNode })
       ? "reader-theme-light"
       : preferences.theme === "paper"
         ? "reader-theme-paper"
-        : "reader-theme-dark";
+        : preferences.theme === "black"
+          ? "reader-theme-black"
+          : "reader-theme-dark";
 
   return (
     <ReaderPreferencesContext.Provider value={value}>

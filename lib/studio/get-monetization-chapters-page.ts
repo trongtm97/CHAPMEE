@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { StudioChapterMonetizationRow } from "@/types/story-monetization";
 import type { ChapterPricingSource } from "@/types/story-monetization";
 
@@ -88,9 +88,9 @@ export async function getMonetizationChaptersPage(
   const pageSize = Math.min(100, Math.max(10, query.pageSize));
   const search = query.search.trim().toLowerCase();
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: episodes, error } = await supabase
+  const { data: episodes, error } = await db
     .from("episodes")
     .select("id, episode_number, title, status, updated_at")
     .eq("story_id", query.storyId)
@@ -112,7 +112,7 @@ export async function getMonetizationChaptersPage(
 
   const { data: settings } =
     episodeIds.length > 0
-      ? await supabase
+      ? await db
           .from("chapter_monetization_settings")
           .select("chapter_id, is_paid, coin_price, pricing_source, monetization_override, updated_at")
           .eq("story_id", query.storyId)
@@ -169,15 +169,15 @@ export async function getMonetizationChaptersPage(
 }
 
 export async function getStoryMonetizationDetail(storyId: string, creatorUserId: string) {
-  const supabase = await createClient();
+  const db = await createClient();
 
   const [{ data: story }, settingsResult] = await Promise.all([
-    supabase
+    db
       .from("stories")
       .select("id, title, slug, status")
       .eq("id", storyId)
       .maybeSingle(),
-    import("@/lib/supabase/story-monetization").then((mod) =>
+    import("@/lib/data/story-monetization").then((mod) =>
       mod.getStoryMonetizationSettings(storyId)
     )
   ]);
@@ -188,29 +188,29 @@ export async function getStoryMonetizationDetail(storyId: string, creatorUserId:
 
   const settings =
     settingsResult.data ??
-    (await import("@/lib/supabase/story-monetization")).defaultStoryMonetizationSettings({
+    (await import("@/lib/data/story-monetization")).defaultStoryMonetizationSettings({
       storyId,
       creatorUserId
     });
 
   const [{ count: chapterCount }, { data: paidRows }, { count: fullAccessCount }, { data: txRows }] =
     await Promise.all([
-      supabase
+      db
         .from("episodes")
         .select("id", { count: "exact", head: true })
         .eq("story_id", storyId)
         .neq("status", "archived"),
-      supabase
+      db
         .from("chapter_monetization_settings")
         .select("chapter_id")
         .eq("story_id", storyId)
         .eq("is_paid", true),
-      supabase
+      db
         .from("story_full_access_unlocks")
         .select("id", { count: "exact", head: true })
         .eq("story_id", storyId)
         .eq("status", "active"),
-      supabase
+      db
         .from("transactions")
         .select("type, net_amount_vnd, creator_gross_vnd")
         .eq("story_id", storyId)

@@ -8,7 +8,12 @@ export const DISCOVER_SECTION_KEYS = [
   "might_miss",
   "underexposed_genres",
   "completed",
-  "ranking_today"
+  "ranking_today",
+  "featured_originals",
+  "free_translations",
+  "top_originals",
+  "top_translations",
+  "recommended_boosted"
 ] as const;
 
 export type DiscoverSectionKey = (typeof DISCOVER_SECTION_KEYS)[number];
@@ -88,6 +93,24 @@ export const DISCOVER_SECTION_CONFIG: DiscoverSectionConfig[] = [
     variant: "carousel"
   },
   {
+    key: "featured_originals",
+    title: "Truyện sáng tác đang nổi",
+    subtitle: "Xương sống creator ecosystem của ChapMee",
+    href: "/truyen-sang-tac",
+    pools: ["original_pool", "personalized", "trending_quality"],
+    limit: 8,
+    variant: "carousel"
+  },
+  {
+    key: "free_translations",
+    title: "Truyện Dịch miễn phí",
+    subtitle: "Nội dung chuyển ngữ miễn phí theo chính sách nền tảng",
+    href: "/truyen-dich",
+    pools: ["translation_pool", "mixed_pool"],
+    limit: 8,
+    variant: "carousel"
+  },
+  {
     key: "ranking_today",
     title: "Top hôm nay",
     subtitle: "Bảng xếp hạng 24 giờ",
@@ -95,6 +118,33 @@ export const DISCOVER_SECTION_CONFIG: DiscoverSectionConfig[] = [
     pools: [],
     limit: 5,
     variant: "ranking"
+  },
+  {
+    key: "top_originals",
+    title: "Top truyện sáng tác",
+    subtitle: "Xếp hạng riêng cho tác phẩm sáng tác",
+    href: "/truyen-sang-tac?sort=hot",
+    pools: ["original_pool", "trending_quality"],
+    limit: 8,
+    variant: "carousel"
+  },
+  {
+    key: "top_translations",
+    title: "Top Truyện Dịch",
+    subtitle: "Xếp hạng riêng cho truyện dịch",
+    href: "/truyen-dich?sort=reads",
+    pools: ["translation_pool", "mixed_pool"],
+    limit: 8,
+    variant: "carousel"
+  },
+  {
+    key: "recommended_boosted",
+    title: "Được Đề Cử",
+    subtitle: "Boost có kiểm soát, không vượt quá organic ranking",
+    href: "/truyen?sort=saved",
+    pools: ["admin_boost", "trending_quality", "original_pool"],
+    limit: 8,
+    variant: "carousel"
   }
 ];
 

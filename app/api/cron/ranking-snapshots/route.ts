@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateRankingSnapshots } from "@/lib/ranking/generate-snapshots";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -23,8 +23,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = createAdminClient();
-    const result = await generateRankingSnapshots(supabase);
+    const db = createAdminClient();
+    const result = await generateRankingSnapshots(db);
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(

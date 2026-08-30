@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   isCampaignNotificationId,
   stripCampaignNotificationId
@@ -18,16 +18,16 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const {
       data: { user }
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
     if (user) {
       if (isCampaignNotificationId(notificationId)) {
         await markNotificationRead(user.id, stripCampaignNotificationId(notificationId));
       } else {
-        await supabase
+        await db
           .from("notifications")
           .update({ read_at: new Date().toISOString() })
           .eq("id", notificationId)

@@ -3,8 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import {
   STORY_IMAGE_ACCEPT_ATTRIBUTE,
+  STORY_IMAGE_MIN_SIZE_LABEL,
+  validateStoryImageDimensions,
   validateStoryImageFileMeta
 } from "@/lib/images/validate-image-upload";
+import { StudioPolicyNotice } from "@/components/studio/StudioPolicyNotice";
 
 type StoryCreateCoverFieldProps = {
   disabled?: boolean;
@@ -48,8 +51,25 @@ export function StoryCreateCoverField({
       setError(metaError);
       return;
     }
-    setError(null);
-    onFileChange(picked);
+
+    // Validate dimensions
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(picked);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const dimError = validateStoryImageDimensions(img.naturalWidth, img.naturalHeight);
+      if (dimError) {
+        setError(dimError + ` (${STORY_IMAGE_MIN_SIZE_LABEL})`);
+        return;
+      }
+      setError(null);
+      onFileChange(picked);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      setError("Không thể đọc file ảnh.");
+    };
+    img.src = objectUrl;
   }
 
   return (
@@ -100,9 +120,19 @@ export function StoryCreateCoverField({
             ) : null}
           </div>
           <p className="text-xs leading-5 text-zinc-500">
-            JPG, PNG hoặc WebP · tối đa 8MB. Ảnh sẽ được tải lên khi bạn lưu hoặc tạo
-            truyện.
+            JPG, PNG hoặc WebP · tối đa 8MB · {STORY_IMAGE_MIN_SIZE_LABEL}. Ảnh sẽ
+            được tải lên khi bạn lưu hoặc tạo truyện.
           </p>
+          <StudioPolicyNotice
+            note="Dùng ảnh gốc do bạn tạo, ảnh AI mới hoặc ảnh bạn có quyền sử dụng."
+            title="Quy định ảnh bìa truyện"
+            items={[
+              "Tỉ lệ 3:4.",
+              "Không copy 100% từ nguồn khác.",
+              "Không chứa chữ tiếng Việt bị lỗi đọc hoặc chữ nước ngoài gây khó đọc.",
+              "Nên tạo ảnh mới bằng công cụ AI hoặc chỉnh sửa để phù hợp người Việt."
+            ]}
+          />
         </div>
       </div>
       {error ? (

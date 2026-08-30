@@ -1,1 +1,1 @@
-export { getUnreadNotificationCount } from "@/lib/supabase/notifications";
+export { getUnreadNotificationCount } from "@/lib/data/notifications";

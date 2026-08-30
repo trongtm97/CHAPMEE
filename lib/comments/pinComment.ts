@@ -1,15 +1,15 @@
 "use server";
 
 import { assertStaffAnyPermission } from "@/lib/auth/staff-guards";
-import { createClient } from "@/lib/supabase/server";
-import { awardMilestone } from "@/lib/supabase/milestones";
+import { createClient } from "@/lib/data/server";
+import { awardMilestone } from "@/lib/data/milestones";
 import { createNotification } from "@/lib/notifications/create-notification";
 
 export async function pinComment(commentId: string, pinned: boolean) {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) {
     return { error: "Unauthorized", ok: false, status: 401 };
@@ -25,7 +25,7 @@ export async function pinComment(commentId: string, pinned: boolean) {
     };
   }
 
-  const { error } = await supabase.rpc("set_comment_pinned", {
+  const { error } = await db.rpc("set_comment_pinned", {
     input_comment_id: commentId,
     input_pinned: pinned
   });
@@ -39,7 +39,7 @@ export async function pinComment(commentId: string, pinned: boolean) {
   }
 
   if (pinned) {
-    const { data: commentRow } = await supabase
+    const { data: commentRow } = await db
       .from("comments")
       .select("id, user_id, story_id, episode_id, stories(title, creator_id)")
       .eq("id", commentId)
@@ -50,7 +50,7 @@ export async function pinComment(commentId: string, pinned: boolean) {
       : commentRow?.stories;
 
     if (story?.creator_id) {
-      const { data: creatorRow } = await supabase
+      const { data: creatorRow } = await db
         .from("creator_profiles")
         .select("user_id")
         .eq("id", story.creator_id)

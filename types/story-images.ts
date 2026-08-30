@@ -1,3 +1,5 @@
+import { resolveStoredMediaUrl } from "@/lib/media/media-url";
+
 export const storyImageVariants = [
   "original",
   "portrait",
@@ -101,7 +103,8 @@ export function getStoryImageVariantUrl(
     return null;
   }
 
-  return image[variantUrlKey[variant]] ?? null;
+  const stored = image[variantUrlKey[variant]];
+  return resolveStoredMediaUrl(stored, { bucket: image.storageBucket }) ?? null;
 }
 
 /** Minimal story shape for {@link import("@/lib/images/get-story-image").getStoryImage}. */

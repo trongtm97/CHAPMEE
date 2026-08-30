@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import { EditorCanvas, type EditorCanvasHandle } from "@/components/editor/EditorCanvas";
-import { EditorToolbar } from "@/components/editor/EditorToolbar";
-import type { TextareaFormatAction } from "@/lib/editor/text-format";
 
 type ChapterProseEditorProps = {
   canvasRef: React.RefObject<EditorCanvasHandle | null>;
@@ -12,9 +10,9 @@ type ChapterProseEditorProps = {
   imageCount: number;
   imageLimitReached: boolean;
   onChange: (value: string) => void;
-  onFormat: (action: TextareaFormatAction) => void;
   onInsertImage: () => void;
   onInsertTemplate: () => void;
+  onNormalize?: () => void;
   onRedo: () => void;
   onSaveTemplate: () => void;
   onUndo: () => void;
@@ -27,9 +25,9 @@ export function ChapterProseEditor({
   imageCount,
   imageLimitReached,
   onChange,
-  onFormat,
   onInsertImage,
   onInsertTemplate,
+  onNormalize,
   onRedo,
   onSaveTemplate,
   onUndo
@@ -38,15 +36,37 @@ export function ChapterProseEditor({
 
   const toolbar = (
     <div className="flex flex-wrap items-center gap-2">
-      <EditorToolbar
+      <button
+        className="inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-zinc-950/80 px-3 text-xs font-semibold text-zinc-200 transition hover:bg-white/10 disabled:opacity-40"
+        disabled={disabled || imageLimitReached}
+        onClick={onInsertImage}
+        title={
+          imageLimitReached
+            ? "Bạn đã đạt giới hạn ảnh trong chương này."
+            : "Chèn ảnh"
+        }
+        type="button"
+      >
+        Chèn ảnh{imageCount > 0 ? ` (${imageCount})` : ""}
+      </button>
+      <button
+        className="inline-flex h-9 min-w-9 items-center justify-center rounded-lg border border-white/10 bg-zinc-950/80 px-2 text-xs font-semibold text-zinc-300 hover:bg-white/10 disabled:opacity-40"
         disabled={disabled}
-        imageCount={imageCount}
-        imageLimitReached={imageLimitReached}
-        onFormat={onFormat}
-        onInsertImage={onInsertImage}
-        onRedo={onRedo}
-        onUndo={onUndo}
-      />
+        onClick={onUndo}
+        title="Hoàn tác"
+        type="button"
+      >
+        ↶
+      </button>
+      <button
+        className="inline-flex h-9 min-w-9 items-center justify-center rounded-lg border border-white/10 bg-zinc-950/80 px-2 text-xs font-semibold text-zinc-300 hover:bg-white/10 disabled:opacity-40"
+        disabled={disabled}
+        onClick={onRedo}
+        title="Làm lại"
+        type="button"
+      >
+        ↷
+      </button>
       <button
         className="inline-flex h-9 items-center rounded-lg border border-white/10 bg-zinc-950/80 px-3 text-xs font-semibold text-zinc-200 hover:bg-white/10 disabled:opacity-40"
         disabled={disabled}
@@ -63,6 +83,17 @@ export function ChapterProseEditor({
       >
         Lưu thành mẫu
       </button>
+      {onNormalize ? (
+        <button
+          className="inline-flex h-9 items-center rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 text-xs font-semibold text-amber-200 hover:bg-amber-400/20 disabled:opacity-40"
+          disabled={disabled || !content.trim()}
+          onClick={onNormalize}
+          title="Chuẩn hoá khoảng trắng, xuống dòng, dấu câu"
+          type="button"
+        >
+          Chuẩn hoá
+        </button>
+      ) : null}
       <button
         aria-label={focusMode ? "Thoát chế độ tập trung" : "Chế độ tập trung"}
         className="inline-flex h-9 items-center rounded-lg border border-white/10 bg-zinc-950/80 px-3 text-xs font-semibold text-zinc-200 hover:bg-white/10"
@@ -87,21 +118,24 @@ export function ChapterProseEditor({
     </div>
   );
 
-  if (focusMode) {
-    return (
-      <div className="fixed inset-0 z-40 flex flex-col bg-[#070b12] p-3 sm:p-6">
-        <div className="mb-3 shrink-0">{toolbar}</div>
-        <div className="min-h-0 flex-1 overflow-y-auto">{editor}</div>
-      </div>
-    );
-  }
-
   return (
-    <section className="space-y-3">
-      <div className="sticky top-[7.5rem] z-10 -mx-1 bg-[#070b12]/90 px-1 py-2 backdrop-blur-sm">
+    <section
+      className={
+        focusMode
+          ? "fixed inset-0 z-40 flex flex-col bg-[#070b12] p-3 sm:p-6"
+          : "space-y-3"
+      }
+    >
+      <div
+        className={
+          focusMode
+            ? "mb-3 shrink-0"
+            : "sticky top-[7.5rem] z-10 -mx-1 bg-[#070b12]/90 px-1 py-2 backdrop-blur-sm"
+        }
+      >
         {toolbar}
       </div>
-      {editor}
+      <div className={focusMode ? "min-h-0 flex-1 overflow-y-auto" : undefined}>{editor}</div>
     </section>
   );
 }

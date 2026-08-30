@@ -1,7 +1,8 @@
 import { resolveCreatorRowName } from "@/lib/creator/resolve-creator-row-name";
-import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/postgrest-selects";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
 import { mapStoryStructureFromRow } from "@/lib/stories/story-structure";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { LibrarySavedStory } from "@/types/library";
 
 type BookshelfRow = {
@@ -61,8 +62,8 @@ export async function getSavedStoriesForLibrary(
   const offset = options.offset ?? 0;
 
   try {
-    const supabase = await createClient();
-    const { data, error, count } = await supabase
+    const db = await createClient();
+    const { data, error, count } = await db
       .from("bookshelf_items")
       .select(
         `created_at, stories(id, title, slug, public_code, cover_url, is_completed, published_at, structure_type, standalone_reading_time_minutes, ${CREATOR_PROFILE_STORY_JOIN})`,
@@ -93,7 +94,7 @@ export async function getSavedStoriesForLibrary(
     >();
 
     if (storyIds.length > 0) {
-      const { data: progressRows } = await supabase
+      const { data: progressRows } = await db
         .from("reading_progress")
         .select("story_id, progress_percent, episodes(episode_number, slug, public_code)")
         .eq("user_id", userId)
@@ -114,7 +115,7 @@ export async function getSavedStoriesForLibrary(
     const latestPublishedByStory = new Map<string, string | null>();
 
     if (storyIds.length > 0) {
-      const { data: episodeRows } = await supabase
+      const { data: episodeRows } = await db
         .from("episodes")
         .select("story_id, published_at, episode_number")
         .in("story_id", storyIds)
@@ -144,7 +145,7 @@ export async function getSavedStoriesForLibrary(
           slug: story.slug,
           publicCode: story.public_code,
           title: story.title,
-          coverUrl: story.cover_url,
+          coverUrl: resolveStoryCoverUrl(story.cover_url),
           authorName: resolveCreatorRowName(creator),
           isCompleted: Boolean(story.is_completed),
           episodeCount: episodeCountByStory.get(story.id) ?? 0,

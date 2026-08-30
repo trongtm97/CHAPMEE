@@ -1,5 +1,5 @@
-import { createAdminClient } from "@/lib/supabase/admin";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/data/admin";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type StoryTaxonomyTrackingContext = {
   taxonomyTermIds: string[];
@@ -8,9 +8,9 @@ export type StoryTaxonomyTrackingContext = {
 
 export async function getStoryTaxonomyTrackingContext(
   storyId: string,
-  supabase?: SupabaseClient
+  db?: DatabaseClient
 ): Promise<StoryTaxonomyTrackingContext> {
-  const client = supabase ?? createAdminClient();
+  const client = db ?? createAdminClient();
   const { data: links } = await client
     .from("story_taxonomy_terms")
     .select("term_id, type")

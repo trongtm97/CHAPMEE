@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PublishGuidelinesNotice } from "@/components/creator/GuidelinesSubmitAcknowledgement";
 import { Button, Card } from "@/components/ui";
 import {
   StoryCreateChecklist,
@@ -8,7 +9,6 @@ import {
 } from "@/components/studio/stories/create/StoryCreateChecklist";
 import type { StoryFormIntent } from "@/lib/creator/storyFormValidation";
 import type { StoryCreateFieldIssue, StoryCreateStepId } from "@/lib/studio/story-create-validation";
-import type { StoryStructureType } from "@/types/story-structure";
 
 type StoryCreateSidebarProps = {
   autosaveLabel: string | null;
@@ -21,7 +21,6 @@ type StoryCreateSidebarProps = {
   pending: boolean;
   showValidationErrors: boolean;
   step: StoryCreateStepId;
-  structureType?: StoryStructureType;
   visibility: string;
 };
 
@@ -36,61 +35,41 @@ export function StoryCreateSidebar({
   pending,
   showValidationErrors,
   step,
-  structureType = "chaptered",
   visibility
 }: StoryCreateSidebarProps) {
   const errors = showValidationErrors
     ? issues.filter((issue) => issue.level === "error")
     : [];
-  const isPublishStep = step === "publish";
 
   return (
     <aside className="space-y-3 xl:sticky xl:top-4 xl:self-start">
-      <Card className="space-y-2 p-3">
-        <p className="text-xs font-bold uppercase tracking-wide text-zinc-500">
-          Trạng thái
-        </p>
-        <div className="flex flex-wrap gap-1.5 text-xs">
-          <span className="rounded-full bg-amber-400/15 px-2 py-0.5 font-semibold text-amber-100">
-            {autosaveLabel ? "Đã lưu nháp" : "Nháp mới"}
-          </span>
-          <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-zinc-300">
-            {visibility === "public" ? "Công khai sau duyệt" : "Riêng tư"}
-          </span>
+      <Card className="space-y-3 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-zinc-100">Tiến độ</h2>
+          {autosaveLabel ? (
+            <span className="text-[0.65rem] text-zinc-500">{autosaveLabel}</span>
+          ) : dirty ? (
+            <span className="text-[0.65rem] text-amber-300/80">Chưa lưu</span>
+          ) : null}
         </div>
-        <p className="text-xs text-zinc-500">
-          {dirty ? "Có thay đổi chưa lưu" : "Chưa có thay đổi"}
-          {autosaveLabel ? ` · ${autosaveLabel}` : ""}
-        </p>
-      </Card>
-
-      <Card className="p-3">
         <StoryCreateChecklist items={checklist} />
-      </Card>
-
-      {errors.length > 0 ? (
-        <Card className="space-y-1.5 p-3">
-          <p className="text-xs font-bold text-rose-300">Cần sửa</p>
-          <ul className="space-y-1">
+        {errors.length > 0 ? (
+          <ul className="space-y-1 text-xs text-red-300">
             {errors.slice(0, 4).map((issue) => (
-              <li className="text-xs text-rose-200/90" key={`${issue.field}-e`}>
-                {issue.message}
-              </li>
+              <li key={`${issue.field}-${issue.message}`}>{issue.message}</li>
             ))}
           </ul>
-        </Card>
-      ) : null}
-
-      <Card className="space-y-2 p-3">
-        <p className="text-xs font-bold uppercase tracking-wide text-zinc-500">
-          Hành động
-        </p>
-        {disableReason ? (
-          <p className="text-xs text-amber-200/90">{disableReason}</p>
         ) : null}
+      </Card>
+
+      <Card className="space-y-3 p-4">
+        <h2 className="text-sm font-semibold text-zinc-100">Hành động</h2>
+        <p className="text-xs text-zinc-500">
+          Trạng thái: {visibility === "public" ? "Công khai" : "Nháp"} · Bước: {step}
+        </p>
         <Button
           className="w-full"
-          disabled={pending}
+          disabled={pending || Boolean(disableReason)}
           loading={pending}
           onClick={() => onAction("draft")}
           type="button"
@@ -98,40 +77,9 @@ export function StoryCreateSidebar({
         >
           Lưu nháp
         </Button>
-        {isPublishStep ? (
+        {step === "taxonomy" ? (
           <>
-            <Button
-              className="w-full"
-              disabled={pending || Boolean(disableReason)}
-              loading={pending}
-              onClick={() => onAction("create")}
-              type="button"
-            >
-              Tạo truyện
-            </Button>
-            {structureType === "chaptered" ? (
-              <Button
-                className="w-full"
-                disabled={pending || Boolean(disableReason)}
-                loading={pending}
-                onClick={() => onAction("create_and_chapter")}
-                type="button"
-                variant="secondary"
-              >
-                Tạo & viết ngay
-              </Button>
-            ) : (
-              <Button
-                className="w-full"
-                disabled={pending || Boolean(disableReason)}
-                loading={pending}
-                onClick={() => onAction("create")}
-                type="button"
-                variant="secondary"
-              >
-                Tạo & soạn nội dung
-              </Button>
-            )}
+            <PublishGuidelinesNotice bare variant="story" />
             <Button
               className="w-full border border-amber-400/30 bg-amber-400/10 text-amber-50 hover:bg-amber-400/20"
               disabled={pending || Boolean(disableReason)}
@@ -140,7 +88,7 @@ export function StoryCreateSidebar({
               type="button"
               variant="secondary"
             >
-              Gửi duyệt
+              Đăng truyện
             </Button>
           </>
         ) : null}

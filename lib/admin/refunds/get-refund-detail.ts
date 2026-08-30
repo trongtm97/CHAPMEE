@@ -2,8 +2,8 @@
 
 import { refundTypeLabel } from "@/lib/admin/refunds/refund-labels";
 import { checkStaffAnyPermission } from "@/lib/auth/staff-guards";
-import { createClient } from "@/lib/supabase/server";
-import { getRefundById } from "@/lib/supabase/refunds";
+import { createClient } from "@/lib/data/server";
+import { getRefundById } from "@/lib/data/refunds";
 import type { AdminRefundDetail, RefundProcessingHistoryEntry } from "@/types/admin-refund";
 
 function toNumber(v: unknown) {
@@ -96,14 +96,14 @@ export async function loadAdminRefundDetailAction(refundId: string): Promise<{
   if (!refundResult.data) return { detail: null, error: refundResult.error };
 
   const refund = refundResult.data;
-  const supabase = await createClient();
+  const db = await createClient();
 
   const userIds = [refund.userId, refund.creatorUserId, refund.createdBy, refund.reviewedBy, refund.completedBy].filter(
     Boolean
   ) as string[];
 
   const { data: profiles } = userIds.length
-    ? await supabase.from("profiles").select("id, username, display_name").in("id", userIds)
+    ? await db.from("profiles").select("id, username, display_name").in("id", userIds)
     : { data: [] };
 
   const profileById = new Map(
@@ -123,7 +123,7 @@ export async function loadAdminRefundDetailAction(refundId: string): Promise<{
   const reviewedByProfile = refund.reviewedBy ? profileById.get(refund.reviewedBy) : null;
   const completedByProfile = refund.completedBy ? profileById.get(refund.completedBy) : null;
 
-  const { data: originalTx } = await supabase
+  const { data: originalTx } = await db
     .from("transactions")
     .select("id, type, coin_amount, paid_coin_amount, bonus_coin_amount, money_amount_vnd, created_at, status")
     .eq("id", refund.originalTransactionId)
@@ -134,7 +134,7 @@ export async function loadAdminRefundDetailAction(refundId: string): Promise<{
   let contentStatus: string | null = null;
 
   if (refund.storyId) {
-    const { data: story } = await supabase
+    const { data: story } = await db
       .from("stories")
       .select("title, monetization_status, review_status")
       .eq("id", refund.storyId)
@@ -143,7 +143,7 @@ export async function loadAdminRefundDetailAction(refundId: string): Promise<{
     contentStatus = (story?.monetization_status as string) ?? null;
   }
   if (refund.chapterId) {
-    const { data: chapter } = await supabase
+    const { data: chapter } = await db
       .from("episodes")
       .select("title, status")
       .eq("id", refund.chapterId)
@@ -152,7 +152,7 @@ export async function loadAdminRefundDetailAction(refundId: string): Promise<{
     if (!contentStatus) contentStatus = (chapter?.status as string) ?? null;
   }
 
-  const { data: auditRows } = await supabase
+  const { data: auditRows } = await db
     .from("admin_audit_logs")
     .select("id, action, actor_id, created_at, metadata")
     .or(`target_id.eq.${refund.id},metadata->>refund_id.eq.${refund.id}`)
@@ -163,7 +163,7 @@ export async function loadAdminRefundDetailAction(refundId: string): Promise<{
     .map((a) => a.actor_id as string | null)
     .filter(Boolean) as string[];
   const { data: auditProfiles } = auditActorIds.length
-    ? await supabase.from("profiles").select("id, username").in("id", auditActorIds)
+    ? await db.from("profiles").select("id, username").in("id", auditActorIds)
     : { data: [] };
   const auditProfileById = new Map(
     (auditProfiles ?? []).map((p) => [p.id as string, p.username as string | null])
@@ -240,8 +240,8 @@ export async function loadQualityBatchDetailAction(batchId: string): Promise<{
   const auth = await checkStaffAnyPermission(["finance.refund.view", "finance.refund.create"]);
   if (!auth.ok) return { detail: null, error: auth.error };
 
-  const supabase = await createClient();
-  const { data: batch } = await supabase
+  const db = await createClient();
+  const { data: batch } = await db
     .from("coin_refund_batches")
     .select("*")
     .eq("id", batchId)

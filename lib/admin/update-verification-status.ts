@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminAuditLog } from "@/lib/admin/create-audit-log";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { syncProfileVerificationCache } from "@/lib/verification/sync-profile-cache";
 
 async function assertCanManage() {
@@ -33,8 +33,8 @@ export async function requestVerificationMoreInfoAction(input: {
       return { ok: false, error: "Vui lòng nhập nội dung cần bổ sung." };
     }
 
-    const supabase = await createClient();
-    const { data: before } = await supabase
+    const db = await createClient();
+    const { data: before } = await db
       .from("account_verifications")
       .select("*")
       .eq("id", input.requestId)
@@ -49,7 +49,7 @@ export async function requestVerificationMoreInfoAction(input: {
     }
 
     const now = new Date().toISOString();
-    const { error } = await supabase
+    const { error } = await db
       .from("account_verifications")
       .update({
         status: "needs_more_info",
@@ -68,7 +68,7 @@ export async function requestVerificationMoreInfoAction(input: {
 
     await syncProfileVerificationCache(String(before.user_id));
 
-    const { data: after } = await supabase
+    const { data: after } = await db
       .from("account_verifications")
       .select("*")
       .eq("id", input.requestId)
@@ -104,8 +104,8 @@ export async function logVerificationViewedAction(verificationId: string) {
     const ctx = await getCurrentAuthContext();
     if (!ctx?.userId) return { ok: false };
 
-    const supabase = await createClient();
-    const { data } = await supabase
+    const db = await createClient();
+    const { data } = await db
       .from("account_verifications")
       .select("user_id")
       .eq("id", verificationId)

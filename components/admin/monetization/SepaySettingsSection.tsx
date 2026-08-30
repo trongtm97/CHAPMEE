@@ -71,7 +71,7 @@ export function SepaySettingsSection({ setting }: Props) {
               name="enable_sepay_topup"
               type="checkbox"
             />
-            Bật nạp coin bằng SePay
+            Bật nạp Xu bằng SePay
           </label>
           <label className="block text-sm">
             <span className="text-zinc-400">Môi trường</span>

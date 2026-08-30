@@ -2,6 +2,7 @@ import { CreatorRevenuePolicyBox } from "@/components/studio/CreatorRevenuePolic
 import { FinanceBankAccountsSection } from "@/components/studio/finance/FinanceBankAccountsSection";
 import { FinanceHistoryTabs } from "@/components/studio/finance/FinanceHistoryTabs";
 import { FinanceOverviewSection } from "@/components/studio/finance/FinanceOverviewSection";
+import { FinanceEmailDeliveryNotice } from "@/components/studio/finance/FinanceEmailDeliveryNotice";
 import { FinancePageHeader } from "@/components/studio/finance/FinancePageHeader";
 import { FinancePinModule } from "@/components/studio/finance/FinancePinModule";
 import { FinanceWithdrawalSection } from "@/components/studio/finance/FinanceWithdrawalSection";
@@ -32,6 +33,8 @@ export function StudioFinancePage({ data, creatorUserId }: StudioFinancePageProp
   return (
     <div className={`${STUDIO_PAGE_WIDTH_CLASS} mx-auto max-w-[1200px] space-y-5 pb-24 sm:pb-8`}>
       <FinancePageHeader canWithdraw={data.eligibility.canWithdraw} />
+
+      <FinanceEmailDeliveryNotice />
 
       <FinanceOverviewSection balance={data.balance} config={data.config} />
 

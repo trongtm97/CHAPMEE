@@ -1,4 +1,4 @@
-import { createPublicClient } from "@/lib/supabase/public-client";
+import { createPublicClient } from "@/lib/data/public-client";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 
 /** Trope/subgenre display names from taxonomy (`story_taxonomy_terms`). */
@@ -9,8 +9,8 @@ export async function getTagsByStory(storyIds: string[]) {
     return tagsByStory;
   }
 
-  const supabase = createPublicClient();
-  const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
+  const db = createPublicClient();
+  const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, storyIds);
 
   for (const [storyId, labels] of taxonomyByStory) {
     const names = [...labels.subgenreNames, ...labels.tagNames];

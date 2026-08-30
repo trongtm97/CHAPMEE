@@ -7,6 +7,11 @@ import { ErrorState } from "@/components/ui";
 import { PolicyPagination } from "@/components/admin/policies/PolicyPagination";
 import { PolicyStatusBadge } from "@/components/admin/policies/PolicyStatusBadge";
 import {
+  SitePagesRegistrySection,
+  type SitePageRegistryRow
+} from "@/components/admin/policies/SitePagesRegistrySection";
+import { SITE_PAGE_GROUP_LABELS } from "@/lib/site-pages/registry";
+import {
   archivePolicyPageAction,
   getPolicyStatsForAdminAction,
   listPoliciesForAdminAction,
@@ -26,6 +31,7 @@ import {
 type Props = {
   initialFilters: PolicyListFilters;
   initialItems: PolicyPage[];
+  initialRegistryRows: SitePageRegistryRow[];
   initialTotal: number;
   initialStats: PolicyPageStats;
   capabilities: AdminPolicyCapabilities;
@@ -35,6 +41,7 @@ type Props = {
 export function AdminPoliciesPage({
   initialFilters,
   initialItems,
+  initialRegistryRows,
   initialTotal,
   initialStats,
   capabilities,
@@ -68,7 +75,7 @@ export function AdminPoliciesPage({
         setTotal(listResult.total);
         setFilters(next);
         if (statsResult.stats) setStats(statsResult.stats);
-        if (push) router.push(`/admin/policies${buildPolicyListQuery(next)}`);
+        if (push) router.push(`/admin/pages${buildPolicyListQuery(next)}`);
       });
     },
     [router]
@@ -86,13 +93,13 @@ export function AdminPoliciesPage({
         showToast(result.error);
         return;
       }
-      showToast("Đã xuất bản chính sách.");
+      showToast("Đã xuất bản trang.");
       refreshList(filters, false);
     });
   }
 
   function handleArchive(id: string) {
-    if (!window.confirm("Lưu trữ chính sách này? Trang public sẽ không còn hiển thị.")) {
+    if (!window.confirm("Lưu trữ trang này? Bản public sẽ không còn hiển thị.")) {
       return;
     }
     startTransition(async () => {
@@ -101,7 +108,7 @@ export function AdminPoliciesPage({
         showToast(result.error);
         return;
       }
-      showToast("Đã lưu trữ chính sách.");
+      showToast("Đã lưu trữ trang.");
       refreshList(filters, false);
     });
   }
@@ -110,20 +117,28 @@ export function AdminPoliciesPage({
     <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">Quản lý chính sách</h1>
+          <h1 className="text-3xl font-bold text-white">Quản lý trang</h1>
           <p className="mt-1 text-sm text-zinc-400">
-            Tạo và cập nhật trang chính sách công khai tại /chinh-sach.
+            Chỉnh nội dung About, Liên hệ, trang pháp lý và các trang /chinh-sach.
           </p>
         </div>
         {capabilities.canCreate ? (
           <Link
             className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-bold text-zinc-950"
-            href="/admin/policies/new"
+            href="/admin/pages/new"
           >
-            Tạo chính sách
+            Tạo trang tùy chỉnh
           </Link>
         ) : null}
       </header>
+
+      {initialFilters.siteGroup !== "legacy" ? (
+        <SitePagesRegistrySection
+          capabilities={capabilities}
+          onToast={showToast}
+          rows={initialRegistryRows}
+        />
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-4">
         {[
@@ -149,7 +164,7 @@ export function AdminPoliciesPage({
         <input
           className="min-w-[220px] flex-1 rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
           onChange={(event) => setSearchInput(event.target.value)}
-          placeholder="Tìm theo tiêu đề, slug..."
+          placeholder="Tìm theo tiêu đề, slug, URL..."
           value={searchInput}
         />
         <select
@@ -173,13 +188,31 @@ export function AdminPoliciesPage({
           onChange={(event) =>
             refreshList({
               ...filters,
+              siteGroup: event.target.value as PolicyListFilters["siteGroup"],
+              page: 1
+            })
+          }
+          value={filters.siteGroup}
+        >
+          <option value="all">Tất cả nhóm trang</option>
+          {Object.entries(SITE_PAGE_GROUP_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <select
+          className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+          onChange={(event) =>
+            refreshList({
+              ...filters,
               policyType: event.target.value as PolicyListFilters["policyType"],
               page: 1
             })
           }
           value={filters.policyType}
         >
-          <option value="all">Tất cả loại</option>
+          <option value="all">Tất cả loại policy</option>
           {Object.entries(POLICY_TYPE_LABELS).map(([value, label]) => (
             <option key={value} value={value}>
               {label}
@@ -201,11 +234,14 @@ export function AdminPoliciesPage({
         </p>
       ) : null}
 
+      <h2 className="text-lg font-bold text-white">Tất cả bản ghi CMS</h2>
+
       <div className="overflow-x-auto rounded-xl border border-white/10">
         <table className="min-w-full text-sm">
           <thead className="bg-white/[0.03] text-left text-xs uppercase tracking-wide text-zinc-500">
             <tr>
               <th className="px-4 py-3">Title</th>
+              <th className="px-4 py-3">URL public</th>
               <th className="px-4 py-3">Loại</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Version</th>
@@ -219,6 +255,11 @@ export function AdminPoliciesPage({
             {items.map((item) => (
               <tr className="border-t border-white/5" key={item.id}>
                 <td className="px-4 py-3 font-medium text-white">{item.title}</td>
+                <td className="px-4 py-3">
+                  <code className="text-xs text-cyan-200">
+                    {item.canonical_path ?? `/chinh-sach/${item.slug}`}
+                  </code>
+                </td>
                 <td className="px-4 py-3 text-zinc-300">{POLICY_TYPE_LABELS[item.policy_type]}</td>
                 <td className="px-4 py-3">
                   <PolicyStatusBadge status={item.status} />
@@ -240,7 +281,7 @@ export function AdminPoliciesPage({
                     {capabilities.canEdit ? (
                       <Link
                         className="text-cyan-300 hover:text-cyan-200"
-                        href={`/admin/policies/${item.id}/edit`}
+                        href={`/admin/pages/${item.id}/edit`}
                       >
                         Edit
                       </Link>
@@ -277,7 +318,7 @@ export function AdminPoliciesPage({
                     {capabilities.canViewVersions ? (
                       <Link
                         className="text-zinc-400 hover:text-zinc-200"
-                        href={`/admin/policies/${item.id}/edit?tab=versions`}
+                        href={`/admin/pages/${item.id}/edit?tab=versions`}
                       >
                         Versions
                       </Link>

@@ -16,7 +16,11 @@ export function decodeReelsFeedCursor(
       v: 1,
       requestId: parsed.requestId,
       offset: Math.max(0, parsed.offset ?? 0),
-      seenKeys: Array.isArray(parsed.seenKeys) ? parsed.seenKeys.slice(0, 400) : []
+      seenKeys: Array.isArray(parsed.seenKeys) ? parsed.seenKeys.slice(0, 400) : [],
+      shuffleSeed:
+        typeof parsed.shuffleSeed === "number" && Number.isFinite(parsed.shuffleSeed)
+          ? parsed.shuffleSeed >>> 0
+          : undefined
     };
   } catch {
     return null;

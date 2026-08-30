@@ -1,22 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import type { AuthorCommunityGroup } from "@/types/community";
+import { usePathname } from "next/navigation";
+import {
+  COMMUNITY_AUTHORS_SECTION_ID,
+  getCommunityAuthorsSectionHref
+} from "@/lib/community/community-author-url";
 
 type CommunityQuickActionsProps = {
   isLoggedIn: boolean;
   onWriteClick: () => void;
-  topAuthor?: AuthorCommunityGroup | null;
 };
+
+function scrollToAuthorsSection() {
+  document.getElementById(COMMUNITY_AUTHORS_SECTION_ID)?.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+}
 
 export function CommunityQuickActions({
   isLoggedIn,
-  onWriteClick,
-  topAuthor
+  onWriteClick
 }: CommunityQuickActionsProps) {
-  const authorHref = topAuthor
-    ? `/community/author/${topAuthor.authorId}`
-    : "/community/groups";
+  const pathname = usePathname();
 
   return (
     <div className="grid grid-cols-3 gap-2">
@@ -35,7 +42,13 @@ export function CommunityQuickActions({
       </Link>
       <Link
         className="tap-highlight flex min-h-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] px-2 text-xs font-bold text-zinc-200"
-        href={authorHref}
+        href={getCommunityAuthorsSectionHref()}
+        onClick={(event) => {
+          if (pathname === "/community") {
+            event.preventDefault();
+            scrollToAuthorsSection();
+          }
+        }}
       >
         Tác giả
       </Link>

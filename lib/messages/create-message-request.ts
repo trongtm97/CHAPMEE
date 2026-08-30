@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { MESSAGE_SAFETY_WARNING } from "@/lib/moderation/message-safety";
 import { runMessageSafetyCheck } from "@/lib/messaging/check-message-safety";
 import { getMessagingRestrictionBlockMessage } from "@/lib/messaging/get-active-messaging-restriction";
@@ -113,8 +113,8 @@ export async function createMessageRequest(input: {
     };
   }
 
-  const supabaseForRole = await createClient();
-  const { data: recipientProfile } = await supabaseForRole
+  const dbForRole = await createClient();
+  const { data: recipientProfile } = await dbForRole
     .from("profiles")
     .select("role")
     .eq("id", input.recipientId)
@@ -164,9 +164,9 @@ export async function createMessageRequest(input: {
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: existing } = await supabase
+  const { data: existing } = await db
     .from("message_requests")
     .select("id")
     .eq("requester_id", input.requesterId)
@@ -175,7 +175,7 @@ export async function createMessageRequest(input: {
     .maybeSingle();
 
   if (existing) {
-    const { error: updateError } = await supabase
+    const { error: updateError } = await db
       .from("message_requests")
       .update({ first_message: body })
       .eq("id", existing.id)
@@ -190,7 +190,7 @@ export async function createMessageRequest(input: {
     return { ok: true, requestId: existing.id as string };
   }
 
-  const { data: request, error } = await supabase
+  const { data: request, error } = await db
     .from("message_requests")
     .insert({
       requester_id: input.requesterId,
@@ -205,7 +205,7 @@ export async function createMessageRequest(input: {
     return { ok: false, error: "Không gửi được yêu cầu tin nhắn." };
   }
 
-  const { data: requesterProfile } = await supabase
+  const { data: requesterProfile } = await db
     .from("profiles")
     .select("display_name, username")
     .eq("id", input.requesterId)
@@ -229,10 +229,10 @@ export async function findOrCreateDirectConversation(
   userA: string,
   userB: string
 ): Promise<string | null> {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user: authUser }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!authUser) {
     return null;
@@ -245,14 +245,14 @@ export async function findOrCreateDirectConversation(
 
   const otherUserId = callerId === userA ? userB : userA;
 
-  const { data: aConvs } = await supabase
+  const { data: aConvs } = await db
     .from("conversation_participants")
     .select("conversation_id")
     .eq("user_id", userA);
 
   const ids = (aConvs ?? []).map((r) => r.conversation_id as string);
   if (ids.length) {
-    const { data: shared } = await supabase
+    const { data: shared } = await db
       .from("conversation_participants")
       .select("conversation_id")
       .eq("user_id", userB)
@@ -260,7 +260,7 @@ export async function findOrCreateDirectConversation(
       .limit(1);
 
     if (shared?.[0]?.conversation_id) {
-      await supabase
+      await db
         .from("conversations")
         .update({ status: "active" })
         .eq("id", shared[0].conversation_id as string);
@@ -268,7 +268,7 @@ export async function findOrCreateDirectConversation(
     }
   }
 
-  const { data: convId, error: rpcError } = await supabase.rpc(
+  const { data: convId, error: rpcError } = await db.rpc(
     "create_direct_conversation",
     { other_user_id: otherUserId }
   );

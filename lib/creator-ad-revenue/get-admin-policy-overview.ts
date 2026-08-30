@@ -1,6 +1,6 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { getCreatorAdRevenuePolicy } from "@/lib/creator-ad-revenue/policy";
 import { getAdRevenueEstimateSettings } from "@/lib/ads/ad-revenue-settings";
 
@@ -20,17 +20,17 @@ function currentMonthKey() {
 }
 
 export async function getAdminAdRevenuePolicyOverview(): Promise<AdminAdRevenuePolicyOverview> {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   const policy = await getCreatorAdRevenuePolicy({ useAdmin: true });
   const estimateSettings = await getAdRevenueEstimateSettings({ useAdmin: true });
 
   const [profilesRes, fraudRes, placementsRes] = await Promise.all([
-    supabase.from("creator_ad_monetization_profiles").select("status, kyc_status, tax_status, payout_status, fraud_hold, ads_revenue_enabled"),
-    supabase
+    db.from("creator_ad_monetization_profiles").select("status, kyc_status, tax_status, payout_status, fraud_hold, ads_revenue_enabled"),
+    db
       .from("ad_fraud_signals")
       .select("id", { count: "exact", head: true })
       .in("status", ["open", "reviewing"]),
-    supabase
+    db
       .from("ad_placements")
       .select("id", { count: "exact", head: true })
       .eq("is_enabled", true)
@@ -54,7 +54,7 @@ export async function getAdminAdRevenuePolicyOverview(): Promise<AdminAdRevenueP
     }
   }
 
-  const monthStats = await supabase
+  const monthStats = await db
     .from("ad_monthly_author_stats")
     .select("id", { count: "exact", head: true })
     .eq("month", currentMonthKey());

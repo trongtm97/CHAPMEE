@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 import type { StudioStoryGroupShortcut } from "@/types/comments";
 
@@ -7,8 +7,8 @@ const POST_COUNT_SAMPLE_LIMIT = 200;
 export async function getStudioStoryGroups(
   creatorProfile: CreatorProfile
 ): Promise<StudioStoryGroupShortcut[]> {
-  const supabase = await createClient();
-  const { data: stories, error } = await supabase
+  const db = await createClient();
+  const { data: stories, error } = await db
     .from("stories")
     .select("id, title, slug")
     .eq("creator_id", creatorProfile.id)
@@ -23,7 +23,7 @@ export async function getStudioStoryGroups(
   const storyIds = stories.map((row) => row.id);
   const postCountByStory = new Map<string, number>();
 
-  const { data: posts } = await supabase
+  const { data: posts } = await db
     .from("community_posts")
     .select("story_id")
     .in("story_id", storyIds)

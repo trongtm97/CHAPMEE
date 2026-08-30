@@ -68,6 +68,8 @@ export type CreatePolicyPageInput = {
   seo_title?: string | null;
   seo_description?: string | null;
   seo_indexable?: boolean;
+  /** Public URL path, e.g. /legal/terms or /about */
+  canonical_path?: string | null;
   created_by?: string | null;
   updated_by?: string | null;
 };
@@ -76,9 +78,12 @@ export type UpdatePolicyPageInput = Partial<CreatePolicyPageInput> & {
   change_note?: string | null;
 };
 
+export type SitePageGroupFilter = "all" | "legal" | "info" | "legacy";
+
 export type ListPolicyPagesOptions = {
   status?: PolicyStatus | PolicyStatus[] | "all";
   policyType?: PolicyType | "all";
+  siteGroup?: SitePageGroupFilter;
   search?: string;
   publicOnly?: boolean;
   page?: number;

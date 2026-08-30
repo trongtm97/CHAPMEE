@@ -1,18 +1,17 @@
 import type { CalculatedTopupCoin } from "@/types/topup-package";
 
 /**
- * Compute coin amounts from VND and bonus percent.
- * Uses `exchangeRateVnd` = VND per 1 coin (monetization setting `coin.exchange_rate_vnd`).
+ * Compute Xu amounts from VND and bonus percent.
+ * ChapMee now uses 1 VND = 1 Xu for top-up packages.
  */
 export function calculateTopupCoin(
   amountVnd: number,
   bonusPercent: number,
   exchangeRateVnd: number
 ): CalculatedTopupCoin {
-  const rate = exchangeRateVnd > 0 ? exchangeRateVnd : 1000;
   const safeAmount = Math.max(0, Math.floor(amountVnd));
   const safeBonus = Math.max(0, bonusPercent);
-  const baseCoin = Math.floor(safeAmount / rate);
+  const baseCoin = safeAmount;
   const bonusCoin = Math.floor((baseCoin * safeBonus) / 100);
   return {
     baseCoin,
@@ -23,6 +22,5 @@ export function calculateTopupCoin(
 }
 
 export function coinPerVnd(exchangeRateVnd: number) {
-  const rate = exchangeRateVnd > 0 ? exchangeRateVnd : 1000;
-  return 1 / rate;
+  return 1;
 }

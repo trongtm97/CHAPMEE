@@ -1,4 +1,4 @@
-import { escapePlainTextContent } from "@/lib/platform-content/render-content";
+import { ContentPostBody } from "@/components/content-posts/ContentPostBody";
 
 type Block =
   | { type: "h2"; text: string }
@@ -8,12 +8,24 @@ type Block =
   | { type: "quote"; text: string }
   | { type: "ul"; items: string[] }
   | { type: "ol"; items: string[] }
-  | { type: "hr" };
+  | { type: "hr" }
+  | { type: "img"; alt: string; url: string }
+  | { type: "html"; text: string };
+
+function isMarkdownTableRow(line: string) {
+  const trimmed = line.trim();
+  return trimmed.startsWith("|") && trimmed.endsWith("|");
+}
+
+function isMarkdownTableSeparator(line: string) {
+  return /^\|?[\s:-]+\|[\s|:-]+\|?$/.test(line.trim());
+}
 
 export function parseMarkdownContent(content: string): Block[] {
   const lines = content.split("\n");
   const blocks: Block[] = [];
   let listBuffer: { type: "ul" | "ol"; items: string[] } | null = null;
+  let tableRows: string[][] | null = null;
 
   function flushList() {
     if (listBuffer) {
@@ -22,18 +34,62 @@ export function parseMarkdownContent(content: string): Block[] {
     }
   }
 
+  function flushTable() {
+    if (!tableRows || tableRows.length === 0) {
+      tableRows = null;
+      return;
+    }
+    const serialized = tableRows.map((row) => `| ${row.join(" | ")} |`).join("\n");
+    blocks.push({ type: "html", text: serialized });
+    tableRows = null;
+  }
+
   for (const raw of lines) {
     const line = raw.trimEnd();
     const trimmed = line.trim();
 
     if (!trimmed) {
       flushList();
+      flushTable();
+      continue;
+    }
+
+    if (isMarkdownTableRow(trimmed)) {
+      flushList();
+      if (isMarkdownTableSeparator(trimmed)) {
+        continue;
+      }
+      if (!tableRows) {
+        tableRows = [];
+      }
+      tableRows.push(
+        trimmed
+          .replace(/^\|/, "")
+          .replace(/\|$/, "")
+          .split("|")
+          .map((cell) => cell.trim())
+      );
+      continue;
+    }
+
+    flushTable();
+
+    if (/^<[a-z][\s\S]*>$/i.test(trimmed)) {
+      flushList();
+      blocks.push({ type: "html", text: trimmed });
       continue;
     }
 
     if (trimmed === "---") {
       flushList();
       blocks.push({ type: "hr" });
+      continue;
+    }
+
+    const imgMatch = trimmed.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+    if (imgMatch) {
+      flushList();
+      blocks.push({ type: "img", alt: imgMatch[1] ?? "", url: imgMatch[2] ?? "" });
       continue;
     }
 
@@ -92,84 +148,10 @@ export function parseMarkdownContent(content: string): Block[] {
   }
 
   flushList();
+  flushTable();
   return blocks;
 }
 
-function renderInline(text: string) {
-  const safe = escapePlainTextContent(text);
-  return safe
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/_(.+?)_/g, "<em>$1</em>")
-    .replace(/\[(.+?)\]\((\/[^)]+)\)/g, '<a href="$2" class="text-cyan-600 hover:underline">$1</a>');
-}
-
 export function renderMarkdownContent(content: string) {
-  const blocks = parseMarkdownContent(content);
-
-  return blocks.map((block, index) => {
-    if (block.type === "h2") {
-      return (
-        <h2
-          className="text-2xl font-semibold text-foreground"
-          dangerouslySetInnerHTML={{ __html: renderInline(block.text) }}
-          key={index}
-        />
-      );
-    }
-    if (block.type === "h3") {
-      return (
-        <h3
-          className="text-xl font-semibold text-foreground"
-          dangerouslySetInnerHTML={{ __html: renderInline(block.text) }}
-          key={index}
-        />
-      );
-    }
-    if (block.type === "h4") {
-      return (
-        <h4
-          className="text-lg font-semibold text-foreground"
-          dangerouslySetInnerHTML={{ __html: renderInline(block.text) }}
-          key={index}
-        />
-      );
-    }
-    if (block.type === "quote") {
-      return (
-        <blockquote
-          className="border-l-4 border-muted-foreground/30 pl-4 italic text-muted-foreground"
-          dangerouslySetInnerHTML={{ __html: renderInline(block.text) }}
-          key={index}
-        />
-      );
-    }
-    if (block.type === "ul") {
-      return (
-        <ul className="list-disc space-y-1 pl-5" key={index}>
-          {block.items.map((item, i) => (
-            <li dangerouslySetInnerHTML={{ __html: renderInline(item) }} key={i} />
-          ))}
-        </ul>
-      );
-    }
-    if (block.type === "ol") {
-      return (
-        <ol className="list-decimal space-y-1 pl-5" key={index}>
-          {block.items.map((item, i) => (
-            <li dangerouslySetInnerHTML={{ __html: renderInline(item) }} key={i} />
-          ))}
-        </ol>
-      );
-    }
-    if (block.type === "hr") {
-      return <hr className="border-border" key={index} />;
-    }
-    return (
-      <p
-        className="text-foreground"
-        dangerouslySetInnerHTML={{ __html: renderInline(block.text) }}
-        key={index}
-      />
-    );
-  });
+  return <ContentPostBody content={content} />;
 }

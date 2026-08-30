@@ -2,6 +2,7 @@ import { useId, type InputHTMLAttributes } from "react";
 
 type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   label?: string;
+  labelRequired?: boolean;
   error?: string;
 };
 
@@ -10,6 +11,7 @@ export function Input({
   error,
   id,
   label,
+  labelRequired = false,
   ...props
 }: InputProps) {
   const generatedId = useId();
@@ -24,6 +26,7 @@ export function Input({
           htmlFor={inputId}
         >
           {label}
+          {labelRequired ? <span className="text-red-300"> *</span> : null}
         </label>
       ) : null}
       <input

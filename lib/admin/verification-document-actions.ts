@@ -2,7 +2,7 @@
 
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
 import { assertAnyPermission } from "@/lib/auth/require-permission";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { VERIFICATION_STORAGE_BUCKET } from "@/lib/verification/config";
 import { logVerificationAudit } from "@/lib/verification/log-verification-audit";
 
@@ -10,9 +10,9 @@ export async function getVerificationDocumentSignedUrlAction(documentId: string)
   try {
     await assertAnyPermission(["admin.user.view", "admin.user.update"]);
     const ctx = await getCurrentAuthContext();
-    const supabase = await createClient();
+    const db = await createClient();
 
-    const { data: doc } = await supabase
+    const { data: doc } = await db
       .from("account_verification_documents")
       .select("id, file_path, request_id, user_id, original_file_name, mime_type")
       .eq("id", documentId)
@@ -23,7 +23,7 @@ export async function getVerificationDocumentSignedUrlAction(documentId: string)
       return { error: "Không tìm thấy file.", url: null };
     }
 
-    const { data, error } = await supabase.storage
+    const { data, error } = await db.storage
       .from(VERIFICATION_STORAGE_BUCKET)
       .createSignedUrl(doc.file_path, 300);
 
@@ -55,8 +55,8 @@ export async function getVerificationDocumentSignedUrlAction(documentId: string)
 export async function listVerificationDocumentsForAdminAction(requestId: string) {
   try {
     await assertAnyPermission(["admin.user.view", "admin.user.update"]);
-    const supabase = await createClient();
-    const { data } = await supabase
+    const db = await createClient();
+    const { data } = await db
       .from("account_verification_documents")
       .select("id, document_type, original_file_name, mime_type, file_size_bytes, created_at, status")
       .eq("request_id", requestId)

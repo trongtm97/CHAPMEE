@@ -52,12 +52,12 @@ resolveStoryImage(story, variant):
 | `cover_url` | `stories` | `coverUrl` | Có — rộng khắp app |
 | `background_image_url` | `episodes` | `backgroundImageUrl` | Swipe, share reader (không hiển thị trong reader body) |
 | `avatar_url` | `profiles` | `avatarUrl` | Profile, messages, rankings, me |
-| `cover_image_url` | `collections` | `coverImageUrl` | **Chỉ fetch** (`lib/supabase/collections.ts`, `get-public-collections.ts`) — **không component render** |
+| `cover_image_url` | `collections` | `coverImageUrl` | **Chỉ fetch** (`lib/data/collections.ts`, `get-public-collections.ts`) — **không component render** |
 | `logo_url` | sponsors/campaigns | `logoUrl` | Banner challenge (~32×32) |
 | `metadata.thumbnail_url` | notifications | optional | `NotificationItem` 36×36 |
 | `story_images` | *(chưa có)* | — | Phase sau |
 
-Migration tham chiếu: `supabase/migrations/001_initial_schema.sql` (`cover_url`), `010_episode_background_image.sql`, `049_collections.sql` (`cover_image_url`).
+Migration tham chiếu: `db/migrations/legacy/001_initial_schema.sql` (`cover_url`), `010_episode_background_image.sql`, `049_collections.sql` (`cover_image_url`).
 
 ---
 
@@ -301,7 +301,7 @@ Dùng `<img>` native, lazy/eager, gradient fallback khi lỗi — **không** nex
 - `lib/swipe/getSwipeItems.ts`
 - `lib/episodes/getEpisodeReaderData.ts`
 - `lib/discover/getDiscoverData.ts` *(no cover today)*
-- `lib/library/*`, `lib/profile/*`, `lib/supabase/collections.ts`, `public-content.ts`
+- `lib/library/*`, `lib/profile/*`, `lib/data/collections.ts`, `public-content.ts`
 - `lib/creator/createStory.ts`, `updateStory.ts`, `storyFormValidation.ts`
 
 **Forms**

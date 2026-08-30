@@ -7,9 +7,14 @@ import {
   downloadStudioImportTemplatesXlsxAction,
   downloadStudioImportTemplatesZipAction
 } from "@/lib/studio/import-export-actions";
-import { STUDIO_IMPORT_INSTRUCTIONS } from "@/lib/studio/import-export-templates";
+import { buildInstructionsWithLabels } from "@/lib/studio/import-export-templates";
 
-function downloadFile(name: string, content: string, mime = "text/plain;charset=utf-8") {
+function downloadFile(name: string, content: string) {
+  const mime = name.endsWith(".csv")
+    ? "text/csv;charset=utf-8"
+    : name.endsWith(".txt")
+      ? "text/plain;charset=utf-8"
+      : "text/plain;charset=utf-8";
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -118,7 +123,7 @@ export function ImportTemplatesPanel() {
         </Button>
       </div>
       <pre className="max-h-64 overflow-y-auto rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-xs leading-5 text-zinc-400 whitespace-pre-wrap">
-        {STUDIO_IMPORT_INSTRUCTIONS}
+        {buildInstructionsWithLabels()}
       </pre>
     </div>
   );

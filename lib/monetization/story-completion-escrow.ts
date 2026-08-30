@@ -1,7 +1,7 @@
 import { createAdminAuditLog } from "@/lib/admin/create-audit-log";
-import { insertCreatorWalletLedgerEntry } from "@/lib/supabase/creator-finance";
-import { shiftCreatorWalletBalances } from "@/lib/supabase/payouts";
-import { createClient } from "@/lib/supabase/server";
+import { insertCreatorWalletLedgerEntry } from "@/lib/data/creator-finance";
+import { shiftCreatorWalletBalances } from "@/lib/data/payouts";
+import { createClient } from "@/lib/data/server";
 import type {
   CreatorEarningReleaseStatus,
   StoryAdminCompletionStatus
@@ -13,8 +13,8 @@ const STORY_COMPLETION_LOCKED_REASON = "story_completion_pending";
 export async function getStoryAdminCompletionStatus(
   storyId: string
 ): Promise<StoryAdminCompletionStatus> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("stories")
     .select("admin_completion_status")
     .eq("id", storyId)
@@ -64,8 +64,8 @@ export async function resolveFullStoryPurchaseRevenue(input: {
 }
 
 export async function sumLockedFullStoryRevenueForStory(storyId: string) {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("creator_earning_transactions")
     .select("creator_net_amount_vnd")
     .eq("story_id", storyId)
@@ -80,8 +80,8 @@ export async function sumLockedFullStoryRevenueForStory(storyId: string) {
 }
 
 export async function sumLockedFullStoryRevenueForCreator(creatorUserId: string) {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("creator_earning_transactions")
     .select("creator_net_amount_vnd")
     .eq("creator_user_id", creatorUserId)
@@ -100,9 +100,9 @@ export async function unlockStoryFullAccessEscrowRevenue(input: {
   adminUserId: string;
   adminNote?: string | null;
 }) {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: story, error: storyError } = await supabase
+  const { data: story, error: storyError } = await db
     .from("stories")
     .select(
       "id, title, admin_completion_status, creator_profiles(user_id)"
@@ -122,7 +122,7 @@ export async function unlockStoryFullAccessEscrowRevenue(input: {
     return { ok: false, error: "Không xác định được tác giả.", unlockedAmountVnd: 0 };
   }
 
-  const { data: lockedRows, error: lockedError } = await supabase
+  const { data: lockedRows, error: lockedError } = await db
     .from("creator_earning_transactions")
     .select("id, creator_net_amount_vnd, legacy_transaction_id")
     .eq("story_id", input.storyId)
@@ -141,7 +141,7 @@ export async function unlockStoryFullAccessEscrowRevenue(input: {
   );
 
   const now = new Date().toISOString();
-  const { error: storyUpdateError } = await supabase
+  const { error: storyUpdateError } = await db
     .from("stories")
     .update({
       admin_completion_status: "approved",
@@ -164,7 +164,7 @@ export async function unlockStoryFullAccessEscrowRevenue(input: {
     });
 
     if (!shifted.data) {
-      await supabase
+      await db
         .from("stories")
         .update({
           admin_completion_status: story.admin_completion_status,
@@ -180,7 +180,7 @@ export async function unlockStoryFullAccessEscrowRevenue(input: {
     }
 
     const earningIds = (lockedRows ?? []).map((row) => String(row.id));
-    await supabase
+    await db
       .from("creator_earning_transactions")
       .update({
         release_status: "released",
@@ -212,13 +212,13 @@ export async function unlockStoryFullAccessEscrowRevenue(input: {
       });
 
       if (row.legacy_transaction_id) {
-        const { data: txRow } = await supabase
+        const { data: txRow } = await db
           .from("transactions")
           .select("metadata")
           .eq("id", row.legacy_transaction_id)
           .maybeSingle();
 
-        await supabase
+        await db
           .from("transactions")
           .update({
             metadata: {
@@ -261,8 +261,8 @@ export async function rejectStoryCompletionReview(input: {
     return { ok: false, error: "Vui lòng nhập lý do từ chối." };
   }
 
-  const supabase = await createClient();
-  const { data: story } = await supabase
+  const db = await createClient();
+  const { data: story } = await db
     .from("stories")
     .select("id, title, admin_completion_status, creator_profiles(user_id)")
     .eq("id", input.storyId)
@@ -282,7 +282,7 @@ export async function rejectStoryCompletionReview(input: {
   const creatorUserId = creator?.user_id as string | undefined;
 
   const now = new Date().toISOString();
-  const { error } = await supabase
+  const { error } = await db
     .from("stories")
     .update({
       admin_completion_status: "rejected",

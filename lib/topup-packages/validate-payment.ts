@@ -3,7 +3,7 @@ import type {
   TopupPackagePaymentSnapshot,
   ValidateTopupPackageForPaymentResult
 } from "@/types/topup-package";
-import { getCoinPackById } from "@/lib/supabase/coin-packs";
+import { getCoinPackById } from "@/lib/data/coin-packs";
 
 /** Build payment snapshot from a coin pack row (server-side only). */
 export function buildTopupPackagePaymentSnapshot(

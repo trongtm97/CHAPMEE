@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CreatorEarningCalculationSnapshot, CreatorEarningTransactionDetail } from "@/types/finance";
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -19,8 +19,8 @@ export async function getCreatorTransactionDetail(input: {
   creatorUserId: string;
   earningTransactionId: string;
 }): Promise<{ data: CreatorEarningTransactionDetail | null; error: string | null }> {
-  const supabase = await createClient();
-  const { data: row, error } = await supabase
+  const db = await createClient();
+  const { data: row, error } = await db
     .from("creator_earning_transactions")
     .select("*")
     .eq("id", input.earningTransactionId)
@@ -31,7 +31,7 @@ export async function getCreatorTransactionDetail(input: {
     return { data: null, error: error.message };
   }
   if (!row) {
-    const { data: legacyTx } = await supabase
+    const { data: legacyTx } = await db
       .from("transactions")
       .select("*")
       .eq("id", input.earningTransactionId)
@@ -56,10 +56,10 @@ export async function getCreatorTransactionDetail(input: {
     if (storyId || chapterId) {
       const [{ data: story }, { data: chapter }] = await Promise.all([
         storyId
-          ? supabase.from("stories").select("title").eq("id", storyId).maybeSingle()
+          ? db.from("stories").select("title").eq("id", storyId).maybeSingle()
           : Promise.resolve({ data: null }),
         chapterId
-          ? supabase.from("episodes").select("title, episode_number").eq("id", chapterId).maybeSingle()
+          ? db.from("episodes").select("title, episode_number").eq("id", chapterId).maybeSingle()
           : Promise.resolve({ data: null })
       ]);
       const chapterText = chapter
@@ -117,10 +117,10 @@ export async function getCreatorTransactionDetail(input: {
   if (storyId || chapterId) {
     const [{ data: story }, { data: chapter }] = await Promise.all([
       storyId
-        ? supabase.from("stories").select("title").eq("id", storyId).maybeSingle()
+        ? db.from("stories").select("title").eq("id", storyId).maybeSingle()
         : Promise.resolve({ data: null }),
       chapterId
-        ? supabase.from("episodes").select("title, episode_number").eq("id", chapterId).maybeSingle()
+        ? db.from("episodes").select("title, episode_number").eq("id", chapterId).maybeSingle()
         : Promise.resolve({ data: null })
     ]);
     const chapterText = chapter

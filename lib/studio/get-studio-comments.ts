@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
+import { profileAvatarUrlFromRow } from "@/lib/profile/map-profile-row";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 import { getStoryUrl, getChapterUrl } from "@/lib/urls/paths";
 import { getStudioStoryGroups } from "@/lib/studio/get-studio-story-groups";
@@ -149,10 +150,10 @@ async function getOwnedCommunityPostIds(
   storyIds: string[],
   storyFilter?: string
 ) {
-  const supabase = await createClient();
+  const db = await createClient();
   const postIdSet = new Map<string, { title: string; storyId: string | null }>();
 
-  let byCreator = supabase
+  let byCreator = db
     .from("community_posts")
     .select("id, title, story_id")
     .eq("creator_id", creatorProfile.id)
@@ -171,7 +172,7 @@ async function getOwnedCommunityPostIds(
   const scopedStoryIds = storyFilter ? [storyFilter] : storyIds;
 
   if (scopedStoryIds.length > 0) {
-    const { data: storyPosts } = await supabase
+    const { data: storyPosts } = await db
       .from("community_posts")
       .select("id, title, story_id")
       .in("story_id", scopedStoryIds)
@@ -199,27 +200,27 @@ async function enrichCommentMeta(
     return { repliedSet, reportedSet, replyCountById, likeCountById };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const [{ data: replies }, { data: reports }, { data: childComments }, { data: reactions }] =
     await Promise.all([
-      supabase
+      db
         .from("comments")
         .select("parent_id")
         .in("parent_id", commentIds)
         .eq("user_id", creatorUserId)
         .neq("status", "deleted"),
-      supabase
+      db
         .from("reports")
         .select("target_id")
         .eq("target_type", "comment")
         .in("target_id", commentIds)
         .in("status", ["pending", "reviewing", "open"]),
-      supabase
+      db
         .from("comments")
         .select("parent_id")
         .in("parent_id", commentIds)
         .neq("status", "deleted"),
-      supabase
+      db
         .from("reactions")
         .select("target_id")
         .eq("target_type", "comment")
@@ -278,9 +279,9 @@ export async function getStudioComments(
   const page = parseStudioPage(options.page);
   const pageSize = options.pageSize ?? parseCommentPageSize();
   const search = options.q?.trim() ?? "";
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: storyRows, error: storiesError } = await supabase
+  const { data: storyRows, error: storiesError } = await db
     .from("stories")
     .select("id, title")
     .eq("creator_id", creatorProfile.id)
@@ -333,7 +334,7 @@ export async function getStudioComments(
 
   if (scopedStoryIds.length > 0) {
     const buildStoryQuery = (excludeCommunityPostComments: boolean) => {
-      let storyQuery = supabase
+      let storyQuery = db
         .from("comments")
         .select(
           `
@@ -345,7 +346,7 @@ export async function getStudioComments(
           is_pinned,
           story_id,
           episode_id,
-          profiles(display_name, username, avatar_url),
+          profiles(display_name, username, avatar_url, default_avatar_id),
           stories!inner(title, slug, public_code),
           episodes(slug, public_code, episode_number, title)
         `
@@ -416,7 +417,7 @@ export async function getStudioComments(
         hasAuthorReply,
         authorUserId: row.user_id,
         authorDisplayName: profile?.display_name ?? profile?.username ?? "Độc giả",
-        authorAvatarUrl: profile?.avatar_url ?? null,
+        authorAvatarUrl: profileAvatarUrlFromRow(profile),
         storyId: row.story_id,
         storyTitle,
         storySlug,
@@ -453,7 +454,7 @@ export async function getStudioComments(
   const communityPostIds = [...ownedPosts.keys()];
 
   if (communityPostIds.length > 0) {
-    let communityQuery = supabase
+    let communityQuery = db
       .from("comments")
       .select(
         `
@@ -464,7 +465,7 @@ export async function getStudioComments(
         status,
         is_pinned,
         community_post_id,
-        profiles(display_name, username, avatar_url),
+        profiles(display_name, username, avatar_url, default_avatar_id),
         community_posts!inner(id, title, story_id, stories(title, slug))
       `
       )
@@ -528,7 +529,7 @@ export async function getStudioComments(
           authorUserId: row.user_id,
           authorDisplayName:
             profile?.display_name ?? profile?.username ?? "Độc giả",
-          authorAvatarUrl: profile?.avatar_url ?? null,
+          authorAvatarUrl: profileAvatarUrlFromRow(profile),
           storyId: post?.story_id ?? null,
           storyTitle,
           storySlug: story?.slug ?? null,

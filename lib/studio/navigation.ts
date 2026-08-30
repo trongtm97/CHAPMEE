@@ -23,6 +23,8 @@ export const STUDIO_NAV_GROUPS: StudioNavGroup[] = [
     items: [
       { id: "overview", href: STUDIO_BASE_PATH, label: "Tổng quan", match: "exact" },
       { id: "stories", href: studioPath("/stories"), label: "Truyện & chương" },
+      { id: "audio", href: studioPath("/audio"), label: "Audio" },
+      { id: "media", href: studioPath("/media"), label: "Media" },
       { id: "drafts", href: studioPath("/drafts"), label: "Nháp" },
       { id: "calendar", href: studioPath("/calendar"), label: "Lịch đăng" }
     ]
@@ -50,7 +52,7 @@ export const STUDIO_NAV_GROUPS: StudioNavGroup[] = [
     label: "Công cụ",
     items: [
       { id: "templates", href: studioPath("/templates"), label: "Mẫu" },
-      { id: "import", href: studioPath("/import"), label: "Nhập hàng loạt" },
+      { id: "import", href: studioPath("/import"), label: "Nhập / Xuất hàng loạt" },
       { id: "help", href: studioPath("/help"), label: "Hỗ trợ" },
       { id: "settings", href: studioPath("/settings"), label: "Cài đặt" }
     ]

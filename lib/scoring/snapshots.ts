@@ -1,8 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { getAlgorithmConfig } from "@/lib/algorithm/settings";
 import { buildScoringConfig } from "@/lib/scoring/config";
 import { scoreContentItem } from "@/lib/scoring/score-item";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type {
   ContentScoreSnapshotRow,
   GenerateSnapshotsResult,
@@ -58,8 +58,8 @@ function mapStoryToItem(
   };
 }
 
-async function fetchPublishedStories(supabase: SupabaseClient, limit: number) {
-  const { data, error } = await supabase
+async function fetchPublishedStories(db: DatabaseClient, limit: number) {
+  const { data, error } = await db
     .from("stories")
     .select(
       "id, is_completed, published_at, creator_profiles(user_id)"
@@ -73,8 +73,8 @@ async function fetchPublishedStories(supabase: SupabaseClient, limit: number) {
   return (data ?? []) as StoryRow[];
 }
 
-async function fetchPublishedReels(supabase: SupabaseClient, limit: number) {
-  const { data, error } = await supabase
+async function fetchPublishedReels(db: DatabaseClient, limit: number) {
+  const { data, error } = await db
     .from("reels_items")
     .select("id, story_id, published_at, owner_id")
     .eq("status", "published")
@@ -85,8 +85,8 @@ async function fetchPublishedReels(supabase: SupabaseClient, limit: number) {
   return (data ?? []) as ReelRow[];
 }
 
-async function fetchRecentChapters(supabase: SupabaseClient, limit: number) {
-  const { data, error } = await supabase
+async function fetchRecentChapters(db: DatabaseClient, limit: number) {
+  const { data, error } = await db
     .from("episodes")
     .select(
       "id, story_id, published_at, word_count, stories!inner(id, is_completed, published_at, status, visibility, creator_profiles(user_id))"
@@ -100,12 +100,12 @@ async function fetchRecentChapters(supabase: SupabaseClient, limit: number) {
 }
 
 async function insertSnapshot(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   item: ScoringItem,
   window: MetricsWindow,
   breakdown: Awaited<ReturnType<typeof scoreContentItem>>
 ) {
-  const { error } = await supabase.from("content_score_snapshots").insert({
+  const { error } = await db.from("content_score_snapshots").insert({
     item_type: item.itemType,
     item_id: item.itemId,
     story_id: item.storyId,
@@ -129,7 +129,7 @@ async function insertSnapshot(
 }
 
 export async function generateContentScoreSnapshot(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   options?: {
     window?: MetricsWindow;
     storyLimit?: number;
@@ -151,11 +151,11 @@ export async function generateContentScoreSnapshot(
     const rawConfig = await getAlgorithmConfig();
     const config = buildScoringConfig(rawConfig);
 
-    const stories = await fetchPublishedStories(supabase, storyLimit);
+    const stories = await fetchPublishedStories(db, storyLimit);
     const taxonomyKeys = await (
       await import("@/lib/taxonomy/scoring-bridge")
     ).loadStoryTaxonomyKeysForScoring(
-      supabase,
+      db,
       stories.map((s) => s.id)
     );
 
@@ -170,11 +170,11 @@ export async function generateContentScoreSnapshot(
           keys?.tagTermIds ?? [],
           keys?.genreTermId ?? null
         );
-        const breakdown = await scoreContentItem(supabase, item, {
+        const breakdown = await scoreContentItem(db, item, {
           window,
           config
         });
-        await insertSnapshot(supabase, item, window, breakdown);
+        await insertSnapshot(db, item, window, breakdown);
         storiesProcessed += 1;
       } catch (error) {
         errors.push(
@@ -183,7 +183,7 @@ export async function generateContentScoreSnapshot(
       }
     }
 
-    const reels = await fetchPublishedReels(supabase, reelLimit);
+    const reels = await fetchPublishedReels(db, reelLimit);
     for (const reel of reels) {
       try {
         const item: ScoringItem = {
@@ -193,8 +193,8 @@ export async function generateContentScoreSnapshot(
           authorUserId: reel.owner_id,
           publishedAt: reel.published_at
         };
-        const breakdown = await scoreContentItem(supabase, item, { window, config });
-        await insertSnapshot(supabase, item, window, breakdown);
+        const breakdown = await scoreContentItem(db, item, { window, config });
+        await insertSnapshot(db, item, window, breakdown);
         reelsProcessed += 1;
       } catch (error) {
         errors.push(
@@ -203,7 +203,7 @@ export async function generateContentScoreSnapshot(
       }
     }
 
-    const episodes = await fetchRecentChapters(supabase, chapterLimit);
+    const episodes = await fetchRecentChapters(db, chapterLimit);
     const chapterStoryIds = [
       ...new Set(
         episodes
@@ -216,7 +216,7 @@ export async function generateContentScoreSnapshot(
     ];
     const chapterTaxonomyKeys = await (
       await import("@/lib/taxonomy/scoring-bridge")
-    ).loadStoryTaxonomyKeysForScoring(supabase, chapterStoryIds);
+    ).loadStoryTaxonomyKeysForScoring(db, chapterStoryIds);
 
     for (const episode of episodes) {
       const story = firstRelation(episode.stories);
@@ -237,8 +237,8 @@ export async function generateContentScoreSnapshot(
           isCompleted: story.is_completed,
           wordCount: episode.word_count
         };
-        const breakdown = await scoreContentItem(supabase, item, { window, config });
-        await insertSnapshot(supabase, item, window, breakdown);
+        const breakdown = await scoreContentItem(db, item, { window, config });
+        await insertSnapshot(db, item, window, breakdown);
         chaptersProcessed += 1;
       } catch (error) {
         errors.push(
@@ -262,12 +262,12 @@ export async function generateContentScoreSnapshot(
 }
 
 export async function getLatestScoreForItem(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   itemType: ScoringItemType,
   itemId: string,
   window?: MetricsWindow
 ): Promise<ContentScoreSnapshotRow | null> {
-  let query = supabase
+  let query = db
     .from("content_score_snapshots")
     .select("*")
     .eq("item_type", itemType)
@@ -296,7 +296,7 @@ export async function getLatestScoreForItem(
 
 /** Batch-load latest score snapshots (one query per chunk, dedupe by item_id). */
 export async function getLatestScoresForItems(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   itemType: ScoringItemType,
   itemIds: string[],
   window: MetricsWindow = "7d"
@@ -311,7 +311,7 @@ export async function getLatestScoresForItems(
 
   for (let index = 0; index < uniqueIds.length; index += chunkSize) {
     const chunk = uniqueIds.slice(index, index + chunkSize);
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("content_score_snapshots")
       .select("*")
       .eq("item_type", itemType)

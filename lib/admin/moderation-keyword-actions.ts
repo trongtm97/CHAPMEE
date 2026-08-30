@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assertStaffAnyPermission } from "@/lib/auth/staff-guards";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { ModerationKeywordRule } from "@/types/community-auto-moderation";
 
 export async function upsertKeywordRuleAction(
@@ -11,7 +11,7 @@ export async function upsertKeywordRuleAction(
 ): Promise<{ ok: boolean; error: string | null }> {
   try {
     const { userId } = await assertStaffAnyPermission(["admin.settings.update"]);
-    const supabase = await createClient();
+    const db = await createClient();
 
     const row = {
       keyword: rule.keyword.trim(),
@@ -24,8 +24,8 @@ export async function upsertKeywordRuleAction(
     };
 
     const { error } = rule.id
-      ? await supabase.from("moderation_keyword_rules").update(row).eq("id", rule.id)
-      : await supabase
+      ? await db.from("moderation_keyword_rules").update(row).eq("id", rule.id)
+      : await db
           .from("moderation_keyword_rules")
           .insert({ ...row, created_by: userId });
 
@@ -54,8 +54,8 @@ export async function deleteKeywordRuleAction(
 ): Promise<{ ok: boolean; error: string | null }> {
   try {
     const { userId } = await assertStaffAnyPermission(["admin.settings.update"]);
-    const supabase = await createClient();
-    const { error } = await supabase
+    const db = await createClient();
+    const { error } = await db
       .from("moderation_keyword_rules")
       .delete()
       .eq("id", id);

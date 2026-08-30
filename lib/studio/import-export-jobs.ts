@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export type StudioImportExportJobRecord = {
   id: string;
@@ -20,8 +20,8 @@ export async function createStudioImportExportJob(input: {
   fileName?: string | null;
   totalRows?: number;
 }) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("studio_import_export_jobs")
     .insert({
       user_id: input.userId,
@@ -33,7 +33,7 @@ export async function createStudioImportExportJob(input: {
     .select("id")
     .single();
 
-  if (error) return { id: null, error: error.message };
+  if (error || !data) return { id: null, error: error?.message ?? "Không tạo được job." };
   return { id: String(data.id), error: null };
 }
 
@@ -46,8 +46,8 @@ export async function completeStudioImportExportJob(
     errorSummary?: Record<string, unknown>;
   }
 ) {
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("studio_import_export_jobs")
     .update({
       status: input.status,
@@ -65,8 +65,8 @@ export async function listStudioImportExportJobs(
   userId: string,
   limit = 30
 ): Promise<{ items: StudioImportExportJobRecord[]; error: string | null }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("studio_import_export_jobs")
     .select(
       "id, job_type, status, file_name, total_rows, success_rows, error_rows, created_at, completed_at"

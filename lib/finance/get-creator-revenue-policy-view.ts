@@ -2,7 +2,7 @@ import { getMonetizationConfig } from "@/lib/monetization/config";
 import { readPayoutProcessingDaysLabel } from "@/lib/finance/payout-processing-display";
 import { getCreatorAccessStatus } from "@/lib/creator-access";
 import { buildStudioMonetizationConfigView } from "@/lib/studio/monetization-config";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   CREATOR_FEE_REVENUE_SOURCES
 } from "@/lib/admin/creator-fee-policies/constants";
@@ -57,8 +57,8 @@ async function fetchActiveOverridePolicy(
   creatorId: string,
   at: Date
 ): Promise<CreatorFeePolicyRow | null> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("creator_fee_policies")
     .select("*")
     .eq("creator_id", creatorId)
@@ -83,8 +83,8 @@ async function fetchActiveOverridePolicy(
 }
 
 async function fetchScheduledPolicy(creatorId: string, after: Date) {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("creator_fee_policies")
     .select("*")
     .eq("creator_id", creatorId)

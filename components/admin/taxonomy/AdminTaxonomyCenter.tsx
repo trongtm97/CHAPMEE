@@ -58,6 +58,9 @@ type AdminTaxonomyCenterProps = {
   initialAuditError: string | null;
   initialRequests: TaxonomyRequestRow[];
   initialRequestsTotal: number;
+  initialTerms?: TaxonomyTermAdminRow[];
+  initialTermsTotal?: number;
+  initialTermsError?: string | null;
   importExport?: ImportExportBundle | null;
   loadError: string | null;
 };
@@ -72,6 +75,9 @@ export function AdminTaxonomyCenter({
   initialAuditError,
   initialRequests,
   initialRequestsTotal,
+  initialTerms = [],
+  initialTermsTotal = 0,
+  initialTermsError = null,
   importExport,
   loadError
 }: AdminTaxonomyCenterProps) {
@@ -203,6 +209,15 @@ export function AdminTaxonomyCenter({
         </div>
       ) : null}
 
+      {stats.totalTerms === 0 && !stats.error ? (
+        <div className="rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+          Chưa có dữ liệu taxonomy trong database. Chạy{" "}
+          <code className="rounded bg-black/30 px-1.5 py-0.5 text-xs">npm run db:legacy</code> (migration{" "}
+          <code className="rounded bg-black/30 px-1.5 py-0.5 text-xs">161_taxonomy_seed.sql</code>) rồi tải
+          lại trang.
+        </div>
+      ) : null}
+
       <TaxonomyHealthCards
         onNavigate={(target) => {
           if (target === "requests") setTabAndUrl("requests");
@@ -267,6 +282,9 @@ export function AdminTaxonomyCenter({
               createNonce={createNonce}
               focusTermId={focusTermId}
               groupFilter={groupFilter}
+              initialItems={initialTerms}
+              initialLoadError={initialTermsError}
+              initialTotal={initialTermsTotal}
               onActionRequestHandled={() => setPanelAction(null)}
               onMessage={notify}
               onSelect={setSelectedTerm}

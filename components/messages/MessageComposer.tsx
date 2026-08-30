@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui";
 import { MessageToast } from "@/components/messages/MessageToast";
+import { sendMessageAction } from "@/lib/actions/messages";
 import {
   messageActionEmptyState,
-  sendMessageAction,
   type MessageActionState
-} from "@/lib/actions/messages";
+} from "@/lib/actions/message-action-state";
 import { createOptimisticMessage } from "@/lib/messages/realtime";
 import { mapMessageRow } from "@/lib/messages/map-message-row";
 import type { ConversationMessage } from "@/types/messages";

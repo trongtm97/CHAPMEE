@@ -1,13 +1,14 @@
 import type { FocalPoint } from "@/lib/images/crop-with-focal-point";
+import { resolveStoredMediaUrl } from "@/lib/media/media-url";
 import { generateStoryImageVariants } from "@/lib/images/generate-story-image-variants";
 import { getCurrentStoryImage, STORY_IMAGE_SELECT_COLUMNS } from "@/lib/images/get-current-story-image";
 import { mapStoryImageRow } from "@/lib/images/map-story-image";
 import { uploadStoryImageVariantsOnly } from "@/lib/images/upload-story-image-variants";
 import type { StoryImage, StoryImageRow } from "@/types/story-images";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type RegenerateStoryImageVariantsInput = {
-  supabase: SupabaseClient;
+  db: DatabaseClient;
   storyId: string;
   imageId?: string;
   focal: FocalPoint;
@@ -19,7 +20,8 @@ export type RegenerateStoryImageVariantsResult = {
 };
 
 async function fetchOriginalBuffer(originalUrl: string) {
-  const response = await fetch(originalUrl);
+  const fetchUrl = resolveStoredMediaUrl(originalUrl) ?? originalUrl;
+  const response = await fetch(fetchUrl);
 
   if (!response.ok) {
     throw new Error("Không thể tải ảnh gốc để tạo lại biến thể.");
@@ -31,13 +33,13 @@ async function fetchOriginalBuffer(originalUrl: string) {
 export async function regenerateStoryImageVariants(
   input: RegenerateStoryImageVariantsInput
 ): Promise<RegenerateStoryImageVariantsResult> {
-  const { supabase, storyId, focal } = input;
+  const { db, storyId, focal } = input;
 
   let imageId = input.imageId;
   let row: StoryImageRow | null = null;
 
   if (imageId) {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("story_images")
       .select(STORY_IMAGE_SELECT_COLUMNS)
       .eq("id", imageId)
@@ -50,7 +52,7 @@ export async function regenerateStoryImageVariants(
 
     row = data as StoryImageRow | null;
   } else {
-    const current = await getCurrentStoryImage(supabase, storyId);
+    const current = await getCurrentStoryImage(db, storyId);
     if (current.error) {
       throw new Error(current.error);
     }
@@ -102,7 +104,7 @@ export async function regenerateStoryImageVariants(
   );
 
   const urls = await uploadStoryImageVariantsOnly(
-    supabase,
+    db,
     storyId,
     imageId,
     variants
@@ -111,7 +113,7 @@ export async function regenerateStoryImageVariants(
   const originalBytes = row.original_file_size_bytes ?? originalBuffer.byteLength;
   const processedFileSizeBytes = originalBytes + totalProcessedBytes;
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("story_images")
     .update({
       portrait_url: urls.portrait,
@@ -133,7 +135,7 @@ export async function regenerateStoryImageVariants(
     throw new Error(error.message);
   }
 
-  const { error: coverError } = await supabase
+  const { error: coverError } = await db
     .from("stories")
     .update({ cover_url: urls.portrait })
     .eq("id", storyId);
@@ -146,6 +148,6 @@ export async function regenerateStoryImageVariants(
 
   return {
     image,
-    coverUrl: urls.portrait
+    coverUrl: resolveStoredMediaUrl(urls.portrait) ?? urls.portrait
   };
 }

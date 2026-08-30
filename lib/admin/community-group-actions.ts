@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { assertStaffAnyPermission } from "@/lib/auth/staff-guards";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 
 export type CommunityGroupAction =
   | "lock_posting"
@@ -32,7 +32,7 @@ export async function communityGroupAction(
 ): Promise<{ ok: boolean; error: string | null }> {
   try {
     const { userId } = await requireGroupModerator();
-    const supabase = await createClient();
+    const db = await createClient();
     const now = new Date().toISOString();
 
     let status = "active";
@@ -71,7 +71,7 @@ export async function communityGroupAction(
       updated_at: now
     };
 
-    const { error } = await supabase.from("community_group_settings").upsert(row, {
+    const { error } = await db.from("community_group_settings").upsert(row, {
       onConflict: "group_type,group_id"
     });
 
@@ -112,9 +112,9 @@ export async function updateCommunitySpamSettingsAction(
 ): Promise<{ ok: boolean; error: string | null }> {
   try {
     const { userId } = await assertStaffAnyPermission(["admin.settings.update"]);
-    const supabase = await createClient();
+    const db = await createClient();
 
-    const { error } = await supabase.from("app_settings").upsert(
+    const { error } = await db.from("app_settings").upsert(
       {
         key: "community_spam_settings",
         value: settings,

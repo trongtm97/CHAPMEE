@@ -7,7 +7,7 @@ import {
   MeDesktopMonetizationFallback,
   MeDesktopMonetizationSection
 } from "@/components/me/server/MeDesktopMonetizationSection";
-import { EmptyState, ErrorState } from "@/components/ui";
+import { ErrorState } from "@/components/ui";
 import { MePageSkeleton } from "@/components/ui/navigation-skeletons";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { loadMePageCore } from "@/lib/me/loadMePageCore";
@@ -43,40 +43,32 @@ export default async function MePage() {
 
   if (!user) {
     return (
-      <section>
-        <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Tôi</p>
-        <h1 className="mt-3 text-3xl font-bold tracking-normal">Trung tâm cá nhân</h1>
-        <p className="mt-4 text-base leading-7 text-zinc-300">
-          Đăng nhập để lưu truyện, theo dõi tác giả và khoe thành tích đọc.
-        </p>
-        <div className="mt-8">
-          <EmptyState
-            action={
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Link
-                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-200"
-                  href="/login"
-                >
-                  Đăng nhập
-                </Link>
-                <Link
-                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-zinc-800 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-700"
-                  href="/register"
-                >
-                  Đăng ký
-                </Link>
-              </div>
-            }
-            description="Bạn vẫn có thể đọc nội dung công khai. Tài khoản sẽ giữ lại tủ truyện, lịch sử đọc và các thành tích."
-            title="Bạn chưa đăng nhập"
-          />
+      <section className="mx-auto w-full max-w-lg space-y-4 px-1 py-4 lg:max-w-none lg:px-0">
+        <div className="rounded-2xl border border-white/8 bg-gradient-to-br from-cyan-500/10 via-zinc-900/80 to-zinc-950 p-6 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300/90">
+            Trung tâm cá nhân
+          </p>
+          <h1 className="mt-3 text-2xl font-black text-white">Đăng nhập để tiếp tục</h1>
+          <p className="mt-3 text-sm leading-6 text-zinc-400">
+            Đăng nhập để quản lý hồ sơ, đọc tiếp, tủ truyện và tin nhắn.
+          </p>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <Link
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-cyan-300 px-5 text-sm font-bold text-zinc-950 transition hover:bg-cyan-200"
+              href="/login"
+            >
+              Đăng nhập
+            </Link>
+            <Link
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] px-5 text-sm font-semibold text-zinc-100 transition hover:border-white/20"
+              href="/discover"
+            >
+              Khám phá truyện
+            </Link>
+          </div>
         </div>
         {error ? (
-          <ErrorState
-            className="mt-4"
-            message={error}
-            title="Không thể tải hồ sơ"
-          />
+          <ErrorState className="mt-2" message={error} title="Không thể tải hồ sơ" />
         ) : null}
       </section>
     );

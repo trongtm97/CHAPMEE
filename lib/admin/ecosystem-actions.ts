@@ -2,17 +2,17 @@
 
 import { createColdStartTestForStory } from "@/lib/cold-start/create";
 import { logFairnessAdjustments } from "@/lib/fairness/adjustment-log";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export async function ecosystemBoostStoryAction(storyId: string) {
-  const supabase = createAdminClient();
-  const result = await createColdStartTestForStory(supabase, storyId);
+  const db = createAdminClient();
+  const result = await createColdStartTestForStory(db, storyId);
 
   if (!result.ok) {
     return { ok: false as const, error: result.error };
   }
 
-  await logFairnessAdjustments(supabase, [
+  await logFairnessAdjustments(db, [
     {
       itemType: "story",
       itemId: storyId,
@@ -37,9 +37,9 @@ export async function ecosystemReduceExposureAction(input: {
   surface: string;
   sharePercent: number;
 }) {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
 
-  await logFairnessAdjustments(supabase, [
+  await logFairnessAdjustments(db, [
     {
       itemType: input.itemType,
       itemId: input.itemId,

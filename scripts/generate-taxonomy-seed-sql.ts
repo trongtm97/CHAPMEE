@@ -1,5 +1,5 @@
 /**
- * Generates supabase/migrations/161_taxonomy_seed.sql from lib/taxonomy/seed/default-terms.ts
+ * Generates db/migrations/legacy/161_taxonomy_seed.sql from lib/taxonomy/seed/default-terms.ts
  * Run: npx --yes tsx scripts/generate-taxonomy-seed-sql.ts
  */
 import { writeFileSync } from "node:fs";
@@ -112,7 +112,7 @@ ${buildSubgenreParentPatchSql()}
 
 const outPath = join(
   process.cwd(),
-  "supabase",
+  "db",
   "migrations",
   "161_taxonomy_seed.sql"
 );

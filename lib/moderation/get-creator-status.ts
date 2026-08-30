@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import { getAccountStatus } from "@/lib/moderation/get-account-status";
 import type { CreatorStatusSummary } from "@/types/moderation";
 
@@ -10,7 +10,7 @@ export async function getCreatorStatus(
   creatorProfileId: string | null
 ): Promise<CreatorStatusSummary> {
   const account = await getAccountStatus(userId);
-  const supabase = await createClient();
+  const db = await createClient();
 
   const monetization = account.activeRestrictions.find(
     (r) => r.restrictionType === "creator_monetization_hold"
@@ -24,7 +24,7 @@ export async function getCreatorStatus(
 
   let pendingReviewStories = 0;
   if (creatorProfileId) {
-    const { count } = await supabase
+    const { count } = await db
       .from("stories")
       .select("id", { count: "exact", head: true })
       .eq("creator_id", creatorProfileId)

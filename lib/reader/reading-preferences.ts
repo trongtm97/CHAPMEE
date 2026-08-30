@@ -1,22 +1,25 @@
 import { readStorageItem, STORAGE_KEYS, writeStorageItem } from "@/lib/brand/storage";
 
 export type ReaderFontSize = "small" | "medium" | "large" | "xlarge";
-export type ReaderTheme = "dark" | "light" | "paper";
+export type ReaderTheme = "dark" | "light" | "paper" | "black";
 export type ReaderFontFamily = "default" | "serif" | "sans";
 export type ReaderLineHeight = "compact" | "normal" | "relaxed";
+export type ReaderContentWidth = "narrow" | "default" | "wide";
 
 export type ReadingPreferences = {
   fontSize: ReaderFontSize;
   theme: ReaderTheme;
   fontFamily: ReaderFontFamily;
   lineHeight: ReaderLineHeight;
+  contentWidth: ReaderContentWidth;
 };
 
 export const DEFAULT_READING_PREFERENCES: ReadingPreferences = {
   fontSize: "medium",
   theme: "dark",
   fontFamily: "default",
-  lineHeight: "normal"
+  lineHeight: "normal",
+  contentWidth: "default"
 };
 
 const STORAGE_KEY = STORAGE_KEYS.readingPreferences;
@@ -26,7 +29,16 @@ function isFontSize(value: unknown): value is ReaderFontSize {
 }
 
 function isTheme(value: unknown): value is ReaderTheme {
-  return value === "dark" || value === "light" || value === "paper";
+  return (
+    value === "dark" ||
+    value === "light" ||
+    value === "paper" ||
+    value === "black"
+  );
+}
+
+function isContentWidth(value: unknown): value is ReaderContentWidth {
+  return value === "narrow" || value === "default" || value === "wide";
 }
 
 function isFontFamily(value: unknown): value is ReaderFontFamily {
@@ -59,11 +71,19 @@ export function loadReadingPreferences(): ReadingPreferences {
         : DEFAULT_READING_PREFERENCES.fontFamily,
       lineHeight: isLineHeight(parsed.lineHeight)
         ? parsed.lineHeight
-        : DEFAULT_READING_PREFERENCES.lineHeight
+        : DEFAULT_READING_PREFERENCES.lineHeight,
+      contentWidth: isContentWidth(parsed.contentWidth)
+        ? parsed.contentWidth
+        : DEFAULT_READING_PREFERENCES.contentWidth
     };
   } catch {
     return DEFAULT_READING_PREFERENCES;
   }
+}
+
+export function resetReadingPreferences(): ReadingPreferences {
+  saveReadingPreferences(DEFAULT_READING_PREFERENCES);
+  return DEFAULT_READING_PREFERENCES;
 }
 
 export function saveReadingPreferences(preferences: ReadingPreferences) {

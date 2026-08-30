@@ -4,6 +4,7 @@ import { SponsoredChallengeBanner } from "@/components/campaigns/SponsoredChalle
 import { loadPublicCampaignContext, sponsoredBannerProps } from "@/lib/campaigns/load-public-campaigns";
 import { getAuthorGroups } from "@/lib/community/get-author-groups";
 import { getCommunitySession } from "@/lib/community/get-community-feed";
+import { getStoriesForCommunityPost } from "@/lib/community/getStoriesForCommunityPost";
 import { getStoryGroups } from "@/lib/community/get-story-groups";
 import { buildCanonicalUrl } from "@/lib/seo/metadata";
 
@@ -31,19 +32,24 @@ export const metadata: Metadata = {
 };
 
 export default async function CommunityPage() {
-  const [session, storyGroupsData, authorGroupsData, campaignContext] = await Promise.all([
-    getCommunitySession(),
-    getStoryGroups(),
-    getAuthorGroups(),
-    loadPublicCampaignContext()
-  ]);
+  const [session, storyGroupsData, authorGroupsData, campaignContext, storyOptions] =
+    await Promise.all([
+      getCommunitySession(),
+      getStoryGroups(),
+      getAuthorGroups(),
+      loadPublicCampaignContext(),
+      getStoriesForCommunityPost()
+    ]);
   const sponsoredBanner = campaignContext.communityBanner;
 
   return (
     <section className="page-stack overflow-x-hidden">
       <CommunityLayout
         authorGroups={authorGroupsData.groups}
+        avatarUrl={session.avatarUrl}
+        displayName={session.displayName}
         isLoggedIn={session.isLoggedIn}
+        stories={storyOptions.stories}
         storyGroups={storyGroupsData.groups}
       />
 

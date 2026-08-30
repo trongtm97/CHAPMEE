@@ -3,7 +3,7 @@ import { enrichDiscoverCandidates } from "@/lib/feed/enrich-discover";
 import { loadUserFeedExclusions } from "@/lib/feed/exclusions";
 import { getCandidatesForSurface } from "@/lib/feed/pools";
 import type { DiscoverStory } from "@/lib/discover/getDiscoverData";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { DiscoverSectionId } from "@/types/feed-mixer";
 
 export type DiscoverFeedResult = {
@@ -34,13 +34,13 @@ export async function getDiscoverFeed(
   const take = limit ?? SECTION_LIMITS[section] ?? 8;
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const { excludeKeys, recentlySeenKeys } = await loadUserFeedExclusions(
-      supabase,
+      db,
       userId
     );
 
-    const mixed = await getCandidatesForSurface(supabase, "discover", userId, {
+    const mixed = await getCandidatesForSurface(db, "discover", userId, {
       limit: Math.max(take * 4, 40),
       genreSlug: genreSlug ?? undefined,
       excludeKeys,
@@ -60,7 +60,7 @@ export async function getDiscoverFeed(
     const storyIds = slice.map((c) => c.storyId);
     const tagsByStory = await getTagsByStory(storyIds);
     const stories = await enrichDiscoverCandidates(
-      supabase,
+      db,
       slice,
       {
         requestId: mixed.requestId,

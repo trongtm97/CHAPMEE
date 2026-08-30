@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export async function logVerificationAudit(input: {
   requestId?: string | null;
@@ -10,8 +10,8 @@ export async function logVerificationAudit(input: {
   action: string;
   metadata?: Record<string, unknown>;
 }) {
-  const supabase = await createClient();
-  await supabase.from("account_verification_audit_logs").insert({
+  const db = await createClient();
+  await db.from("account_verification_audit_logs").insert({
     action: input.action,
     actor_id: input.actorId,
     actor_role: input.actorRole,

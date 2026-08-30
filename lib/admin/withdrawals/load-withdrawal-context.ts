@@ -1,6 +1,6 @@
 import { resolveAdminStudioFromProfile } from "@/lib/admin/creator-display";
-import { createClient } from "@/lib/supabase/server";
-import { listPayoutRequestsForAdmin } from "@/lib/supabase/payouts";
+import { createClient } from "@/lib/data/server";
+import { listPayoutRequestsForAdmin } from "@/lib/data/payouts";
 import { fetchEmailsForUsers } from "@/lib/admin/withdrawals/fetch-emails";
 import { computeWithdrawalFeeVnd } from "@/lib/admin/withdrawals/compute-withdrawal-fee";
 import type { PayoutRequest } from "@/types/payout";
@@ -55,10 +55,10 @@ export async function loadWithdrawalEnrichedContext(limit = 500): Promise<Withdr
     ...new Set(requests.map((r) => r.reviewed_by).filter(Boolean) as string[])
   ];
 
-  const supabase = await createClient();
+  const db = await createClient();
   const [profiles, monetization, wallets, reviewers, emailMap] = await Promise.all([
     creatorIds.length
-      ? supabase
+      ? db
           .from("profiles")
           .select(
             "id, display_name, username, avatar_url, is_verified, verification_type, status"
@@ -66,19 +66,19 @@ export async function loadWithdrawalEnrichedContext(limit = 500): Promise<Withdr
           .in("id", creatorIds)
       : Promise.resolve({ data: [] }),
     creatorIds.length
-      ? supabase
+      ? db
           .from("creator_monetization_profiles")
           .select("user_id, status, monetization_enabled, payout_enabled")
           .in("user_id", creatorIds)
       : Promise.resolve({ data: [] }),
     creatorIds.length
-      ? supabase
+      ? db
           .from("creator_wallets")
           .select("user_id, available_revenue_vnd, locked_revenue_vnd, total_withdrawn_vnd")
           .in("user_id", creatorIds)
       : Promise.resolve({ data: [] }),
     reviewerIds.length
-      ? supabase
+      ? db
           .from("profiles")
           .select("id, display_name, username")
           .in("id", reviewerIds)

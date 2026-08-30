@@ -154,5 +154,6 @@ export async function chapterContentObjectExists(input: {
   objectKey: string;
   bucket?: string;
 }) {
-  return objectExists(input.objectKey, input.bucket);
+  // ponytail: chapter bodies live in S3_TEXT_BUCKET; objectExists defaults to media bucket
+  return objectExists(input.objectKey, input.bucket ?? getTextS3Bucket());
 }

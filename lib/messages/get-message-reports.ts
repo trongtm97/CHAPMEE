@@ -1,11 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { ConversationMessage, MessageModerationReportItem } from "@/types/messages";
 
 async function countPriorReports(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   reportedUserId: string
 ) {
-  const { count } = await supabase
+  const { count } = await db
     .from("message_reports")
     .select("id", { count: "exact", head: true })
     .eq("reported_user_id", reportedUserId)
@@ -15,7 +15,7 @@ async function countPriorReports(
 }
 
 async function loadReportContext(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   conversationId: string,
   messageId: string | null
 ): Promise<ConversationMessage[]> {
@@ -23,7 +23,7 @@ async function loadReportContext(
     return [];
   }
 
-  const { data: target } = await supabase
+  const { data: target } = await db
     .from("messages")
     .select("id, sender_id, body, body_safety_status, created_at, deleted_at, status")
     .eq("id", messageId)
@@ -37,14 +37,14 @@ async function loadReportContext(
   const createdAt = target.created_at as string;
 
   const [{ data: before }, { data: after }] = await Promise.all([
-    supabase
+    db
       .from("messages")
       .select("id, sender_id, body, body_safety_status, created_at, deleted_at, status")
       .eq("conversation_id", conversationId)
       .lt("created_at", createdAt)
       .order("created_at", { ascending: false })
       .limit(5),
-    supabase
+    db
       .from("messages")
       .select("id, sender_id, body, body_safety_status, created_at, deleted_at, status")
       .eq("conversation_id", conversationId)
@@ -86,9 +86,9 @@ async function loadReportContext(
 }
 
 export async function getOpenMessageReports(): Promise<MessageModerationReportItem[]> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("message_reports")
     .select(
       `id, reason_code, detail, status, created_at, conversation_id, message_id, message_request_id,
@@ -132,14 +132,14 @@ export async function getOpenMessageReports(): Promise<MessageModerationReportIt
     const contextMessages =
       row.conversation_id && row.message_id
         ? await loadReportContext(
-            supabase,
+            db,
             row.conversation_id as string,
             row.message_id as string
           )
         : [];
 
     const priorReportCount = await countPriorReports(
-      supabase,
+      db,
       reported.id
     );
 

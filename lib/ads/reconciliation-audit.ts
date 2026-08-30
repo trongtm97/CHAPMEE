@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export async function logAdRevenueReconciliationAudit(input: {
   actorId: string | null;
@@ -8,8 +8,8 @@ export async function logAdRevenueReconciliationAudit(input: {
   after?: Record<string, unknown> | null;
 }): Promise<{ ok: boolean; error: string | null }> {
   try {
-    const supabase = createAdminClient();
-    const { error } = await supabase.from("ad_revenue_reconciliation_audit_logs").insert({
+    const db = createAdminClient();
+    const { error } = await db.from("ad_revenue_reconciliation_audit_logs").insert({
       actor_id: input.actorId,
       action: input.action,
       reconciliation_id: input.reconciliationId ?? null,
@@ -24,8 +24,8 @@ export async function logAdRevenueReconciliationAudit(input: {
 }
 
 export async function listAdRevenueReconciliationAuditLogs(reconciliationId?: string) {
-  const supabase = createAdminClient();
-  let query = supabase
+  const db = createAdminClient();
+  let query = db
     .from("ad_revenue_reconciliation_audit_logs")
     .select("*")
     .order("created_at", { ascending: false })

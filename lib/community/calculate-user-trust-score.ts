@@ -1,5 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { UserTrustScoreBreakdown } from "@/types/community-auto-moderation";
 
 function clampScore(score: number) {
@@ -17,7 +17,7 @@ export async function calculateUserTrustScore(
   userId: string,
   options?: { emailVerified?: boolean }
 ): Promise<UserTrustScoreBreakdown> {
-  const supabase = await createClient();
+  const db = await createClient();
   const factors: UserTrustScoreBreakdown["factors"] = [];
   let score = 50;
 
@@ -33,36 +33,36 @@ export async function calculateUserTrustScore(
     monetizationRes,
     violationsRes
   ] = await Promise.all([
-    supabase
+    db
       .from("profiles")
       .select(
         "created_at, is_verified, verification_type, community_trusted, community_restricted, community_restricted_until"
       )
       .eq("id", userId)
       .maybeSingle(),
-    supabase
+    db
       .from("community_posts")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       .eq("status", "approved"),
-    supabase
+    db
       .from("community_posts")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       .eq("status", "rejected")
       .gte("created_at", since30d),
-    supabase
+    db
       .from("account_strikes")
       .select("id, points")
       .eq("user_id", userId)
       .eq("is_active", true)
       .gt("expires_at", now),
-    supabase
+    db
       .from("creator_monetization_profiles")
       .select("status")
       .eq("user_id", userId)
       .maybeSingle(),
-    supabase
+    db
       .from("violations")
       .select("id")
       .eq("user_id", userId)
@@ -175,7 +175,7 @@ export async function calculateUserTrustScore(
   }
 
   let validReportCount30d = 0;
-  const { data: userPosts } = await supabase
+  const { data: userPosts } = await db
     .from("community_posts")
     .select("id")
     .eq("user_id", userId)
@@ -183,7 +183,7 @@ export async function calculateUserTrustScore(
 
   const postIds = (userPosts ?? []).map((p) => p.id as string);
   if (postIds.length) {
-    const { count } = await supabase
+    const { count } = await db
       .from("reports")
       .select("id", { count: "exact", head: true })
       .eq("target_type", "community_post")

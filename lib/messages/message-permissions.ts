@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getProfilePrivacySettings } from "@/lib/profile/get-profile-privacy";
 import { getMessageRestrictionMessage } from "@/lib/messages/get-message-restriction-message";
 import { getMessageBlockState } from "@/lib/messages/check-message-block";
@@ -12,8 +12,8 @@ const BLOCKED_BY_OTHER_MESSAGE = "Không thể gửi tin nhắn.";
 const BLOCKED_BY_ME_MESSAGE = "Bạn đã chặn người dùng này.";
 
 async function follows(followerId: string, followingId: string): Promise<boolean> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("user_follows")
     .select("id")
     .eq("follower_id", followerId)
@@ -27,9 +27,9 @@ async function hasActiveConversation(
   userA: string,
   userB: string
 ): Promise<string | null> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: myConvs } = await supabase
+  const { data: myConvs } = await db
     .from("conversation_participants")
     .select("conversation_id")
     .eq("user_id", userA);
@@ -39,7 +39,7 @@ async function hasActiveConversation(
     return null;
   }
 
-  const { data: shared } = await supabase
+  const { data: shared } = await db
     .from("conversation_participants")
     .select("conversation_id, conversations!inner(status)")
     .eq("user_id", userB)
@@ -54,8 +54,8 @@ async function hasPendingRequest(
   requesterId: string,
   recipientId: string
 ): Promise<boolean> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("message_requests")
     .select("id")
     .eq("requester_id", requesterId)

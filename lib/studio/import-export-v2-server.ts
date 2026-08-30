@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentCreatorProfile } from "@/lib/creator/getCreatorProfile";
 import { persistStoryTaxonomyFromForm } from "@/lib/creator/persist-story-taxonomy";
-import { normalizeHeader } from "@/lib/studio/csv";
+import { normalizeHeader, exportRowsToCsv, parseCsv } from "@/lib/studio/csv";
 import {
   buildChaptersTemplateCsv,
   buildInstructionsWithLabels,
@@ -11,24 +11,37 @@ import {
   buildTaxonomyReferenceCsv,
   STUDIO_IMPORT_INSTRUCTIONS
 } from "@/lib/studio/import-export-templates";
-import { loadCreatorTaxonomyCatalog } from "@/lib/studio/taxonomy-catalog";
-import { isStoriesImportV2Headers } from "@/lib/studio/import-v2-headers";
+import {
+  buildHeaderLabelRow,
+  CHAPTERS_IMPORT_V2_HEADER_LABELS,
+  STORIES_IMPORT_V2_HEADER_LABELS,
+  TAXONOMY_REFERENCE_HEADER_LABELS
+} from "@/lib/studio/import-v2-header-labels";
+import {
+  CHAPTERS_IMPORT_V2_HEADERS,
+  STORIES_IMPORT_V2_HEADERS,
+  STORIES_IMPORT_V2_ALL_FIELDS,
+  CHAPTERS_IMPORT_V2_ALL_FIELDS,
+  TAXONOMY_REFERENCE_HEADERS,
+  type ChaptersImportV2Row,
+  type StoriesImportV2Row,
+  type StoryImportV2Validation
+} from "@/types/studio-import-v2";
+import { loadCreatorTaxonomyCatalog, resolveCatalogTerm } from "@/lib/studio/taxonomy-catalog";
+import { isStoriesImportV2Headers, isChaptersImportV2Headers } from "@/lib/studio/import-v2-headers";
 import { validateStoryImportV2Row } from "@/lib/studio/story-import-taxonomy";
 import { studioPath } from "@/lib/studio/constants";
 import { normalizeStoryStructureType } from "@/lib/stories/story-structure";
 import { slugifyVietnamese } from "@/lib/seo/slugify-vi";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { resolveStoryDisplayStatus } from "@/lib/studio/status-labels";
+import { normalizeCreatorImportContentStatus, resolveChapterImportStatus } from "@/lib/studio/normalize-import-status";
 import { getStoryTaxonomy } from "@/lib/taxonomy/story-taxonomy";
 import { getExportScopedStoryIds } from "@/lib/studio/import-export-server";
-import {
-  CHAPTERS_IMPORT_V2_HEADERS,
-  STORIES_IMPORT_V2_HEADERS,
-  type ChaptersImportV2Row,
-  type StoriesImportV2Row
-} from "@/types/studio-import-v2";
 import type { ExportScopeInput } from "@/types/studio-import";
 import { generateNumericPublicCode } from "@/lib/urls/public-code";
+import { resolveContentSlug } from "@/lib/urls/slug";
+import { getChapterUrl } from "@/lib/urls/paths";
 import { storyAgeRatingFromTaxonomySlug } from "@/lib/taxonomy/age-rating-map";
 import { recordStudioImportExportJobAction } from "@/lib/studio/studio-import-export-jobs-actions";
 import { isContentFormat, isPresentationMode } from "@/lib/presentation/constants";
@@ -37,39 +50,112 @@ import {
   parseStructuredContentJson,
   validateStructuredContentForImport
 } from "@/lib/presentation/parse-structured";
+import { applyEpisodeObjectStorageAfterSave } from "@/lib/chapters/apply-episode-object-storage-save";
 import { resolveEffectivePresentationMode } from "@/lib/presentation/resolve-mode";
 import { getStoryPresentationSettings } from "@/lib/taxonomy/presentation";
 import { collectMediaIdsFromComposer } from "@/lib/composer/collect-media-ids";
 import { runComposerImportValidation } from "@/lib/composer/publish-validation";
 import { isComposerStructuredDocument } from "@/lib/composer/serializer";
 import { resolveKnownComposerMediaIds } from "@/lib/composer/verify-composer-media";
-import { upsertChapterMonetizationSetting } from "@/lib/supabase/chapter-monetization";
+import { assertCreatorOwnsStory } from "@/lib/auth/ownership";
+import { upsertChapterMonetizationSetting } from "@/lib/data/chapter-monetization";
 import {
   getStoryMonetizationSettings,
   upsertStoryMonetizationSettings
-} from "@/lib/supabase/story-monetization";
+} from "@/lib/data/story-monetization";
 import type { StoryAgeRating } from "@/types/moderation";
-import type { TaxonomyType } from "@/types/taxonomy";
+import { normalizeImportCell } from "@/lib/encoding/normalize-import-cell";
+import { getStoryMonetizationCapabilities } from "@/lib/content-origin/content-origin-policy";
+import {
+  DEFAULT_TRANSLATED_LANGUAGE,
+  resolveTranslationFormDefaults
+} from "@/lib/creator/story-translation-defaults";
+import { buildImportFieldValuesReferenceCsv } from "@/lib/studio/import-field-value-guide";
+import { ingestImportStoryCoverFromUrl } from "@/lib/studio/ingest-import-cover-url";
+import { resolveStoryCoverUrlsForExport } from "@/lib/studio/resolve-export-cover-url";
+
+function buildStoryOriginFieldsFromImportRow(
+  row: StoriesImportV2Row,
+  validation: StoryImportV2Validation
+): Record<string, unknown> {
+  if (validation.contentOrigin !== "translation") {
+    return { content_origin: "original" };
+  }
+
+  const translationDefaults = resolveTranslationFormDefaults({
+    translationType: validation.translationType
+  });
+  const capabilities = getStoryMonetizationCapabilities({
+    content_origin: "translation",
+    monetization_policy: "free_only",
+    rights_status: "pending_review"
+  });
+
+  return {
+    content_origin: "translation",
+    translation_type: validation.translationType,
+    translated_language: DEFAULT_TRANSLATED_LANGUAGE,
+    source_title: row.source_title?.trim() || null,
+    source_author_name: row.source_author_name?.trim() || null,
+    original_language: validation.originalLanguage,
+    source_url: validation.sourceUrl,
+    source_platform: translationDefaults.sourcePlatform,
+    license_note: translationDefaults.licenseNote,
+    license_document_media_id: translationDefaults.licenseDocumentMediaId,
+    rights_status: "pending_review",
+    monetization_policy: "free_only",
+    must_be_free_to_read: capabilities.mustBeFreeToRead,
+    can_sell_chapters: capabilities.canSellChapters,
+    can_sell_story_bundle: capabilities.canSellStoryBundle,
+    can_receive_tips: capabilities.canReceiveTips,
+    can_share_ads_revenue: capabilities.canShareAdsRevenue,
+    can_join_boost_campaign: capabilities.canJoinBoostCampaign
+  };
+}
+
+function buildStoryPresentationFieldsFromImportRow(
+  row: StoriesImportV2Row
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+
+  if (row.hook?.trim()) patch.hook = row.hook.trim();
+  if (row.long_description?.trim()) patch.long_description = row.long_description.trim();
+  if (row.seo_title?.trim()) patch.seo_title = row.seo_title.trim();
+  if (row.seo_description?.trim()) patch.seo_description = row.seo_description.trim();
+
+  return patch;
+}
 
 function rowFromCsv(headers: string[], cells: string[]): StoriesImportV2Row {
   const map = new Map<string, string>();
-  headers.forEach((h, i) => map.set(normalizeHeader(h), String(cells[i] ?? "").trim()));
+  headers.forEach((h, i) =>
+    map.set(normalizeHeader(h), normalizeImportCell(cells[i] ?? ""))
+  );
   const row = {} as StoriesImportV2Row;
-  for (const key of STORIES_IMPORT_V2_HEADERS) {
+  for (const key of STORIES_IMPORT_V2_ALL_FIELDS) {
     row[key] = map.get(key) ?? "";
   }
   return row;
 }
 
-function escapeCsv(value: string) {
-  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
+function exportImportV2Csv(
+  headers: readonly string[],
+  rows: Array<Record<string, string>>
+): string {
+  return exportRowsToCsv(
+    [...headers],
+    rows.map((row) => Object.fromEntries(headers.map((header) => [header, row[header] ?? ""])))
+  );
 }
 
-function slugsPipe(terms: Array<{ slug: string }> | undefined) {
-  return (terms ?? []).map((t) => t.slug).join("|");
+function termsCsv(terms: Array<{ name: string }> | undefined) {
+  return (terms ?? []).map((t) => t.name).join(", ");
+}
+
+function termCsvName(
+  terms: Array<{ name: string }> | undefined
+): string {
+  return terms?.[0]?.name ?? "";
 }
 
 function parseLooseBool(value: string): boolean | null {
@@ -195,6 +281,25 @@ async function applyStoryMonetizationFromImportRow(
   });
 }
 
+async function applyImportStoryCoverFromRow(
+  db: Awaited<ReturnType<typeof createClient>>,
+  storyId: string,
+  row: StoriesImportV2Row,
+  rowIndex: number
+): Promise<string | null> {
+  const raw = row.cover_url?.trim();
+  if (!raw) {
+    return null;
+  }
+
+  const result = await ingestImportStoryCoverFromUrl(db, storyId, raw);
+  if (result.ok) {
+    return null;
+  }
+
+  return `Dòng ${rowIndex}: ${result.warning}`;
+}
+
 async function applyChapterMonetizationFromImportRow(input: {
   chapterId: string;
   storyId: string;
@@ -240,6 +345,28 @@ async function applyChapterMonetizationFromImportRow(input: {
   });
 }
 
+function headerLabelsForTemplateCsv(fileName: string): string[] | undefined {
+  if (/^stories(-|$)/i.test(fileName)) {
+    return buildHeaderLabelRow(STORIES_IMPORT_V2_HEADERS, STORIES_IMPORT_V2_HEADER_LABELS);
+  }
+  if (/^chapters/i.test(fileName)) {
+    return buildHeaderLabelRow(CHAPTERS_IMPORT_V2_HEADERS, CHAPTERS_IMPORT_V2_HEADER_LABELS);
+  }
+  if (/^taxonomy_reference/i.test(fileName)) {
+    return buildHeaderLabelRow(TAXONOMY_REFERENCE_HEADERS, TAXONOMY_REFERENCE_HEADER_LABELS);
+  }
+  if (/^field_values_reference/i.test(fileName)) {
+    return [
+      "Cột kỹ thuật",
+      "Giá trị ghi vào Excel",
+      "Nhãn tiếng Việt",
+      "Ý nghĩa",
+      "Các cách ghi khác"
+    ];
+  }
+  return undefined;
+}
+
 export async function downloadStudioImportTemplatesAction(mode: "create" | "update") {
   const creatorState = await getCurrentCreatorProfile();
   if (!creatorState.creatorProfile) {
@@ -254,6 +381,7 @@ export async function downloadStudioImportTemplatesAction(mode: "create" | "upda
       { name: `stories-${mode}.csv`, content: buildStoriesTemplateCsv(mode) },
       { name: "chapters.csv", content: buildChaptersTemplateCsv() },
       { name: "taxonomy_reference.csv", content: buildTaxonomyReferenceCsv(catalog) },
+      { name: "field_values_reference.csv", content: buildImportFieldValuesReferenceCsv() },
       { name: "instructions.txt", content: buildInstructionsWithLabels() }
     ]
   };
@@ -353,11 +481,15 @@ export async function fetchImportExportBundleXlsxAction(scope: ExportScopeInput)
 
   const { buildWorkbookBase64 } = await import("@/lib/studio/build-import-xlsx");
   const xlsxBase64 = buildWorkbookBase64([
-    { name: "stories", csv: storiesExport.csv },
-    { name: "chapters", csv: chaptersExport.csv },
+    { name: "stories", csv: storiesExport.csv, headerLabels: buildHeaderLabelRow(STORIES_IMPORT_V2_HEADERS, STORIES_IMPORT_V2_HEADER_LABELS) },
+    { name: "chapters", csv: chaptersExport.csv, headerLabels: buildHeaderLabelRow(CHAPTERS_IMPORT_V2_HEADERS, CHAPTERS_IMPORT_V2_HEADER_LABELS) },
     {
       name: "taxonomy_reference",
-      csv: buildTaxonomyReferenceCsv(catalogResult.catalog)
+      csv: buildTaxonomyReferenceCsv(catalogResult.catalog),
+      headerLabels: buildHeaderLabelRow(
+        TAXONOMY_REFERENCE_HEADERS,
+        TAXONOMY_REFERENCE_HEADER_LABELS
+      )
     }
   ]);
 
@@ -381,7 +513,8 @@ export async function downloadStudioImportTemplatesXlsxAction(mode: "create" | "
       .filter((file) => file.name.endsWith(".csv"))
       .map((file) => ({
         name: file.name.replace(/\.csv$/i, ""),
-        csv: file.content
+        csv: file.content,
+        headerLabels: headerLabelsForTemplateCsv(file.name)
       })),
     {
       name: "instructions",
@@ -410,25 +543,52 @@ export async function fetchStoriesExportV2ByScopeAction(scope: ExportScopeInput)
   return fetchStoriesExportV2Action(storyIds);
 }
 
-export async function previewStoriesImportV2Action(input: {
+function parseImportV2CsvText(csvText: string): {
   headers: string[];
   rows: string[][];
-}) {
-  if (!isStoriesImportV2Headers(input.headers)) {
-    return { error: "Header không phải định dạng taxonomy v2.", rows: [] };
+  error?: string;
+} {
+  const trimmed = csvText.trim();
+  if (!trimmed) {
+    return { headers: [], rows: [], error: "File CSV trống." };
+  }
+
+  const parsed = parseCsv(trimmed);
+  if (parsed.headers.length === 0) {
+    return { headers: [], rows: [], error: "Không đọc được header CSV." };
+  }
+
+  return parsed;
+}
+
+export async function previewStoriesImportV2Action(input: { csvText: string }) {
+  const parsed = parseImportV2CsvText(input.csvText);
+  if (parsed.error) {
+    return { error: parsed.error, rows: [] };
+  }
+
+  const { headers, rows } = parsed;
+
+  if (!isStoriesImportV2Headers(headers)) {
+    return { error: "Header không phải định dạng truyện v2.", rows: [] };
   }
 
   const { catalog } = await loadCreatorTaxonomyCatalog();
   const previewRows = [];
 
-  for (let index = 0; index < input.rows.length; index++) {
-    const row = rowFromCsv(input.headers, input.rows[index]);
+  for (let index = 0; index < rows.length; index++) {
+    const row = rowFromCsv(headers, rows[index]);
     const validation = await validateStoryImportV2Row(row, index + 2, catalog);
+    const status = !validation.canImport
+      ? ("error" as const)
+      : validation.warnings.length > 0
+        ? ("warning" as const)
+        : ("valid" as const);
     previewRows.push({
       rowIndex: index + 2,
       data: row,
-      status: validation.ok ? ("valid" as const) : ("error" as const),
-      messages: [...validation.errors, ...validation.warnings]
+      status,
+      messages: [...validation.blockingErrors, ...validation.warnings]
     });
   }
 
@@ -436,16 +596,31 @@ export async function previewStoriesImportV2Action(input: {
 }
 
 export async function executeStoriesImportV2Action(input: {
-  headers: string[];
-  rows: string[][];
+  csvText: string;
   skipInvalid?: boolean;
 }) {
+  const parsed = parseImportV2CsvText(input.csvText);
+  if (parsed.error) {
+    return { error: parsed.error, created: 0, updated: 0, errors: [] };
+  }
+
+  const { headers, rows } = parsed;
+
+  if (!isStoriesImportV2Headers(headers)) {
+    return {
+      error: "Header không phải định dạng truyện v2.",
+      created: 0,
+      updated: 0,
+      errors: []
+    };
+  }
+
   const creatorState = await getCurrentCreatorProfile();
   if (!creatorState.creatorProfile) {
     return { error: "Cần đăng nhập Studio.", created: 0, updated: 0, errors: [] };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const { catalog } = await loadCreatorTaxonomyCatalog();
   const errors: Array<{ rowIndex: number; message: string }> = [];
   const rowIssues: Array<{ rowIndex: number; storyId?: string; messages: string[] }> = [];
@@ -453,23 +628,27 @@ export async function executeStoriesImportV2Action(input: {
   let created = 0;
   let updated = 0;
 
-  for (let i = 0; i < input.rows.length; i++) {
-    const row = rowFromCsv(input.headers, input.rows[i]);
+  for (let i = 0; i < rows.length; i++) {
+    const row = rowFromCsv(headers, rows[i]);
     const rowIndex = i + 2;
     const validation = await validateStoryImportV2Row(row, rowIndex, catalog);
 
-    if (!validation.ok) {
-      const message = validation.errors.join(" ");
-      errors.push({ rowIndex, message });
-      rowIssues.push({ rowIndex, messages: validation.errors });
-      if (!input.skipInvalid) continue;
+    if (!validation.canImport) {
+      for (const message of validation.blockingErrors) {
+        errors.push({ rowIndex, message });
+      }
+      rowIssues.push({ rowIndex, messages: validation.blockingErrors });
       continue;
+    }
+
+    if (validation.warnings.length > 0) {
+      rowIssues.push({ rowIndex, messages: validation.warnings });
     }
 
     let storyId: string | null = null;
 
     if (row.story_code?.trim()) {
-      const { data } = await supabase
+      const { data } = await db
         .from("stories")
         .select("id")
         .eq("public_code", row.story_code.trim())
@@ -477,6 +656,15 @@ export async function executeStoriesImportV2Action(input: {
         .maybeSingle();
       storyId = data?.id ? String(data.id) : null;
       if (!storyId) {
+        errors.push({ rowIndex, message: "story_code không thuộc tài khoản bạn." });
+        continue;
+      }
+    }
+
+    if (storyId) {
+      try {
+        await assertCreatorOwnsStory(creatorState.creatorProfile, storyId);
+      } catch {
         errors.push({ rowIndex, message: "story_code không thuộc tài khoản bạn." });
         continue;
       }
@@ -490,7 +678,7 @@ export async function executeStoriesImportV2Action(input: {
       const slug =
         row.slug?.trim() ||
         `${slugifyVietnamese(row.title.trim())}-${Date.now().toString(36)}`;
-      const publicCode = await generateNumericPublicCode(supabase, "story");
+      const publicCode = await generateNumericPublicCode(db, "story");
       const insertPayload: Record<string, unknown> = {
         creator_id: creatorState.creatorProfile.id,
         owner_user_id: creatorState.creatorProfile.user_id,
@@ -498,12 +686,14 @@ export async function executeStoriesImportV2Action(input: {
         slug,
         public_code: publicCode,
         short_description: row.description?.trim() || null,
-        status: row.status?.trim() ? row.status : "draft",
+        status: "draft",
         visibility: "private",
         is_completed: row.is_completed?.toLowerCase() === "true",
         content_warnings_confirmed: true,
         structure_type: structureType,
-        content_format: row.content_format?.trim() || null
+        content_format: row.content_format?.trim() || null,
+        ...buildStoryOriginFieldsFromImportRow(row, validation),
+        ...buildStoryPresentationFieldsFromImportRow(row)
       };
 
       if (structureType === "standalone") {
@@ -514,20 +704,25 @@ export async function executeStoriesImportV2Action(input: {
               row.standalone_content_json.trim()
             );
           } catch {
-            errors.push({ rowIndex, message: "standalone_content_json không hợp lệ." });
-            continue;
+            rowIssues.push({
+              rowIndex,
+              messages: ["standalone_content_json không hợp lệ — bỏ qua, vẫn tạo nháp."]
+            });
           }
         }
       }
 
-      const { data: inserted, error: insertError } = await supabase
+      const { data: inserted, error: insertError } = await db
         .from("stories")
         .insert(insertPayload)
         .select("id")
         .single();
 
-      if (insertError) {
-        errors.push({ rowIndex, message: insertError.message });
+      if (insertError || !inserted) {
+        errors.push({
+          rowIndex,
+          message: insertError?.message ?? "Không tạo được truyện."
+        });
         continue;
       }
       storyId = String(inserted.id);
@@ -545,6 +740,16 @@ export async function executeStoriesImportV2Action(input: {
       if (row.content_format?.trim()) {
         patch.content_format = row.content_format.trim();
       }
+      if (
+        row.content_origin?.trim() ||
+        row.original_language?.trim() ||
+        row.source_url?.trim() ||
+        row.translation_type?.trim() ||
+        validation.contentOrigin === "translation"
+      ) {
+        Object.assign(patch, buildStoryOriginFieldsFromImportRow(row, validation));
+      }
+      Object.assign(patch, buildStoryPresentationFieldsFromImportRow(row));
       if (structureType === "standalone") {
         if (row.standalone_content?.trim()) {
           patch.standalone_plain_text = row.standalone_content.trim();
@@ -553,44 +758,74 @@ export async function executeStoriesImportV2Action(input: {
           try {
             patch.standalone_content_json = JSON.parse(row.standalone_content_json.trim());
           } catch {
-            errors.push({ rowIndex, message: "standalone_content_json không hợp lệ." });
-            continue;
+            rowIssues.push({
+              rowIndex,
+              storyId: storyId ?? undefined,
+              messages: ["standalone_content_json không hợp lệ — bỏ qua."]
+            });
           }
         }
       }
       if (Object.keys(patch).length > 0) {
-        await supabase.from("stories").update(patch).eq("id", storyId);
+        await db.from("stories").update(patch).eq("id", storyId);
       }
       updated += 1;
     }
 
-    const ageRating = storyAgeRatingFromTaxonomySlug(row.age_rating_slug);
-    const persist = await persistStoryTaxonomyFromForm(supabase, storyId!, {
-      taxonomyTermIds: validation.termIds,
-      presentationMode: validation.presentationMode,
-      contentWarningsConfirmed: validation.contentWarningsConfirmed,
-      ageRating
-    });
-
-    await supabase.from("stories").update({ age_rating: ageRating }).eq("id", storyId);
-
-    if (!persist.ok) {
-      errors.push({ rowIndex, message: persist.error ?? "Lỗi taxonomy." });
+    const coverWarning = await applyImportStoryCoverFromRow(db, storyId!, row, rowIndex);
+    if (coverWarning) {
       rowIssues.push({
         rowIndex,
         storyId: storyId ?? undefined,
-        messages: [persist.error ?? "Lỗi taxonomy."]
+        messages: [coverWarning]
       });
-    } else {
-      if (storyId) {
-        importedStoryIds.push(storyId);
-      }
-      if (validation.warnings.length > 0) {
+    }
+
+    const ageRating = storyAgeRatingFromTaxonomySlug(
+      validation.ageRatingSlug ?? row.age_rating_slug ?? ""
+    );
+
+    if (validation.termIds.length > 0 || validation.presentationMode) {
+      const persist = await persistStoryTaxonomyFromForm(db, storyId!, {
+        taxonomyTermIds: validation.termIds,
+        presentationMode: validation.presentationMode,
+        contentWarningsConfirmed: validation.contentWarningsConfirmed,
+        ageRating
+      });
+
+      await db.from("stories").update({ age_rating: ageRating }).eq("id", storyId);
+
+      if (!persist.ok) {
+        errors.push({ rowIndex, message: persist.error ?? "Lỗi taxonomy." });
         rowIssues.push({
           rowIndex,
           storyId: storyId ?? undefined,
-          messages: validation.warnings
+          messages: [persist.error ?? "Lỗi taxonomy."]
         });
+      } else {
+        if (storyId) {
+          importedStoryIds.push(storyId);
+        }
+        try {
+          await applyStoryMonetizationFromImportRow(
+            storyId!,
+            creatorState.creatorProfile.user_id,
+            row
+          );
+        } catch (monetizationError) {
+          errors.push({
+            rowIndex,
+            message:
+              monetizationError instanceof Error
+                ? monetizationError.message
+                : "Lỗi monetization truyện."
+          });
+        }
+      }
+    } else {
+      await db.from("stories").update({ age_rating: ageRating }).eq("id", storyId);
+      if (storyId) {
+        importedStoryIds.push(storyId);
       }
       try {
         await applyStoryMonetizationFromImportRow(
@@ -616,7 +851,7 @@ export async function executeStoriesImportV2Action(input: {
   const jobResult = await recordStudioImportExportJobAction({
     jobType: "import_stories",
     fileName: "stories-import-v2.csv",
-    totalRows: input.rows.length,
+    totalRows: rows.length,
     successRows: created + updated,
     errorRows: errors.length,
     errorSummary: errors.length ? { sample: errors.slice(0, 5) } : {}
@@ -624,7 +859,7 @@ export async function executeStoriesImportV2Action(input: {
 
   if (jobResult.jobId && importedStoryIds.length > 0) {
     try {
-      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const { createAdminClient } = await import("@/lib/data/admin");
       const { recordImportBatchTaxonomyFlags } = await import(
         "@/lib/content-taxonomy-quality/import-flags"
       );
@@ -656,11 +891,11 @@ export async function fetchStoriesExportV2Action(storyIds: string[]) {
     return { error: "Không có truyện để xuất.", csv: "" };
   }
 
-  const supabase = await createClient();
-  const { data: stories, error } = await supabase
+  const db = await createClient();
+  const { data: stories, error } = await db
     .from("stories")
     .select(
-      "id, title, slug, public_code, short_description, status, visibility, is_completed, content_warnings_confirmed, structure_type, content_format, standalone_plain_text, standalone_content_json"
+      "id, title, slug, public_code, hook, short_description, long_description, cover_url, seo_title, seo_description, content_origin, translation_type, source_title, source_author_name, original_language, source_url, status, visibility, is_completed, content_warnings_confirmed, structure_type, content_format, standalone_plain_text, standalone_content_json"
     )
     .eq("creator_id", creatorState.creatorProfile.id)
     .in("id", storyIds);
@@ -670,9 +905,10 @@ export async function fetchStoriesExportV2Action(storyIds: string[]) {
   }
 
   const storyIdList = (stories ?? []).map((s) => String(s.id));
+  const exportCoverUrls = await resolveStoryCoverUrlsForExport(db, stories ?? []);
   const { data: monetizationRows } =
     storyIdList.length > 0
-      ? await supabase
+      ? await db
           .from("story_monetization_settings")
           .select(
             "story_id, free_first_chapters_count, auto_pricing_enabled, auto_price_coin, full_access_enabled, full_access_price_coin, full_access_includes_future_chapters, default_new_chapter_price_coin, full_access_note"
@@ -684,12 +920,14 @@ export async function fetchStoriesExportV2Action(storyIds: string[]) {
     (monetizationRows ?? []).map((row) => [String(row.story_id), row])
   );
 
-  const lines = [STORIES_IMPORT_V2_HEADERS.join(",")];
+  const { catalog } = await loadCreatorTaxonomyCatalog();
+
+  const exportRows: Array<Record<string, string>> = [];
 
   for (const story of stories ?? []) {
     const taxonomy = await getStoryTaxonomy(String(story.id));
     const byType = taxonomy.data;
-    const presentation = await supabase
+    const presentation = await db
       .from("story_presentation_settings")
       .select("mode")
       .eq("story_id", story.id)
@@ -706,20 +944,49 @@ export async function fetchStoriesExportV2Action(storyIds: string[]) {
       content_format: String((story as { content_format?: string | null }).content_format ?? ""),
       title: String(story.title),
       slug: String(story.slug),
+      hook: String((story as { hook?: string | null }).hook ?? ""),
       description: String(story.short_description ?? ""),
-      content_type_slug: slugsPipe(byType.content_type).split("|")[0] ?? "",
-      main_genre_slug: slugsPipe(byType.main_genre).split("|")[0] ?? "",
-      subgenre_slugs: slugsPipe(byType.subgenre),
-      trope_tag_slugs: slugsPipe(byType.trope_tag),
-      setting_tag_slugs: slugsPipe(byType.setting_tag),
-      character_tag_slugs: slugsPipe(byType.character_tag),
-      relationship_tag_slugs: slugsPipe(byType.relationship_tag),
-      narrative_style_slugs: slugsPipe(byType.narrative_style),
-      reader_experience_slugs: slugsPipe(byType.reader_experience),
-      presentation_mode: String(presentation.data?.mode ?? "standard_prose"),
-      age_rating_slug: slugsPipe(byType.age_rating).split("|")[0] ?? "",
+      long_description: String(
+        (story as { long_description?: string | null }).long_description ?? ""
+      ),
+      cover_url: exportCoverUrls.get(String(story.id)) ?? "",
+      seo_title: String((story as { seo_title?: string | null }).seo_title ?? ""),
+      seo_description: String(
+        (story as { seo_description?: string | null }).seo_description ?? ""
+      ),
+      content_origin: String(
+        (story as { content_origin?: string | null }).content_origin ?? "original"
+      ),
+      source_title: String(
+        (story as { source_title?: string | null }).source_title ?? ""
+      ),
+      source_author_name: String(
+        (story as { source_author_name?: string | null }).source_author_name ?? ""
+      ),
+      original_language: String(
+        (story as { original_language?: string | null }).original_language ?? ""
+      ),
+      source_url: String((story as { source_url?: string | null }).source_url ?? ""),
+      translation_type: String(
+        (story as { translation_type?: string | null }).translation_type ?? ""
+      ),
+      content_type_slug: termCsvName(byType.content_type),
+      main_genre_slug: termCsvName(byType.main_genre),
+      subgenre_slugs: termsCsv(byType.subgenre),
+      trope_tag_slugs: termsCsv(byType.trope_tag),
+      setting_tag_slugs: termsCsv(byType.setting_tag),
+      character_tag_slugs: termsCsv(byType.character_tag),
+      relationship_tag_slugs: termsCsv(byType.relationship_tag),
+      narrative_style_slugs: termsCsv(byType.narrative_style),
+      reader_experience_slugs: termsCsv(byType.reader_experience),
+      presentation_mode: (() => {
+        const slug = String(presentation.data?.mode ?? "standard_prose");
+        const term = resolveCatalogTerm(catalog, "presentation_mode", slug);
+        return term?.name ?? slug;
+      })(),
+      age_rating_slug: termCsvName(byType.age_rating),
       has_content_warning: warnings.length > 0 ? "true" : "false",
-      content_warning_slugs: slugsPipe(byType.content_warning),
+      content_warning_slugs: termsCsv(byType.content_warning),
       status: resolveStoryDisplayStatus({
         isCompleted: Boolean(story.is_completed),
         status: story.status as "draft",
@@ -775,12 +1042,10 @@ export async function fetchStoriesExportV2Action(storyIds: string[]) {
           : ""
     };
 
-    lines.push(
-      STORIES_IMPORT_V2_HEADERS.map((h) => escapeCsv(row[h])).join(",")
-    );
+    exportRows.push(row);
   }
 
-  const csv = lines.join("\n");
+  const csv = exportImportV2Csv(STORIES_IMPORT_V2_HEADERS, exportRows);
 
   await recordStudioImportExportJobAction({
     jobType: "export_stories",
@@ -804,8 +1069,8 @@ export async function fetchChaptersExportV2Action(scope: ExportScopeInput) {
     return { error: "Không có truyện trong phạm vi đã chọn.", csv: "" };
   }
 
-  const supabase = await createClient();
-  const { data: stories, error: storiesError } = await supabase
+  const db = await createClient();
+  const { data: stories, error: storiesError } = await db
     .from("stories")
     .select("id, public_code")
     .eq("creator_id", creatorState.creatorProfile.id)
@@ -819,7 +1084,7 @@ export async function fetchChaptersExportV2Action(scope: ExportScopeInput) {
     (stories ?? []).map((s) => [String(s.id), String(s.public_code ?? "")])
   );
 
-  const { data: episodes, error: episodesError } = await supabase
+  const { data: episodes, error: episodesError } = await db
     .from("episodes")
     .select(
       "id, story_id, public_code, episode_number, title, slug, content, status, published_at, presentation_mode, structured_content, content_format, validation_status"
@@ -834,7 +1099,7 @@ export async function fetchChaptersExportV2Action(scope: ExportScopeInput) {
   const episodeIds = (episodes ?? []).map((ep) => String(ep.id));
   const { data: chapterMonetization } =
     episodeIds.length > 0
-      ? await supabase
+      ? await db
           .from("chapter_monetization_settings")
           .select("chapter_id, is_paid, coin_price")
           .in("chapter_id", episodeIds)
@@ -844,7 +1109,7 @@ export async function fetchChaptersExportV2Action(scope: ExportScopeInput) {
     (chapterMonetization ?? []).map((row) => [String(row.chapter_id), row])
   );
 
-  const lines = [CHAPTERS_IMPORT_V2_HEADERS.join(",")];
+  const exportRows: Array<Record<string, string>> = [];
 
   for (const episode of episodes ?? []) {
     const storyId = String(episode.story_id);
@@ -873,10 +1138,10 @@ export async function fetchChaptersExportV2Action(scope: ExportScopeInput) {
           : "",
       is_free: isPaid ? "false" : "true"
     };
-    lines.push(CHAPTERS_IMPORT_V2_HEADERS.map((h) => escapeCsv(row[h])).join(","));
+    exportRows.push(row);
   }
 
-  const csv = lines.join("\n");
+  const csv = exportImportV2Csv(CHAPTERS_IMPORT_V2_HEADERS, exportRows);
 
   await recordStudioImportExportJobAction({
     jobType: "export_stories",
@@ -891,42 +1156,45 @@ export async function fetchChaptersExportV2Action(scope: ExportScopeInput) {
 
 function chapterRowFromCsv(headers: string[], cells: string[]) {
   const map = new Map<string, string>();
-  headers.forEach((h, i) => map.set(normalizeHeader(h), String(cells[i] ?? "").trim()));
-  return {
-    story_code: map.get("story_code") ?? "",
-    story_external_key: map.get("story_external_key") ?? "",
-    chapter_code: map.get("chapter_code") ?? "",
-    chapter_order: map.get("chapter_order") ?? "",
-    title: map.get("title") ?? "",
-    slug: map.get("slug") ?? "",
-    content: map.get("content") ?? "",
-    content_format: map.get("content_format") ?? "",
-    structured_content_json: map.get("structured_content_json") ?? "",
-    validation_status: map.get("validation_status") ?? "",
-    presentation_mode: map.get("presentation_mode") ?? "",
-    status: map.get("status") ?? "draft",
-    publish_at: map.get("publish_at") ?? "",
-    price_coin: map.get("price_coin") ?? "",
-    is_free: map.get("is_free") ?? ""
-  };
+  headers.forEach((h, i) =>
+    map.set(normalizeHeader(h), normalizeImportCell(cells[i] ?? ""))
+  );
+  const row = {} as ChaptersImportV2Row;
+  for (const key of CHAPTERS_IMPORT_V2_ALL_FIELDS) {
+    row[key] = map.get(key) ?? (key === "status" ? "draft" : "");
+  }
+  return row;
 }
 
-export async function executeChaptersImportV2Action(input: {
-  headers: string[];
-  rows: string[][];
-}) {
+export async function executeChaptersImportV2Action(input: { csvText: string }) {
+  const parsed = parseImportV2CsvText(input.csvText);
+  if (parsed.error) {
+    return { error: parsed.error, created: 0, updated: 0, errors: [] };
+  }
+
+  const { headers, rows } = parsed;
+
+  if (!isChaptersImportV2Headers(headers)) {
+    return {
+      error: "Header không phải định dạng chương v2.",
+      created: 0,
+      updated: 0,
+      errors: []
+    };
+  }
+
   const creatorState = await getCurrentCreatorProfile();
   if (!creatorState.creatorProfile) {
     return { error: "Chưa đăng nhập.", created: 0, updated: 0, errors: [] };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const errors: Array<{ rowIndex: number; message: string }> = [];
   let created = 0;
   let updated = 0;
 
-  for (let i = 0; i < input.rows.length; i++) {
-    const row = chapterRowFromCsv(input.headers, input.rows[i]);
+  for (let i = 0; i < rows.length; i++) {
+    const row = chapterRowFromCsv(headers, rows[i]);
     const rowIndex = i + 2;
 
     if (!row.story_code?.trim()) {
@@ -938,19 +1206,29 @@ export async function executeChaptersImportV2Action(input: {
       continue;
     }
 
-    const { data: story } = await supabase
+    const { data: story } = await db
       .from("stories")
-      .select("id")
+      .select("id, slug, public_code")
       .eq("public_code", row.story_code.trim())
       .eq("creator_id", creatorState.creatorProfile.id)
       .maybeSingle();
 
     if (!story?.id) {
-      errors.push({ rowIndex, message: "story_code không hợp lệ." });
+      errors.push({ rowIndex, message: "story_code không thuộc tài khoản bạn." });
       continue;
     }
 
     const storyId = String(story.id);
+    const storySlug = String(story.slug ?? "");
+    const storyPublicCode = String(story.public_code ?? "");
+
+    try {
+      await assertCreatorOwnsStory(creatorState.creatorProfile, storyId);
+    } catch {
+      errors.push({ rowIndex, message: "story_code không thuộc tài khoản bạn." });
+      continue;
+    }
+
     const episodeNumber = Number.parseInt(row.chapter_order, 10);
     if (!Number.isFinite(episodeNumber) || episodeNumber < 1) {
       errors.push({ rowIndex, message: "chapter_order không hợp lệ." });
@@ -960,17 +1238,24 @@ export async function executeChaptersImportV2Action(input: {
     let chapterId: string | null = null;
 
     if (row.chapter_code?.trim()) {
-      const { data: ep } = await supabase
+      const { data: ep } = await db
         .from("episodes")
         .select("id")
         .eq("public_code", row.chapter_code.trim())
         .eq("story_id", storyId)
         .maybeSingle();
       chapterId = ep?.id ? String(ep.id) : null;
+      if (!chapterId) {
+        errors.push({
+          rowIndex,
+          message: "chapter_code không thuộc story_code của bạn."
+        });
+        continue;
+      }
     }
 
     if (!chapterId) {
-      const { data: byOrder } = await supabase
+      const { data: byOrder } = await db
         .from("episodes")
         .select("id")
         .eq("story_id", storyId)
@@ -980,7 +1265,7 @@ export async function executeChaptersImportV2Action(input: {
     }
 
     const title = row.title.trim() || `Chương ${episodeNumber}`;
-    let content = row.content ?? "";
+    let content = (row.content ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
     const presentationSettings = await getStoryPresentationSettings(storyId);
     const chapterPresentationMode = row.presentation_mode?.trim() || null;
@@ -1042,7 +1327,7 @@ export async function executeChaptersImportV2Action(input: {
           continue;
         }
         const knownMedia = await resolveKnownComposerMediaIds(
-          supabase,
+          db,
           structuredContent,
           storyId
         );
@@ -1070,11 +1355,35 @@ export async function executeChaptersImportV2Action(input: {
       continue;
     }
 
+    let currentChapterStatus: string | null = null;
+    if (chapterId && row.status?.trim()) {
+      const { data: currentChapter } = await db
+        .from("episodes")
+        .select("status")
+        .eq("id", chapterId)
+        .maybeSingle();
+      currentChapterStatus =
+        currentChapter && "status" in currentChapter
+          ? String(currentChapter.status)
+          : null;
+    }
+
+    const importStatus = resolveChapterImportStatus(
+      row.status,
+      Boolean(chapterId),
+      currentChapterStatus
+    );
+
     const episodePatch = {
       title,
       content,
       episode_number: episodeNumber,
-      status: row.status || "draft",
+      status: importStatus,
+      ...(importStatus === "published"
+        ? {
+            published_at: row.publish_at?.trim() || new Date().toISOString()
+          }
+        : {}),
       presentation_mode: chapterPresentationMode,
       structured_content: structuredContent,
       content_format: contentFormat,
@@ -1084,7 +1393,7 @@ export async function executeChaptersImportV2Action(input: {
     };
 
     if (chapterId) {
-      const { error } = await supabase
+      const { error } = await db
         .from("episodes")
         .update(episodePatch)
         .eq("id", chapterId);
@@ -1094,10 +1403,38 @@ export async function executeChaptersImportV2Action(input: {
       }
       updated += 1;
     } else {
-      const { data: inserted, error } = await supabase
+      if (!storyPublicCode || !storySlug) {
+        errors.push({ rowIndex, message: "Truyện thiếu mã public URL — mở truyện trong Studio rồi thử lại." });
+        continue;
+      }
+
+      let chapterPublicCode: string;
+      try {
+        chapterPublicCode = await generateNumericPublicCode(db, "chapter");
+      } catch (codeError) {
+        errors.push({
+          rowIndex,
+          message:
+            codeError instanceof Error
+              ? codeError.message
+              : "Không tạo được mã chương."
+        });
+        continue;
+      }
+
+      const chapterSlug = resolveContentSlug(title, "chapter", chapterPublicCode);
+      const canonicalPath = getChapterUrl(
+        { slug: storySlug, public_code: storyPublicCode },
+        { slug: chapterSlug, public_code: chapterPublicCode }
+      );
+
+      const { data: inserted, error } = await db
         .from("episodes")
         .insert({
           story_id: storyId,
+          slug: chapterSlug,
+          public_code: chapterPublicCode,
+          canonical_path: canonicalPath,
           ...episodePatch
         })
         .select("id")
@@ -1112,6 +1449,23 @@ export async function executeChaptersImportV2Action(input: {
     }
 
     if (chapterId) {
+      const storageResult = await applyEpisodeObjectStorageAfterSave(db, {
+        storyId,
+        chapterId,
+        content,
+        structuredContent,
+        contentFormat
+      });
+      if (!storageResult.ok) {
+        errors.push({
+          rowIndex,
+          message: `⚠ Chương đã lưu; lỗi lưu trữ nội dung: ${storageResult.error}`
+        });
+        continue;
+      }
+    }
+
+    if (chapterId) {
       try {
         await applyChapterMonetizationFromImportRow({
           chapterId,
@@ -1121,12 +1475,14 @@ export async function executeChaptersImportV2Action(input: {
           isFree: row.is_free
         });
       } catch (monetizationError) {
+        // ponytail: monetization lỗi không huỷ chương đã tạo — chỉ ghi cảnh báo
         errors.push({
           rowIndex,
-          message:
+          message: `⚠ Chương đã lưu; monetization: ${
             monetizationError instanceof Error
               ? monetizationError.message
-              : "Lỗi monetization chương."
+              : "lỗi monetization"
+          }`
         });
       }
     }
@@ -1135,7 +1491,7 @@ export async function executeChaptersImportV2Action(input: {
   await recordStudioImportExportJobAction({
     jobType: "import_stories",
     fileName: "chapters-import-v2.csv",
-    totalRows: input.rows.length,
+    totalRows: rows.length,
     successRows: created + updated,
     errorRows: errors.length,
     errorSummary: errors.length ? { sample: errors.slice(0, 5) } : {}

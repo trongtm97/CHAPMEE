@@ -1,5 +1,5 @@
 import { runTaxonomySeoAuditFindings } from "@/lib/seo/audit-taxonomy";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { DEFAULT_NOINDEX_ROUTE_PATTERNS } from "@/lib/seo/noindex";
 import { listSeoRulesFromDb } from "@/lib/seo/rules";
 import { isValidSeoSlug, validateSeoSlug } from "@/lib/seo/slug";
@@ -73,9 +73,9 @@ export async function runSeoAuditMvp(): Promise<SeoAuditReport> {
   }
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
 
-    const { data: posts } = await supabase
+    const { data: posts } = await db
       .from("admin_content_posts")
       .select("id, slug, title, seo_title, seo_description, status, indexable")
       .eq("status", "published");
@@ -139,7 +139,7 @@ export async function runSeoAuditMvp(): Promise<SeoAuditReport> {
       }
     }
 
-    const { data: stories } = await supabase
+    const { data: stories } = await db
       .from("stories")
       .select("id, slug, title, hook, short_description, visibility, status")
       .eq("visibility", "public")
@@ -174,7 +174,7 @@ export async function runSeoAuditMvp(): Promise<SeoAuditReport> {
       }
     }
 
-    const { data: episodes } = await supabase
+    const { data: episodes } = await db
       .from("episodes")
       .select("id, episode_number, stories!inner(slug, visibility, status)")
       .in("status", ["published", "approved"])
@@ -203,7 +203,7 @@ export async function runSeoAuditMvp(): Promise<SeoAuditReport> {
       }
     }
 
-    const { data: announcements } = await supabase
+    const { data: announcements } = await db
       .from("platform_announcements")
       .select("id, slug, title, indexable, status, visibility");
 
@@ -253,7 +253,7 @@ export async function persistSeoAuditFindings(findings: SeoAuditFinding[]) {
   }
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const rows = findings.slice(0, 50).map((item) => ({
       route: item.route,
       page_type: null,
@@ -263,7 +263,7 @@ export async function persistSeoAuditFindings(findings: SeoAuditFinding[]) {
       metadata: item.metadata ?? {}
     }));
 
-    const { error } = await supabase.from("seo_audit_logs").insert(rows);
+    const { error } = await db.from("seo_audit_logs").insert(rows);
     return { error: error?.message ?? null };
   } catch (error) {
     return {

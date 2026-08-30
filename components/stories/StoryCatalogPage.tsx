@@ -2,6 +2,7 @@ import { DesktopStoryCatalogLayout } from "@/components/stories/DesktopStoryCata
 import { MobileStoryCatalogLayout } from "@/components/stories/MobileStoryCatalogLayout";
 import { TaxonomyFilterApplyTracker } from "@/components/analytics/TaxonomyFilterApplyTracker";
 import type { CatalogFilterOptions, StoryCatalogFilterParams } from "@/lib/discovery/types";
+import type { StoryAudioBadgeDisplay } from "@/src/components/story/StoryAudioBadge";
 import type { StoryCatalogGenre, StoryCatalogSort, StoryCatalogStatus, StoryCatalogStory } from "@/types/story";
 
 type StoryCatalogPageProps = {
@@ -18,6 +19,12 @@ type StoryCatalogPageProps = {
   filters: StoryCatalogFilterParams;
   filterOptions: CatalogFilterOptions;
   hideCatalogHeader?: boolean;
+  title?: string;
+  subtitle?: string;
+  hideMonetizationFilters?: boolean;
+  hideAccessFilters?: boolean;
+  allowedSorts?: StoryCatalogSort[];
+  audioBadgeDisplay?: StoryAudioBadgeDisplay;
 };
 
 export function StoryCatalogPage(props: StoryCatalogPageProps) {

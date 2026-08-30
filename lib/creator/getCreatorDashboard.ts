@@ -1,9 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
-import { getPublicStoryEarlyFanStats } from "@/lib/supabase/early-fans";
-import { syncAuthorMilestones } from "@/lib/supabase/milestones";
-import { syncStoryReadMilestones } from "@/lib/supabase/milestones";
-import { syncAuthorBadges } from "@/lib/supabase/badges";
+import { getPublicStoryEarlyFanStats } from "@/lib/data/early-fans";
+import { syncAuthorMilestones } from "@/lib/data/milestones";
+import { syncStoryReadMilestones } from "@/lib/data/milestones";
+import { syncAuthorBadges } from "@/lib/data/badges";
 
 export type CreatorDashboardStory = {
   id: string;
@@ -36,7 +37,7 @@ export async function getCreatorDashboard(
   creatorProfile: CreatorProfile
 ): Promise<CreatorDashboardData> {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
 
     const [
       storiesResult,
@@ -47,35 +48,35 @@ export async function getCreatorDashboard(
       followersResult,
       metricsResult
     ] = await Promise.all([
-      supabase
+      db
         .from("stories")
         .select("id, title, slug, status, updated_at, published_at")
         .eq("creator_id", creatorProfile.id)
         .order("updated_at", { ascending: false })
         .limit(5),
-      supabase
+      db
         .from("stories")
         .select("id", { count: "exact", head: true })
         .eq("creator_id", creatorProfile.id),
-      supabase
+      db
         .from("stories")
         .select("id", { count: "exact", head: true })
         .eq("creator_id", creatorProfile.id)
         .eq("status", "pending"),
-      supabase
+      db
         .from("episodes")
         .select("id, stories!inner(creator_id)", { count: "exact", head: true })
         .eq("stories.creator_id", creatorProfile.id),
-      supabase
+      db
         .from("episodes")
         .select("id, stories!inner(creator_id)", { count: "exact", head: true })
         .eq("stories.creator_id", creatorProfile.id)
         .eq("status", "pending"),
-      supabase
+      db
         .from("follows")
         .select("id", { count: "exact", head: true })
         .eq("creator_id", creatorProfile.id),
-      supabase.rpc("get_public_creator_profile_metrics", {
+      db.rpc("get_public_creator_profile_metrics", {
         input_creator_id: creatorProfile.id
       })
     ]);
@@ -85,11 +86,11 @@ export async function getCreatorDashboard(
 
     const [savesResult, commentsResult] = storyIds.length
       ? await Promise.all([
-          supabase
+          db
             .from("bookshelf_items")
             .select("id", { count: "exact", head: true })
             .in("story_id", storyIds),
-          supabase
+          db
             .from("comments")
             .select("id", { count: "exact", head: true })
             .in("story_id", storyIds)
@@ -100,6 +101,13 @@ export async function getCreatorDashboard(
           { count: 0, error: null }
         ];
 
+    const metricsError =
+      metricsResult.error && !isMissingSchemaError(metricsResult.error)
+        ? typeof metricsResult.error === "string"
+          ? metricsResult.error
+          : metricsResult.error.message
+        : null;
+
     const errors = [
       storiesResult.error,
       totalStoriesResult.error,
@@ -107,7 +115,7 @@ export async function getCreatorDashboard(
       totalEpisodesResult.error,
       pendingEpisodesResult.error,
       followersResult.error,
-      metricsResult.error,
+      metricsError,
       savesResult.error,
       commentsResult.error
     ].filter(Boolean);
@@ -154,7 +162,12 @@ export async function getCreatorDashboard(
 
     return {
       creatorProfile,
-      error: errors[0]?.message ?? null,
+      error:
+        typeof errors[0] === "string"
+          ? errors[0]
+          : errors[0] && "message" in errors[0]
+            ? String(errors[0].message)
+            : null,
       stories,
       stats: {
         totalStories: totalStoriesResult.count ?? stories.length,

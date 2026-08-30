@@ -43,7 +43,7 @@ function formatCount(value: number | null) {
 }
 
 function canViewPublicChapter(chapter: StudioChapter) {
-  return chapter.status === "published" || chapter.status === "approved";
+  return chapter.readerVisible;
 }
 
 export function StudioChapterRow({

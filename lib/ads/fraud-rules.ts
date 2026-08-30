@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import type { AdFraudRule, AdFraudRuleInput } from "@/types/ad-fraud";
 
 function mapRule(row: Record<string, unknown>): AdFraudRule {
@@ -18,8 +18,8 @@ function mapRule(row: Record<string, unknown>): AdFraudRule {
 
 export async function listAdFraudRules(): Promise<{ rules: AdFraudRule[]; error: string | null }> {
   try {
-    const supabase = createAdminClient();
-    const { data, error } = await supabase
+    const db = createAdminClient();
+    const { data, error } = await db
       .from("ad_fraud_rules")
       .select("*")
       .order("rule_key");
@@ -35,7 +35,7 @@ export async function updateAdFraudRule(
   input: AdFraudRuleInput
 ): Promise<{ rule: AdFraudRule | null; error: string | null }> {
   try {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
     const patch: Record<string, unknown> = {};
     if (input.is_enabled !== undefined) patch.is_enabled = input.is_enabled;
     if (input.severity !== undefined) patch.severity = input.severity;
@@ -43,7 +43,7 @@ export async function updateAdFraudRule(
     if (input.action !== undefined) patch.action = input.action;
     if (input.description !== undefined) patch.description = input.description;
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("ad_fraud_rules")
       .update(patch)
       .eq("rule_key", ruleKey)

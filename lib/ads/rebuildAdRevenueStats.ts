@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export type RebuildAdRevenueStatsInput = {
   from: string;
@@ -31,9 +31,9 @@ export async function rebuildAdRevenueStats(
   }
 
   try {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
 
-    const { count: orphanCount } = await supabase
+    const { count: orphanCount } = await db
       .from("ad_render_events")
       .select("id", { count: "exact", head: true })
       .eq("event_type", "rendered")
@@ -48,7 +48,7 @@ export async function rebuildAdRevenueStats(
       );
     }
 
-    const { data: dailyResult, error: dailyError } = await supabase.rpc("rebuild_ad_daily_stats", {
+    const { data: dailyResult, error: dailyError } = await db.rpc("rebuild_ad_daily_stats", {
       p_from: input.from,
       p_to: input.to
     });
@@ -62,7 +62,7 @@ export async function rebuildAdRevenueStats(
       return { ok: false, warnings, error: dailyPayload.error ?? "Rebuild daily thất bại." };
     }
 
-    const { data: monthlyResult, error: monthlyError } = await supabase.rpc("rebuild_ad_monthly_stats", {
+    const { data: monthlyResult, error: monthlyError } = await db.rpc("rebuild_ad_monthly_stats", {
       p_from: input.from,
       p_to: input.to
     });

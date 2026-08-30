@@ -6,7 +6,6 @@ import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getStudioAccess } from "@/lib/creator/getStudioAccess";
 import { studioStoryEpisodesHref } from "@/lib/studio/ownership";
 import { getStudioDraftForEditor } from "@/lib/studio/get-draft";
-import { updateEpisodeAction } from "@/lib/creator/updateEpisode";
 
 type EditChapterPageProps = {
   params: Promise<{
@@ -56,11 +55,11 @@ export default async function StudioEditChapterPage({
   return (
     <section className="space-y-4">
       <StudioChapterEditor
-        action={updateEpisodeAction}
         authorDisplayName={creatorProfile.display_name}
         backHref={studioStoryEpisodesHref(storyId)}
         defaultEpisodeNumber={data.episode.episode_number}
         episode={data.episode}
+        initialReelsPromo={data.reelsPromo}
         profileId={profile?.id ?? ""}
         savedDraft={savedDraft}
         story={data.story}

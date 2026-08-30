@@ -6,7 +6,7 @@ import { checkStaffPermission } from "@/lib/auth/staff-guards";
 import {
   getCreatorAccessOverrideByUserId,
   upsertCreatorAccessOverride
-} from "@/lib/supabase/creator-access-overrides";
+} from "@/lib/data/creator-access-overrides";
 
 const REVALIDATE_PATHS = [
   "/admin/creators",

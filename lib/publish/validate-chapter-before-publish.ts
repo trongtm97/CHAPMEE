@@ -1,16 +1,55 @@
 ﻿import {
   createRule,
-  formatBlockingErrors,
   isEpisodeStatusBlockedForPublish,
-  isStoryHiddenForPublish,
   isStoryStatusBlockedForPublish,
   summarizeChecklist
 } from "@/lib/publish/checklist-utils";
-import { validateStoryBeforePublish } from "@/lib/publish/validate-story-before-publish";
 import type { StoryPublishInput } from "@/lib/publish/validate-story-before-publish";
+import { canViewPublicStory } from "@/lib/visibility/contentVisibility";
 import type { PublishChecklistResult } from "@/types/publish-checklist";
 import { CHAPTER_CONTENT_MIN_CHARS } from "@/types/publish-checklist";
-import type { SupabaseClient } from "@supabase/supabase-js";
+
+/** Chỉ kiểm tra truyện cha cho phép đăng chương — không áp checklist đăng truyện. */
+function validateParentStoryForChapterPublish(
+  story: StoryPublishInput | null | undefined
+): PublishChecklistResult {
+  if (!story) {
+    return summarizeChecklist([
+      createRule({
+        blocking: true,
+        id: "story",
+        label: "Chưa thuộc truyện hợp lệ",
+        message: "Chương phải thuộc một truyện hợp lệ của bạn.",
+        ok: false,
+        targetType: "chapter"
+      })
+    ]);
+  }
+
+  const storyBlocked = isStoryStatusBlockedForPublish(story.status);
+  const storyPubliclyVisible = canViewPublicStory(story.status, story.visibility);
+
+  return summarizeChecklist([
+    createRule({
+      blocking: true,
+      id: "parent-story-status",
+      label: "Truyện cha đang bị chặn đăng",
+      message:
+        "Truyện đang ở trạng thái không được đăng chương (từ chối, chờ duyệt hoặc lưu trữ).",
+      ok: !storyBlocked,
+      targetType: "story"
+    }),
+    createRule({
+      id: "parent-story-not-public",
+      label: "Truyện chưa hiển thị công khai",
+      message:
+        "Chương đã đăng sẽ tự hiện khi truyện công khai — không cần đăng lại. Chương nháp vẫn ẩn cho đến khi bạn đăng thủ công.",
+      ok: storyPubliclyVisible,
+      targetType: "story",
+      warnIfFail: true
+    })
+  ]);
+}
 
 export type ChapterPublishInput = {
   title?: string | null;
@@ -32,20 +71,8 @@ export function validateChapterBeforePublish(
 ): PublishChecklistResult {
   const content = chapter.content?.trim() ?? "";
   const storyInput = story ?? chapter.story ?? null;
-  const storyBlocked = storyInput
-    ? isStoryStatusBlockedForPublish(storyInput.status) ||
-      isStoryHiddenForPublish(storyInput.status, storyInput.visibility)
-    : false;
 
   const chapterRules = [
-    createRule({
-      blocking: true,
-      id: "title",
-      label: "Thiếu tiêu đề chương",
-      message: "Thiếu tiêu đề chương.",
-      ok: Boolean(chapter.title?.trim()),
-      targetType: "chapter"
-    }),
     createRule({
       blocking: true,
       id: "content",
@@ -55,12 +82,13 @@ export function validateChapterBeforePublish(
       targetType: "chapter"
     }),
     createRule({
-      blocking: true,
+      blocking: false,
       id: "saved",
-      label: "Nội dung chưa được lưu",
-      message: "Lưu chương trước khi đăng hoặc lên lịch.",
+      label: "Lưu nháp trước khi đăng",
+      message: "Nên lưu nháp trước khi đăng để tránh mất dữ liệu.",
       ok: chapter.isSaved !== false,
-      targetType: "chapter"
+      targetType: "chapter",
+      warnIfFail: true
     }),
     createRule({
       blocking: true,
@@ -76,14 +104,6 @@ export function validateChapterBeforePublish(
       label: "Số chương bị trùng",
       message: "Số chương đã tồn tại trong truyện. Đổi số chương.",
       ok: !chapter.hasDuplicateNumber,
-      targetType: "chapter"
-    }),
-    createRule({
-      blocking: true,
-      id: "parent-story",
-      label: "Truyện cha chưa đủ điều kiện public",
-      message: "Truyện cha chưa đủ điều kiện đăng (ẩn, từ chối hoặc thiếu thông tin).",
-      ok: storyInput ? !storyBlocked : false,
       targetType: "chapter"
     }),
     createRule({
@@ -129,227 +149,7 @@ export function validateChapterBeforePublish(
   ];
 
   const chapterResult = summarizeChecklist(chapterRules);
+  const parentResult = validateParentStoryForChapterPublish(storyInput);
 
-  if (!storyInput) {
-    return chapterResult;
-  }
-
-  const storyResult = validateStoryBeforePublish(storyInput);
-  const parentRules = storyResult.rules.map((rule) => ({
-    ...rule,
-    id: `story-${rule.id}`,
-    label: rule.label.startsWith("Truyện:")
-      ? rule.label
-      : `Truyện: ${rule.label}`,
-    targetType: "story" as const
-  }));
-
-  return summarizeChecklist([...chapterResult.rules, ...parentRules]);
-}
-
-type EpisodeRow = {
-  id: string;
-  title: string;
-  content: string;
-  episode_number: number;
-  status: string;
-  updated_at: string;
-  story_id: string;
-  seo_description: string | null;
-  stories:
-    | {
-        id: string;
-        title: string;
-        hook: string | null;
-        short_description: string | null;
-        long_description: string | null;
-        cover_url: string | null;
-        status: string;
-        visibility: string;
-        creator_id: string;
-        seo_description: string | null;
-      }
-    | {
-        id: string;
-        title: string;
-        hook: string | null;
-        short_description: string | null;
-        long_description: string | null;
-        cover_url: string | null;
-        status: string;
-        visibility: string;
-        creator_id: string;
-        seo_description: string | null;
-      }[]
-    | null;
-};
-
-function firstRelation<T>(relation: T | T[] | null | undefined) {
-  return Array.isArray(relation) ? (relation[0] ?? null) : (relation ?? null);
-}
-
-export async function validateChapterBeforePublishFromDb(
-  supabase: SupabaseClient,
-  episodeId: string,
-  storyId: string,
-  creatorProfileId: string,
-  options?: {
-    episodeNumber?: number;
-    authorNote?: string | null;
-  }
-): Promise<PublishChecklistResult> {
-  const { data, error } = await supabase
-    .from("episodes")
-    .select(
-      `id, title, content, episode_number, status, updated_at, story_id, seo_description,
-      stories(id, title, hook, short_description, long_description, cover_url, status, visibility, creator_id, seo_description)`
-    )
-    .eq("id", episodeId)
-    .eq("story_id", storyId)
-    .maybeSingle();
-
-  if (error || !data) {
-    return summarizeChecklist([
-      createRule({
-        blocking: true,
-        id: "chapter",
-        label: "Không tìm thấy chương",
-        message: "Không tìm thấy chương.",
-        ok: false,
-        targetType: "chapter"
-      })
-    ]);
-  }
-
-  const episode = data as unknown as EpisodeRow;
-  const story = firstRelation(episode.stories);
-
-  if (!story || story.creator_id !== creatorProfileId) {
-    return summarizeChecklist([
-      createRule({
-        blocking: true,
-        id: "owner",
-        label: "Không có quyền",
-        message: "Bạn không có quyền trên truyện này.",
-        ok: false,
-        targetType: "chapter"
-      })
-    ]);
-  }
-
-  const episodeNumber = options?.episodeNumber ?? episode.episode_number;
-
-  const [duplicateCount, taxonomyTagCount, mainGenreCount, hasCover, hasReelsPromo, savedFresh] =
-    await Promise.all([
-      supabase
-        .from("episodes")
-        .select("id", { count: "exact", head: true })
-        .eq("story_id", storyId)
-        .eq("episode_number", episodeNumber)
-        .neq("id", episodeId)
-        .then((r) => r.count ?? 0),
-      supabase
-        .from("story_taxonomy_terms")
-        .select("id", { count: "exact", head: true })
-        .eq("story_id", storyId)
-        .in("type", ["trope_tag", "subgenre"])
-        .then((r) => r.count ?? 0),
-      supabase
-        .from("story_taxonomy_terms")
-        .select("id", { count: "exact", head: true })
-        .eq("story_id", storyId)
-        .eq("type", "main_genre")
-        .then((r) => r.count ?? 0),
-      supabase
-        .from("story_images")
-        .select("id", { count: "exact", head: true })
-        .eq("story_id", storyId)
-        .eq("is_current", true)
-        .then((r) => (r.count ?? 0) > 0 || Boolean(story.cover_url?.trim())),
-      supabase
-        .from("reels_items")
-        .select("id", { count: "exact", head: true })
-        .eq("chapter_id", episodeId)
-        .eq("status", "published")
-        .then((r) => (r.count ?? 0) > 0),
-      checkChapterSavedFresh(supabase, storyId, episodeId, episode.updated_at)
-    ]);
-
-  const tagCount = taxonomyTagCount;
-  const hasMainGenre = mainGenreCount > 0;
-
-  return validateChapterBeforePublish(
-    {
-      authorNote: options?.authorNote ?? null,
-      content: episode.content,
-      episodeNumber,
-      hasDuplicateNumber: duplicateCount > 0,
-      hasReelsPromo,
-      isSaved: savedFresh,
-      seoDescription: episode.seo_description,
-      status: episode.status,
-      storyValid: true,
-      title: episode.title
-    },
-    {
-      coverUrl: story.cover_url,
-      genreId: hasMainGenre ? "taxonomy" : null,
-      hasCover,
-      hook: story.hook,
-      longDescription: story.long_description,
-      seoDescription: story.seo_description,
-      shortDescription: story.short_description,
-      status: story.status,
-      tagCount,
-      title: story.title,
-      visibility: story.visibility
-    }
-  );
-}
-
-async function checkChapterSavedFresh(
-  supabase: SupabaseClient,
-  storyId: string,
-  episodeId: string,
-  episodeUpdatedAt: string
-) {
-  const { data: draft } = await supabase
-    .from("creator_drafts")
-    .select("last_saved_at")
-    .eq("draft_type", "chapter")
-    .eq("story_id", storyId)
-    .eq("chapter_id", episodeId)
-    .eq("status", "draft")
-    .maybeSingle();
-
-  if (!draft?.last_saved_at) {
-    return true;
-  }
-
-  return (
-    new Date(draft.last_saved_at).getTime() >=
-    new Date(episodeUpdatedAt).getTime() - 5000
-  );
-}
-
-export async function assertChapterCanPublish(
-  supabase: SupabaseClient,
-  episodeId: string,
-  storyId: string,
-  creatorProfileId: string,
-  options?: { episodeNumber?: number }
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const result = await validateChapterBeforePublishFromDb(
-    supabase,
-    episodeId,
-    storyId,
-    creatorProfileId,
-    options
-  );
-
-  if (!result.ok) {
-    return { error: formatBlockingErrors(result.rules), ok: false };
-  }
-
-  return { ok: true };
+  return summarizeChecklist([...chapterResult.rules, ...parentResult.rules]);
 }

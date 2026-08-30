@@ -2,11 +2,11 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui";
+import { reportConversationAction } from "@/lib/actions/messages";
 import {
   messageActionEmptyState,
-  reportConversationAction,
   type MessageActionState
-} from "@/lib/actions/messages";
+} from "@/lib/actions/message-action-state";
 import { messageReportReasons } from "@/types/messages";
 
 type ReportMessageDialogProps = {

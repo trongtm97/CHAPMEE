@@ -5,6 +5,7 @@ import {
   serializeEditorHtml
 } from "@/lib/content-posts/content-post-editor-html";
 import { TiptapRichTextEditor } from "@/components/editor/tiptap/TiptapRichTextEditor";
+import { STORY_REELS_LONG_DESC_AUTHOR_NOTE } from "@/lib/reels/resolve-story-reels-text";
 
 type Props = {
   value: string;
@@ -29,18 +30,21 @@ export function StoryDescriptionEditor({
   minHeightClass = "min-h-[200px]"
 }: Props) {
   return (
-    <TiptapRichTextEditor
-      disabled={disabled}
-      htmlToValue={serializeEditorHtml}
-      label={label}
-      minHeightClass={minHeightClass}
-      name={name}
-      onChange={onChange}
-      placeholder={placeholder}
-      profile="story"
-      surfaceClass={visualSurfaceClass}
-      value={value}
-      valueToHtml={contentToEditorHtml}
-    />
+    <div className="space-y-2">
+      <TiptapRichTextEditor
+        disabled={disabled}
+        htmlToValue={serializeEditorHtml}
+        label={label}
+        minHeightClass={minHeightClass}
+        name={name}
+        onChange={onChange}
+        placeholder={placeholder}
+        profile="story"
+        surfaceClass={visualSurfaceClass}
+        value={value}
+        valueToHtml={contentToEditorHtml}
+      />
+      <p className="text-xs leading-5 text-zinc-500">{STORY_REELS_LONG_DESC_AUTHOR_NOTE}</p>
+    </div>
   );
 }

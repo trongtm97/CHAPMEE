@@ -7,10 +7,12 @@ import {
   sortStoryIdsByNullablePrice,
   sortStoryIdsByNumericMap
 } from "@/lib/discovery/catalog-metrics";
+import { PERMANENTLY_HIDDEN_QUALITY_STATUS } from "@/lib/content-quality/public-visibility";
 import { enrichCatalogStories } from "@/lib/discovery/enrich-catalog-stories";
 import { resolvePublicCatalogStoryIds } from "@/lib/discovery/resolve-catalog-story-ids";
 import type { StoryCatalogFilterParams } from "@/lib/discovery/types";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
 import { normalizeStoryStructureType } from "@/lib/stories/story-structure";
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
 import { searchStoriesForCatalog } from "@/lib/search/catalog-bridge";
@@ -20,12 +22,13 @@ import {
   getCatalogStoryIdsByMetricView,
   isCatalogMetricViewSort
 } from "@/lib/stories/catalog-metrics-view";
-import { createPublicClient } from "@/lib/supabase/public-client";
-import { getPublicGenresWithContent } from "@/lib/supabase/public-content";
+import { createPublicClient } from "@/lib/data/public-client";
+import { getPublicGenresWithContent } from "@/lib/data/public-content";
 import {
   CATALOG_STORY_ID_SELECT,
   CATALOG_STORY_SELECT,
   RANKING_CATALOG_LIMIT,
+  DEFAULT_CATALOG_PAGE_SIZE,
   clampPage,
   clampPageSize,
   escapeIlikePattern,
@@ -35,8 +38,10 @@ import {
   isScoreSortedCatalog,
   type NormalizedCatalogParams
 } from "@/lib/stories/story-catalog-query";
+import { parseCatalogSortParam } from "@/lib/stories/story-query-params";
+import { normalizeDbContentOrigin } from "@/lib/stories/story-origin";
 import type { StoryCatalogGenre, StoryCatalogSort, StoryCatalogStatus, StoryCatalogStory } from "@/types/story";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type StoryCatalogParams = StoryCatalogFilterParams;
 
@@ -66,6 +71,10 @@ type StoryRow = {
   is_completed: boolean | null;
   structure_type?: string | null;
   standalone_reading_time_minutes?: number | null;
+  content_origin?: string | null;
+  rights_status?: string | null;
+  original_language?: string | null;
+  translated_language?: string | null;
   creator_profiles:
     | {
         pen_name: string | null;
@@ -105,23 +114,7 @@ function isQuickRead(row: { genreSlug: string | null; hook: string | null }) {
 }
 
 function normalizeSort(value: string | undefined): StoryCatalogSort {
-  if (
-    value === "hot" ||
-    value === "reads" ||
-    value === "new" ||
-    value === "completed" ||
-    value === "quick" ||
-    value === "title" ||
-    value === "chapters" ||
-    value === "saved" ||
-    value === "price_asc" ||
-    value === "price_desc" ||
-    value === "chapter_price_asc" ||
-    value === "chapter_price_desc"
-  ) {
-    return value;
-  }
-  return "updated";
+  return parseCatalogSortParam(value);
 }
 
 function normalizeStatus(value: string | undefined): StoryCatalogStatus {
@@ -143,10 +136,14 @@ function normalizeParams(params: StoryCatalogParams): NormalizedCatalogParams {
   return {
     q: params.q?.trim() ?? "",
     genre: params.genre?.trim() ?? "",
+    contentOrigin:
+      params.contentOrigin === "translation" || params.contentOrigin === "original"
+        ? params.contentOrigin
+        : undefined,
     sort: normalizeSort(params.sort),
     status: normalizeStatus(params.status),
     page: clampPage(params.page ?? 1),
-    pageSize: clampPageSize(params.pageSize ?? 20)
+    pageSize: clampPageSize(params.pageSize ?? DEFAULT_CATALOG_PAGE_SIZE)
   };
 }
 
@@ -164,26 +161,32 @@ function normalizeFilterParams(params: StoryCatalogParams): StoryCatalogFilterPa
     presentation: params.presentation?.trim() || undefined,
     contentType: params.contentType?.trim() || undefined,
     ageRating: params.ageRating?.trim() || undefined,
+    contentOrigin:
+      params.contentOrigin === "translation" || params.contentOrigin === "original"
+        ? params.contentOrigin
+        : undefined,
     access: params.access,
     hasWarning: params.hasWarning,
     hasNewChapter: params.hasNewChapter,
+    hasAudio: params.hasAudio,
+    hasVideo: params.hasVideo,
     sort: normalizeSort(params.sort),
     status: normalizeStatus(params.status),
     page: clampPage(params.page ?? 1),
-    pageSize: clampPageSize(params.pageSize ?? 20)
+    pageSize: clampPageSize(params.pageSize ?? DEFAULT_CATALOG_PAGE_SIZE)
   };
 }
 
 async function attachTaxonomyPreview(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   stories: StoryCatalogStory[]
 ) {
   if (stories.length === 0) return stories;
   const storyIds = stories.map((story) => story.id);
   const [labels, episodeCounts, saveCounts] = await Promise.all([
-    getStoryTaxonomyLabelsByStoryIds(supabase, storyIds),
-    getEpisodeCountByStoryId(supabase, storyIds),
-    getSaveCountByStoryId(supabase, storyIds)
+    getStoryTaxonomyLabelsByStoryIds(db, storyIds),
+    getEpisodeCountByStoryId(db, storyIds),
+    getSaveCountByStoryId(db, storyIds)
   ]);
   return stories.map((story) => {
     const taxonomy = labels.get(story.id);
@@ -208,7 +211,7 @@ function mapStoryRow(row: StoryRow, scoreByStory: Map<string, number>): StoryCat
     publicCode: row.public_code,
     hook: row.hook,
     shortDescription: row.short_description,
-    coverUrl: row.cover_url,
+    coverUrl: resolveStoryCoverUrl(row.cover_url),
     creatorName: creator
       ? resolvePublicDisplayName(firstRelation(creator.profiles), creator)
       : null,
@@ -221,6 +224,11 @@ function mapStoryRow(row: StoryRow, scoreByStory: Map<string, number>): StoryCat
     score: scoreByStory.get(row.id) ?? 0,
     structureType: normalizeStoryStructureType(row.structure_type),
     standaloneReadingTimeMinutes: row.standalone_reading_time_minutes ?? 0
+    ,
+    contentOrigin: normalizeDbContentOrigin(row.content_origin),
+    rightsStatus: row.rights_status ?? null,
+    originalLanguage: row.original_language ?? null,
+    translatedLanguage: row.translated_language ?? null
   };
 }
 
@@ -260,13 +268,19 @@ function applyCatalogFiltersToIdRow(
 
 function applyBaseStoryFilters<
   T extends {
+    is: (column: string, value: boolean | null) => T;
     eq: (column: string, value: unknown) => T;
     in: (column: string, values: unknown[]) => T;
+    neq: (column: string, value: unknown) => T;
     or: (filters: string) => T;
     order: (column: string, options?: { ascending?: boolean }) => T;
   }
 >(query: T, params: NormalizedCatalogParams, storyIdFilter?: string[] | null) {
-  let next = query.eq("visibility", "public").in("status", ["published", "approved"]);
+  let next = query
+    .eq("visibility", "public")
+    .in("status", ["published", "approved"])
+    .neq("quality_status", PERMANENTLY_HIDDEN_QUALITY_STATUS)
+    .is("deleted_at", null);
 
   if (storyIdFilter && storyIdFilter.length > 0) {
     next = next.in("id", storyIdFilter);
@@ -284,6 +298,9 @@ function applyBaseStoryFilters<
     next = next.or(
       `title.ilike.%${escaped}%,hook.ilike.%${escaped}%,short_description.ilike.%${escaped}%`
     );
+  }
+  if (params.contentOrigin) {
+    next = next.eq("content_origin", params.contentOrigin);
   }
 
   return next;
@@ -303,11 +320,14 @@ function applyDateSort<
   if (sort === "new") {
     return query.order("published_at", { ascending: false });
   }
-  return query.order("published_at", { ascending: false });
+  if (sort === "updated") {
+    return query.order("updated_at", { ascending: false });
+  }
+  return query.order("updated_at", { ascending: false });
 }
 
 async function fetchCatalogStoriesByIds(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyIds: string[],
   scoreByStory: Map<string, number>
 ) {
@@ -315,7 +335,7 @@ async function fetchCatalogStoriesByIds(
     return [];
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("stories")
     .select(CATALOG_STORY_SELECT)
     .in("id", storyIds)
@@ -333,7 +353,7 @@ async function fetchCatalogStoriesByIds(
 }
 
 async function filterRankedStoryIds(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   rankedIds: string[],
   params: NormalizedCatalogParams,
   storyIdFilter?: string[] | null
@@ -361,7 +381,7 @@ async function filterRankedStoryIds(
   const chunkRows = (
     await Promise.all(
       chunks.map(async (chunk) => {
-        let query = supabase.from("stories").select(CATALOG_STORY_ID_SELECT).in("id", chunk);
+        let query = db.from("stories").select(CATALOG_STORY_ID_SELECT).in("id", chunk);
         query = applyBaseStoryFilters(query, params, null);
         const { data, error } = await query;
         if (error) {
@@ -374,7 +394,7 @@ async function filterRankedStoryIds(
   ).flat();
 
   const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(
-    supabase,
+    db,
     chunkRows.map((row) => row.id)
   );
 
@@ -394,7 +414,7 @@ async function filterRankedStoryIds(
 }
 
 async function getCatalogByQuickSort(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   params: NormalizedCatalogParams,
   genres: StoryCatalogGenre[],
   scoreByStory: Map<string, number>,
@@ -403,15 +423,15 @@ async function getCatalogByQuickSort(
 ): Promise<StoryCatalogResult> {
   const baseIds = storyIdFilter
     ? storyIdFilter
-    : await loadPublicCatalogCandidateIds(supabase, params, null);
-  const filteredIds = await filterRankedStoryIds(supabase, baseIds, params, storyIdFilter);
+    : await loadPublicCatalogCandidateIds(db, params, null);
+  const filteredIds = await filterRankedStoryIds(db, baseIds, params, storyIdFilter);
   const totalCount = filteredIds.length;
   const totalPages = getTotalPages(totalCount, params.pageSize);
   const page = Math.min(params.page, totalPages);
   const offset = getCatalogOffset(page, params.pageSize);
   const pageIds = filteredIds.slice(offset, offset + params.pageSize);
-  let stories = await fetchCatalogStoriesByIds(supabase, pageIds, scoreByStory);
-  stories = enrichCatalogStories(await attachTaxonomyPreview(supabase, stories));
+  let stories = await fetchCatalogStoriesByIds(db, pageIds, scoreByStory);
+  stories = enrichCatalogStories(await attachTaxonomyPreview(db, stories));
 
   return {
     stories,
@@ -429,7 +449,7 @@ async function getCatalogByQuickSort(
 }
 
 async function getCatalogByScoreSort(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   params: NormalizedCatalogParams,
   genres: StoryCatalogGenre[],
   scoreByStory: Map<string, number>,
@@ -439,14 +459,14 @@ async function getCatalogByScoreSort(
   if (params.sort === "hot") {
     let candidateIds = storyIdFilter
       ? storyIdFilter
-      : await loadPublicCatalogCandidateIds(supabase, params, null);
-    candidateIds = await filterRankedStoryIds(supabase, candidateIds, params, storyIdFilter);
+      : await loadPublicCatalogCandidateIds(db, params, null);
+    candidateIds = await filterRankedStoryIds(db, candidateIds, params, storyIdFilter);
 
     if (candidateIds.length === 0) {
       return emptyCatalogResult(params, genres);
     }
 
-    const viewPage = await getCatalogStoryIdsByMetricView(supabase, "hot", {
+    const viewPage = await getCatalogStoryIdsByMetricView(db, "hot", {
       storyIds: candidateIds,
       page: params.page,
       pageSize: params.pageSize
@@ -457,11 +477,11 @@ async function getCatalogByScoreSort(
       const totalPages = getTotalPages(totalCount, params.pageSize);
       const page = Math.min(params.page, totalPages);
       let stories = await fetchCatalogStoriesByIds(
-        supabase,
+        db,
         viewPage.storyIds,
         scoreByStory
       );
-      stories = enrichCatalogStories(await attachTaxonomyPreview(supabase, stories));
+      stories = enrichCatalogStories(await attachTaxonomyPreview(db, stories));
 
       return {
         stories,
@@ -484,7 +504,7 @@ async function getCatalogByScoreSort(
     .map(([storyId]) => storyId);
 
   const filteredIds = await filterRankedStoryIds(
-    supabase,
+    db,
     rankedIds,
     params,
     storyIdFilter
@@ -494,8 +514,8 @@ async function getCatalogByScoreSort(
   const page = Math.min(params.page, totalPages);
   const offset = getCatalogOffset(page, params.pageSize);
   const pageIds = filteredIds.slice(offset, offset + params.pageSize);
-  let stories = await fetchCatalogStoriesByIds(supabase, pageIds, scoreByStory);
-  stories = enrichCatalogStories(await attachTaxonomyPreview(supabase, stories));
+  let stories = await fetchCatalogStoriesByIds(db, pageIds, scoreByStory);
+  stories = enrichCatalogStories(await attachTaxonomyPreview(db, stories));
 
   return {
     stories,
@@ -513,7 +533,7 @@ async function getCatalogByScoreSort(
 }
 
 async function getCatalogByMetricSort(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   params: NormalizedCatalogParams,
   genres: StoryCatalogGenre[],
   scoreByStory: Map<string, number>,
@@ -523,14 +543,14 @@ async function getCatalogByMetricSort(
   const startedAt = Date.now();
   let candidateIds = storyIdFilter
     ? storyIdFilter
-    : await loadPublicCatalogCandidateIds(supabase, params, null);
+    : await loadPublicCatalogCandidateIds(db, params, null);
 
   const needsRowFilter = Boolean(params.q) || params.status !== "all";
 
   if (needsRowFilter) {
-    candidateIds = await filterRankedStoryIds(supabase, candidateIds, params, storyIdFilter);
+    candidateIds = await filterRankedStoryIds(db, candidateIds, params, storyIdFilter);
   } else if (storyIdFilter) {
-    candidateIds = await filterRankedStoryIds(supabase, candidateIds, params, storyIdFilter);
+    candidateIds = await filterRankedStoryIds(db, candidateIds, params, storyIdFilter);
   }
 
   if (candidateIds.length === 0) {
@@ -538,7 +558,7 @@ async function getCatalogByMetricSort(
   }
 
   if (isCatalogMetricViewSort(params.sort)) {
-    const viewPage = await getCatalogStoryIdsByMetricView(supabase, params.sort, {
+    const viewPage = await getCatalogStoryIdsByMetricView(db, params.sort, {
       storyIds: candidateIds,
       page: params.page,
       pageSize: params.pageSize
@@ -549,11 +569,11 @@ async function getCatalogByMetricSort(
       const totalPages = getTotalPages(totalCount, params.pageSize);
       const page = Math.min(params.page, totalPages);
       let stories = await fetchCatalogStoriesByIds(
-        supabase,
+        db,
         viewPage.storyIds,
         scoreByStory
       );
-      stories = enrichCatalogStories(await attachTaxonomyPreview(supabase, stories));
+      stories = enrichCatalogStories(await attachTaxonomyPreview(db, stories));
 
       logSlowQuery("getCatalogByMetricSort.view", startedAt, {
         sort: params.sort,
@@ -579,20 +599,20 @@ async function getCatalogByMetricSort(
   let sortedIds = candidateIds;
 
   if (params.sort === "saved") {
-    const saves = await getSaveCountByStoryId(supabase, candidateIds);
+    const saves = await getSaveCountByStoryId(db, candidateIds);
     sortedIds = sortStoryIdsByNumericMap(candidateIds, saves, "desc");
   } else if (params.sort === "chapters") {
-    const chapters = await getEpisodeCountByStoryId(supabase, candidateIds);
+    const chapters = await getEpisodeCountByStoryId(db, candidateIds);
     sortedIds = sortStoryIdsByNumericMap(candidateIds, chapters, "desc");
   } else if (params.sort === "price_asc" || params.sort === "price_desc") {
-    const prices = await getFullAccessPriceByStoryId(supabase, candidateIds);
+    const prices = await getFullAccessPriceByStoryId(db, candidateIds);
     sortedIds = sortStoryIdsByNullablePrice(
       candidateIds,
       prices,
       params.sort === "price_asc" ? "asc" : "desc"
     );
   } else if (params.sort === "chapter_price_asc" || params.sort === "chapter_price_desc") {
-    const chapterPrices = await getMinPaidChapterPriceByStoryId(supabase, candidateIds);
+    const chapterPrices = await getMinPaidChapterPriceByStoryId(db, candidateIds);
     sortedIds = sortStoryIdsByNullablePrice(
       candidateIds,
       chapterPrices,
@@ -605,8 +625,8 @@ async function getCatalogByMetricSort(
   const page = Math.min(params.page, totalPages);
   const offset = getCatalogOffset(page, params.pageSize);
   const pageIds = sortedIds.slice(offset, offset + params.pageSize);
-  let stories = await fetchCatalogStoriesByIds(supabase, pageIds, scoreByStory);
-  stories = enrichCatalogStories(await attachTaxonomyPreview(supabase, stories));
+  let stories = await fetchCatalogStoriesByIds(db, pageIds, scoreByStory);
+  stories = enrichCatalogStories(await attachTaxonomyPreview(db, stories));
 
   return {
     stories,
@@ -624,7 +644,7 @@ async function getCatalogByMetricSort(
 }
 
 async function getCatalogByDateSort(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   params: NormalizedCatalogParams,
   genres: StoryCatalogGenre[],
   scoreByStory: Map<string, number>,
@@ -634,19 +654,19 @@ async function getCatalogByDateSort(
   const offset = getCatalogOffset(params.page, params.pageSize);
   const to = offset + params.pageSize - 1;
 
-  let query = supabase.from("stories").select(CATALOG_STORY_SELECT, { count: "exact" });
+  let query = db.from("stories").select(CATALOG_STORY_SELECT, { count: "exact" });
   query = applyBaseStoryFilters(query, params, storyIdFilter);
   query = applyDateSort(query, params.sort);
 
   const { data, error, count } = await query.range(offset, to);
   if (error) {
-    console.error("[catalog] stories query failed", error);
+    console.warn("[catalog] stories query failed", error);
     return emptyCatalogResult(params, genres);
   }
 
   const rows = (data ?? []) as StoryRow[];
   let stories = rows.map((row) => mapStoryRow(row, scoreByStory));
-  stories = enrichCatalogStories(await attachTaxonomyPreview(supabase, stories));
+  stories = enrichCatalogStories(await attachTaxonomyPreview(db, stories));
   const totalCount = count ?? stories.length;
   const totalPages = getTotalPages(totalCount, params.pageSize);
   const page = Math.min(params.page, totalPages);
@@ -698,10 +718,10 @@ export async function getPublicStoriesCatalog(params: StoryCatalogParams = {}): 
   const filters = normalizeFilterParams(params);
 
   try {
-    const supabase = createPublicClient();
+    const db = createPublicClient();
     const genreRows = await getPublicGenresWithContent();
     const genres = toCatalogGenres(genreRows);
-    const storyIdFilter = await resolvePublicCatalogStoryIds(supabase, filters);
+    const storyIdFilter = await resolvePublicCatalogStoryIds(db, filters);
 
     if (storyIdFilter && storyIdFilter.length === 0) {
       return emptyCatalogResult(params, genres);
@@ -720,7 +740,7 @@ export async function getPublicStoriesCatalog(params: StoryCatalogParams = {}): 
         stories = stories.filter((story) => allowed.has(story.id));
       }
       stories = enrichCatalogStories(
-        await attachTaxonomyPreview(supabase, stories)
+        await attachTaxonomyPreview(db, stories)
       );
       return {
         stories,
@@ -737,11 +757,17 @@ export async function getPublicStoriesCatalog(params: StoryCatalogParams = {}): 
       };
     }
 
-    const scoreByStory = await getStoryRankingScores("7d", RANKING_CATALOG_LIMIT);
+    const needsRankingScores =
+      normalized.sort === "quick" ||
+      isScoreSortedCatalog(normalized.sort) ||
+      isMetricSortedCatalog(normalized.sort);
+    const scoreByStory = needsRankingScores
+      ? await getStoryRankingScores("7d", RANKING_CATALOG_LIMIT)
+      : new Map<string, number>();
 
     if (normalized.sort === "quick") {
       return getCatalogByQuickSort(
-        supabase,
+        db,
         normalized,
         genres,
         scoreByStory,
@@ -752,7 +778,7 @@ export async function getPublicStoriesCatalog(params: StoryCatalogParams = {}): 
 
     if (isMetricSortedCatalog(normalized.sort)) {
       return getCatalogByMetricSort(
-        supabase,
+        db,
         normalized,
         genres,
         scoreByStory,
@@ -763,7 +789,7 @@ export async function getPublicStoriesCatalog(params: StoryCatalogParams = {}): 
 
     if (isScoreSortedCatalog(normalized.sort)) {
       return getCatalogByScoreSort(
-        supabase,
+        db,
         normalized,
         genres,
         scoreByStory,
@@ -773,7 +799,7 @@ export async function getPublicStoriesCatalog(params: StoryCatalogParams = {}): 
     }
 
     return getCatalogByDateSort(
-      supabase,
+      db,
       normalized,
       genres,
       scoreByStory,

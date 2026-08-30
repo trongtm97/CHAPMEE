@@ -5,7 +5,7 @@ import {
   getFullStoryEscrowStoriesPage,
   type FullStoryEscrowStoriesQuery
 } from "@/lib/studio/get-full-story-escrow-stories-page";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export async function studioRequestStoryCompletionReviewAction(input: {
   storyId: string;
@@ -16,13 +16,13 @@ export async function studioRequestStoryCompletionReviewAction(input: {
     return { ok: false, error: "Bạn cần đăng nhập Studio." };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const storyId = input.storyId.trim();
   if (!storyId) {
     return { ok: false, error: "Thiếu mã truyện." };
   }
 
-  const { data: story } = await supabase
+  const { data: story } = await db
     .from("stories")
     .select(
       "id, title, is_completed, admin_completion_status, creator_id, story_monetization_settings(full_access_enabled)"
@@ -55,7 +55,7 @@ export async function studioRequestStoryCompletionReviewAction(input: {
   }
 
   const now = new Date().toISOString();
-  const { error } = await supabase
+  const { error } = await db
     .from("stories")
     .update({
       admin_completion_status: "pending_review",

@@ -4,10 +4,12 @@ import { getStoryCardMeta } from "@/lib/stories/story-structure";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui";
-import { searchStoriesForQuickPickAction } from "@/lib/studio/import-export-actions";
-import { fetchExportRowsAction } from "@/lib/studio/import-export-actions";
-import { downloadTextFile, exportRowsToCsv, formatExportFileName } from "@/lib/studio/csv";
-import { getHeadersForDataType } from "@/lib/studio/import-export";
+import {
+  fetchChaptersExportV2Action,
+  fetchStoriesExportV2ByScopeAction,
+  searchStoriesForQuickPickAction
+} from "@/lib/studio/import-export-actions";
+import { downloadTextFile, formatExportFileName } from "@/lib/studio/csv";
 import { getStoryStatusLabel, STORY_STATUS_BADGE_CLASS } from "@/lib/studio/status-labels";
 import { studioPath } from "@/lib/studio/constants";
 import type { StoryQuickPickItem } from "@/types/studio-import";
@@ -46,21 +48,31 @@ export function StoryQuickPicker({
     }
 
     startTransition(async () => {
-      const result = await fetchExportRowsAction({
-        dataType: "chapters",
-        scope: { mode: "selected_stories", storyIds: [storyId] }
+      const result = await fetchChaptersExportV2Action({
+        mode: "selected_stories",
+        storyIds: [storyId]
       });
 
-      if (result.error || result.rows.length === 0) {
+      if (result.error || !result.csv) {
         return;
       }
 
-      const headers = getHeadersForDataType("chapters");
-      const csv = exportRowsToCsv(
-        headers,
-        result.rows.map((row) => Object.fromEntries(headers.map((header) => [header, row[header] ?? ""])))
-      );
-      downloadTextFile(csv, formatExportFileName("chapters", "csv"));
+      downloadTextFile(result.csv, formatExportFileName("chapters_v2", "csv"));
+    });
+  }
+
+  function handleExportStory(storyId: string) {
+    startTransition(async () => {
+      const result = await fetchStoriesExportV2ByScopeAction({
+        mode: "selected_stories",
+        storyIds: [storyId]
+      });
+
+      if (result.error || !result.csv) {
+        return;
+      }
+
+      downloadTextFile(result.csv, formatExportFileName("stories_v2", "csv"));
     });
   }
 
@@ -110,6 +122,9 @@ export function StoryQuickPicker({
                     {getStoryStatusLabel(story.displayStatus)}
                   </span>
                   <span className="text-zinc-500">{metaLine}</span>
+                  {story.publicCode ? (
+                    <span className="font-mono text-zinc-500">{story.publicCode}</span>
+                  ) : null}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -128,6 +143,15 @@ export function StoryQuickPicker({
                 >
                   Nhập chương
                 </Link>
+                <Button
+                  className="min-h-10 px-3 text-xs"
+                  disabled={pending}
+                  onClick={() => handleExportStory(story.id)}
+                  type="button"
+                  variant="secondary"
+                >
+                  Xuất truyện
+                </Button>
                 <Button
                   className="min-h-10 px-3 text-xs"
                   disabled={pending}

@@ -11,8 +11,9 @@ import { validateStudioCoinPrice } from "@/lib/studio/validate-coin-price";
 import {
   getStoryMonetizationSettings,
   upsertStoryMonetizationSettings
-} from "@/lib/supabase/story-monetization";
+} from "@/lib/data/story-monetization";
 import type { StoryMonetizationSettings } from "@/types/story-monetization";
+import { loadStoryOriginPolicy } from "@/lib/content-origin/load-story-origin-policy";
 
 async function assertCanConfigure(storyId: string) {
   const state = await getCurrentCreatorProfile();
@@ -67,6 +68,14 @@ export async function saveStoryMonetizationSettings(input: {
   applyAutoPricing?: boolean;
   overwriteOverrides?: boolean;
 }) {
+  const originPolicy = await loadStoryOriginPolicy(input.storyId);
+  if (
+    (input.patch.full_access_enabled && !originPolicy.canSellStoryBundle) ||
+    (input.patch.auto_pricing_enabled && !originPolicy.canSellChapters)
+  ) {
+    return { ok: false as const, error: "Story nay khong duoc phep bat paid chapter/bundle." };
+  }
+
   const access = await assertCanConfigure(input.storyId);
   if (!access.ok) {
     return access;
@@ -152,6 +161,11 @@ export async function updateChapterMonetizationSetting(input: {
   isPaid: boolean;
   priceCoin: number | null;
 }) {
+  const originPolicy = await loadStoryOriginPolicy(input.storyId);
+  if ((input.isPaid && !originPolicy.canSellChapters) || !originPolicy.canUseCoinUnlock) {
+    return { ok: false as const, error: "Story nay khong duoc phep ban chuong." };
+  }
+
   const access = await assertCanConfigure(input.storyId);
   if (!access.ok) {
     return access;
@@ -165,7 +179,7 @@ export async function updateChapterMonetizationSetting(input: {
   }
 
   const { upsertChapterMonetizationSetting } = await import(
-    "@/lib/supabase/chapter-monetization"
+    "@/lib/data/chapter-monetization"
   );
 
   const result = await upsertChapterMonetizationSetting({

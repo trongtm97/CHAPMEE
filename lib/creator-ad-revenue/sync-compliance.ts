@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { getFinanceIdentityStatus } from "@/lib/finance/get-finance-identity-status";
 import type {
   CreatorAdKycStatus,
@@ -11,10 +11,10 @@ export async function resolveLiveComplianceStatuses(userId: string): Promise<{
   tax_status: CreatorAdTaxStatus;
   payout_status: CreatorAdPayoutStatus;
 }> {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   const [identity, payoutResult] = await Promise.all([
     getFinanceIdentityStatus(userId),
-    supabase
+    db
       .from("creator_payout_accounts")
       .select("verification_status, is_default")
       .eq("creator_user_id", userId)
@@ -38,7 +38,7 @@ export async function resolveLiveComplianceStatuses(userId: string): Promise<{
   else if (rejectedAccount) payout_status = "blocked";
   else if (accounts.length > 0) payout_status = "pending";
 
-  const { data: profileRow } = await supabase
+  const { data: profileRow } = await db
     .from("creator_ad_monetization_profiles")
     .select("tax_status")
     .eq("user_id", userId)
@@ -51,8 +51,8 @@ export async function resolveLiveComplianceStatuses(userId: string): Promise<{
 }
 
 export async function syncCreatorAdProfileCompliance(userId: string): Promise<void> {
-  const supabase = createAdminClient();
-  const { data: existing } = await supabase
+  const db = createAdminClient();
+  const { data: existing } = await db
     .from("creator_ad_monetization_profiles")
     .select("id")
     .eq("user_id", userId)
@@ -61,7 +61,7 @@ export async function syncCreatorAdProfileCompliance(userId: string): Promise<vo
   if (!existing) return;
 
   const live = await resolveLiveComplianceStatuses(userId);
-  await supabase
+  await db
     .from("creator_ad_monetization_profiles")
     .update({
       kyc_status: live.kyc_status,

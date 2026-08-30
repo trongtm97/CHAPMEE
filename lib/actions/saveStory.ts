@@ -3,17 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { analyticsEvents } from "@/lib/analytics/events";
-import { awardBadge } from "@/lib/supabase/badges";
+import { awardBadge } from "@/lib/data/badges";
 import {
   appendMilestoneToastParams,
   awardMilestone,
   buildMilestoneToastNotice
-} from "@/lib/supabase/milestones";
-import { safeRecordFanScoreAction } from "@/lib/supabase/fan-scores";
+} from "@/lib/data/milestones";
+import { safeRecordFanScoreAction } from "@/lib/data/fan-scores";
 import { trackServerEvent } from "@/lib/analytics/trackServerEvent";
 import { trackServerUserAction } from "@/lib/tracking/track-server";
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { TaxonomySourceSurface } from "@/types/taxonomy-analytics";
 import { mapTrackingSurfaceToTaxonomySource } from "@/lib/taxonomy-analytics/map-source-surface";
 import type { TrackingSurface } from "@/types/tracking";
@@ -29,11 +29,11 @@ type SaveStoryInput = {
 };
 
 async function getUserId() {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user },
     error
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (error || !user) {
     return null;
@@ -60,12 +60,12 @@ export async function saveStoryAction(input: SaveStoryInput) {
     throw error;
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   let actionError: string | null = null;
   let milestoneRedirect: string | null = null;
 
   if (input.saved) {
-    const { error } = await supabase.from("bookshelf_items").upsert(
+    const { error } = await db.from("bookshelf_items").upsert(
       {
         user_id: userId,
         story_id: input.storyId,
@@ -75,7 +75,7 @@ export async function saveStoryAction(input: SaveStoryInput) {
     );
     actionError = error?.message ?? null;
   } else {
-    const { error } = await supabase
+    const { error } = await db
       .from("bookshelf_items")
       .delete()
       .eq("user_id", userId)

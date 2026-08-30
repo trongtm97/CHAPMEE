@@ -71,7 +71,7 @@ export function PublicWorksTab({ page, total, username, works }: PublicWorksTabP
       {hasMore ? (
         <a
           className="block text-center text-sm font-semibold text-cyan-200"
-          href={getProfileTabUrl(username, "works", page + 1) ?? "#"}
+          href={getProfileTabUrl(username, "stories", page + 1) ?? "#"}
         >
           Trang sau
         </a>

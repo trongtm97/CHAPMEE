@@ -1,193 +1,245 @@
 "use client";
 
-import Link from "next/link";
+
+
 import { useRouter } from "next/navigation";
+
 import { useState } from "react";
+
 import { ContentPostCard } from "@/components/content-posts/ContentPostCard";
-import {
-  PUBLIC_POST_CATEGORY_OPTIONS,
-  PUBLIC_POST_SORT_OPTIONS,
-  buildPublicPostListQuery,
-  type PublicPostCategoryFilter,
-  type PublicPostSort
-} from "@/lib/content-posts/public-catalog";
-import type { AdminContentPost } from "@/types/platform-content";
+
+import { ContentPostEmptyState } from "@/components/content-posts/ContentPostEmptyState";
+
+import { ContentPostFilters } from "@/components/content-posts/ContentPostFilters";
+
+import { ContentPostPagination } from "@/components/content-posts/ContentPostPagination";
+
+import { FeaturedArticlesSection } from "@/components/content-posts/FeaturedArticlesSection";
+
+import type { PublicPostCategoryFilter, PublicPostSort } from "@/lib/content-posts/public-catalog";
+
+import type { AdminContentPost, ContentPostCategory } from "@/types/platform-content";
+
+
 
 type Props = {
+
   items: AdminContentPost[];
+
   total: number;
+
   page: number;
+
   pageSize: number;
+
   query: string;
+
   category: PublicPostCategoryFilter;
+
   sort: PublicPostSort;
-  featured?: AdminContentPost[];
-  sidebarRecent?: AdminContentPost[];
+
+  dynamicCategories?: ContentPostCategory[];
+
+  featuredPrimary: AdminContentPost | null;
+
+  featuredSecondary: AdminContentPost[];
+
+  showUpdatingEmpty?: boolean;
+
+  hasActiveFilters?: boolean;
+
 };
 
+
+
 export function ContentPostCatalogClient({
+
   items,
+
   total,
+
   page,
+
   pageSize,
+
   query,
+
   category,
+
   sort,
-  featured = [],
-  sidebarRecent = []
+
+  featuredPrimary,
+
+  featuredSecondary,
+
+  showUpdatingEmpty = false,
+
+  hasActiveFilters = false
+
 }: Props) {
+
   const router = useRouter();
+
   const [searchInput, setSearchInput] = useState(query);
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  function navigate(next: {
-    page?: number;
-    q?: string;
-    category?: PublicPostCategoryFilter;
-    sort?: PublicPostSort;
-  }) {
-    const href = `/bai-viet${buildPublicPostListQuery({
-      page: next.page ?? page,
-      q: next.q ?? query,
-      category: next.category ?? category,
-      sort: next.sort ?? sort
-    })}`;
+
+
+  function navigate(href: string) {
+
     router.push(href);
+
   }
 
+
+
+  function submitSearch(event: React.FormEvent) {
+
+    event.preventDefault();
+
+    const params = new URLSearchParams();
+
+    const q = searchInput.trim();
+
+    if (q) params.set("q", q);
+
+    if (category !== "all") params.set("category", category);
+
+    if (sort !== "published") params.set("sort", sort);
+
+    const qs = params.toString();
+
+    navigate(qs ? `/bai-viet?${qs}` : "/bai-viet");
+
+  }
+
+
+
+  const showFeatured = page === 1 && !query && category === "all" && featuredPrimary;
+
+
+
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_16rem]">
-      <div className="space-y-6">
-        <form
-          className="flex gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            navigate({ q: searchInput, page: 1 });
-          }}
+
+    <div className="space-y-5 md:space-y-6">
+
+      <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submitSearch}>
+
+        <label className="sr-only" htmlFor="content-hub-search">
+
+          Tìm bài viết
+
+        </label>
+
+        <input
+
+          aria-label="Tìm hướng dẫn, mẹo đọc truyện, cập nhật"
+
+          className="min-w-0 flex-1 rounded-xl border border-white/12 bg-zinc-950/80 px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:border-cyan-400/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-cyan-400/40"
+
+          id="content-hub-search"
+
+          onChange={(event) => setSearchInput(event.target.value)}
+
+          placeholder="Tìm hướng dẫn, mẹo đọc truyện, cập nhật..."
+
+          type="search"
+
+          value={searchInput}
+
+        />
+
+        <button
+
+          className="shrink-0 rounded-xl bg-cyan-500 px-5 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400"
+
+          type="submit"
+
         >
-          <input
-            className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm"
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Tìm bài viết..."
-            type="search"
-            value={searchInput}
-          />
-          <button
-            className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white"
-            type="submit"
-          >
-            Tìm
-          </button>
-        </form>
 
-        <div className="flex flex-wrap gap-2">
-          {PUBLIC_POST_CATEGORY_OPTIONS.map((option) => {
-            const active = category === option.value;
-            return (
-              <button
-                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-                  active
-                    ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-700 dark:text-cyan-100"
-                    : "border-border text-muted-foreground hover:text-foreground"
-                }`}
-                key={option.value}
-                onClick={() => navigate({ category: option.value, page: 1 })}
-                type="button"
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
+          Tìm kiếm
 
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Sắp xếp:</span>
-          {PUBLIC_POST_SORT_OPTIONS.map((option) => {
-            const active = sort === option.value;
-            return (
-              <button
-                className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                  active ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
-                }`}
-                key={option.value}
-                onClick={() => navigate({ sort: option.value, page: 1 })}
-                type="button"
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
+        </button>
+
+      </form>
+
+
+
+      <ContentPostFilters category={category} onNavigate={navigate} page={page} query={query} sort={sort} />
+
+
+
+      {showFeatured ? (
+
+        <FeaturedArticlesSection primary={featuredPrimary} secondary={featuredSecondary} />
+
+      ) : null}
+
+
+
+      <section aria-labelledby="all-posts-heading" className="space-y-3">
+
+        <h2 id="all-posts-heading" className="text-sm font-bold text-zinc-300">
+
+          {hasActiveFilters ? "Kết quả" : "Tất cả bài viết"}
+
+        </h2>
+
+
 
         {items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Không tìm thấy bài viết phù hợp.</p>
+
+          <ContentPostEmptyState
+
+            hasActiveFilters={hasActiveFilters}
+
+            showSuggestedTopics
+
+            variant={showUpdatingEmpty ? "updating" : "no-results"}
+
+          />
+
         ) : (
-          <ul className="space-y-3">
+
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+
             {items.map((item) => (
+
               <li key={item.id}>
-                <ContentPostCard item={item} />
+
+                <ContentPostCard item={item} layout="grid" />
+
               </li>
+
             ))}
+
           </ul>
+
         )}
 
-        {totalPages > 1 ? (
-          <nav className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>
-              Trang {page}/{totalPages}
-            </span>
-            <div className="flex gap-3">
-              {page > 1 ? (
-                <Link
-                  className="hover:text-foreground"
-                  href={`/bai-viet${buildPublicPostListQuery({ page: page - 1, q: query, category, sort })}`}
-                >
-                  Trước
-                </Link>
-              ) : null}
-              {page < totalPages ? (
-                <Link
-                  className="hover:text-foreground"
-                  href={`/bai-viet${buildPublicPostListQuery({ page: page + 1, q: query, category, sort })}`}
-                >
-                  Sau
-                </Link>
-              ) : null}
-            </div>
-          </nav>
-        ) : null}
-      </div>
+      </section>
 
-      <aside className="hidden space-y-6 lg:block">
-        {featured.length > 0 ? (
-          <section className="space-y-3">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
-              Bài nổi bật
-            </h2>
-            <ul className="space-y-2">
-              {featured.map((item) => (
-                <li key={item.id}>
-                  <ContentPostCard compact item={item} />
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-        {sidebarRecent.length > 0 ? (
-          <section className="space-y-3">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
-              Bài mới
-            </h2>
-            <ul className="space-y-2">
-              {sidebarRecent.map((item) => (
-                <li key={item.id}>
-                  <ContentPostCard compact item={item} />
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-      </aside>
+
+
+      <ContentPostPagination
+
+        category={category}
+
+        page={page}
+
+        query={query}
+
+        sort={sort}
+
+        totalPages={totalPages}
+
+      />
+
     </div>
+
   );
+
 }
+
+

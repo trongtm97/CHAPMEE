@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { MonetizationConsentNotice } from "@/components/legal/ImplicitConsentNotice";
 import { Button, Card, SectionHeader } from "@/components/ui";
 import { applyForCreatorMonetizationAction } from "@/lib/creator/monetization-actions";
 import type {
@@ -70,10 +71,8 @@ export function MonetizationStatusCard({
         </p>
       ) : eligibility.eligible ? (
         <form action={action} className="space-y-2">
-          <label className="text-sm text-zinc-300">
-            <input name="accept_terms" type="checkbox" value="true" /> Tôi đồng ý điều khoản tác giả.
-          </label>
           {state.error ? <p className="text-sm text-red-300">{state.error}</p> : null}
+          <MonetizationConsentNotice />
           <Button loading={pending} type="submit">
             Đăng ký bật kiếm tiền
           </Button>

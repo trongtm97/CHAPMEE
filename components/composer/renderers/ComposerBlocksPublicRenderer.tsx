@@ -1,8 +1,15 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useContext } from "react";
 import { ImageBlock } from "@/components/editor/ImageBlock";
 import { ChapterContentView } from "@/components/editor/ChapterContentView";
+import {
+  InlineCommentReaderContext,
+  type InlineCommentReaderContextValue
+} from "@/components/reader/inline-comments/InlineCommentReaderContext";
+import { InlineCommentBlockShell } from "@/components/reader/inline-comments/InlineCommentBlockShell";
+import { buildComposerBlockId } from "@/lib/reader/block-ids";
 import { CaseFileRenderer } from "@/components/composer/renderers/CaseFileRenderer";
 import { ChatStoryRenderer } from "@/components/composer/renderers/ChatStoryRenderer";
 import { DiaryRenderer } from "@/components/composer/renderers/DiaryRenderer";
@@ -141,10 +148,34 @@ function flushSystemGroup(
   blocks.length = 0;
 }
 
+function ComposerProseBlock({
+  block,
+  blockKey
+}: {
+  block: Extract<ComposerBlockUnion, { type: "prose" }>;
+  blockKey: string;
+}) {
+  const inlineCtx = useContext(InlineCommentReaderContext);
+  const anchorBlockId =
+    inlineCtx?.enabled && inlineCtx.chapterId
+      ? buildComposerBlockId(inlineCtx.chapterId, block.id)
+      : null;
+
+  return (
+    <ChapterContentView
+      anchorBlockId={anchorBlockId}
+      content={block.data.text}
+      key={blockKey}
+      paragraphClassName="mb-[1.15em] last:mb-0"
+    />
+  );
+}
+
 function renderSingleBlock(
   block: ComposerBlockUnion,
   imageMap: ChapterImageMap,
-  key: string
+  key: string,
+  inlineCtx: InlineCommentReaderContextValue | null
 ) {
   if (block.type === "image") {
     const resolved = imageMap[block.data.media_id.trim()];
@@ -168,28 +199,32 @@ function renderSingleBlock(
   }
 
   if (block.type === "prose") {
-    return (
-      <ChapterContentView
-        content={block.data.text}
-        key={key}
-        paragraphClassName="mb-[1.15em] last:mb-0"
-      />
-    );
+    return <ComposerProseBlock block={block} blockKey={key} />;
   }
 
   if (block.type === "heading") {
+    const blockId =
+      inlineCtx?.enabled && inlineCtx.chapterId
+        ? buildComposerBlockId(inlineCtx.chapterId, block.id)
+        : null;
     return (
-      <p className="text-lg font-bold text-white" key={key}>
-        {sanitizeDisplayText(block.data.text)}
-      </p>
+      <InlineCommentBlockShell blockId={blockId} key={key}>
+        <p className="text-lg font-bold text-white">{sanitizeDisplayText(block.data.text)}</p>
+      </InlineCommentBlockShell>
     );
   }
 
   if (block.type === "quote") {
+    const blockId =
+      inlineCtx?.enabled && inlineCtx.chapterId
+        ? buildComposerBlockId(inlineCtx.chapterId, block.id)
+        : null;
     return (
-      <blockquote className="border-l-2 border-zinc-500 pl-4 italic text-zinc-300" key={key}>
-        <p>{sanitizeDisplayText(block.data.text)}</p>
-      </blockquote>
+      <InlineCommentBlockShell blockId={blockId} key={key}>
+        <blockquote className="border-l-2 border-zinc-500 pl-4 italic text-zinc-300">
+          <p>{sanitizeDisplayText(block.data.text)}</p>
+        </blockquote>
+      </InlineCommentBlockShell>
     );
   }
 
@@ -260,6 +295,8 @@ export function ComposerBlocksPublicRenderer({
   fallbackContent,
   imageMap = {}
 }: ComposerBlocksPublicRendererProps) {
+  const inlineCtx = useContext(InlineCommentReaderContext);
+
   if (doc.blocks.length === 0) {
     return <StandardProseRenderer content={fallbackContent} />;
   }
@@ -307,7 +344,7 @@ export function ComposerBlocksPublicRenderer({
     }
 
     flushAll();
-    const node = renderSingleBlock(block, imageMap, block.id);
+    const node = renderSingleBlock(block, imageMap, block.id, inlineCtx);
     if (node) {
       nodes.push(node);
     }

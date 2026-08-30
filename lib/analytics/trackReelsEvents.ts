@@ -141,6 +141,21 @@ export function trackFeedReadMore(context: ReelsAnalyticsContext) {
   const tracking = resolveReelsTrackingContext(context.item);
   const meta = feedAlgorithmMeta(context);
 
+  void fetch("/api/reels/cta-click", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chapterId: context.item.chapterId ?? context.item.id,
+      episodeId: context.item.chapterId ?? context.item.id,
+      itemIndex: context.itemIndex,
+      reelItemId: context.item.reelItemId,
+      storyId: context.item.storyId
+    }),
+    keepalive: true
+  }).catch(() => {
+    // Server CTA counter is best-effort; client tracking below still runs.
+  });
+
   void trackReelReadMoreClick(context.item.id, undefined, {
     itemType: tracking.itemType === "reel" ? "reel" : "chapter",
     storyId: context.item.storyId,
@@ -229,12 +244,25 @@ export function trackFeedSave(context: ReelsAnalyticsContext, saved = true) {
       position: meta.position
     }
   });
+}
 
-  void trackEvent({
-    eventName: analyticsEvents.feedSave,
-    metadata: reelsMetadata(context),
-    targetId: context.item.storyId,
-    targetType: "story"
+export function trackFeedShare(context: ReelsAnalyticsContext) {
+  const tracking = resolveReelsTrackingContext(context.item);
+  const meta = feedAlgorithmMeta(context);
+
+  void trackUserAction({
+    surface: "reels",
+    actionType: "share",
+    itemType: "story",
+    itemId: context.item.storyId,
+    storyId: context.item.storyId,
+    authorUserId: context.item.creatorUserId,
+    algorithmVersion: meta.algorithmVersion ?? undefined,
+    metadata: {
+      request_id: meta.requestId,
+      candidate_pool: meta.candidatePool,
+      position: meta.position
+    }
   });
 }
 
@@ -290,6 +318,12 @@ export function trackFeedComment(context: ReelsAnalyticsContext) {
     eventName: analyticsEvents.feedComment,
     metadata: reelsMetadata(context),
     targetId: context.item.id,
+    targetType: "episode"
+  });
+  void trackEvent({
+    eventName: analyticsEvents.reelsCommentOpened,
+    metadata: reelsMetadata(context),
+    targetId: context.item.reelItemId ?? context.item.id,
     targetType: "episode"
   });
 }

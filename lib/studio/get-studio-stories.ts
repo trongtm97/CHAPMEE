@@ -1,4 +1,5 @@
 import { analyticsEvents } from "@/lib/analytics/events";
+import { STORY_VIEW_EVENT_NAMES } from "@/lib/analytics/read-view-events";
 import { isNeedsActionStatus } from "@/lib/content-quality/labels";
 import type { ContentQualityStatus } from "@/types/content-quality";
 import {
@@ -6,9 +7,10 @@ import {
   isStandaloneStory,
   mapStoryStructureFromRow
 } from "@/lib/stories/story-structure";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { mapStoryImageRow } from "@/lib/images/map-story-image";
 import { STORY_IMAGE_SELECT_COLUMNS } from "@/lib/images/get-current-story-image";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
 import { resolveStoryImageUrl } from "@/lib/images/get-current-story-image";
 import { paginateList, parseStudioPage } from "@/lib/studio/pagination";
 import { studioPath } from "@/lib/studio/constants";
@@ -46,9 +48,9 @@ import type { StoryImage, StoryImageRow } from "@/types/story-images";
 export type { StudioStoryListFilter, StudioStorySort };
 
 const READ_EVENT_NAMES = [
-  analyticsEvents.openStory,
-  analyticsEvents.storyViewed,
-  analyticsEvents.chapterOpened
+  ...STORY_VIEW_EVENT_NAMES,
+  analyticsEvents.chapterOpened,
+  analyticsEvents.startReading
 ] as const;
 
 const STALE_DRAFT_DAYS = 14;
@@ -552,7 +554,7 @@ export async function getStudioStoriesPage(
   const activePageSize = parseStudioStoryPageSize(options?.pageSize);
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const staleBefore = new Date(
       Date.now() - STALE_DRAFT_DAYS * 24 * 60 * 60 * 1000
@@ -586,7 +588,7 @@ export async function getStudioStoriesPage(
       const hasTaxonomyFilter = hasActiveTaxonomyFilters(taxonomyFilters);
 
       if (hasTaxonomyFilter) {
-        const { data: allRowsData, error: allRowsError } = await supabase
+        const { data: allRowsData, error: allRowsError } = await db
           .from("stories")
           .select(listSelect)
           .eq("creator_id", creatorProfile.id);
@@ -598,7 +600,7 @@ export async function getStudioStoriesPage(
         allCreatorRows = (allRowsData ?? []) as unknown as StoryRow[];
         const allowedIds = [
           ...(await loadStoryIdsMatchingTaxonomyFilters(
-            supabase,
+            db,
             allCreatorRows.map((story) => story.id),
             taxonomyFilters
           ))
@@ -609,7 +611,7 @@ export async function getStudioStoriesPage(
         if (allowedIds.length === 0) {
           rows = [];
         } else {
-          const { data: pageRowsData, error: pageRowsError } = await supabase
+          const { data: pageRowsData, error: pageRowsError } = await db
             .from("stories")
             .select(listSelect)
             .eq("creator_id", creatorProfile.id)
@@ -625,11 +627,11 @@ export async function getStudioStoriesPage(
         }
       } else {
         const [allRowsResult, pageRowsResult] = await Promise.all([
-          supabase
+          db
             .from("stories")
             .select(listSelect)
             .eq("creator_id", creatorProfile.id),
-          supabase
+          db
             .from("stories")
             .select(listSelect, { count: "exact" })
             .eq("creator_id", creatorProfile.id)
@@ -649,7 +651,7 @@ export async function getStudioStoriesPage(
         dbTotal = pageRowsResult.count ?? rows.length;
       }
     } else {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("stories")
         .select(
           "id, title, slug, public_code, hook, short_description, status, visibility, is_completed, cover_url, created_at, updated_at, structure_type, standalone_plain_text, standalone_reading_time_minutes"
@@ -670,14 +672,14 @@ export async function getStudioStoriesPage(
     const taxonomyAllowed =
       precomputedTaxonomyAllowed ??
       (await loadStoryIdsMatchingTaxonomyFilters(
-        supabase,
+        db,
         storyIds,
         taxonomyFilters
       ));
 
     const storiesWithCurrentImage = new Set<string>();
     if (storyIds.length > 0) {
-      const { data: currentImageRows } = await supabase
+      const { data: currentImageRows } = await db
         .from("story_images")
         .select("story_id")
         .in("story_id", storyIds)
@@ -721,22 +723,22 @@ export async function getStudioStoriesPage(
     if (storyIds.length > 0) {
       const [reads7dRows, attentionEpisodeRows, attentionQualityRows, attentionCommentRows] =
         await Promise.all([
-          supabase
+          db
             .from("analytics_events")
             .select("target_id")
             .in("target_id", storyIds)
             .in("event_name", [...READ_EVENT_NAMES])
             .gte("created_at", weekAgo),
-          supabase
+          db
             .from("episodes")
             .select("story_id, status, updated_at")
             .in("story_id", storyIds),
-          supabase
+          db
             .from("content_quality_reviews")
             .select("story_id, status")
             .in("story_id", storyIds)
             .order("created_at", { ascending: false }),
-          supabase
+          db
             .from("comments")
             .select("story_id")
             .in("story_id", storyIds)
@@ -790,17 +792,17 @@ export async function getStudioStoriesPage(
 
     if (candidateIds.length > 0) {
       const [readsRows, savesRows, imageRows] = await Promise.all([
-        supabase
+        db
           .from("analytics_events")
           .select("target_id")
           .in("target_id", candidateIds)
-          .eq("event_name", "open_story"),
-        supabase
+          .in("event_name", [...STORY_VIEW_EVENT_NAMES]),
+        db
           .from("bookshelf_items")
           .select("story_id")
           .in("story_id", candidateIds)
           .gte("created_at", weekAgo),
-        supabase
+        db
           .from("story_images")
           .select(STORY_IMAGE_SELECT_COLUMNS)
           .in("story_id", candidateIds)
@@ -839,14 +841,14 @@ export async function getStudioStoriesPage(
 
     const genreMap = new Map<string, string>();
     const [mainGenreIndex, taxonomyByStory] = await Promise.all([
-      loadStoryMainGenreTermIndex(supabase, candidateIds),
-      loadMainGenreLabelsByStoryIds(supabase, candidateIds)
+      loadStoryMainGenreTermIndex(db, candidateIds),
+      loadMainGenreLabelsByStoryIds(db, candidateIds)
     ]);
 
     const enrichedStories = candidateRows.map((story) => {
       const image = imageByStory.get(story.id) ?? null;
       const coverThumbUrl = resolveStoryImageUrl({
-        coverUrl: story.cover_url,
+        coverUrl: resolveStoryCoverUrl(story.cover_url),
         image,
         variant: "thumb"
       });
@@ -951,7 +953,7 @@ export async function getStudioStoriesPage(
     };
 
     const taxonomyGenreOptions = await loadCreatorMainGenreFilterOptions(
-      supabase,
+      db,
       creatorProfile.id
     );
     const genres: StudioStoryGenreOption[] = (
@@ -986,7 +988,7 @@ export async function getStudioStoriesPage(
       : paginateList(sorted, activePage, activePageSize);
 
     const taxonomyLabels = await getStoryTaxonomyLabelsByStoryIds(
-      supabase,
+      db,
       paginated.items.map((s) => s.id)
     );
 

@@ -70,6 +70,14 @@ export const STUDIO_VERIFICATION_TYPES = [
   "appeal_reverification"
 ] as const;
 
+/** Loại xác thực hiển thị khi tạo yêu cầu mới (ẩn legacy / không dùng nữa). */
+export const STUDIO_VERIFICATION_PICKER_TYPES = [
+  "payout_individual",
+  "organization_brand",
+  "ip_owner",
+  "appeal_reverification"
+] as const satisfies readonly StudioVerificationType[];
+
 export type StudioVerificationType = (typeof STUDIO_VERIFICATION_TYPES)[number];
 
 export type StudioVerificationTypeConfig = {
@@ -112,16 +120,9 @@ export const STUDIO_VERIFICATION_TYPE_CONFIG: Record<
     purpose: "Tick xanh và độ tin cậy hồ sơ tác giả"
   },
   payout_individual: {
-    description: `Tăng độ tin cậy hồ sơ (không bắt buộc để kiếm tiền/rút tiền). Giấy tờ chỉ dùng để admin ChapMee xét duyệt, không hiển thị công khai. ${IDENTITY_DOCUMENT_TYPES_NOTE}`,
+    description: `Tăng độ tin cậy hồ sơ cá nhân (không bắt buộc để kiếm tiền/rút tiền). Giấy tờ chỉ dùng để admin ChapMee xét duyệt, không hiển thị công khai. ${IDENTITY_DOCUMENT_TYPES_NOTE}`,
     documents: [
       ...IDENTITY_DOCUMENT_SLOTS,
-      {
-        description:
-          "Ảnh xác nhận chủ tài khoản nhận tiền hoặc thông tin đối soát nội bộ nếu bạn đã thiết lập trong Studio.",
-        id: "payout_confirmation",
-        label: "Xác nhận tài khoản nhận tiền",
-        required: false
-      },
       {
         description: "File bổ sung nếu cần.",
         id: "extra_supporting",
@@ -130,8 +131,8 @@ export const STUDIO_VERIFICATION_TYPE_CONFIG: Record<
       }
     ],
     id: "payout_individual",
-    label: "Cá nhân nhận tiền",
-    purpose: "Điều kiện rút tiền/kiếm tiền"
+    label: "Cá nhân",
+    purpose: "Xác thực cá nhân"
   },
   organization_brand: {
     description: "Xác thực tài khoản đại diện tổ chức, nhóm sáng tác, thương hiệu hoặc studio.",
@@ -146,27 +147,6 @@ export const STUDIO_VERIFICATION_TYPE_CONFIG: Record<
         description: "Giấy ủy quyền hoặc tài liệu chứng minh bạn có quyền đại diện.",
         id: "authorization_letter",
         label: "Giấy ủy quyền / quyền đại diện",
-        required: false
-      },
-      {
-        description: "Mặt trước CCCD hoặc giấy phép lái xe của người đại diện.",
-        group: "representative_identity",
-        id: "representative_identity_front",
-        label: "Giấy tờ đại diện · mặt trước",
-        required: false
-      },
-      {
-        description: "Mặt sau CCCD hoặc giấy phép lái xe của người đại diện.",
-        group: "representative_identity",
-        id: "representative_identity_back",
-        label: "Giấy tờ đại diện · mặt sau",
-        required: false
-      },
-      {
-        description: "Người đại diện cầm giấy tờ, thấy rõ số định danh và khuôn mặt.",
-        group: "representative_identity",
-        id: "representative_identity_holding",
-        label: "Giấy tờ đại diện · ảnh cầm giấy (thấy rõ số)",
         required: false
       }
     ],

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 async function getActorContext() {
   const ctx = await getCurrentAuthContext();
@@ -31,20 +31,20 @@ export async function banUserAction(input: {
     return { ok: false, error: "Vui lòng nhập lý do ban." };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { error: statusError } = await supabase.rpc("staff_set_profile_status", {
+  const { error: statusError } = await db.rpc("staff_set_profile_status", {
     target_user_id: input.userId,
     new_status: "banned"
   });
   if (statusError) {
-    const { isMissingSchemaError } = await import("@/lib/supabase/schema-errors");
+    const { isMissingSchemaError } = await import("@/lib/data/schema-errors");
     if (!isMissingSchemaError(statusError)) {
       return { ok: false, error: statusError.message };
     }
   }
 
-  const { error: banError } = await supabase.from("user_bans").insert({
+  const { error: banError } = await db.from("user_bans").insert({
     user_id: input.userId,
     reason,
     banned_by: actor.userId,
@@ -56,14 +56,14 @@ export async function banUserAction(input: {
     return { ok: false, error: banError.message };
   }
 
-  const { data: bannedRole } = await supabase
+  const { data: bannedRole } = await db
     .from("roles")
     .select("id")
     .eq("code", "banned_user")
     .maybeSingle();
 
   if (bannedRole) {
-    await supabase.from("user_roles").upsert(
+    await db.from("user_roles").upsert(
       {
         user_id: input.userId,
         role_id: bannedRole.id,
@@ -100,27 +100,27 @@ export async function unbanUserAction(userId: string) {
     return { ok: false, error: "Bạn không có quyền gỡ ban." };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  await supabase.rpc("staff_set_profile_status", {
+  await db.rpc("staff_set_profile_status", {
     target_user_id: userId,
     new_status: "active"
   });
 
-  await supabase
+  await db
     .from("user_bans")
     .update({ is_active: false })
     .eq("user_id", userId)
     .eq("is_active", true);
 
-  const { data: bannedRole } = await supabase
+  const { data: bannedRole } = await db
     .from("roles")
     .select("id")
     .eq("code", "banned_user")
     .maybeSingle();
 
   if (bannedRole) {
-    await supabase
+    await db
       .from("user_roles")
       .delete()
       .eq("user_id", userId)

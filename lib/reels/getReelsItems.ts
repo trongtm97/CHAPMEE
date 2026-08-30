@@ -18,12 +18,13 @@ import {
   sanitizeReelsExcerpt,
   sanitizeReelsHookTitle
 } from "@/lib/reels/clean-reels-source-text";
+import { resolveStoryReelsExcerpt } from "@/lib/reels/resolve-story-reels-text";
 import { createExcerpt } from "@/lib/text/createExcerpt";
-import { getPublicVerificationBadges } from "@/lib/verification/get-user-verification";
 import type { PublicVerificationBadge } from "@/types/verification";
+import { getPublicVerificationBadges } from "@/lib/verification/get-user-verification";
 import { getOptionalSessionUser } from "@/lib/auth/get-optional-session-user";
 
-export type ReelsItemKind = "episode" | "manual";
+export type ReelsItemKind = "episode" | "manual" | "story_description";
 export type ReelsContentSource = "chapter" | "story";
 
 export type ReelsItem = {
@@ -31,6 +32,8 @@ export type ReelsItem = {
   contentSource: ReelsContentSource;
   backgroundImageUrl: string | null;
   id: string;
+  /** Set for manual reels_items cards; used for CTA counter + tracking. */
+  reelItemId: string | null;
   storyId: string;
   chapterId: string | null;
   episodeNumber: number;
@@ -115,6 +118,7 @@ type StoryRelation = {
   title: string;
   hook: string | null;
   short_description: string | null;
+  long_description?: string | null;
   id: string;
   creator_id: string | null;
   slug: string;
@@ -190,20 +194,15 @@ function buildReelsExcerpt(excerpt: string | null, content: string | null) {
   return "Một đoạn truyện ngắn đang chờ bạn mở tiếp.";
 }
 
-function buildStoryExcerpt(story: Pick<StoryRelation, "hook" | "short_description" | "title">) {
-  const shortDescription = story.short_description?.replace(/\s+/g, " ").trim() ?? "";
-
-  if (shortDescription) {
-    return sanitizeReelsExcerpt(createExcerpt(shortDescription, 80, 160));
-  }
-
-  const hook = story.hook?.replace(/\s+/g, " ").trim() ?? "";
-
-  if (hook) {
-    return sanitizeReelsExcerpt(hook);
-  }
-
-  return `Khám phá truyện "${story.title}" trên ChapMee.`;
+function buildStoryExcerpt(
+  story: Pick<StoryRelation, "hook" | "short_description" | "long_description" | "title">
+) {
+  return resolveStoryReelsExcerpt({
+    title: story.title,
+    hook: story.hook,
+    shortDescription: story.short_description,
+    longDescription: story.long_description
+  });
 }
 
 function addCount(map: Map<string, number>, key: string | null | undefined) {
@@ -257,13 +256,13 @@ export async function getReelsItems(
     }
 
     let queryResult = await fetchEpisodes(
-      "id, slug, public_code, episode_number, title, content, excerpt, published_at, background_image_url, stories!inner(id, creator_id, title, slug, public_code, hook, short_description, cover_url, content_origin, rights_status, status, visibility, creator_profiles(id, pen_name, profiles(username, avatar_url)))",
+      "id, slug, public_code, episode_number, title, content, excerpt, published_at, background_image_url, stories!inner(id, creator_id, title, slug, public_code, hook, short_description, long_description, cover_url, content_origin, rights_status, status, visibility, creator_profiles(id, pen_name, profiles(username, avatar_url)))",
       fetchCount
     );
 
     if (queryResult.error?.message?.includes("background_image_url")) {
       queryResult = await fetchEpisodes(
-        "id, slug, public_code, episode_number, title, content, excerpt, published_at, stories!inner(id, creator_id, title, slug, public_code, hook, short_description, cover_url, content_origin, rights_status, status, visibility, creator_profiles(id, pen_name, profiles(username, avatar_url)))",
+        "id, slug, public_code, episode_number, title, content, excerpt, published_at, stories!inner(id, creator_id, title, slug, public_code, hook, short_description, long_description, cover_url, content_origin, rights_status, status, visibility, creator_profiles(id, pen_name, profiles(username, avatar_url)))",
         fetchCount
       );
     }
@@ -277,7 +276,7 @@ export async function getReelsItems(
     const manualResult = await db
       .from("reels_items")
       .select(
-        "id, slug, public_code, chapter_id, hook, body, cta, cta_type, background_image_url, published_at, content_storage_type, body_preview, stories!inner(id, creator_id, title, slug, public_code, hook, short_description, cover_url, content_origin, rights_status, status, visibility, creator_profiles(id, pen_name, profiles(username, avatar_url))), episodes(episode_number, title, slug, public_code)"
+        "id, slug, public_code, chapter_id, hook, body, cta, cta_type, background_image_url, published_at, content_storage_type, body_preview, stories!inner(id, creator_id, title, slug, public_code, hook, short_description, long_description, cover_url, content_origin, rights_status, status, visibility, creator_profiles(id, pen_name, profiles(username, avatar_url))), episodes(episode_number, title, slug, public_code)"
       )
       .eq("status", "published")
       .order("published_at", { ascending: false })
@@ -322,6 +321,7 @@ export async function getReelsItems(
           kind: "episode" as const,
           contentSource: "chapter" as const,
           id: episode.id,
+          reelItemId: null,
           backgroundImageUrl: getReelsBackgroundSrc({
             title: story.title,
             storyCoverUrl: story.cover_url,
@@ -396,6 +396,7 @@ export async function getReelsItems(
           kind: "manual" as const,
           contentSource,
           id: row.id,
+          reelItemId: row.id,
           backgroundImageUrl:
             resolveReelsBackgroundUrl(row.background_image_url) ??
             getReelsBackgroundSrc({
@@ -543,6 +544,18 @@ export async function getReelsItems(
           saveCountByStory.set(saved.story_id, Number(saved.save_count ?? 0));
         }
       }
+
+      if (storyIds.length > 0) {
+        const { data: shareRows } = await db
+          .from("analytics_events")
+          .select("target_id")
+          .in("target_id", storyIds)
+          .in("event_name", ["feed_share", "reels_share_clicked"]);
+
+        for (const row of shareRows ?? []) {
+          addCount(shareCountByStory, row.target_id as string | null);
+        }
+      }
     }
 
     if (user) {
@@ -596,21 +609,24 @@ export async function getReelsItems(
       .filter((value): value is string => Boolean(value));
     const verificationByUser = await getPublicVerificationBadges(creatorUserIds);
 
-    const items: ReelsItem[] = uniqueItemsBase.map((item) => ({
-      ...item,
-      creatorVerification: item.creatorUserId
-        ? (verificationByUser.get(item.creatorUserId) ?? null)
-        : null,
-      likeCount: likeCountByEpisode.get(item.id) ?? 0,
-      commentCount: commentCountByEpisode.get(item.id) ?? 0,
-      saveCount: saveCountByStory.get(item.storyId) ?? 0,
-      shareCount: shareCountByStory.get(item.storyId) ?? 0,
-      isLiked: likedEpisodeIds.has(item.id),
-      isSaved: savedStoryIds.has(item.storyId),
-      isFollowingCreator: item.creatorId
-        ? followedCreatorIds.has(item.creatorId)
-        : false
-    }));
+    const items: ReelsItem[] = uniqueItemsBase.map((item) => {
+      const engagementId = item.chapterId ?? item.id;
+      return {
+        ...item,
+        creatorVerification: item.creatorUserId
+          ? (verificationByUser.get(item.creatorUserId) ?? null)
+          : null,
+        likeCount: likeCountByEpisode.get(engagementId) ?? 0,
+        commentCount: commentCountByEpisode.get(engagementId) ?? 0,
+        saveCount: saveCountByStory.get(item.storyId) ?? 0,
+        shareCount: shareCountByStory.get(item.storyId) ?? 0,
+        isLiked: likedEpisodeIds.has(engagementId),
+        isSaved: savedStoryIds.has(item.storyId),
+        isFollowingCreator: item.creatorId
+          ? followedCreatorIds.has(item.creatorId)
+          : false
+      };
+    });
 
     const totalFetched = episodeItems.length + manualItems.length;
 

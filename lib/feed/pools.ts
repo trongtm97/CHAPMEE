@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import {
   fetchReelCatalogCandidates,
   fetchStoryCatalogCandidates,
@@ -12,6 +12,13 @@ import {
   personalFitForCandidate
 } from "@/lib/feed/interest";
 import { mixCandidatePools } from "@/lib/feed/mixer";
+import {
+  createReelsShuffleSeed,
+  interleaveReelsByStory,
+  REELS_DIVERSITY_RULES,
+  shuffleReelsFeedCandidates
+} from "@/lib/feed/reels-session-shuffle";
+import { enforceFeedDiversity } from "@/lib/fairness/diversity";
 import { applyFairnessGuardPipeline } from "@/lib/fairness/pipeline";
 import {
   getColdStartCandidates,
@@ -19,11 +26,16 @@ import {
 } from "@/lib/cold-start/candidates";
 import {
   countCandidatesByPool,
-  logAlgorithmFeedRequest
+  logAlgorithmFeedRequest,
+  REELS_FEED_BATCH_LIMIT
 } from "@/lib/feed/request-log";
 import { getFairDistributionConfig } from "@/lib/fair-distribution/settings";
 import { loadTaxonomyExposureShare } from "@/lib/fair-distribution/load-taxonomy-context";
 import { getAlgorithmVersion, getPoolWeightsForSurface, normalizePoolWeights } from "@/lib/feed/weights";
+import {
+  applyContentOriginFairnessQuota,
+  loadContentOriginMixSettings
+} from "@/lib/algorithm/content-origin-mix";
 import type {
   CandidatePools,
   FeedCandidate,
@@ -86,25 +98,27 @@ function diverseQualityFallback(catalog: FeedCandidate[], limit: number) {
 }
 
 export async function buildCandidatePools(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   context: FeedMixerContext,
   catalog: FeedCandidate[]
 ): Promise<CandidatePools> {
   const filtered = filterCandidates(catalog, {
     excludeKeys: context.excludeKeys,
     recentlySeenKeys: context.recentlySeenKeys,
-    skipRecent: context.surface === "reels",
+    // Reels: deprioritize seen items in rerank — do not drop them from the catalog,
+    // otherwise a single story with many unseen chapters dominates the feed.
+    skipRecent: false,
     genreSlug: context.genreSlug ?? context.categorySlug ?? null
   });
 
   const [profile, followedCreators, coldStartItems, qualifiedGrowth, fdsConfig, taxonomyShare] =
     await Promise.all([
-    loadUserInterestProfile(supabase, context.userId),
-    loadFollowedCreatorIds(supabase, context.userId),
-    getColdStartCandidates(supabase, context.surface, 35),
-    getQualifiedGrowthCandidates(supabase, context.surface, 25),
+    loadUserInterestProfile(db, context.userId),
+    loadFollowedCreatorIds(db, context.userId),
+    getColdStartCandidates(db, context.surface, 35),
+    getQualifiedGrowthCandidates(db, context.surface, 25),
     getFairDistributionConfig(),
-    loadTaxonomyExposureShare(supabase, context.surface, 7)
+    loadTaxonomyExposureShare(db, context.surface, 7)
   ]);
 
   const genreMedians = genreQualityMedian(filtered);
@@ -192,6 +206,15 @@ export async function buildCandidatePools(
   ).slice(0, 35);
 
   const admin_boost: FeedCandidate[] = [];
+  const original_pool = sortByScore(
+    filtered.filter((c) => c.contentOrigin !== "translation"),
+    (c) => c.mixerScore
+  ).slice(0, 90);
+  const translation_pool = sortByScore(
+    filtered.filter((c) => c.contentOrigin === "translation"),
+    (c) => c.mixerScore
+  ).slice(0, 90);
+  const mixed_pool = sortByScore(filtered, (c) => c.mixerScore).slice(0, 120);
 
   return {
     personalized: tagPool(personalizedFallback, "personalized"),
@@ -205,60 +228,92 @@ export async function buildCandidatePools(
     admin_boost: tagPool(admin_boost, "admin_boost"),
     growing: tagPool(growing, "growing"),
     completed_story: tagPool(completed_story, "completed_story"),
-    cold_start: tagPool(coldStartItems, "cold_start")
+    cold_start: tagPool(coldStartItems, "cold_start"),
+    original_pool: tagPool(original_pool, "original_pool"),
+    translation_pool: tagPool(translation_pool, "translation_pool"),
+    mixed_pool: tagPool(mixed_pool, "mixed_pool")
   };
 }
 
 export async function getCandidatesForSurface(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   surface: FeedSurface,
   userId: string | null,
   context: Omit<FeedMixerContext, "surface" | "userId"> & {
     limit: number;
     requestId?: string;
+    shuffleSeed?: number;
   }
 ) {
   const requestId = context.requestId ?? randomUUID();
   const algorithmVersion = await getAlgorithmVersion();
   const weights = normalizePoolWeights(await getPoolWeightsForSurface(surface));
+  const shuffleSeed =
+    surface === "reels"
+      ? (context.shuffleSeed ?? createReelsShuffleSeed())
+      : undefined;
 
   const mixerContext: FeedMixerContext = {
     surface,
     userId,
+    shuffleSeed,
     ...context
   };
 
   const catalog =
     surface === "reels"
-      ? await fetchReelCatalogCandidates(supabase, 280)
-      : await fetchStoryCatalogCandidates(supabase, 220);
+      ? await fetchReelCatalogCandidates(db, 280)
+      : await fetchStoryCatalogCandidates(db, 220);
 
-  const pools = await buildCandidatePools(supabase, mixerContext, catalog);
-  const mixed = mixCandidatePools(pools, weights, context.limit);
-  const fdsConfig = await getFairDistributionConfig();
-  const maxStoryRepeats =
-    surface === "reels"
-      ? fdsConfig.caps.maxRepeatsPerStoryInReels
-      : 3;
+  const pools = await buildCandidatePools(db, mixerContext, catalog);
+  const mixed = mixCandidatePools(pools, weights, context.limit, { shuffleSeed });
+  const reelsRerankRules = {
+    excludeKeys: context.excludeKeys,
+    deprioritizeSeenKeys: context.recentlySeenKeys,
+    maxConsecutiveSameAuthor: REELS_DIVERSITY_RULES.maxConsecutiveSameAuthor,
+    maxConsecutiveSameStory:
+      surface === "reels" ? REELS_DIVERSITY_RULES.maxConsecutiveSameStory : undefined,
+    maxSameStoryInWindow:
+      surface === "reels" ? REELS_DIVERSITY_RULES.maxSameStoryInWindow : 3,
+    storyWindowSize:
+      surface === "reels" ? REELS_DIVERSITY_RULES.storyWindowSize : 30
+  };
 
-  const guarded = await applyFairnessGuardPipeline(supabase, {
+  const guarded = await applyFairnessGuardPipeline(db, {
     surface,
     items: mixed,
     pools,
     limit: context.limit,
     requestId,
-    rerankRules: {
-      excludeKeys: context.excludeKeys,
-      deprioritizeSeenKeys: context.recentlySeenKeys,
-      maxConsecutiveSameAuthor: 1,
-      maxSameStoryInWindow: maxStoryRepeats,
-      storyWindowSize: 30
-    }
+    rerankRules: reelsRerankRules
+  });
+  const mixSettings = await loadContentOriginMixSettings();
+  const mixedWithOriginCap = applyContentOriginFairnessQuota(guarded, {
+    surface,
+    limit: context.limit,
+    settings: mixSettings
   });
 
-  const deliverable = guarded.slice(0, Math.max(context.limit, 1));
+  const batchCap =
+    surface === "reels"
+      ? Math.min(
+          REELS_FEED_BATCH_LIMIT,
+          Math.max(context.limit * 2, context.limit + 40)
+        )
+      : Math.max(context.limit * 2, context.limit + 40);
+  const batchPool = mixedWithOriginCap.items.slice(0, batchCap);
+  let deliverable = batchPool.slice(0, batchCap);
+  if (surface === "reels" && shuffleSeed != null) {
+    const shuffled = shuffleReelsFeedCandidates(batchPool, shuffleSeed);
+    const interleaved = interleaveReelsByStory(shuffled);
+    deliverable = enforceFeedDiversity(interleaved, {
+      rerankRules: reelsRerankRules,
+      targetLength: batchCap,
+      preservePlacementOrder: true
+    }).slice(0, batchCap);
+  }
 
-  void logAlgorithmFeedRequest(supabase, {
+  void logAlgorithmFeedRequest(db, {
     requestId,
     userId,
     surface,
@@ -273,7 +328,14 @@ export async function getCandidatesForSurface(
     algorithmVersion,
     weights,
     pools,
-    poolCounts: countCandidatesByPool(pools),
-    candidates: deliverable
+    poolCounts: {
+      ...countCandidatesByPool(pools),
+      ...(mixedWithOriginCap.reasons.length > 0
+        ? { origin_mix_notes: mixedWithOriginCap.reasons.length }
+        : {}),
+      ...(shuffleSeed != null ? { reels_shuffle_seed: 1 } : {})
+    },
+    candidates: deliverable,
+    shuffleSeed
   };
 }

@@ -4,7 +4,7 @@ import { getCurrentProfile } from "@/lib/auth/getCurrentProfile";
 import {
   getNotificationPreferences,
   updateNotificationPreferences
-} from "@/lib/supabase/notifications";
+} from "@/lib/data/notifications";
 import type { NotificationPreferences } from "@/types/notification";
 
 export async function GET() {

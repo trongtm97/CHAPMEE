@@ -10,8 +10,9 @@ import { MeDesktopActivitySection } from "@/components/me/MeDesktopActivitySecti
 import { AchievementPreview } from "@/components/me/AchievementPreview";
 import { ProfileHero } from "@/components/me/ProfileHero";
 import { ProfileRefreshAlert } from "@/components/me/ProfileRefreshAlert";
-import { ContactFeedbackCard } from "@/components/me/ContactFeedbackCard";
-import { SettingsCompact } from "@/components/me/SettingsCompact";
+import { MeFeedbackCard } from "@/components/me/MeFeedbackCard";
+import { MeQuickSettings } from "@/components/me/MeQuickSettings";
+import { ProfileQuickActions } from "@/components/me/ProfileQuickActions";
 import { BookshelfPreview } from "@/components/me/BookshelfPreview";
 import { CollectionsPreview } from "@/components/me/CollectionsPreview";
 import { buildReaderProfileSharePayload } from "@/lib/share/profileShare";
@@ -32,7 +33,9 @@ type DesktopMePageProps = {
 export function DesktopMePage({ data, monetizationSection }: DesktopMePageProps) {
   return (
     <section className="hidden space-y-8 lg:block">
-      <ProfileRefreshAlert message={data.refreshError} />
+      {data.refreshError ? (
+        <ProfileRefreshAlert message={data.refreshError} />
+      ) : null}
 
       {data.accountNotice ? (
         <p className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
@@ -45,6 +48,15 @@ export function DesktopMePage({ data, monetizationSection }: DesktopMePageProps)
         <h1 className="mt-3 text-3xl font-bold tracking-normal">Trung tâm cá nhân</h1>
       </div>
 
+      <ProfileQuickActions
+        collectionsCount={data.collections.length}
+        hasStories={(data.creatorStats?.stories ?? 0) > 0}
+        isCreator={data.permissionFlags.canOpenStudio}
+        readingCount={data.currentlyReading.length}
+        savedCount={data.readerProfile.metrics.savedStoriesCount}
+        unreadMessagesCount={data.unreadMessagesCount}
+      />
+
       <ProfileHero
         avatarUrl={data.user.avatarUrl}
         bio={data.user.bio}
@@ -52,6 +64,8 @@ export function DesktopMePage({ data, monetizationSection }: DesktopMePageProps)
         editHref="/me/settings"
         handle={data.user.handle}
         isCreator={data.permissionFlags.canOpenStudio}
+        isVerified={data.user.isVerified}
+        publicProfilePath={data.publicProfilePath}
         roleBadges={data.profileBadges}
         shareText={
           buildReaderProfileSharePayload({
@@ -176,12 +190,12 @@ export function DesktopMePage({ data, monetizationSection }: DesktopMePageProps)
 
           {monetizationSection}
 
-          <ContactFeedbackCard
-            settings={data.contactSettings}
-            userEmail={data.user.email}
-          />
+          <MeFeedbackCard settings={data.contactSettings} userEmail={data.user.email} />
 
-          <SettingsCompact unreadNotificationCount={data.unreadNotificationCount} />
+          <MeQuickSettings
+            publicProfilePath={data.publicProfilePath}
+            unreadNotificationCount={data.unreadNotificationCount}
+          />
         </div>
       </div>
     </section>

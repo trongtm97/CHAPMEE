@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { REELS_PUBLIC_PATH } from "@/lib/routes/reels-paths";
-import { saveOnboardingState } from "@/lib/supabase/onboarding";
+import { saveOnboardingState } from "@/lib/data/onboarding";
 import { getOnboardingGenreOptions } from "@/lib/taxonomy/onboarding-genres";
 import type { OnboardingRolePreference } from "@/types/onboarding";
 
@@ -30,7 +30,7 @@ export default async function OnboardingPage() {
           userId: user.id,
           favoriteGenres: genres
         });
-        redirect(rolePreference === "author" ? "/studio/setup" : REELS_PUBLIC_PATH);
+        redirect(rolePreference === "author" ? "/studio" : REELS_PUBLIC_PATH);
       }}
     />
   );

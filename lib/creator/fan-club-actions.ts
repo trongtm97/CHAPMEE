@@ -4,7 +4,7 @@ import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-
 import { getCurrentCreatorProfile } from "@/lib/creator/getCreatorProfile";
 import { getMonetizationConfig } from "@/lib/monetization/config";
 import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
-import { upsertFanClubPlan } from "@/lib/supabase/fan-club";
+import { upsertFanClubPlan } from "@/lib/data/fan-club";
 
 function parseNumber(value: FormDataEntryValue | null, fallback = 0) {
   const parsed = Number(value);

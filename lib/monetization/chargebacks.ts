@@ -1,10 +1,10 @@
 "use server";
 
 import { checkStaffPermission } from "@/lib/auth/staff-guards";
-import { createChargebackRecord, updateChargebackStatus } from "@/lib/supabase/chargebacks";
-import { getTransactionById } from "@/lib/supabase/transactions";
+import { createChargebackRecord, updateChargebackStatus } from "@/lib/data/chargebacks";
+import { getTransactionById } from "@/lib/data/transactions";
 import { createChargebackTransaction } from "@/lib/transactions/reversal";
-import { createRiskEventRecord, getOrCreateUserRiskProfile, updateUserRiskProfileRecord } from "@/lib/supabase/risk";
+import { createRiskEventRecord, getOrCreateUserRiskProfile, updateUserRiskProfileRecord } from "@/lib/data/risk";
 
 async function assertChargebackStaff() {
   return checkStaffPermission("finance.refund.create");

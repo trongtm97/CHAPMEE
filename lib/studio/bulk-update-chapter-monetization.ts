@@ -8,8 +8,8 @@ import { applyStoryAutoPricing } from "@/lib/studio/apply-story-auto-pricing";
 import { buildStudioMonetizationConfigView } from "@/lib/studio/monetization-config";
 import { studioPath } from "@/lib/studio/constants";
 import { validateStudioCoinPrice } from "@/lib/studio/validate-coin-price";
-import { upsertChapterMonetizationSetting } from "@/lib/supabase/chapter-monetization";
-import { getStoryMonetizationSettings } from "@/lib/supabase/story-monetization";
+import { upsertChapterMonetizationSetting } from "@/lib/data/chapter-monetization";
+import { getStoryMonetizationSettings } from "@/lib/data/story-monetization";
 import type { StudioMonetizationBulkResult } from "@/types/studio-monetization-stories";
 
 export type BulkChapterMonetizationAction =

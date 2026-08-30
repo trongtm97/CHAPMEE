@@ -34,7 +34,7 @@ export default async function StudioFinanceRoute({
         <ErrorState message={error} title="Không tải được quyền truy cập Studio" />
         <p className="text-sm text-zinc-500">
           Bạn cần hoàn tất đăng ký tác giả để xem tài chính và doanh thu quảng cáo.{" "}
-          <a className="text-cyan-300 hover:underline" href="/studio/setup">
+          <a className="text-cyan-300 hover:underline" href="/studio">
             Thiết lập Studio
           </a>
         </p>

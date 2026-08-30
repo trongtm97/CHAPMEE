@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   getTransactionRiskReasons,
   transactionNeedsReview
@@ -41,7 +41,7 @@ export async function enrichAdminTransactions(
 ): Promise<AdminTransactionListRow[]> {
   if (rows.length === 0) return [];
 
-  const supabase = await createClient();
+  const db = await createClient();
   const userIds = [
     ...new Set(
       rows.flatMap((row) => [row.user_id, row.creator_user_id]).filter(Boolean) as string[]
@@ -52,13 +52,13 @@ export async function enrichAdminTransactions(
 
   const [profilesRes, storiesRes, episodesRes] = await Promise.all([
     userIds.length
-      ? supabase.from("profiles").select("id, username, display_name, email").in("id", userIds)
+      ? db.from("profiles").select("id, username, display_name, email").in("id", userIds)
       : Promise.resolve({ data: [] as ProfileRow[] }),
     storyIds.length
-      ? supabase.from("stories").select("id, title, slug").in("id", storyIds)
+      ? db.from("stories").select("id, title, slug").in("id", storyIds)
       : Promise.resolve({ data: [] as StoryRow[] }),
     chapterIds.length
-      ? supabase
+      ? db
           .from("episodes")
           .select("id, title, episode_number")
           .in("id", chapterIds)
@@ -108,14 +108,14 @@ export async function fetchTransactionRiskContext(transactionIds: string[]) {
     return { riskEventIds: new Set<string>(), chargebackIds: new Set<string>() };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const [riskRes, chargebackRes] = await Promise.all([
-    supabase
+    db
       .from("risk_events")
       .select("transaction_id")
       .in("transaction_id", transactionIds)
       .in("status", ["open", "reviewing"]),
-    supabase
+    db
       .from("chargebacks")
       .select("original_transaction_id")
       .in("original_transaction_id", transactionIds)

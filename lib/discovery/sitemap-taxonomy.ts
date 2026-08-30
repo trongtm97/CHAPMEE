@@ -7,7 +7,7 @@ import {
   TAXONOMY_SITEMAP_EXCLUDED_TYPES,
   type TaxonomySitemapEntry
 } from "@/lib/seo/taxonomy-seo";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { mapTaxonomyTermRow } from "@/lib/taxonomy/map-row";
 import {
   getLatestStoryUpdatedAtByTermIds,
@@ -41,12 +41,12 @@ function isUuidSlug(slug: string): boolean {
 }
 
 export async function getTaxonomySitemapPaths(): Promise<TaxonomySitemapPath[]> {
-  const supabase = await createClient();
+  const db = await createClient();
   const eligibleTypes = SITEMAP_TYPES.filter(
     (type) => !TAXONOMY_SITEMAP_EXCLUDED_TYPES.includes(type)
   );
 
-  const { data: rows } = await supabase
+  const { data: rows } = await db
     .from("taxonomy_terms")
     .select("*")
     .in("type", eligibleTypes)

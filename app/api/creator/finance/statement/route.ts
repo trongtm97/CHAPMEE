@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { assertActionAccess, ActionAccessError } from "@/lib/auth/assert-action-access";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
 import { toCsv } from "@/lib/finance/export-csv";
-import { getCreatorStatementRows } from "@/lib/supabase/finance-export";
+import { getCreatorStatementRows } from "@/lib/data/finance-export";
 
 export async function GET(request: Request) {
   const ctx = await getCurrentAuthContext();

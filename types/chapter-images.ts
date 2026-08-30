@@ -21,11 +21,18 @@ export type ChapterImageAcceptedMimeType =
 export const CHAPTER_IMAGE_ACCEPT_ATTRIBUTE =
   CHAPTER_IMAGE_ACCEPTED_MIME_TYPES.join(",");
 
+export type ChapterImageAlign = "left" | "center" | "right";
+
 export type ChapterImageBlock = {
   alt: string;
+  /** Horizontal alignment within the reader column. Defaults to "center". */
+  align?: ChapterImageAlign;
   caption: string;
   height: number;
   id: string;
+  /** Same as id — chapter_images row used as internal media reference for Composer. */
+  mediaAssetId?: string;
+  /** Object key in S3 (resolved at render time). Legacy rows may store full URLs. */
   src: string;
   thumbSrc: string;
   width: number;

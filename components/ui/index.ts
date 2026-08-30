@@ -9,6 +9,7 @@ export { LoadingState } from "./LoadingState";
 export { NotFoundState } from "./NotFoundState";
 export { SectionHeader } from "./SectionHeader";
 export { Textarea } from "./Textarea";
+export { EmailDeliveryNotice } from "./EmailDeliveryNotice";
 export { SearchIcon } from "./SearchIcon";
 export { AppSearchField, APP_SEARCH_PLACEHOLDER } from "./AppSearchField";
 export { AppSearchBar } from "./AppSearchBar";

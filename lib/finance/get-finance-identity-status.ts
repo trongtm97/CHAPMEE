@@ -1,16 +1,16 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getUserVerificationSummary } from "@/lib/verification/get-user-verification";
 import type { FinanceIdentityStatus } from "@/types/finance";
 
 const VERIFICATION_HREF = "/studio/settings/verification";
 
 export async function getFinanceIdentityStatus(userId: string): Promise<FinanceIdentityStatus> {
-  const [summary, supabase] = await Promise.all([
+  const [summary, db] = await Promise.all([
     getUserVerificationSummary(userId),
     createClient()
   ]);
 
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from("profiles")
     .select("display_name, is_verified")
     .eq("id", userId)

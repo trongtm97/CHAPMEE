@@ -1,4 +1,6 @@
-﻿import { createRule, summarizeChecklist } from "@/lib/publish/checklist-utils";
+﻿import { containsForbiddenLocalMediaUrl } from "@/lib/media/media-url";
+import { LOCAL_MEDIA_URL_ERROR } from "@/lib/media/content-media-validator";
+import { createRule, summarizeChecklist } from "@/lib/publish/checklist-utils";
 import {
   REELS_BODY_MAX,
   REELS_CTA_MAX,
@@ -22,8 +24,20 @@ export function validateReelsBeforePublish(
   const storyId = reelsInput.storyId?.trim() ?? "";
   const linkedOk =
     reelsInput.linkedContentPublic === undefined ? true : reelsInput.linkedContentPublic;
+  const background = reelsInput.backgroundImageUrl?.trim() ?? "";
+  const backgroundLocalForbidden = background
+    ? containsForbiddenLocalMediaUrl(background)
+    : false;
 
   const rules = [
+    createRule({
+      blocking: true,
+      id: "background-local-url",
+      label: "URL ảnh local không hợp lệ",
+      message: LOCAL_MEDIA_URL_ERROR,
+      ok: !backgroundLocalForbidden,
+      targetType: "reels"
+    }),
     createRule({
       blocking: true,
       id: "story",

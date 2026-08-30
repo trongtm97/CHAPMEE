@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { PublicEntityType } from "@/lib/urls/constants";
 
 export type UrlRedirectRow = {
@@ -32,9 +32,9 @@ function normalizePath(path: string): string {
 export async function lookupActiveUrlRedirect(
   sourcePath: string
 ): Promise<UrlRedirectRow | null> {
-  const supabase = await createClient();
+  const db = await createClient();
   const normalized = normalizePath(sourcePath);
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("url_redirects")
     .select(
       "id, source_path, target_path, entity_type, entity_id, status_code, is_active, reason"
@@ -55,8 +55,8 @@ export async function hasActiveRedirectFromTargetToSource(
   sourcePath: string,
   targetPath: string
 ): Promise<boolean> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("url_redirects")
     .select("id")
     .eq("source_path", normalizePath(targetPath))
@@ -70,8 +70,8 @@ export async function hasActiveRedirectFromTargetToSource(
 export async function hasConflictingActiveRedirect(
   sourcePath: string
 ): Promise<boolean> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("url_redirects")
     .select("id")
     .eq("source_path", normalizePath(sourcePath))
@@ -110,9 +110,9 @@ export async function createUrlRedirect(
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: existing } = await supabase
+  const { data: existing } = await db
     .from("url_redirects")
     .select("id, target_path")
     .eq("source_path", sourcePath)
@@ -130,7 +130,7 @@ export async function createUrlRedirect(
     return { ok: true, id: String(existing.id) };
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("url_redirects")
     .insert({
       source_path: sourcePath,
@@ -145,16 +145,16 @@ export async function createUrlRedirect(
     .select("id")
     .single();
 
-  if (error) {
-    return { ok: false, error: error.message };
+  if (error || !data) {
+    return { ok: false, error: error?.message ?? "Không tạo được redirect." };
   }
 
   return { ok: true, id: String(data.id) };
 }
 
 export async function deactivateUrlRedirect(id: string): Promise<boolean> {
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("url_redirects")
     .update({ is_active: false })
     .eq("id", id);
@@ -173,8 +173,8 @@ export type SlugHistoryInput = {
 };
 
 export async function recordSlugHistory(input: SlugHistoryInput): Promise<void> {
-  const supabase = await createClient();
-  await supabase.from("entity_slug_history").insert({
+  const db = await createClient();
+  await db.from("entity_slug_history").insert({
     entity_type: input.entityType,
     entity_id: input.entityId,
     old_slug: input.oldSlug,

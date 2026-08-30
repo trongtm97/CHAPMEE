@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { checkStaffPermission } from "@/lib/auth/staff-guards";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
 import { computeWithdrawalFeeVnd } from "@/lib/admin/withdrawals/compute-withdrawal-fee";
@@ -15,8 +15,8 @@ import {
   withdrawalMethodLabel,
   withdrawalStatusLabel
 } from "@/lib/admin/withdrawals/withdrawal-labels";
-import { getPayoutRequestById, listPayoutRequestsForCreator } from "@/lib/supabase/payouts";
-import { getCreatorWithdrawalSecurity } from "@/lib/supabase/creator-finance";
+import { getPayoutRequestById, listPayoutRequestsForCreator } from "@/lib/data/payouts";
+import { getCreatorWithdrawalSecurity } from "@/lib/data/creator-finance";
 import { calculateCreatorBalance } from "@/lib/finance/calculate-creator-balance";
 import { getCreatorFinanceConfig } from "@/lib/finance/get-creator-finance-config";
 import type {
@@ -70,12 +70,12 @@ export async function loadAdminWithdrawalDetailAction(
   }
 
   const req = requestResult.data;
-  const supabase = await createClient();
+  const db = await createClient();
   const ctx = await loadWithdrawalEnrichedContext(500);
   const feeVnd = await computeWithdrawalFeeVnd(req.amount_vnd);
   const financeConfig = await getCreatorFinanceConfig();
 
-  const creatorRes = await supabase
+  const creatorRes = await db
     .from("creator_profiles")
     .select("id")
     .eq("user_id", req.creator_user_id)
@@ -91,12 +91,12 @@ export async function loadAdminWithdrawalDetailAction(
     qualityRes,
     reportsRes
   ] = await Promise.all([
-    supabase
+    db
       .from("profiles")
       .select("id, display_name, username, avatar_url, is_verified, verification_type, status")
       .eq("id", req.creator_user_id)
       .maybeSingle(),
-    supabase
+    db
       .from("creator_monetization_profiles")
       .select("status, monetization_enabled, payout_enabled")
       .eq("user_id", req.creator_user_id)
@@ -104,7 +104,7 @@ export async function loadAdminWithdrawalDetailAction(
     calculateCreatorBalance(req.creator_user_id),
     getCreatorWithdrawalSecurity(req.creator_user_id),
     listPayoutRequestsForCreator(req.creator_user_id, 50),
-    supabase
+    db
       .from("admin_audit_logs")
       .select("id, action, actor_id, metadata, created_at")
       .eq("target_type", "payout_request")
@@ -112,13 +112,13 @@ export async function loadAdminWithdrawalDetailAction(
       .order("created_at", { ascending: false })
       .limit(30),
     creatorRes.data?.id
-      ? supabase
+      ? db
           .from("stories")
           .select("id", { count: "exact", head: true })
           .eq("creator_id", creatorRes.data.id)
           .in("quality_status", ["at_risk", "permanently_hidden", "needs_fix"])
       : Promise.resolve({ count: 0 }),
-    supabase
+    db
       .from("reports")
       .select("id", { count: "exact", head: true })
       .eq("reported_user_id", req.creator_user_id)
@@ -165,7 +165,7 @@ export async function loadAdminWithdrawalDetailAction(
     )
   ];
   const { data: actors } = actorIds.length
-    ? await supabase
+    ? await db
         .from("profiles")
         .select("id, display_name, username")
         .in("id", actorIds)

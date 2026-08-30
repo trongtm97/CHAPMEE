@@ -6,16 +6,16 @@ import { analyticsEvents } from "@/lib/analytics/events";
 import { trackServerEvent } from "@/lib/analytics/trackServerEvent";
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
 import { assertOwnsComment } from "@/lib/auth/ownership";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export async function deleteCommentAction(formData: FormData) {
   const commentId = String(formData.get("commentId") ?? "");
   const returnTo = String(formData.get("returnTo") ?? "/");
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user },
     error: userError
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (userError || !user) {
     redirect(`/login?next=${encodeURIComponent(returnTo)}`);
@@ -37,7 +37,7 @@ export async function deleteCommentAction(formData: FormData) {
     return;
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("comments")
     .update({ status: "deleted" })
     .eq("id", commentId)
@@ -56,6 +56,15 @@ export async function deleteCommentAction(formData: FormData) {
       targetId: comment.id,
       targetType: "comment"
     });
+
+    if (comment.story_id) {
+      const { refreshGroupFeedVisibilityForComment } = await import(
+        "@/lib/community-sync/comment-sync"
+      );
+      void refreshGroupFeedVisibilityForComment(commentId).catch((syncError) => {
+        console.error("[community-sync] delete visibility sync failed", syncError);
+      });
+    }
   }
 
   revalidatePath(returnTo);

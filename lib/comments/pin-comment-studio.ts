@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentCreatorProfile } from "@/lib/creator/getCurrentCreatorProfile";
 import { createNotification } from "@/lib/notifications/create-notification";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { assertCreatorOwnsComment } from "@/lib/studio/assert-creator-owns-comment";
 import { studioPath } from "@/lib/studio/constants";
 
@@ -35,10 +35,10 @@ export async function pinCommentAsCreator(
     return { ok: false, error: "Chỉ ghim được bình luận đang hiển thị." };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
   if (pinned) {
-    let countQuery = supabase
+    let countQuery = db
       .from("comments")
       .select("id", { count: "exact", head: true })
       .eq("status", "visible")
@@ -75,7 +75,7 @@ export async function pinCommentAsCreator(
     }
   }
 
-  const { error } = await supabase.rpc("set_comment_pinned", {
+  const { error } = await db.rpc("set_comment_pinned", {
     input_comment_id: commentId,
     input_pinned: pinned
   });
@@ -101,7 +101,7 @@ export async function pinCommentAsCreator(
     let contextTitle = "truyện";
 
     if (owned.community_post_id) {
-      const { data: postRow } = await supabase
+      const { data: postRow } = await db
         .from("community_posts")
         .select("title")
         .eq("id", owned.community_post_id)
@@ -109,7 +109,7 @@ export async function pinCommentAsCreator(
 
       contextTitle = postRow?.title ?? "bài cộng đồng";
     } else if (owned.story_id) {
-      const { data: storyRow } = await supabase
+      const { data: storyRow } = await db
         .from("stories")
         .select("title")
         .eq("id", owned.story_id)

@@ -91,7 +91,7 @@ export function AdminCreateUserForm({
         </Button>
       </div>
       <p className="text-sm text-zinc-400">
-        Tạo user trên Supabase Auth, profile và vai trò khởi tạo. Yêu cầu quyền{" "}
+        Tạo user trên db Auth, profile và vai trò khởi tạo. Yêu cầu quyền{" "}
         <code className="text-zinc-300">admin.user.update</code>
         {canAssignRoles ? " và gán role nâng cao cần admin.user.role.assign" : ""}.
       </p>

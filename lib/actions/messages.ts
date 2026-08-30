@@ -17,18 +17,11 @@ import { hideConversationForUser } from "@/lib/messages/hide-conversation";
 import { unblockUser } from "@/lib/messages/unblock-user";
 import { reportMessage } from "@/lib/messages/report-message";
 import { markConversationRead } from "@/lib/messages/mark-conversation-read";
+import { openDirectConversation } from "@/lib/messages/open-direct-conversation";
 import { ensureMessagePrivacySettings } from "@/lib/messages/get-privacy-settings";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
+import type { MessageActionState } from "@/lib/actions/message-action-state";
 import type { MessagePrivacyLevel, MessageReportReasonCode } from "@/types/messages";
-
-export type MessageActionState = {
-  error: string | null;
-  warning: string | null;
-  ok?: boolean;
-  messageId?: string;
-};
-
-const emptyState: MessageActionState = { error: null, warning: null };
 
 async function requireProfile() {
   const { user, profile } = await getCurrentUser();
@@ -79,6 +72,32 @@ export async function startMessageFromProfileAction(
 
   revalidatePath(returnTo);
   redirect("/messages?tab=requests&sent=1");
+}
+
+export async function openDirectConversationFromProfileAction(
+  _prev: MessageActionState,
+  formData: FormData
+): Promise<MessageActionState> {
+  const { profile } = await requireProfile();
+  const recipientId = String(formData.get("recipientId") ?? "").trim();
+
+  if (!recipientId) {
+    return { error: "Không xác định được người nhận.", warning: null };
+  }
+
+  const result = await openDirectConversation({
+    requesterId: profile.id,
+    recipientId
+  });
+
+  if (!result.ok || !result.conversationId) {
+    return {
+      error: result.error ?? "Không mở được cuộc trò chuyện.",
+      warning: null
+    };
+  }
+
+  redirect(`/messages/${result.conversationId}`);
 }
 
 export async function sendMessageAction(
@@ -254,8 +273,8 @@ export async function updateMessagePrivacyAction(
   const filterSensitiveMessages = formData.get("filterSensitiveMessages") === "on";
   const blockLinksFromStrangers = formData.get("blockLinksFromStrangers") === "on";
 
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("message_privacy_settings")
     .update({
       who_can_message: whoCanMessage,
@@ -270,7 +289,7 @@ export async function updateMessagePrivacyAction(
     return { error: "Không lưu được cài đặt.", warning: null };
   }
 
-  await supabase
+  await db
     .from("profile_privacy_settings")
     .update({
       allow_dm: whoCanMessage !== "no_one",
@@ -282,5 +301,3 @@ export async function updateMessagePrivacyAction(
   revalidatePath("/me/settings/privacy");
   return { error: null, warning: null, ok: true };
 }
-
-export { emptyState as messageActionEmptyState };

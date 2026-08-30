@@ -22,6 +22,23 @@ export function getProfileUrlOrFallback(
   return getProfileUrl(username) ?? fallback;
 }
 
+/**
+ * Public creator link: prefer `/@username`.
+ * Fallback `/author/:userId` only accepts `profiles.id` (auth user id), never `creator_profiles.id`.
+ */
+export function getCreatorPublicHref(input: {
+  username?: string | null;
+  /** `profiles.id` / auth user id — NOT `creator_profiles.id`. */
+  userId?: string | null;
+}): string | null {
+  const profileUrl = getProfileUrl(input.username);
+  if (profileUrl) {
+    return profileUrl;
+  }
+
+  return null;
+}
+
 const AT_PROFILE_PATH = new RegExp(
   `^/@(${USERNAME_PATH_REGEX})(?:/|$)`,
   "i"
@@ -43,7 +60,8 @@ export function parseProfileUsernameFromPath(pathname: string): string | null {
 export function getProfileTabUrl(
   username: string | null | undefined,
   tab: string,
-  page?: number
+  page?: number,
+  extra?: Record<string, string | undefined>
 ): string | null {
   const base = getProfileUrl(username);
   if (!base) {
@@ -53,8 +71,26 @@ export function getProfileTabUrl(
   if (page != null && page > 1) {
     params.set("page", String(page));
   }
+  if (extra) {
+    for (const [key, value] of Object.entries(extra)) {
+      if (value?.trim()) {
+        params.set(key, value.trim());
+      }
+    }
+  }
   const qs = params.toString();
   return qs ? `${base}?${qs}` : base;
+}
+
+/** Profile tab URL preserving current query (sort, page). */
+export function getProfileTabUrlFromSearch(
+  username: string | null | undefined,
+  tab: string,
+  searchParams: { page?: string; sort?: string }
+): string | null {
+  return getProfileTabUrl(username, tab, Number(searchParams.page) || 1, {
+    sort: searchParams.sort
+  });
 }
 
 export function getProfileCollectionUrl(

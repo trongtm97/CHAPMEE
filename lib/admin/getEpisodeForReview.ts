@@ -1,5 +1,5 @@
 import { ADMIN_CREATOR_JOIN, resolveAdminCreatorName } from "@/lib/admin/creator-display";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export type EpisodeForReview = {
   id: string;
@@ -55,8 +55,8 @@ export async function getEpisodeForReview(
   episodeId: string
 ): Promise<EpisodeForReviewResult> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("episodes")
       .select(
         `id, story_id, episode_number, title, content, excerpt, word_count, status, created_at, updated_at, published_at, stories(title, ${ADMIN_CREATOR_JOIN})`

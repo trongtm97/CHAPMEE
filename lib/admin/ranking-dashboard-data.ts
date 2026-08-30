@@ -2,8 +2,8 @@ import { getAlgorithmConfig } from "@/lib/algorithm/settings";
 import { buildScoringConfig } from "@/lib/scoring/config";
 import { topAuthorConcentration } from "@/lib/ranking/diversity";
 import { getRankingBoard } from "@/lib/ranking/get-board";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createAdminClient } from "@/lib/data/admin";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { RankingBoardType, RankingTimeWindow } from "@/types/ranking-board";
 
 export type RankingBoardAdminRow = {
@@ -50,7 +50,7 @@ const PRIMARY_BOARDS: Array<{ type: RankingBoardType; window: RankingTimeWindow 
 ];
 
 export async function loadRankingAdminDashboardData(): Promise<RankingAdminDashboardData> {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   const rawConfig = await getAlgorithmConfig();
   const config = buildScoringConfig(rawConfig);
 
@@ -78,7 +78,7 @@ export async function loadRankingAdminDashboardData(): Promise<RankingAdminDashb
     const boards: RankingBoardAdminRow[] = [];
 
     for (const board of PRIMARY_BOARDS) {
-      const { data: latest } = await supabase
+      const { data: latest } = await db
         .from("ranking_snapshots")
         .select("snapshot_at")
         .eq("ranking_type", board.type)
@@ -93,7 +93,7 @@ export async function loadRankingAdminDashboardData(): Promise<RankingAdminDashb
       let topConcentrationPercent = 0;
 
       if (snapshotAt) {
-        const { count } = await supabase
+        const { count } = await db
           .from("ranking_snapshots")
           .select("id", { count: "exact", head: true })
           .eq("ranking_type", board.type)
@@ -103,7 +103,7 @@ export async function loadRankingAdminDashboardData(): Promise<RankingAdminDashb
 
         itemCount = count ?? 0;
 
-        const preview = await getRankingBoard(supabase, {
+        const preview = await getRankingBoard(db, {
           boardType: board.type,
           timeWindow: board.window,
           page: 1,
@@ -123,7 +123,7 @@ export async function loadRankingAdminDashboardData(): Promise<RankingAdminDashb
       });
     }
 
-    const { data: genreBoards } = await supabase
+    const { data: genreBoards } = await db
       .from("ranking_snapshots")
       .select("ranking_type, time_window, taxonomy_term_id, snapshot_at, taxonomy_terms(name)")
       .eq("ranking_type", "genre_stories")
@@ -148,7 +148,7 @@ export async function loadRankingAdminDashboardData(): Promise<RankingAdminDashb
         : row.taxonomy_terms;
       const genreName = termRelation?.name ?? null;
 
-      const { count } = await supabase
+      const { count } = await db
         .from("ranking_snapshots")
         .select("id", { count: "exact", head: true })
         .eq("ranking_type", "genre_stories")
@@ -167,7 +167,7 @@ export async function loadRankingAdminDashboardData(): Promise<RankingAdminDashb
       });
     }
 
-    const { data: lastRow } = await supabase
+    const { data: lastRow } = await db
       .from("ranking_snapshots")
       .select("snapshot_at")
       .order("snapshot_at", { ascending: false })

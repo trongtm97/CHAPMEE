@@ -1,18 +1,18 @@
 "use server";
 
 import { evaluateColdStartTest } from "@/lib/cold-start/evaluate";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import type { ColdStartStatus } from "@/types/cold-start";
 
 export async function coldStartAdminAction(
   testId: string,
   action: "pause" | "resume" | "force_qualify" | "stop"
 ) {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   const now = new Date().toISOString();
 
   if (action === "pause") {
-    await supabase
+    await db
       .from("cold_start_tests")
       .update({ status: "paused", updated_at: now })
       .eq("id", testId);
@@ -20,7 +20,7 @@ export async function coldStartAdminAction(
   }
 
   if (action === "resume") {
-    await supabase
+    await db
       .from("cold_start_tests")
       .update({ status: "active", updated_at: now })
       .eq("id", testId);
@@ -28,11 +28,11 @@ export async function coldStartAdminAction(
   }
 
   if (action === "force_qualify") {
-    return evaluateColdStartTest(supabase, testId, { forceQualify: true });
+    return evaluateColdStartTest(db, testId, { forceQualify: true });
   }
 
   if (action === "stop") {
-    return evaluateColdStartTest(supabase, testId, {
+    return evaluateColdStartTest(db, testId, {
       forceFail: true,
       reason: "Admin dừng test thủ công."
     });
@@ -45,8 +45,8 @@ export async function updateColdStartStatusAction(
   testId: string,
   status: ColdStartStatus
 ) {
-  const supabase = createAdminClient();
-  await supabase
+  const db = createAdminClient();
+  await db
     .from("cold_start_tests")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", testId);

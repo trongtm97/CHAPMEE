@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { CreatorOnboardingCard } from "@/components/creator/CreatorOnboardingCard";
 import { StudioContinueWriting } from "@/components/studio/dashboard/StudioContinueWriting";
 import { StudioHero } from "@/components/studio/dashboard/StudioHero";
 import { StudioNeedsAttention } from "@/components/studio/dashboard/StudioNeedsAttention";
@@ -11,7 +10,6 @@ import { StudioPanel, StudioPanelBody } from "@/components/studio/dashboard/shar
 import { StudioSectionHeader } from "@/components/studio/dashboard/shared/StudioSectionHeader";
 import { StudioTodayActions } from "@/components/studio/dashboard/StudioTodayActions";
 import { StudioToolGrid } from "@/components/studio/dashboard/StudioToolGrid";
-import { ErrorState } from "@/components/ui";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 import { filterAttentionGroupsForDashboard } from "@/lib/studio/filter-attention-groups";
 import { STUDIO_BASE_PATH, studioPath } from "@/lib/studio/constants";
@@ -55,12 +53,6 @@ export function StudioDashboard({
         writeActionLabel={data.writeActionLabel}
         writeChapterHref={data.writeChapterHref}
       />
-
-      {data.error ? (
-        <ErrorState message={data.error} title="Không tải được dữ liệu" />
-      ) : null}
-
-      {!data.hasStories ? <CreatorOnboardingCard /> : null}
 
       <div className="grid gap-2.5 sm:gap-3.5 xl:grid-cols-5 xl:gap-4">
         <section className="xl:col-span-3">

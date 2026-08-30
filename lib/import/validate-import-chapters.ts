@@ -8,6 +8,11 @@ import {
   type ParsedImportChapter
 } from "@/types/import";
 
+const BLOCKING_STATUSES: ImportChapterPreviewStatus[] = [
+  "duplicate_in_file",
+  "duplicate_in_story"
+];
+
 function previewLines(content: string) {
   return content
     .split("\n")
@@ -32,12 +37,49 @@ export function validateImportInputSize(inputText: string) {
   return { ok: true as const };
 }
 
+/** Chuẩn hóa từng trường — bỏ qua giá trị lỗi, giữ phần có thể nhập. */
+export function normalizeChapterForImport(chapter: {
+  chapterNumber: number;
+  title: string;
+  content: string;
+}) {
+  const fieldWarnings: string[] = [];
+  let title = chapter.title.trim();
+  const content = chapter.content;
+
+  if (!title) {
+    title = `Chương ${chapter.chapterNumber}`;
+    fieldWarnings.push("Thiếu tiêu đề — dùng tên mặc định.");
+  }
+
+  if (title.length > BULK_IMPORT_TITLE_MAX) {
+    fieldWarnings.push(
+      `Tiêu đề quá dài — đã cắt còn ${BULK_IMPORT_TITLE_MAX} ký tự.`
+    );
+    title = title.slice(0, BULK_IMPORT_TITLE_MAX);
+  }
+
+  if (!content.trim()) {
+    fieldWarnings.push("Chưa có nội dung — lưu nháp để bạn bổ sung sau.");
+  } else if (content.trim().length < BULK_IMPORT_CONTENT_MIN_WARN) {
+    fieldWarnings.push("Nội dung khá ngắn — nên kiểm tra lại sau khi nhập.");
+  }
+
+  return {
+    chapterNumber: chapter.chapterNumber,
+    content,
+    fieldWarnings,
+    title
+  };
+}
+
 export function buildImportChapterPreviews(
   chapters: ParsedImportChapter[],
   existingEpisodeNumbers: number[]
 ): ImportChapterPreview[] {
   const existingSet = new Set(existingEpisodeNumbers);
   const numberCounts = new Map<number, number>();
+  const firstIndexByNumber = new Map<number, number>();
 
   for (const chapter of chapters) {
     numberCounts.set(
@@ -46,28 +88,40 @@ export function buildImportChapterPreviews(
     );
   }
 
+  chapters.forEach((chapter, index) => {
+    if (!firstIndexByNumber.has(chapter.chapterNumber)) {
+      firstIndexByNumber.set(chapter.chapterNumber, index);
+    }
+  });
+
   return chapters.map((chapter, index) => {
     const warnings: string[] = [];
     const statuses: ImportChapterPreviewStatus[] = [];
 
     if (!chapter.content.trim()) {
       statuses.push("missing_content");
-      warnings.push("Thiếu nội dung.");
+      warnings.push("Chưa có nội dung — vẫn có thể nhập nháp để bổ sung sau.");
     }
 
     if ((numberCounts.get(chapter.chapterNumber) ?? 0) > 1) {
-      statuses.push("duplicate_in_file");
-      warnings.push("Trùng số chương trong file.");
+      if (firstIndexByNumber.get(chapter.chapterNumber) !== index) {
+        statuses.push("duplicate_in_file");
+        warnings.push("Trùng số chương trong file — bỏ qua bản này, giữ bản đầu.");
+      } else {
+        warnings.push("Có chương trùng số trong file — chỉ nhập bản đầu tiên.");
+      }
     }
 
     if (existingSet.has(chapter.chapterNumber)) {
       statuses.push("duplicate_in_story");
-      warnings.push(`Chương ${chapter.chapterNumber} đã tồn tại trong truyện này.`);
+      warnings.push(`Chương ${chapter.chapterNumber} đã tồn tại — bỏ qua.`);
     }
 
     if (chapter.title.length > BULK_IMPORT_TITLE_MAX) {
       statuses.push("title_too_long");
-      warnings.push(`Tiêu đề quá dài (tối đa ${BULK_IMPORT_TITLE_MAX} ký tự).`);
+      warnings.push(
+        `Tiêu đề quá dài — sẽ tự cắt còn ${BULK_IMPORT_TITLE_MAX} ký tự khi nhập.`
+      );
     }
 
     if (
@@ -75,24 +129,15 @@ export function buildImportChapterPreviews(
       chapter.content.trim().length < BULK_IMPORT_CONTENT_MIN_WARN
     ) {
       statuses.push("content_short");
-      warnings.push("Nội dung khá ngắn — nên kiểm tra lại.");
+      warnings.push("Nội dung khá ngắn — vẫn nhập được, nên kiểm tra lại.");
     }
 
     const status: ImportChapterPreviewStatus =
-      statuses.find((item) =>
-        ["missing_content", "duplicate_in_file", "duplicate_in_story", "title_too_long"].includes(
-          item
-        )
-      ) ??
+      statuses.find((item) => BLOCKING_STATUSES.includes(item)) ??
       statuses[0] ??
       "valid";
 
-    const blocked = [
-      "missing_content",
-      "duplicate_in_file",
-      "duplicate_in_story",
-      "title_too_long"
-    ].includes(status);
+    const blocked = BLOCKING_STATUSES.includes(status);
 
     return {
       ...chapter,
@@ -105,39 +150,59 @@ export function buildImportChapterPreviews(
   });
 }
 
-export function validatePreviewForImport(previews: ImportChapterPreview[]) {
+export function prepareChaptersForImport(previews: ImportChapterPreview[]) {
   const selected = previews.filter((item) => item.selected);
-
-  if (selected.length === 0) {
-    return { error: "Chọn ít nhất một chương hợp lệ để nhập.", ok: false as const };
-  }
-
-  const blocked = selected.filter((item) =>
-    ["missing_content", "duplicate_in_file", "duplicate_in_story", "title_too_long"].includes(
-      item.status
-    )
+  const importable = selected.filter(
+    (item) => !BLOCKING_STATUSES.includes(item.status)
   );
+  const skippedBlocked = selected.length - importable.length;
 
-  if (blocked.length > 0) {
+  if (importable.length === 0) {
     return {
-      error: "Có chương không hợp lệ trong danh sách đã chọn.",
+      error:
+        selected.length === 0
+          ? "Chọn ít nhất một chương để nhập."
+          : "Các chương đã chọn đều bị trùng hoặc không thể nhập.",
       ok: false as const
     };
   }
 
-  const numbers = selected.map((item) => item.chapterNumber);
+  const normalized = importable.map((chapter) => {
+    const next = normalizeChapterForImport(chapter);
+
+    return {
+      ...chapter,
+      content: next.content,
+      title: next.title,
+      warnings: [...chapter.warnings, ...next.fieldWarnings]
+    };
+  });
+
+  const numbers = normalized.map((item) => item.chapterNumber);
   const unique = new Set(numbers);
 
   if (unique.size !== numbers.length) {
-    return { error: "Số chương bị trùng trong danh sách nhập.", ok: false as const };
+    return {
+      error: "Số chương bị trùng trong danh sách nhập.",
+      ok: false as const
+    };
   }
 
-  if (selected.length > BULK_IMPORT_MAX_CHAPTERS) {
+  if (normalized.length > BULK_IMPORT_MAX_CHAPTERS) {
     return {
       error: `Tối đa ${BULK_IMPORT_MAX_CHAPTERS} chương mỗi lần nhập.`,
       ok: false as const
     };
   }
 
-  return { ok: true as const, selected };
+  return {
+    ok: true as const,
+    selected: normalized,
+    skippedBlocked
+  };
+}
+
+/** @deprecated Dùng prepareChaptersForImport */
+export function validatePreviewForImport(previews: ImportChapterPreview[]) {
+  return prepareChaptersForImport(previews);
 }

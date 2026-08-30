@@ -1,4 +1,4 @@
-/** Supabase table for published Reels content. */
+/** db table for published Reels content. */
 export const REELS_ITEMS_TABLE = "reels_items";
 
 /** Form field for editing an existing Reels item. */

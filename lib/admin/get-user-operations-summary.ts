@@ -1,12 +1,12 @@
 "use server";
 
 import { assertPermission } from "@/lib/auth/require-permission";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { UserOperationsSummary } from "@/types/admin-user";
 
 export async function getUserOperationsSummary(): Promise<UserOperationsSummary> {
   await assertPermission("admin.user.view");
-  const supabase = await createClient();
+  const db = await createClient();
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const now = new Date().toISOString();
@@ -22,37 +22,37 @@ export async function getUserOperationsSummary(): Promise<UserOperationsSummary>
     accountRestrictedRes,
     messagingRestrictedRes
   ] = await Promise.all([
-    supabase.from("profiles").select("id", { count: "exact", head: true }),
-    supabase
+    db.from("profiles").select("id", { count: "exact", head: true }),
+    db
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .gte("created_at", since24h),
-    supabase
+    db
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .gte("updated_at", since7d),
-    supabase
+    db
       .from("creator_profiles")
       .select("id", { count: "exact", head: true }),
-    supabase
+    db
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .eq("status", "banned"),
-    supabase
+    db
       .from("account_verifications")
       .select("id", { count: "exact", head: true })
       .eq("status", "pending"),
-    supabase
+    db
       .from("violations")
       .select("user_id", { count: "exact", head: true })
       .gte("created_at", since7d),
-    supabase
+    db
       .from("account_restrictions")
       .select("user_id", { count: "exact", head: true })
       .eq("is_active", true)
       .lte("starts_at", now)
       .or(`ends_at.is.null,ends_at.gt.${now}`),
-    supabase
+    db
       .from("messaging_restrictions")
       .select("user_id", { count: "exact", head: true })
       .eq("is_active", true)

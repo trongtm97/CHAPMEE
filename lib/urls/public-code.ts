@@ -34,12 +34,12 @@ export function generateNumericCodeString(
 
 export async function isPublicCodeTaken(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
+  db: any,
   entityType: PublicEntityType,
   code: string
 ): Promise<boolean> {
   const table = ENTITY_TABLE[entityType];
-  const { data } = await supabase
+  const { data } = await db
     .from(table)
     .select("id")
     .eq("public_code", code)
@@ -49,7 +49,7 @@ export async function isPublicCodeTaken(
 
 export async function generateNumericPublicCode(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
+  db: any,
   entityType: PublicEntityType,
   options?: { length?: number; maxRetries?: number }
 ): Promise<string> {
@@ -58,7 +58,7 @@ export async function generateNumericPublicCode(
 
   for (let attempt = 0; attempt < maxRetries; attempt += 1) {
     const code = generateNumericCodeString(length);
-    const taken = await isPublicCodeTaken(supabase, entityType, code);
+    const taken = await isPublicCodeTaken(db, entityType, code);
     if (!taken) {
       return code;
     }

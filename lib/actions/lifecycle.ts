@@ -4,7 +4,7 @@ import { getCurrentProfile } from "@/lib/auth/getCurrentProfile";
 import {
   dismissLifecycleNudge,
   markLifecycleNudgeShown
-} from "@/lib/supabase/lifecycle";
+} from "@/lib/data/lifecycle";
 import type { LifecycleNudgeKey } from "@/types/lifecycle";
 
 export async function markLifecycleNudgeShownAction(nudgeKey: LifecycleNudgeKey) {

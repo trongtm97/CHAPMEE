@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type TaxonomyGenreFacet = {
   id: string;
@@ -9,12 +9,12 @@ export type TaxonomyGenreFacet = {
 
 /** Prefer taxonomy main_genre for Discover genre chips when seeded. */
 export async function loadDiscoverGenresFromTaxonomy(
-  supabase: SupabaseClient
+  db: DatabaseClient
 ): Promise<TaxonomyGenreFacet[]> {
   const { getPublicMainGenresWithStoryCounts } = await import(
     "@/lib/taxonomy/public-genres"
   );
-  const genres = await getPublicMainGenresWithStoryCounts(supabase);
+  const genres = await getPublicMainGenresWithStoryCounts(db);
   return genres.map((genre) => ({
     id: genre.slug,
     name: genre.name,
@@ -24,7 +24,7 @@ export async function loadDiscoverGenresFromTaxonomy(
 }
 
 export async function getStoryTaxonomyLabelsByStoryIds(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyIds: string[]
 ) {
   if (storyIds.length === 0) {
@@ -44,7 +44,7 @@ export async function getStoryTaxonomyLabelsByStoryIds(
     >();
   }
 
-  const { data } = await supabase
+  const { data } = await db
     .from("story_taxonomy_terms")
     .select("story_id, type, taxonomy_terms(name, slug)")
     .in("story_id", storyIds);
@@ -117,7 +117,7 @@ export async function getStoryTaxonomyLabelsByStoryIds(
     }
   }
 
-  const { data: presentationRows } = await supabase
+  const { data: presentationRows } = await db
     .from("story_presentation_settings")
     .select("story_id, mode")
     .in("story_id", storyIds);

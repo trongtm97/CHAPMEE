@@ -9,8 +9,8 @@ import {
   parseQualityConfigDb
 } from "@/lib/content-quality/get-quality-config";
 import { checkStaffPermission } from "@/lib/auth/staff-guards";
-import { fetchAppSettingByKey } from "@/lib/supabase/app-settings";
-import { createClient } from "@/lib/supabase/server";
+import { fetchAppSettingByKey } from "@/lib/data/app-settings";
+import { createClient } from "@/lib/data/server";
 import type { ContentQualityConfig } from "@/types/content-quality";
 
 export type QualityConfigFormState = {
@@ -49,8 +49,8 @@ export async function updateQualityConfigAction(
     min_content_words_chapter: input.minContentWordsChapter
   };
 
-  const supabase = await createClient();
-  const { error: saveError } = await supabase.from("app_settings").upsert(
+  const db = await createClient();
+  const { error: saveError } = await db.from("app_settings").upsert(
     {
       key: CONTENT_QUALITY_SETTINGS_KEY,
       value: payload,

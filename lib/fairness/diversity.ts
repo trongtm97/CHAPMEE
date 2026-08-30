@@ -97,12 +97,17 @@ export function enforceFeedDiversity(
     minPresentationModeSharePercent?: number;
     rerankRules?: RerankRules;
     targetLength?: number;
+    /** When true, keep greedy placement order instead of re-sorting by score in rerank. */
+    preservePlacementOrder?: boolean;
   } = {}
 ): FeedCandidate[] {
   const maxAuthorShare = options.maxAuthorSharePerFeedPercent ?? 25;
   const maxGenreShare = options.maxMainGenreSharePercent ?? 100;
   const minModeShare = options.minPresentationModeSharePercent ?? 0;
   const targetLength = options.targetLength ?? items.length;
+  const maxSameStoryInWindow = options.rerankRules?.maxSameStoryInWindow ?? 3;
+  const storyWindowSize = options.rerankRules?.storyWindowSize ?? 30;
+  const maxConsecutiveSameStory = options.rerankRules?.maxConsecutiveSameStory ?? 2;
   const pool = [...items].sort((a, b) => b.mixerScore - a.mixerScore);
   const deferred: FeedCandidate[] = [];
   const result: FeedCandidate[] = [];
@@ -126,9 +131,22 @@ export function enforceFeedDiversity(
       ) {
         return false;
       }
-      const storyWindow = result.slice(-30);
+      const lastStory = result[result.length - 1];
+      if (
+        maxConsecutiveSameStory > 0 &&
+        lastStory &&
+        lastStory.storyId === candidate.storyId
+      ) {
+        let streak = 1;
+        for (let i = result.length - 2; i >= 0; i -= 1) {
+          if (result[i].storyId !== candidate.storyId) break;
+          streak += 1;
+        }
+        if (streak >= maxConsecutiveSameStory) return false;
+      }
+      const storyWindow = result.slice(-storyWindowSize);
       const storyCount = storyWindow.filter((i) => i.storyId === candidate.storyId).length;
-      if (storyCount >= 3) return false;
+      if (storyCount >= maxSameStoryInWindow) return false;
     }
 
     used.add(key);
@@ -171,6 +189,22 @@ export function enforceFeedDiversity(
       used.add(key);
       result.push(candidate);
     }
+  }
+
+  if (options.preservePlacementOrder) {
+    const deduped: FeedCandidate[] = [];
+    const seenKeys = new Set<string>();
+    for (const candidate of result) {
+      const key = candidateKeyFromFeed(candidate);
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      deduped.push(candidate);
+      if (deduped.length >= targetLength) break;
+    }
+    if (deduped.length > 0) {
+      return deduped;
+    }
+    return items.slice(0, targetLength);
   }
 
   const reranked = rerankAndDeduplicate(result, options.rerankRules ?? {});

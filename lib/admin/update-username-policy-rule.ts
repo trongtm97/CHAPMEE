@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminAuditLog } from "@/lib/admin/create-audit-log";
 import { createUsernamePolicyExceptionAction } from "@/lib/admin/username-policy-exceptions";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { revalidatePublicProfilePaths } from "@/lib/profile/revalidate-public-profile";
 import { normalizePolicyText } from "@/lib/username/normalize-policy-text";
 import { normalizeUsername } from "@/lib/username/normalize-username";
@@ -63,8 +63,8 @@ export async function editUsernamePolicyRuleAction(input: {
       return { ok: false, error: "Vui lòng nhập giá trị rule." };
     }
 
-    const supabase = await createClient();
-    const { data: before } = await supabase
+    const db = await createClient();
+    const { data: before } = await db
       .from("username_policy_rules")
       .select("*")
       .eq("id", input.ruleId)
@@ -80,7 +80,7 @@ export async function editUsernamePolicyRuleAction(input: {
       input.matchType
     );
 
-    const { data: after, error } = await supabase
+    const { data: after, error } = await db
       .from("username_policy_rules")
       .update({
         rule_type: input.ruleType,
@@ -134,9 +134,9 @@ export async function updateUsernamePolicyRuleAction(input: {
 }) {
   try {
     await assertStaff();
-    const supabase = await createClient();
+    const db = await createClient();
 
-    const { data: before } = await supabase
+    const { data: before } = await db
       .from("username_policy_rules")
       .select("*")
       .eq("id", input.ruleId)
@@ -156,7 +156,7 @@ export async function updateUsernamePolicyRuleAction(input: {
     if (input.enforcementLevel) patch.enforcement_level = input.enforcementLevel;
     if (typeof input.priority === "number") patch.priority = input.priority;
 
-    const { data: after, error } = await supabase
+    const { data: after, error } = await db
       .from("username_policy_rules")
       .update(patch)
       .eq("id", input.ruleId)
@@ -199,9 +199,9 @@ export async function archiveUsernamePolicyRuleAction(input: {
 }) {
   try {
     await assertStaff();
-    const supabase = await createClient();
+    const db = await createClient();
 
-    const { data: before } = await supabase
+    const { data: before } = await db
       .from("username_policy_rules")
       .select("*")
       .eq("id", input.ruleId)
@@ -211,7 +211,7 @@ export async function archiveUsernamePolicyRuleAction(input: {
       return { ok: false, error: "Không tìm thấy rule." };
     }
 
-    const { data: after, error } = await supabase
+    const { data: after, error } = await db
       .from("username_policy_rules")
       .update({
         is_active: false,
@@ -269,8 +269,8 @@ export async function revokeAllowedUserFromRuleAction(input: {
   userId: string;
   reason?: string | null;
 }) {
-  const supabase = await createClient();
-  const { data: ex } = await supabase
+  const db = await createClient();
+  const { data: ex } = await db
     .from("username_policy_exceptions")
     .select("id")
     .eq("rule_id", input.ruleId)
@@ -288,7 +288,7 @@ export async function revokeAllowedUserFromRuleAction(input: {
     });
   }
 
-  const { data: rule } = await supabase
+  const { data: rule } = await db
     .from("username_policy_rules")
     .select("allowed_user_ids")
     .eq("id", input.ruleId)
@@ -337,14 +337,14 @@ export async function adminSetUserUsernameAction(input: {
 
     const normalized = result.normalized;
 
-    const supabase = await createClient();
-    const { data: profile } = await supabase
+    const db = await createClient();
+    const { data: profile } = await db
       .from("profiles")
       .select("username")
       .eq("id", input.userId)
       .maybeSingle();
 
-    const { error } = await supabase
+    const { error } = await db
       .from("profiles")
       .update({ username: normalized })
       .eq("id", input.userId);

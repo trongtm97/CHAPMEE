@@ -27,7 +27,11 @@ function countByType(terms: TaxonomyTerm[]) {
 
 export function validateStoryTaxonomySelectionLimits(
   terms: TaxonomyTerm[],
-  options?: { forPublish?: boolean; contentWarningsConfirmed?: boolean }
+  options?: {
+    forPublish?: boolean;
+    contentWarningsConfirmed?: boolean;
+    hasPresentationMode?: boolean;
+  }
 ): StoryTaxonomyValidationResult {
   const errors: string[] = [];
   const counts = countByType(terms);
@@ -39,10 +43,13 @@ export function validateStoryTaxonomySelectionLimits(
   }
 
   for (const type of TAXONOMY_TYPES) {
+    if (type === "presentation_mode") {
+      continue;
+    }
     const limit = STORY_TAXONOMY_LIMITS[type];
     if (!limit) continue;
     const count = counts.get(type) ?? 0;
-    if (limit.required && count < (limit.min ?? 1)) {
+    if (options?.forPublish && limit.required && count < (limit.min ?? 1)) {
       errors.push(`Thiếu nhãn bắt buộc: ${type}.`);
     }
     if (count > limit.max) {
@@ -52,14 +59,15 @@ export function validateStoryTaxonomySelectionLimits(
 
   if (options?.forPublish) {
     for (const type of PUBLISH_REQUIRED_TAXONOMY_TYPES) {
+      if (type === "presentation_mode") {
+        if (!options.hasPresentationMode) {
+          errors.push("Cần chọn presentation_mode trước khi xuất bản.");
+        }
+        continue;
+      }
       if ((counts.get(type) ?? 0) < 1) {
         errors.push(`Cần chọn ${type} trước khi xuất bản.`);
       }
-    }
-    if (!options.contentWarningsConfirmed) {
-      errors.push(
-        "Cần xác nhận cảnh báo nội dung (có hoặc không có cảnh báo)."
-      );
     }
   }
 
@@ -161,7 +169,8 @@ export async function validateStoryTaxonomySelection(
 
   const limitResult = validateStoryTaxonomySelectionLimits(terms, {
     forPublish: options?.forPublish,
-    contentWarningsConfirmed: input.contentWarningsConfirmed
+    contentWarningsConfirmed: input.contentWarningsConfirmed,
+    hasPresentationMode: hasPresentation
   });
 
   if (!limitResult.ok) {

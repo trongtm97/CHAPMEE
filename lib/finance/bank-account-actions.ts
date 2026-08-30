@@ -19,7 +19,7 @@ import {
   getCreatorPayoutAccountById,
   setDefaultCreatorPayoutAccount,
   updateCreatorPayoutAccount
-} from "@/lib/supabase/payouts";
+} from "@/lib/data/payouts";
 import type { FinanceSecurityEventType } from "@/types/finance";
 
 async function requestMeta() {
@@ -350,7 +350,7 @@ export async function confirmBankAccountEmail(input: {
 
   let accountId = input.accountId;
   if (!accountId) {
-    const { listCreatorPayoutAccounts } = await import("@/lib/supabase/payouts");
+    const { listCreatorPayoutAccounts } = await import("@/lib/data/payouts");
     const accounts = await listCreatorPayoutAccounts(profile.id);
     const pending =
       accounts.data?.find((a) => a.verification_status === "pending") ?? accounts.data?.[0];

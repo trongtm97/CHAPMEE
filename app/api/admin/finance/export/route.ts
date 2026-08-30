@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { logFinanceAudit } from "@/lib/admin/finance-audit";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
 import { toCsv } from "@/lib/finance/export-csv";
-import { getFinanceExportRows } from "@/lib/supabase/finance-export";
+import { getFinanceExportRows } from "@/lib/data/finance-export";
 import type { FinanceExportFilters, FinanceExportType } from "@/types/finance-export";
 
 function mapTransactions(rows: Array<Record<string, unknown>>) {
@@ -153,7 +153,8 @@ export async function GET(request: Request) {
     rowCount: result.rows.length
   });
 
-  return new NextResponse(csv, {
+  const csvBody = csv.startsWith("\uFEFF") ? csv : `\uFEFF${csv}`;
+  return new NextResponse(csvBody, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${fileName}"`

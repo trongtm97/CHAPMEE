@@ -2,6 +2,9 @@
 
 import { useRef, useState } from "react";
 import { Button, Textarea } from "@/components/ui";
+import { StudioPolicyNotice } from "@/components/studio/StudioPolicyNotice";
+import { MediaLibraryDialog } from "@/components/editor/MediaLibraryDialog";
+import type { EditorCanvasHandle } from "@/components/editor/EditorCanvas";
 import { insertImageBlockIntoContent } from "@/lib/editor/insert-image-block";
 import { countImageBlocksInContent } from "@/lib/editor/chapter-image-block";
 import { mapStoryImageUploadError } from "@/lib/images/map-upload-error";
@@ -10,6 +13,21 @@ import {
   CHAPTER_IMAGE_MAX_PER_CHAPTER
 } from "@/types/chapter-images";
 import type { ChapterImageBlock } from "@/types/chapter-images";
+import type { LibraryImage } from "@/types/media-library";
+
+function loadImageSize(url: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined") {
+      resolve({ width: 1280, height: 720 });
+      return;
+    }
+    const img = new window.Image();
+    img.onload = () =>
+      resolve({ width: img.naturalWidth || 1280, height: img.naturalHeight || 720 });
+    img.onerror = () => resolve({ width: 1280, height: 720 });
+    img.src = url;
+  });
+}
 
 type InsertImageDialogProps = {
   content: string;
@@ -19,7 +37,7 @@ type InsertImageDialogProps = {
   onInsert: (nextContent: string) => void;
   open: boolean;
   storyId: string;
-  textareaRef: React.RefObject<{ getTextarea: () => HTMLTextAreaElement | null } | null>;
+  textareaRef: React.RefObject<EditorCanvasHandle | null>;
 };
 
 export function InsertImageDialog({
@@ -37,6 +55,7 @@ export function InsertImageDialog({
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [showLibrary, setShowLibrary] = useState(false);
 
   if (!open) {
     return null;
@@ -45,6 +64,43 @@ export function InsertImageDialog({
   const imageCount = countImageBlocksInContent(content);
   const atLimit = imageCount >= CHAPTER_IMAGE_MAX_PER_CHAPTER;
   const canUpload = Boolean(episodeId || draftId) && !atLimit;
+
+  function insertBlock(block: ChapterImageBlock) {
+    const canvas = textareaRef.current;
+    if (canvas?.insertImageBlock) {
+      canvas.insertImageBlock(block);
+      return;
+    }
+    const textarea = canvas?.getTextarea();
+    const selectionStart = textarea?.selectionStart ?? content.length;
+    const selectionEnd = textarea?.selectionEnd ?? content.length;
+    onInsert(
+      insertImageBlockIntoContent({ block, content, selectionEnd, selectionStart })
+    );
+  }
+
+  async function handlePickFromLibrary(image: LibraryImage) {
+    const dims =
+      image.width && image.height
+        ? { width: image.width, height: image.height }
+        : await loadImageSize(image.url);
+
+    const block: ChapterImageBlock = {
+      id: image.id,
+      mediaAssetId: image.id,
+      src: image.objectKey,
+      thumbSrc: image.thumbKey,
+      width: dims.width,
+      height: dims.height,
+      alt: image.alt,
+      caption: image.caption,
+      align: "center"
+    };
+
+    insertBlock(block);
+    setShowLibrary(false);
+    onClose();
+  }
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -99,14 +155,23 @@ export function InsertImageDialog({
         return;
       }
 
-      const textarea = textareaRef.current?.getTextarea();
-      const selectionStart = textarea?.selectionStart ?? content.length;
-      const selectionEnd = textarea?.selectionEnd ?? content.length;
       const block: ChapterImageBlock = {
         ...payload.block,
         caption: caption.trim() || payload.block.caption
       };
 
+      const canvas = textareaRef.current;
+      if (canvas?.insertImageBlock) {
+        canvas.insertImageBlock(block);
+        setCaption("");
+        setSelectedName(null);
+        onClose();
+        return;
+      }
+
+      const textarea = canvas?.getTextarea();
+      const selectionStart = textarea?.selectionStart ?? content.length;
+      const selectionEnd = textarea?.selectionEnd ?? content.length;
       const nextContent = insertImageBlockIntoContent({
         block,
         content,
@@ -130,11 +195,20 @@ export function InsertImageDialog({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
-      role="dialog"
-    >
-      <div className="w-full max-w-md rounded-t-2xl border border-white/10 bg-zinc-950 p-4 sm:rounded-2xl">
+    <>
+      {showLibrary ? (
+        <MediaLibraryDialog
+          onClose={() => setShowLibrary(false)}
+          onPick={(image) => void handlePickFromLibrary(image)}
+          open={showLibrary}
+          title="Ảnh đã tải lên của bạn"
+        />
+      ) : null}
+      <div
+        className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+        role="dialog"
+      >
+        <div className="w-full max-w-md rounded-t-2xl border border-white/10 bg-zinc-950 p-4 sm:rounded-2xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">Chèn ảnh</h2>
           <button
@@ -150,6 +224,17 @@ export function InsertImageDialog({
           {imageCount}/{CHAPTER_IMAGE_MAX_PER_CHAPTER} ảnh trong chương · JPG, PNG, WebP ·
           tối đa 5MB
         </p>
+
+        <StudioPolicyNotice
+          note="Ảnh chương nên là ảnh gốc, ảnh AI mới hoặc ảnh bạn có quyền sử dụng."
+          title="Quy định ảnh chương"
+          items={[
+            "Chấp nhận mọi tỉ lệ ảnh (ngang, dọc, vuông).",
+            "Không copy 100% từ nguồn khác.",
+            "Không chứa chữ tiếng Việt bị lỗi đọc hoặc chữ nước ngoài gây khó đọc.",
+            "Nên tạo ảnh mới bằng công cụ AI hoặc chỉnh sửa cho phù hợp người Việt."
+          ]}
+        />
 
         <div className="space-y-3">
           <Textarea
@@ -170,14 +255,24 @@ export function InsertImageDialog({
             type="file"
           />
 
-          <Button
-            disabled={!canUpload || processing}
-            onClick={() => fileInputRef.current?.click()}
-            type="button"
-            variant="secondary"
-          >
-            {processing ? "Đang xử lý ảnh..." : "Chọn ảnh từ máy"}
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              disabled={!canUpload || processing}
+              onClick={() => fileInputRef.current?.click()}
+              type="button"
+              variant="secondary"
+            >
+              {processing ? "Đang xử lý ảnh..." : "Chọn ảnh từ máy"}
+            </Button>
+            <Button
+              disabled={atLimit || processing}
+              onClick={() => setShowLibrary(true)}
+              type="button"
+              variant="ghost"
+            >
+              Dùng lại ảnh đã tải
+            </Button>
+          </div>
 
           {selectedName ? (
             <p className="truncate text-xs text-zinc-400">{selectedName}</p>
@@ -189,7 +284,8 @@ export function InsertImageDialog({
             </p>
           ) : null}
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -1,8 +1,12 @@
+import { applyEpisodeObjectStorageAfterSave } from "@/lib/chapters/apply-episode-object-storage-save";
 import { sanitizePlainContent } from "@/lib/editor/sanitize-content";
 import { createExcerpt } from "@/lib/text/createExcerpt";
 import { countWords } from "@/lib/text/countWords";
+import { generateNumericPublicCode } from "@/lib/urls/public-code";
+import { getChapterUrl } from "@/lib/urls/paths";
+import { resolveContentSlug } from "@/lib/urls/slug";
 import { BULK_IMPORT_TITLE_MAX, type BulkImportImportResult } from "@/types/import";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type ImportChapterDraftInput = {
   chapterNumber: number;
@@ -11,10 +15,10 @@ export type ImportChapterDraftInput = {
 };
 
 export async function getExistingEpisodeNumbers(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string
 ) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("episodes")
     .select("episode_number")
     .eq("story_id", storyId);
@@ -27,14 +31,23 @@ export async function getExistingEpisodeNumbers(
 }
 
 export async function importChaptersAsDrafts(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   chapters: ImportChapterDraftInput[]
 ): Promise<BulkImportImportResult> {
-  const existingNumbers = new Set(await getExistingEpisodeNumbers(supabase, storyId));
+  const existingNumbers = new Set(await getExistingEpisodeNumbers(db, storyId));
   const errors: BulkImportImportResult["errors"] = [];
   let importedCount = 0;
   let skippedCount = 0;
+
+  const { data: storyRow } = await db
+    .from("stories")
+    .select("slug, public_code")
+    .eq("id", storyId)
+    .maybeSingle();
+
+  const storySlug = String(storyRow?.slug ?? "");
+  const storyPublicCode = String(storyRow?.public_code ?? "");
 
   for (const chapter of chapters) {
     if (existingNumbers.has(chapter.chapterNumber)) {
@@ -49,25 +62,83 @@ export async function importChaptersAsDrafts(
     const content = sanitizePlainContent(chapter.content);
     const title = chapter.title.trim().slice(0, BULK_IMPORT_TITLE_MAX) || `Chương ${chapter.chapterNumber}`;
 
-    const { error } = await supabase.from("episodes").insert({
-      content,
-      episode_number: chapter.chapterNumber,
-      excerpt: createExcerpt(content, 40, 80),
-      status: "draft",
-      story_id: storyId,
-      title,
-      word_count: countWords(content)
-    });
+    const excerpt = createExcerpt(content, 40, 80);
 
-    if (error) {
+    if (!storyPublicCode || !storySlug) {
+      skippedCount += 1;
+      errors.push({
+        chapterNumber: chapter.chapterNumber,
+        message: `Chương ${chapter.chapterNumber}: truyện thiếu mã public URL.`
+      });
+      continue;
+    }
+
+    let chapterPublicCode: string;
+    try {
+      chapterPublicCode = await generateNumericPublicCode(db, "chapter");
+    } catch (codeError) {
       skippedCount += 1;
       errors.push({
         chapterNumber: chapter.chapterNumber,
         message:
-          error.code === "23505"
-            ? `Chương ${chapter.chapterNumber} đã tồn tại.`
-            : error.message
+          codeError instanceof Error
+            ? codeError.message
+            : `Chương ${chapter.chapterNumber}: không tạo được mã chương.`
       });
+      continue;
+    }
+
+    const chapterSlug = resolveContentSlug(title, "chapter", chapterPublicCode);
+    const canonicalPath = getChapterUrl(
+      { slug: storySlug, public_code: storyPublicCode },
+      { slug: chapterSlug, public_code: chapterPublicCode }
+    );
+
+    const { data: inserted, error } = await db
+      .from("episodes")
+      .insert({
+        canonical_path: canonicalPath,
+        content,
+        episode_number: chapter.chapterNumber,
+        excerpt,
+        public_code: chapterPublicCode,
+        slug: chapterSlug,
+        status: "draft",
+        story_id: storyId,
+        title,
+        word_count: countWords(content)
+      })
+      .select("id")
+      .single();
+
+    if (error || !inserted?.id) {
+      skippedCount += 1;
+      errors.push({
+        chapterNumber: chapter.chapterNumber,
+        message:
+          error?.code === "23505"
+            ? `Chương ${chapter.chapterNumber} đã tồn tại.`
+            : (error?.message ?? "Không tạo được chương.")
+      });
+      continue;
+    }
+
+    const storageResult = await applyEpisodeObjectStorageAfterSave(db, {
+      storyId,
+      chapterId: String(inserted.id),
+      content,
+      structuredContent: null,
+      contentFormat: "plain_text",
+      excerpt
+    });
+
+    if (!storageResult.ok) {
+      skippedCount += 1;
+      errors.push({
+        chapterNumber: chapter.chapterNumber,
+        message: `Chương ${chapter.chapterNumber}: ${storageResult.error}`
+      });
+      await db.from("episodes").delete().eq("id", inserted.id);
       continue;
     }
 
@@ -76,9 +147,13 @@ export async function importChaptersAsDrafts(
   }
 
   if (importedCount === 0) {
+    const firstReason = errors[0]?.message;
+
     return {
       errors,
-      error: "Không nhập được chương nào. Vui lòng kiểm tra lại.",
+      error: firstReason
+        ? `Không nhập được chương nào. ${firstReason}`
+        : "Không nhập được chương nào — có thể do trùng số chương đã tồn tại.",
       importedCount: 0,
       ok: false,
       skippedCount

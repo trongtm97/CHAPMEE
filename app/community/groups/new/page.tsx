@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { COMMUNITY_PAGE_SHELL_CLASS } from "@/components/community/community-page-shell";
 import { GroupCreateForm } from "@/components/community/groups/GroupCreateForm";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function CommunityGroupNewPage() {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("stories")
     .select("id, title, slug")
     .eq("visibility", "public")

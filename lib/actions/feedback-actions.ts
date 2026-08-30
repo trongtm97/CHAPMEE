@@ -38,7 +38,7 @@ async function checkRateLimits(
   dailyLimit: number,
   cooldownSeconds: number
 ) {
-  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const { createAdminClient } = await import("@/lib/data/admin");
   const admin = createAdminClient();
   const now = Date.now();
   const dayStart = new Date(now);
@@ -82,7 +82,7 @@ export async function submitFeedbackAction(
   formData: FormData
 ): Promise<SubmitFeedbackState> {
   const { getCurrentUser } = await import("@/lib/auth/getCurrentUser");
-  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const { createAdminClient } = await import("@/lib/data/admin");
 
   const { settings } = await getContactSettings({ useCache: true });
 
@@ -118,7 +118,15 @@ export async function submitFeedbackAction(
   const title = sanitizePlainContent(String(formData.get("title") ?? "").trim());
   const message = sanitizePlainContent(String(formData.get("message") ?? "").trim());
   const contactEmail = String(formData.get("contactEmail") ?? "").trim() || null;
-  const relatedUrl = String(formData.get("relatedUrl") ?? "").trim() || null;
+  const pagePath = String(formData.get("page_path") ?? "").trim() || null;
+  const relatedUrlInput = String(formData.get("related_url") ?? "").trim() || null;
+  const siteBase = (process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "")
+    .replace(/\/$/, "");
+  const autoRelatedUrl =
+    pagePath && pagePath.startsWith("/")
+      ? `${siteBase || "https://chapmee.com"}${pagePath}`
+      : null;
+  const relatedUrl = relatedUrlInput || autoRelatedUrl;
 
   if (title.length > 120) {
     return { ok: false, message: "Tiêu đề tối đa 120 ký tự." };
@@ -174,6 +182,14 @@ export async function submitFeedbackAction(
   }
 
   const admin = createAdminClient();
+  const deviceInfo: Record<string, unknown> = {};
+  if (userAgent) {
+    deviceInfo.user_agent = userAgent;
+  }
+  if (pagePath) {
+    deviceInfo.page_path = pagePath;
+  }
+
   const { data: inserted, error } = await admin
     .from("feedback_messages")
     .insert({
@@ -187,13 +203,13 @@ export async function submitFeedbackAction(
       priority: "normal",
       source: "app",
       user_agent: userAgent,
-      device_info: userAgent ? { user_agent: userAgent } : {}
+      device_info: deviceInfo
     })
     .select("id")
     .single();
 
-  if (error) {
-    console.error("submitFeedbackAction", error.message);
+  if (error || !inserted) {
+    console.error("submitFeedbackAction", error?.message);
     return {
       ok: false,
       message: "Không thể gửi góp ý. Vui lòng thử lại sau."

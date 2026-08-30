@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { generateNumericPublicCode } from "@/lib/urls/public-code";
 import { getPolicyUrl } from "@/lib/urls/paths";
 import type {
@@ -58,12 +58,12 @@ export function isPolicyPubliclyVisible(item: PolicyPage) {
 export async function listPolicyPages(
   options: ListPolicyPagesOptions = {}
 ): Promise<{ items: PolicyPage[]; total: number; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
   const page = options.page ?? 1;
   const pageSize = options.pageSize ?? 25;
   const offset = (page - 1) * pageSize;
 
-  let query = supabase.from("policy_pages").select("*", { count: "exact" });
+  let query = db.from("policy_pages").select("*", { count: "exact" });
 
   if (options.publicOnly) {
     query = query.eq("status", "published").eq("visibility", "public");
@@ -74,6 +74,16 @@ export async function listPolicyPages(
 
   if (options.policyType && options.policyType !== "all") {
     query = query.eq("policy_type", options.policyType);
+  }
+
+  if (options.siteGroup && options.siteGroup !== "all") {
+    if (options.siteGroup === "legal") {
+      query = query.or("canonical_path.ilike./legal/%,canonical_path.eq./legal");
+    } else if (options.siteGroup === "info") {
+      query = query.or("canonical_path.eq./about,canonical_path.eq./contact");
+    } else if (options.siteGroup === "legacy") {
+      query = query.ilike("canonical_path", "/chinh-sach/%");
+    }
   }
 
   const search = options.search?.trim();
@@ -101,18 +111,51 @@ export async function getPolicyPageById(id: string): Promise<{
   item: PolicyPage | null;
   error: string | null;
 }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("policy_pages").select("*").eq("id", id).maybeSingle();
+  const db = await createClient();
+  const { data, error } = await db.from("policy_pages").select("*").eq("id", id).maybeSingle();
   if (error) return { item: null, error: error.message };
   return { item: data ? mapPolicyPage(data as Record<string, unknown>) : null, error: null };
+}
+
+export async function getPolicyPageByCanonicalPath(
+  publicPath: string,
+  options?: { publicOnly?: boolean }
+): Promise<{ item: PolicyPage | null; error: string | null }> {
+  const db = await createClient();
+  let query = db.from("policy_pages").select("*").eq("canonical_path", publicPath);
+  if (options?.publicOnly) {
+    query = query.eq("status", "published").eq("visibility", "public");
+  }
+  const { data, error } = await query.maybeSingle();
+  if (error) return { item: null, error: error.message };
+  return { item: data ? mapPolicyPage(data as Record<string, unknown>) : null, error: null };
+}
+
+export async function listPolicyPagesByCanonicalPaths(paths: string[]): Promise<{
+  items: PolicyPage[];
+  error: string | null;
+}> {
+  if (paths.length === 0) {
+    return { items: [], error: null };
+  }
+  const db = await createClient();
+  const { data, error } = await db
+    .from("policy_pages")
+    .select("*")
+    .in("canonical_path", paths);
+  if (error) return { items: [], error: error.message };
+  return {
+    items: (data ?? []).map((row) => mapPolicyPage(row as Record<string, unknown>)),
+    error: null
+  };
 }
 
 export async function getPolicyPageBySlug(
   slug: string,
   options?: { publicOnly?: boolean }
 ): Promise<{ item: PolicyPage | null; error: string | null }> {
-  const supabase = await createClient();
-  let query = supabase.from("policy_pages").select("*").eq("slug", slug);
+  const db = await createClient();
+  let query = db.from("policy_pages").select("*").eq("slug", slug);
   if (options?.publicOnly) {
     query = query.eq("status", "published").eq("visibility", "public");
   }
@@ -125,8 +168,8 @@ export async function getPolicyPageByPublicCode(
   publicCode: string,
   options?: { publicOnly?: boolean }
 ): Promise<{ item: PolicyPage | null; error: string | null }> {
-  const supabase = await createClient();
-  let query = supabase.from("policy_pages").select("*").eq("public_code", publicCode);
+  const db = await createClient();
+  let query = db.from("policy_pages").select("*").eq("public_code", publicCode);
   if (options?.publicOnly) {
     query = query.eq("status", "published").eq("visibility", "public");
   }
@@ -139,8 +182,8 @@ export async function getPolicyPageStats(): Promise<{
   stats: PolicyPageStats;
   error: string | null;
 }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("policy_pages").select("status");
+  const db = await createClient();
+  const { data, error } = await db.from("policy_pages").select("status");
   if (error) {
     return {
       stats: { total: 0, published: 0, draft: 0, archived: 0 },
@@ -163,8 +206,8 @@ export async function listPolicyVersions(policyId: string): Promise<{
   items: PolicyVersion[];
   error: string | null;
 }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("policy_versions")
     .select("*")
     .eq("policy_id", policyId)
@@ -178,12 +221,12 @@ export async function listPolicyVersions(policyId: string): Promise<{
 }
 
 async function ensurePublicCode(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   slug: string,
   existing?: string | null
 ) {
   if (existing) return existing;
-  const code = await generateNumericPublicCode(supabase, "policy");
+  const code = await generateNumericPublicCode(db, "policy");
   return code;
 }
 
@@ -191,11 +234,13 @@ export async function createPolicyPage(input: CreatePolicyPageInput): Promise<{
   item: PolicyPage | null;
   error: string | null;
 }> {
-  const supabase = await createClient();
-  const publicCode = await ensurePublicCode(supabase, input.slug);
-  const canonicalPath = getPolicyUrl({ slug: input.slug, public_code: publicCode });
+  const db = await createClient();
+  const publicCode = await ensurePublicCode(db, input.slug);
+  const canonicalPath =
+    input.canonical_path?.trim() ||
+    getPolicyUrl({ slug: input.slug, public_code: publicCode });
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("policy_pages")
     .insert({
       title: input.title,
@@ -226,27 +271,31 @@ export async function updatePolicyPage(
   id: string,
   input: UpdatePolicyPageInput
 ): Promise<{ item: PolicyPage | null; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
   const { item: current } = await getPolicyPageById(id);
   if (!current) return { item: null, error: "Không tìm thấy chính sách." };
 
   const slug = input.slug ?? current.slug;
-  const publicCode = current.public_code ?? (await ensurePublicCode(supabase, slug));
+  const publicCode = current.public_code ?? (await ensurePublicCode(db, slug));
   const patch: Record<string, unknown> = {
     ...input,
     updated_at: new Date().toISOString()
   };
   delete patch.change_note;
 
-  if (input.slug && input.slug !== current.slug) {
+  if (input.canonical_path?.trim()) {
+    patch.canonical_path = input.canonical_path.trim();
+  } else if (input.slug && input.slug !== current.slug) {
     patch.canonical_path = getPolicyUrl({ slug, public_code: publicCode });
   }
   if (!current.public_code) {
     patch.public_code = publicCode;
-    patch.canonical_path = getPolicyUrl({ slug, public_code: publicCode });
+    if (!input.canonical_path?.trim()) {
+      patch.canonical_path = getPolicyUrl({ slug, public_code: publicCode });
+    }
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("policy_pages")
     .update(patch)
     .eq("id", id)
@@ -262,17 +311,19 @@ export async function publishPolicyPage(
   actorId: string,
   changeNote?: string | null
 ): Promise<{ item: PolicyPage | null; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
   const { item: current } = await getPolicyPageById(id);
   if (!current) return { item: null, error: "Không tìm thấy chính sách." };
 
   const nextVersion = current.version + (current.status === "published" ? 1 : 0);
   const now = new Date().toISOString();
   const publicCode =
-    current.public_code ?? (await ensurePublicCode(supabase, current.slug));
-  const canonicalPath = getPolicyUrl({ slug: current.slug, public_code: publicCode });
+    current.public_code ?? (await ensurePublicCode(db, current.slug));
+  const canonicalPath =
+    current.canonical_path?.trim() ||
+    getPolicyUrl({ slug: current.slug, public_code: publicCode });
 
-  const { error: versionError } = await supabase.from("policy_versions").insert({
+  const { error: versionError } = await db.from("policy_versions").insert({
     policy_id: id,
     version: current.status === "published" ? nextVersion : current.version,
     title: current.title,
@@ -284,7 +335,7 @@ export async function publishPolicyPage(
 
   if (versionError) return { item: null, error: versionError.message };
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("policy_pages")
     .update({
       status: "published",
@@ -308,8 +359,8 @@ export async function archivePolicyPage(
   id: string,
   actorId: string
 ): Promise<{ item: PolicyPage | null; error: string | null }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("policy_pages")
     .update({
       status: "archived",

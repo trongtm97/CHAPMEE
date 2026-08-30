@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   createUrlRedirect,
   deactivateUrlRedirect,
@@ -37,17 +37,17 @@ export type UrlAdminDashboard = {
 const UUID_IN_PATH = /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 export async function loadUrlAdminDashboard(): Promise<UrlAdminDashboard> {
-  const supabase = await createClient();
+  const db = await createClient();
 
   const [redirectsRes, historyRes] = await Promise.all([
-    supabase
+    db
       .from("url_redirects")
       .select(
         "id, source_path, target_path, entity_type, entity_id, status_code, is_active, reason, created_at"
       )
       .order("created_at", { ascending: false })
       .limit(100),
-    supabase
+    db
       .from("entity_slug_history")
       .select("id, entity_type, entity_id, old_slug, new_slug, old_path, new_path, changed_at")
       .order("changed_at", { ascending: false })
@@ -120,7 +120,7 @@ export async function loadUrlAdminDashboard(): Promise<UrlAdminDashboard> {
   ] as const;
 
   for (const { table, label } of tables) {
-    const { data } = await supabase.from(table).select("id, public_code, slug").limit(500);
+    const { data } = await db.from(table).select("id, public_code, slug").limit(500);
     for (const row of data ?? []) {
       const code = String((row as { public_code?: string }).public_code ?? "");
       if (code && !NUMERIC_PUBLIC_CODE_REGEX.test(code)) {
@@ -155,8 +155,8 @@ export async function deactivateUrlRedirectAction(id: string) {
 }
 
 export async function rebuildStoryCanonicalPathAction(storyId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("stories")
     .select("id, slug, public_code")
     .eq("id", storyId)
@@ -171,7 +171,7 @@ export async function rebuildStoryCanonicalPathAction(storyId: string) {
     public_code: data.public_code
   });
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await db
     .from("stories")
     .update({ canonical_url: canonical })
     .eq("id", storyId);

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { calculateQualitySignals } from "@/lib/content-quality/calculate-quality-signals";
 import { notifyAuthorContentQuality } from "@/lib/content-quality/notify-author";
 import { statusForAttempt } from "@/lib/content-quality/labels";
@@ -9,10 +9,10 @@ import type {
 } from "@/types/content-quality";
 
 export async function disableStoryMonetizationByQuality(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string
 ) {
-  await supabase
+  await db
     .from("stories")
     .update({
       monetization_disabled_by_quality: true,
@@ -20,7 +20,7 @@ export async function disableStoryMonetizationByQuality(
     })
     .eq("id", storyId);
 
-  const { data: episodes } = await supabase
+  const { data: episodes } = await db
     .from("episodes")
     .select("id")
     .eq("story_id", storyId);
@@ -28,7 +28,7 @@ export async function disableStoryMonetizationByQuality(
   const episodeIds = (episodes ?? []).map((e) => e.id);
 
   if (episodeIds.length > 0) {
-    await supabase
+    await db
       .from("chapter_monetization_settings")
       .update({ is_paid: false })
       .in("chapter_id", episodeIds);
@@ -36,12 +36,12 @@ export async function disableStoryMonetizationByQuality(
 }
 
 export async function applyPermanentQualityHide(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string
 ) {
   const now = new Date().toISOString();
 
-  await supabase
+  await db
     .from("stories")
     .update({
       low_quality_attempt_count: 3,
@@ -51,7 +51,7 @@ export async function applyPermanentQualityHide(
     })
     .eq("id", storyId);
 
-  await supabase
+  await db
     .from("episodes")
     .update({
       quality_status: "permanently_hidden_low_quality",
@@ -59,11 +59,11 @@ export async function applyPermanentQualityHide(
     })
     .eq("story_id", storyId);
 
-  await disableStoryMonetizationByQuality(supabase, storyId);
+  await disableStoryMonetizationByQuality(db, storyId);
 }
 
 export async function applyModeratorLowQualityConfirmation(input: {
-  supabase: SupabaseClient;
+  db: DatabaseClient;
   targetType: "story" | "chapter";
   targetId: string;
   storyId: string;
@@ -74,7 +74,7 @@ export async function applyModeratorLowQualityConfirmation(input: {
   moderatorNote?: string | null;
   signalSnapshot?: Record<string, unknown> | null;
 }): Promise<{ ok: true; attempt: number; status: ContentQualityStatus } | { ok: false; error: string }> {
-  const { data: story } = await input.supabase
+  const { data: story } = await input.db
     .from("stories")
     .select("id, title, low_quality_attempt_count, quality_status")
     .eq("id", input.storyId)
@@ -95,7 +95,7 @@ export async function applyModeratorLowQualityConfirmation(input: {
   if (!signalSnapshot) {
     const calculated = await calculateQualitySignals({
       storyId: input.storyId,
-      supabase: input.supabase,
+      db: input.db,
       targetId: input.targetId,
       targetType: input.targetType
     });
@@ -115,12 +115,12 @@ export async function applyModeratorLowQualityConfirmation(input: {
   if (nextAttempt >= 3) {
     status = "permanently_hidden_low_quality";
     actionTaken = "permanently_hidden";
-    await applyPermanentQualityHide(input.supabase, input.storyId);
+    await applyPermanentQualityHide(input.db, input.storyId);
   } else {
     status = statusForAttempt(nextAttempt);
     actionTaken = "warning_only";
 
-    await input.supabase
+    await input.db
       .from("stories")
       .update({
         low_quality_attempt_count: nextAttempt,
@@ -130,7 +130,7 @@ export async function applyModeratorLowQualityConfirmation(input: {
       .eq("id", input.storyId);
 
     if (input.targetType === "chapter") {
-      await input.supabase
+      await input.db
         .from("episodes")
         .update({
           low_quality_attempt_count: nextAttempt,
@@ -141,7 +141,7 @@ export async function applyModeratorLowQualityConfirmation(input: {
     }
   }
 
-  await input.supabase.from("content_quality_reviews").insert({
+  await input.db.from("content_quality_reviews").insert({
     action_taken: actionTaken,
     attempt_number: nextAttempt,
     author_id: input.authorId,
@@ -158,7 +158,7 @@ export async function applyModeratorLowQualityConfirmation(input: {
   });
 
   if (nextAttempt >= 3) {
-    await input.supabase.from("content_quality_reviews").insert({
+    await input.db.from("content_quality_reviews").insert({
       action_taken: "monetization_disabled",
       attempt_number: nextAttempt,
       author_id: input.authorId,
@@ -186,7 +186,7 @@ export async function applyModeratorLowQualityConfirmation(input: {
 }
 
 export async function restoreStoryQuality(input: {
-  supabase: SupabaseClient;
+  db: DatabaseClient;
   storyId: string;
   authorId: string;
   reviewedBy: string;
@@ -194,7 +194,7 @@ export async function restoreStoryQuality(input: {
 }) {
   const now = new Date().toISOString();
 
-  await input.supabase
+  await input.db
     .from("stories")
     .update({
       low_quality_attempt_count: 0,
@@ -204,7 +204,7 @@ export async function restoreStoryQuality(input: {
     })
     .eq("id", input.storyId);
 
-  await input.supabase
+  await input.db
     .from("episodes")
     .update({
       low_quality_attempt_count: 0,
@@ -213,13 +213,13 @@ export async function restoreStoryQuality(input: {
     })
     .eq("story_id", input.storyId);
 
-  const { data: story } = await input.supabase
+  const { data: story } = await input.db
     .from("stories")
     .select("title, creator_profiles(user_id)")
     .eq("id", input.storyId)
     .maybeSingle();
 
-  await input.supabase.from("content_quality_reviews").insert({
+  await input.db.from("content_quality_reviews").insert({
     action_taken: "restored",
     attempt_number: 0,
     author_id: input.authorId,

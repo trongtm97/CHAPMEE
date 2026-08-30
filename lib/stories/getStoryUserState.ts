@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export type StoryUserState = {
   userId: string | null;
@@ -15,11 +15,11 @@ export async function getStoryUserState(
   creatorId: string | null
 ): Promise<StoryUserState> {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const {
       data: { user },
       error: userError
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
     if (userError || !user) {
       return {
@@ -34,27 +34,27 @@ export async function getStoryUserState(
     }
 
     const [bookshelf, followCreator, followStory, earlyFan] = await Promise.all([
-      supabase
+      db
         .from("bookshelf_items")
         .select("id")
         .eq("user_id", user.id)
         .eq("story_id", storyId)
         .maybeSingle(),
       creatorId
-        ? supabase
+        ? db
             .from("follows")
             .select("id")
             .eq("follower_id", user.id)
             .eq("creator_id", creatorId)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
-      supabase
+      db
         .from("follows")
         .select("id")
         .eq("follower_id", user.id)
         .eq("story_id", storyId)
         .maybeSingle(),
-      supabase
+      db
         .from("story_early_fans")
         .select("id")
         .eq("user_id", user.id)

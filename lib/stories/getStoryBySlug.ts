@@ -1,11 +1,13 @@
+import { normalizeDbContentOrigin } from "@/lib/stories/story-origin";
 import { PERMANENTLY_HIDDEN_QUALITY_STATUS } from "@/lib/content-quality/public-visibility";
 import { getCurrentStoryImage } from "@/lib/images/get-current-story-image";
-import { createClient } from "@/lib/supabase/server";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
+import { createClient } from "@/lib/data/server";
 import { mapStoryStructureFromRow } from "@/lib/stories/story-structure";
 import { SHORT_STORY_CHAPTER_THRESHOLD } from "@/lib/stories/chapter-ranges";
-import { getPublicStoryEarlyFanStats } from "@/lib/supabase/early-fans";
-import { syncStoryReadMilestones } from "@/lib/supabase/milestones";
-import { getStoryPoll } from "@/lib/supabase/polls";
+import { getPublicStoryEarlyFanStats } from "@/lib/data/early-fans";
+import { syncStoryReadMilestones } from "@/lib/data/milestones";
+import { getStoryPoll } from "@/lib/data/polls";
 import { publicContentStatuses } from "@/lib/visibility/contentVisibility";
 import { resolveCreatorRowUsername } from "@/lib/creator/resolve-creator-row-name";
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
@@ -55,6 +57,17 @@ export type StoryDetail = StoryStructureFields & {
   latestEpisodePublishedAt: string | null;
   comments: StoryComment[];
   originalsStatus: "none" | "candidate" | "under_review" | "original" | "declined" | "ended" | null;
+  contentOrigin: "original" | "translation";
+  rightsStatus: string | null;
+  sourceTitle: string | null;
+  sourceAuthorName: string | null;
+  sourceUrl: string | null;
+  sourcePlatform: string | null;
+  originalLanguage: string | null;
+  translatedLanguage: string | null;
+  translationType: string | null;
+  canReceiveTips: boolean;
+  canJoinBoostCampaign: boolean;
 };
 
 export type StoryEpisode = {
@@ -110,6 +123,17 @@ type StoryRow = {
         profiles: { display_name: string | null; username: string | null } | null;
       }[]
     | null;
+  content_origin?: string | null;
+  rights_status?: string | null;
+  source_title?: string | null;
+  source_author_name?: string | null;
+  source_url?: string | null;
+  source_platform?: string | null;
+  original_language?: string | null;
+  translated_language?: string | null;
+  translation_type?: string | null;
+  can_receive_tips?: boolean | null;
+  can_join_boost_campaign?: boolean | null;
 };
 
 type StoryTagRow = {
@@ -142,14 +166,14 @@ function firstRelation<T>(relation: T | T[] | null | undefined) {
 
 export async function getStoryBySlug(slug: string): Promise<StoryDetailResult> {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const {
       data: { user }
-    } = await supabase.auth.getUser();
-    const { data: storyRow, error: storyError } = await supabase
+    } = await db.auth.getUser();
+    const { data: storyRow, error: storyError } = await db
       .from("stories")
       .select(
-        "id, title, slug, public_code, hook, short_description, long_description, cover_url, is_completed, status, visibility, seo_title, seo_description, seo_keywords, canonical_url, structure_type, content_format, standalone_content_json, standalone_plain_text, standalone_word_count, standalone_reading_time_minutes, standalone_published_at, standalone_updated_at, creator_profiles(id, user_id, pen_name, profiles!creator_profiles_user_id_fkey(display_name, username))"
+        "id, title, slug, public_code, hook, short_description, long_description, cover_url, is_completed, status, visibility, seo_title, seo_description, seo_keywords, canonical_url, structure_type, content_format, standalone_content_json, standalone_plain_text, standalone_word_count, standalone_reading_time_minutes, standalone_published_at, standalone_updated_at, content_origin, rights_status, source_title, source_author_name, source_url, source_platform, original_language, translated_language, translation_type, can_receive_tips, can_join_boost_campaign, creator_profiles(id, user_id, pen_name, profiles!creator_profiles_user_id_fkey(display_name, username))"
       )
       .eq("slug", slug)
       .eq("visibility", "public")
@@ -168,12 +192,12 @@ export async function getStoryBySlug(slug: string): Promise<StoryDetailResult> {
     const story = storyRow as unknown as StoryRow;
     const [episodeCountResult, commentRows, earlyFanStats, originalsStatusRow, currentImageResult] =
       await Promise.all([
-      supabase
+      db
         .from("episodes")
         .select("id", { count: "exact", head: true })
         .eq("story_id", story.id)
         .in("status", [...publicContentStatuses]),
-      supabase
+      db
         .from("comments")
         .select("id, content, created_at, profiles(display_name, username)")
         .eq("story_id", story.id)
@@ -181,17 +205,17 @@ export async function getStoryBySlug(slug: string): Promise<StoryDetailResult> {
         .order("created_at", { ascending: false })
         .limit(5),
       getPublicStoryEarlyFanStats(story.id),
-      supabase
+      db
         .from("story_originals_status")
         .select("status")
         .eq("story_id", story.id)
         .maybeSingle(),
-      getCurrentStoryImage(supabase, story.id)
+      getCurrentStoryImage(db, story.id)
     ]);
 
     const totalEpisodeCount = episodeCountResult.count ?? 0;
     const shouldLoadAllEpisodes = totalEpisodeCount <= SHORT_STORY_CHAPTER_THRESHOLD;
-    const episodeListQuery = supabase
+    const episodeListQuery = db
       .from("episodes")
       .select("id, episode_number, title, slug, public_code, excerpt, published_at")
       .eq("story_id", story.id)
@@ -203,7 +227,7 @@ export async function getStoryBySlug(slug: string): Promise<StoryDetailResult> {
         : Promise.resolve({ data: [] }),
       shouldLoadAllEpisodes
         ? Promise.resolve({ data: null })
-        : supabase
+        : db
             .from("episodes")
             .select("published_at")
             .eq("story_id", story.id)
@@ -239,21 +263,21 @@ export async function getStoryBySlug(slug: string): Promise<StoryDetailResult> {
     );
     const episodeIds = episodes.map((episode) => episode.id);
     const [storyLikeRows, episodeLikeRows, saveCountsResult, poll] = await Promise.all([
-      supabase
+      db
         .from("reactions")
         .select("id")
         .eq("target_type", "story")
         .eq("reaction_type", "like")
         .eq("target_id", story.id),
       episodeIds.length > 0
-        ? supabase
+        ? db
             .from("reactions")
             .select("id")
             .eq("target_type", "episode")
             .eq("reaction_type", "like")
             .in("target_id", episodeIds)
         : Promise.resolve({ data: [] }),
-      supabase.rpc("get_public_story_save_counts", {
+      db.rpc("get_public_story_save_counts", {
         input_story_ids: [story.id]
       }),
       getStoryPoll(story.id, user?.id ?? null)
@@ -279,7 +303,7 @@ export async function getStoryBySlug(slug: string): Promise<StoryDetailResult> {
       "@/lib/taxonomy/story-public-display"
     );
     const taxonomyDisplay = await resolveStoryPublicTaxonomyDisplay(
-      supabase,
+      db,
       story.id
     );
 
@@ -302,7 +326,7 @@ export async function getStoryBySlug(slug: string): Promise<StoryDetailResult> {
         hook: story.hook,
         shortDescription: story.short_description,
         longDescription: story.long_description,
-        coverUrl: story.cover_url,
+        coverUrl: resolveStoryCoverUrl(story.cover_url),
         currentImage: currentImageResult.error ? null : currentImageResult.image,
         creatorId: creator?.id ?? null,
         creatorUserId: creator?.user_id ?? null,
@@ -343,6 +367,28 @@ export async function getStoryBySlug(slug: string): Promise<StoryDetailResult> {
           null,
         comments,
         originalsStatus: (originalsStatusRow.data?.status as StoryDetail["originalsStatus"]) ?? null
+        ,
+        contentOrigin: normalizeDbContentOrigin(
+          (story as { content_origin?: string | null }).content_origin
+        ),
+        rightsStatus: (story as { rights_status?: string | null }).rights_status ?? null,
+        sourceTitle: (story as { source_title?: string | null }).source_title ?? null,
+        sourceAuthorName:
+          (story as { source_author_name?: string | null }).source_author_name ?? null,
+        sourceUrl: (story as { source_url?: string | null }).source_url ?? null,
+        sourcePlatform: (story as { source_platform?: string | null }).source_platform ?? null,
+        originalLanguage:
+          (story as { original_language?: string | null }).original_language ?? null,
+        translatedLanguage:
+          (story as { translated_language?: string | null }).translated_language ?? null,
+        translationType:
+          (story as { translation_type?: string | null }).translation_type ?? null,
+        canReceiveTips: Boolean(
+          (story as { can_receive_tips?: boolean | null }).can_receive_tips
+        ),
+        canJoinBoostCampaign: Boolean(
+          (story as { can_join_boost_campaign?: boolean | null }).can_join_boost_campaign
+        )
       },
       notFound: false,
       error: null

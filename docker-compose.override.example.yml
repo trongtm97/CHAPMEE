@@ -1,0 +1,12 @@
+# Optional local overrides — copy to docker-compose.override.yml (gitignored) for VPS debugging only.
+# NEVER use on production with public exposure of app/db/redis/minio.
+#
+#   cp docker-compose.override.example.yml docker-compose.override.yml
+#   docker compose -f docker-compose.production.yml up -d
+#
+# Exposes Next.js on loopback only (bypass Caddy for quick tests).
+
+services:
+  web:
+    ports:
+      - "127.0.0.1:3000:3000"

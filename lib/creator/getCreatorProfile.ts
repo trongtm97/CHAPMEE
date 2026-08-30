@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
-import { createClient } from "@/lib/supabase/server";
+import type { PostgrestRow } from "@/lib/db/postgrest-row";
+import { createClient } from "@/lib/data/server";
 
 export type CreatorProfile = {
   id: string;
@@ -22,20 +23,7 @@ export type CreatorProfileState = {
   error: string | null;
 };
 
-function mapCreatorRow(
-  row: {
-    id: string;
-    user_id: string;
-    pen_name: string;
-    bio: string | null;
-    status: "active" | "suspended";
-    created_at: string;
-    profiles?:
-      | { display_name: string | null; username: string | null }
-      | { display_name: string | null; username: string | null }[]
-      | null;
-  } | null
-): CreatorProfile | null {
+function mapCreatorRow(row: PostgrestRow | null): CreatorProfile | null {
   if (!row) {
     return null;
   }
@@ -60,23 +48,55 @@ function isMissingAuthSession(errorMessage: string) {
 
 const CREATOR_SELECT =
   "id, user_id, pen_name, bio, status, created_at, profiles!creator_profiles_user_id_fkey(display_name, username)";
+const CREATOR_SELECT_FALLBACK = "id, user_id, pen_name, bio, status, created_at";
+
+async function attachProfileDisplayName<T extends PostgrestRow | null>(
+  db: Awaited<ReturnType<typeof createClient>>,
+  row: T
+): Promise<T> {
+  if (!row?.user_id || row.profiles) {
+    return row;
+  }
+
+  const { data } = await db
+    .from("profiles")
+    .select("display_name, username")
+    .eq("id", row.user_id as string)
+    .maybeSingle();
+
+  return data ? ({ ...row, profiles: data } as T) : row;
+}
 
 export const getCreatorProfileByUserId = cache(
   async function getCreatorProfileByUserId(
     userId: string
   ): Promise<{ creatorProfile: CreatorProfile | null; error: string | null }> {
     try {
-      const supabase = await createClient();
-      const { data, error } = await supabase
+      const db = await createClient();
+      const { data, error } = await db
         .from("creator_profiles")
         .select(CREATOR_SELECT)
         .eq("user_id", userId)
         .limit(1)
         .maybeSingle();
 
+      if (error) {
+        const fallback = await db
+          .from("creator_profiles")
+          .select(CREATOR_SELECT_FALLBACK)
+          .eq("user_id", userId)
+          .limit(1)
+          .maybeSingle();
+
+        return {
+          creatorProfile: mapCreatorRow(await attachProfileDisplayName(db, fallback.data)),
+          error: fallback.error?.message ?? null
+        };
+      }
+
       return {
         creatorProfile: mapCreatorRow(data),
-        error: error?.message ?? null
+        error: null
       };
     } catch (error) {
       return {
@@ -93,11 +113,11 @@ export const getCreatorProfileByUserId = cache(
 export const getCurrentCreatorProfile = cache(
   async function getCurrentCreatorProfile(): Promise<CreatorProfileState> {
     try {
-      const supabase = await createClient();
+      const db = await createClient();
       const {
         data: { user },
         error: userError
-      } = await supabase.auth.getUser();
+      } = await db.auth.getUser();
 
       if (userError) {
         if (isMissingAuthSession(userError.message)) {
@@ -111,12 +131,30 @@ export const getCurrentCreatorProfile = cache(
         return { user: null, creatorProfile: null, error: null };
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("creator_profiles")
         .select(CREATOR_SELECT)
         .eq("user_id", user.id)
         .limit(1)
         .maybeSingle();
+
+      if (error) {
+        const fallback = await db
+          .from("creator_profiles")
+          .select(CREATOR_SELECT_FALLBACK)
+          .eq("user_id", user.id)
+          .limit(1)
+          .maybeSingle();
+
+        return {
+          user: {
+            id: user.id,
+            email: user.email
+          },
+          creatorProfile: mapCreatorRow(await attachProfileDisplayName(db, fallback.data)),
+          error: fallback.error?.message ?? null
+        };
+      }
 
       return {
         user: {
@@ -124,7 +162,7 @@ export const getCurrentCreatorProfile = cache(
           email: user.email
         },
         creatorProfile: mapCreatorRow(data),
-        error: error?.message ?? null
+        error: null
       };
     } catch (error) {
       return {

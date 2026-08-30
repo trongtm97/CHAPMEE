@@ -12,7 +12,7 @@ import {
   isStandaloneStory
 } from "@/lib/stories/story-structure";
 import type { ContentFormat, PresentationMode } from "@/types/presentation";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type StandaloneContentPersistResult = {
   standalone_content_json: unknown | null;
@@ -26,7 +26,7 @@ export type StandaloneContentPersistResult = {
 };
 
 export async function resolveStandaloneStoryContentPersist(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     storyId: string;
     content: string;
@@ -41,7 +41,7 @@ export async function resolveStandaloneStoryContentPersist(
   const knownMediaIds =
     input.contentFormat === "structured_blocks"
       ? await resolveKnownComposerMediaIds(
-          supabase,
+          db,
           input.structuredContent,
           input.storyId
         )
@@ -72,7 +72,7 @@ export async function resolveStandaloneStoryContentPersist(
   ) {
     const doc = input.structuredContent as ComposerStructuredContent;
     const imageIds = collectMediaIdsFromComposer(doc);
-    const imageMap = await getChapterImagesMap(supabase, imageIds);
+    const imageMap = await getChapterImagesMap(db, imageIds);
     plainText = mergeComposerPlainWithImages(doc, imageMap, input.content);
     structuredJson = doc;
   }

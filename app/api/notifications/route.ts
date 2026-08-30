@@ -4,7 +4,7 @@ import { getCurrentProfile } from "@/lib/auth/getCurrentProfile";
 import {
   getUnreadNotificationCount,
   getUserNotifications
-} from "@/lib/supabase/notifications";
+} from "@/lib/data/notifications";
 import type { NotificationFilterTab } from "@/types/notification";
 
 const tabs = new Set<NotificationFilterTab>(["all", "unread", "read"]);

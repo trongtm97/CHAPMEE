@@ -6,6 +6,7 @@ import { parseTaxonomyImportFile } from "@/lib/taxonomy/import-export/parse-file
 import { loadExistingTermsSnapshot } from "@/lib/taxonomy/import-export/export-terms";
 import { validateTaxonomyImportRows } from "@/lib/taxonomy/import-export/validate-rows";
 import { executeTaxonomyImport } from "@/lib/taxonomy/import-export/execute-import";
+import { assertNoEncodingIssuesInImportText } from "@/lib/encoding/detect-encoding-issues";
 import { mapLegacyImportMode } from "@/lib/taxonomy/import-export/constants";
 
 export type CatalogImportFlowResult = {
@@ -105,6 +106,25 @@ export async function runTaxonomyCatalogImportFlow(input: {
     input.mode === "upsert"
       ? mapLegacyImportMode(input.mode)
       : input.mode;
+
+  const encodingCheck = assertNoEncodingIssuesInImportText(
+    input.content,
+    input.fileName ? `File ${input.fileName}` : "Nội dung import"
+  );
+  if (!encodingCheck.ok) {
+    return {
+      imported: 0,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+      disabled: 0,
+      errors: [encodingCheck.error],
+      error: encodingCheck.error,
+      jobId: null,
+      canImport: false
+    };
+  }
 
   const parsed = parseContent({
     content: input.content,

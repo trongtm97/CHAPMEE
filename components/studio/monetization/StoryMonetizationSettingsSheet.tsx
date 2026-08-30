@@ -54,6 +54,8 @@ export function StoryMonetizationSettingsSheet({
     story.fullAccessPriceCoin != null ? String(story.fullAccessPriceCoin) : ""
   );
   const [sheetTab, setSheetTab] = useState<"pricing" | "bundle">("pricing");
+  const paidLockedByOrigin = !story.canSellChapters;
+  const bundleLockedByOrigin = !story.canSellStoryBundle;
 
   useEffect(() => {
     startTransition(async () => {
@@ -154,7 +156,18 @@ export function StoryMonetizationSettingsSheet({
                 {story.isCompleted ? "Hoàn thành" : "Đang ra"}
               </MonetizationBadge>
               <MonetizationBadge tone={bundleBadge.tone}>{bundleBadge.label}</MonetizationBadge>
+              <MonetizationBadge tone={story.contentOrigin === "translation" ? "amber" : "cyan"}>
+                {story.contentOrigin === "translation" ? "Truyện Dịch" : "Truyện Sáng Tác"}
+              </MonetizationBadge>
             </div>
+            {story.contentOrigin === "translation" ? (
+              <p className="mt-2 text-xs text-zinc-400">
+                {story.canReceiveTips ? "Tips: Đã xác minh quyền" : "Tips: Cần xác minh quyền"} ·{" "}
+                {story.canShareAdsRevenue
+                  ? "Ads revenue: Đã xác minh quyền"
+                  : "Ads revenue: Cần xác minh quyền"}
+              </p>
+            ) : null}
           </div>
           <Button onClick={onClose} type="button" variant="secondary">
             Đóng
@@ -191,18 +204,23 @@ export function StoryMonetizationSettingsSheet({
               <label className="flex items-center gap-2 text-sm text-zinc-100">
                 <input
                   checked={paidEnabled}
-                  disabled={!canConfigure || isPending}
+                  disabled={!canConfigure || isPending || paidLockedByOrigin}
                   onChange={(event) => setPaidEnabled(event.target.checked)}
                   type="checkbox"
                 />
                 Bật trả phí cho truyện này
               </label>
+              {paidLockedByOrigin ? (
+                <p className="rounded-xl border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-xs text-amber-100">
+                  {story.originPolicyNote}
+                </p>
+              ) : null}
 
               <label className="block text-sm text-zinc-300">
                 Số chương đầu miễn phí
                 <input
                   className="mt-1 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2.5 text-sm text-white"
-                  disabled={!canConfigure || isPending}
+                  disabled={!canConfigure || isPending || paidLockedByOrigin}
                   min={0}
                   onChange={(event) => setFreeChapters(event.target.value)}
                   type="number"
@@ -214,7 +232,7 @@ export function StoryMonetizationSettingsSheet({
                 Giá mỗi chương sau phần miễn phí ({config.coinDisplayName})
                 <input
                   className="mt-1 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2.5 text-sm text-white"
-                  disabled={!canConfigure || isPending || !paidEnabled}
+                  disabled={!canConfigure || isPending || !paidEnabled || paidLockedByOrigin}
                   inputMode="numeric"
                   onChange={(event) => setChapterPrice(event.target.value)}
                   value={chapterPrice}
@@ -230,18 +248,23 @@ export function StoryMonetizationSettingsSheet({
               <label className="flex items-center gap-2 text-sm text-zinc-100">
                 <input
                   checked={bundleEnabled}
-                  disabled={!canConfigure || isPending}
+                  disabled={!canConfigure || isPending || bundleLockedByOrigin}
                   onChange={(event) => setBundleEnabled(event.target.checked)}
                   type="checkbox"
                 />
                 Bán trọn bộ
               </label>
+              {bundleLockedByOrigin ? (
+                <p className="rounded-xl border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-xs text-amber-100">
+                  {story.originPolicyNote}
+                </p>
+              ) : null}
 
               <label className="block text-sm text-zinc-300">
                 Giá trọn bộ ({config.coinDisplayName})
                 <input
                   className="mt-1 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2.5 text-sm text-white"
-                  disabled={!canConfigure || isPending || !bundleEnabled}
+                  disabled={!canConfigure || isPending || !bundleEnabled || bundleLockedByOrigin}
                   inputMode="numeric"
                   onChange={(event) => setBundlePrice(event.target.value)}
                   value={bundlePrice}
@@ -281,7 +304,13 @@ export function StoryMonetizationSettingsSheet({
           </Button>
           <Button
             className="flex-1"
-            disabled={!canConfigure || isPending || loading}
+            disabled={
+              !canConfigure ||
+              isPending ||
+              loading ||
+              (sheetTab === "pricing" && paidLockedByOrigin) ||
+              (sheetTab === "bundle" && bundleLockedByOrigin)
+            }
             onClick={handleSave}
             type="button"
           >

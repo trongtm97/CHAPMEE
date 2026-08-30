@@ -4,7 +4,7 @@ import {
   resolveTaxonomyCanonicalPath,
   TAXONOMY_MIN_STORIES_FOR_INDEX
 } from "@/lib/seo/taxonomy-seo";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { mapTaxonomyTermRow } from "@/lib/taxonomy/map-row";
 import { getPublishedStoryCountsByTermIds } from "@/lib/taxonomy/published-story-metrics";
 import type { TaxonomyTermRow } from "@/types/taxonomy";
@@ -22,8 +22,8 @@ function finding(
 }
 
 export async function runTaxonomySeoAuditFindings(): Promise<SeoAuditFinding[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("taxonomy_terms")
     .select("*")
     .eq("is_active", true)

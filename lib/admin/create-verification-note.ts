@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminAuditLog } from "@/lib/admin/create-audit-log";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { VerificationNoteTag } from "@/types/admin-verification";
 
 function hasPerm(permissions: string[], code: string) {
@@ -37,8 +37,8 @@ export async function createVerificationNoteAction(input: {
     const note = input.note.trim();
     if (!note) return { ok: false, error: "Nội dung ghi chú không được trống." };
 
-    const supabase = await createClient();
-    const { data: verification } = await supabase
+    const db = await createClient();
+    const { data: verification } = await db
       .from("account_verifications")
       .select("id, user_id")
       .eq("id", input.verificationId)
@@ -48,7 +48,7 @@ export async function createVerificationNoteAction(input: {
       return { ok: false, error: "Không tìm thấy yêu cầu xác thực." };
     }
 
-    const { data: inserted, error } = await supabase
+    const { data: inserted, error } = await db
       .from("verification_notes")
       .insert({
         verification_id: input.verificationId,
@@ -59,7 +59,7 @@ export async function createVerificationNoteAction(input: {
       .select("id")
       .single();
 
-    if (error) {
+    if (error || !inserted) {
       if (process.env.NODE_ENV === "development") console.error("[createVerificationNote]", error);
       return { ok: false, error: "Không thể lưu ghi chú." };
     }

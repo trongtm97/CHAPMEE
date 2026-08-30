@@ -1,6 +1,6 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { revalidatePath } from "next/cache";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { checkStaffAnyPermission } from "@/lib/auth/staff-guards";
@@ -328,8 +328,8 @@ export async function getTaxonomyImportExportJobErrorReportAction(jobId: string)
   const guard = await requireView();
   if (!guard.ok) return { csv: "", error: guard.error };
 
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const db = createAdminClient();
+  const { data, error } = await db
     .from("taxonomy_import_export_jobs")
     .select("error_summary")
     .eq("id", jobId)

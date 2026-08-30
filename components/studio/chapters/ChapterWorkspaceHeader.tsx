@@ -27,10 +27,10 @@ type ChapterWorkspaceHeaderProps = {
   canSchedule: boolean;
   scheduleDisabledReason?: string;
   publishDisabledReason?: string;
-  canSubmitReview: boolean;
-  reviewDisabledReason?: string;
-  onSubmitReview: () => void;
   pending?: boolean;
+  submitError?: string | null;
+  isNewChapter?: boolean;
+  newChapterHref?: string | null;
 };
 
 function ViewModeToggle({
@@ -76,21 +76,27 @@ export function ChapterWorkspaceHeader({
   autosave,
   backHref,
   canSchedule,
-  canSubmitReview,
   displayStatus,
   onPublish,
   onSaveDraft,
   onSchedule,
-  onSubmitReview,
   onViewModeChange,
   pageTitle,
   pending = false,
   publishDisabledReason,
-  reviewDisabledReason,
   scheduleDisabledReason,
   storyTitle,
+  submitError = null,
+  isNewChapter = false,
+  newChapterHref = null,
   viewMode
 }: ChapterWorkspaceHeaderProps) {
+  const publishLabel =
+    displayStatus === "published"
+      ? "Cập nhật"
+      : isNewChapter
+        ? "Đăng chương mới"
+        : "Đăng ngay";
   const statusBadge =
     autosave.status === "saving" ? (
       <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-xs font-semibold text-cyan-200">
@@ -149,6 +155,14 @@ export function ChapterWorkspaceHeader({
 
           <div className="hidden shrink-0 items-center gap-2 lg:flex">
             <ViewModeToggle onChange={onViewModeChange} value={viewMode} />
+            {newChapterHref ? (
+              <Link
+                className="inline-flex h-9 items-center rounded-lg border border-white/10 px-3 text-sm font-semibold text-zinc-300 hover:bg-white/5"
+                href={newChapterHref}
+              >
+                + Chương mới
+              </Link>
+            ) : null}
             <Button
               loading={pending}
               onClick={onSaveDraft}
@@ -167,29 +181,37 @@ export function ChapterWorkspaceHeader({
               Lên lịch
             </Button>
             <Button
-              disabled={!canSubmitReview}
-              onClick={onSubmitReview}
-              title={reviewDisabledReason}
-              type="button"
-              variant="secondary"
-            >
-              Gửi duyệt
-            </Button>
-            <Button
               disabled={!canSchedule}
               onClick={onPublish}
               title={publishDisabledReason}
               type="button"
             >
-              Đăng ngay
+              {publishLabel}
             </Button>
           </div>
         </div>
 
-        <div className="mt-3 flex lg:hidden">
+        <div className="mt-3 flex flex-col gap-2 lg:hidden">
+          {newChapterHref ? (
+            <Link
+              className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-white/10 text-sm font-semibold text-zinc-300 hover:bg-white/5"
+              href={newChapterHref}
+            >
+              + Chương mới
+            </Link>
+          ) : null}
           <ViewModeToggle className="w-full" onChange={onViewModeChange} value={viewMode} />
         </div>
       </header>
+
+      {submitError ? (
+        <p
+          className="rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-sm text-red-100"
+          role="alert"
+        >
+          {submitError}
+        </p>
+      ) : null}
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[#070b12]/98 p-2 backdrop-blur-md lg:hidden">
         <div className="mx-auto flex max-w-lg items-center gap-2">
@@ -219,7 +241,7 @@ export function ChapterWorkspaceHeader({
             title={publishDisabledReason}
             type="button"
           >
-            Đăng ngay
+            {publishLabel}
           </Button>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import type {
   TaxonomyImportExportDirection,
   TaxonomyImportExportJobRow,
@@ -35,8 +35,8 @@ export async function createTaxonomyImportExportJob(input: {
   fileName?: string | null;
   status?: TaxonomyImportExportJobStatus;
 }) {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const db = createAdminClient();
+  const { data, error } = await db
     .from("taxonomy_import_export_jobs")
     .insert({
       actor_id: input.actorId,
@@ -66,8 +66,8 @@ export async function completeTaxonomyImportExportJob(
     resultFileUrl?: string | null;
   }
 ) {
-  const supabase = createAdminClient();
-  const { error } = await supabase
+  const db = createAdminClient();
+  const { error } = await db
     .from("taxonomy_import_export_jobs")
     .update({
       status: patch.status,
@@ -89,13 +89,13 @@ export async function listTaxonomyImportExportJobs(options?: {
   page?: number;
   pageSize?: number;
 }) {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   const page = Math.max(1, options?.page ?? 1);
   const pageSize = Math.min(50, Math.max(10, options?.pageSize ?? 20));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  const { data, error, count } = await supabase
+  const { data, error, count } = await db
     .from("taxonomy_import_export_jobs")
     .select("*", { count: "exact" })
     .order("created_at", { ascending: false })

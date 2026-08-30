@@ -2,11 +2,11 @@
 
 import { useActionState } from "react";
 import { Button, Card } from "@/components/ui";
+import { updateMessagePrivacyAction } from "@/lib/actions/messages";
 import {
   messageActionEmptyState,
-  updateMessagePrivacyAction,
   type MessageActionState
-} from "@/lib/actions/messages";
+} from "@/lib/actions/message-action-state";
 import type { MessagePrivacySettings } from "@/types/messages";
 
 const whoOptions = [

@@ -8,7 +8,7 @@ import {
   requireWalletAdjustAccess
 } from "@/lib/auth/finance-guards";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { getOrCreateUserWalletRecord } from "@/lib/supabase/wallets";
+import { getOrCreateUserWalletRecord } from "@/lib/data/wallets";
 import { debitUserCoins } from "@/lib/wallets/user-wallet";
 import type { AdminCoinDebitInput, AdminCoinReasonCode } from "@/types/coins";
 

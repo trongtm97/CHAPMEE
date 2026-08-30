@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
 import { getCurrentProfile } from "@/lib/auth/getCurrentProfile";
-import { getUnreadNotificationCount } from "@/lib/supabase/notifications";
+import { getUnreadNotificationCount } from "@/lib/data/notifications";
 
 export async function GET() {
   const { user } = await getCurrentProfile();
@@ -19,6 +19,14 @@ export async function GET() {
     return NextResponse.json({ error: message }, { status: 403 });
   }
 
-  const unreadCount = await getUnreadNotificationCount(user.id);
-  return NextResponse.json({ unreadCount });
+  try {
+    const unreadCount = await getUnreadNotificationCount(user.id);
+    return NextResponse.json({ unreadCount });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unread count failed";
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[notifications/unread-count]", message);
+    }
+    return NextResponse.json({ unreadCount: 0 });
+  }
 }

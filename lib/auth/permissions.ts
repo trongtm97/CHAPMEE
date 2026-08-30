@@ -6,8 +6,8 @@ import {
   mergeRoleCodes,
   STAFF_ROLE_CODES
 } from "@/lib/auth/roles";
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { AuthPermissionContext } from "@/types/auth";
 import type {
   ClientPermissionFlags,
@@ -65,6 +65,16 @@ const LEGACY_ADMIN_PERMISSIONS: PermissionCode[] = [
   "feedback.update.status"
 ];
 
+const LEGACY_SNIPPET_PERMISSIONS: PermissionCode[] = [
+  "admin.snippets.view",
+  "admin.snippets.create",
+  "admin.snippets.update",
+  "admin.snippets.activate",
+  "admin.snippets.delete",
+  "admin.snippets.rollback",
+  "admin.snippets.import_export"
+];
+
 const LEGACY_MODERATOR_PERMISSIONS: PermissionCode[] = [
   "report.review",
   "content_taxonomy_quality.view",
@@ -79,6 +89,7 @@ const LEGACY_MODERATOR_PERMISSIONS: PermissionCode[] = [
 
 const LEGACY_FOUNDER_PERMISSIONS: PermissionCode[] = [
   ...LEGACY_ADMIN_PERMISSIONS,
+  ...LEGACY_SNIPPET_PERMISSIONS,
   "admin.user.role.assign",
   "finance.dashboard.view",
   "finance.payout.view",
@@ -202,11 +213,11 @@ export const getAuthContextForUser = cache(async function getAuthContextForUser(
   profileRole: ProfileRole | null = null,
   profileStatus: string | null = "active"
 ): Promise<AuthPermissionContext> {
-  const supabase = await createClient();
+  const db = await createClient();
   let rbacRoles: RoleCode[] = [];
   let rbacPermissions: PermissionCode[] = [];
 
-  const rolesResult = await supabase
+  const rolesResult = await db
     .from("user_roles")
     .select("expires_at, roles(code)")
     .eq("user_id", userId);
@@ -231,14 +242,14 @@ export const getAuthContextForUser = cache(async function getAuthContextForUser(
   const roleSet = new Set<RoleCode>(mergedRoles);
 
   if (roleSet.size > 0) {
-    const { data: roleRows } = await supabase
+    const { data: roleRows } = await db
       .from("roles")
       .select("id, code")
       .in("code", [...roleSet]);
 
     const roleIds = (roleRows ?? []).map((row) => row.id as string);
     if (roleIds.length > 0) {
-      const permResult = await supabase
+      const permResult = await db
         .from("role_permissions")
         .select("permissions(code)")
         .in("role_id", roleIds);
@@ -265,7 +276,7 @@ export const getAuthContextForUser = cache(async function getAuthContextForUser(
   }
 
   if (roleSet.has("owner")) {
-    const { data: allPerms } = await supabase.from("permissions").select("code");
+    const { data: allPerms } = await db.from("permissions").select("code");
     for (const row of allPerms ?? []) {
       if (row.code) {
         permissionSet.add(row.code as PermissionCode);
@@ -307,8 +318,8 @@ export const getAuthContextForUser = cache(async function getAuthContextForUser(
 });
 
 async function isUserBanned(userId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("user_bans")
     .select("id")
     .eq("user_id", userId)
@@ -323,8 +334,8 @@ async function isUserBanned(userId: string) {
 }
 
 async function loadProfileAuthHints(userId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("profiles")
     .select("role, status")
     .eq("id", userId)

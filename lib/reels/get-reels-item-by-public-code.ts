@@ -10,6 +10,7 @@ import {
   sanitizeReelsExcerpt,
   sanitizeReelsHookTitle
 } from "@/lib/reels/clean-reels-source-text";
+import { resolveStoryReelsExcerpt } from "@/lib/reels/resolve-story-reels-text";
 import { createExcerpt } from "@/lib/text/createExcerpt";
 import { getReelUrl, getStoryUrl } from "@/lib/urls/paths";
 import { isValidNumericPublicCode } from "@/lib/urls/public-code";
@@ -41,7 +42,7 @@ export async function getReelsItemByPublicCode(
   const { data: row } = await db
     .from("reels_items")
     .select(
-      "id, slug, public_code, chapter_id, hook, body, cta, cta_type, background_image_url, published_at, content_storage_type, content_object_key, content_hash, content_encoding, body_preview, stories!inner(id, creator_id, title, slug, public_code, hook, short_description, cover_url, status, visibility, creator_profiles(id, user_id, pen_name, profiles(username, avatar_url))), episodes(episode_number, title, slug, public_code)"
+      "id, slug, public_code, chapter_id, hook, body, cta, cta_type, background_image_url, published_at, content_storage_type, content_object_key, content_hash, content_encoding, body_preview, stories!inner(id, creator_id, title, slug, public_code, hook, short_description, long_description, cover_url, status, visibility, creator_profiles(id, user_id, pen_name, profiles(username, avatar_url))), episodes(episode_number, title, slug, public_code)"
     )
     .eq("public_code", publicCode)
     .eq("status", "published")
@@ -61,6 +62,7 @@ export async function getReelsItemByPublicCode(
           public_code: string;
           hook: string | null;
           short_description: string | null;
+          long_description?: string | null;
           cover_url: string | null;
           creator_profiles:
             | {
@@ -91,6 +93,7 @@ export async function getReelsItemByPublicCode(
           public_code: string;
           hook: string | null;
           short_description: string | null;
+          long_description?: string | null;
           cover_url: string | null;
           creator_profiles:
             | {
@@ -182,6 +185,7 @@ export async function getReelsItemByPublicCode(
     kind: "manual",
     contentSource,
     id: reelRow.id,
+    reelItemId: reelRow.id,
     backgroundImageUrl:
       resolveReelsBackgroundUrl(reelRow.background_image_url) ??
       getReelsBackgroundSrc({
@@ -197,11 +201,12 @@ export async function getReelsItemByPublicCode(
       effectiveBody?.trim() ||
         (contentSource === "chapter"
           ? buildReelsExcerpt(episode?.title ?? null, null)
-          : createExcerpt(
-              story.short_description?.trim() || story.hook?.trim() || story.title,
-              80,
-              160
-            ))
+          : resolveStoryReelsExcerpt({
+              title: story.title,
+              hook: story.hook,
+              shortDescription: story.short_description,
+              longDescription: story.long_description
+            }))
     ),
     hookTitle: sanitizeReelsHookTitle(
       effectiveHook?.trim() ||

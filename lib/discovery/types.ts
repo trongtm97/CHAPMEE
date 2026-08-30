@@ -26,9 +26,12 @@ export type StoryCatalogFilterParams = {
   contentWarning?: string;
   /** Slug taxonomy `story_status` (ngoài ongoing/completed map sang `status`). */
   storyStatus?: string;
+  contentOrigin?: "original" | "translation";
   access?: StoryCatalogAccessFilter;
   hasWarning?: "yes" | "no";
   hasNewChapter?: "yes" | "no";
+  hasAudio?: "yes" | "no";
+  hasVideo?: "yes" | "no";
   sort?: StoryCatalogSort;
   status?: StoryCatalogStatus;
   page?: number;

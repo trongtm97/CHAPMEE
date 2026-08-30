@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 
 export type CreatorOwnedComment = {
@@ -65,8 +65,8 @@ export async function assertCreatorOwnsComment(
   creatorProfile: CreatorProfile,
   commentId: string
 ): Promise<CreatorOwnedComment> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("comments")
     .select(
       `

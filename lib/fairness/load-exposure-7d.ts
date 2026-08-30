@@ -1,6 +1,6 @@
 import { windowStartIso } from "@/lib/fairness/exposure-share";
 import type { Exposure7dContext } from "@/types/fairness";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export function emptyExposure7dContext(): Exposure7dContext {
   return {
@@ -13,12 +13,12 @@ export function emptyExposure7dContext(): Exposure7dContext {
 }
 
 export async function loadExposure7dContext(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   surface: string
 ): Promise<Exposure7dContext> {
   const since = windowStartIso("7d");
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("exposure_events")
     .select("author_user_id, story_id")
     .eq("surface", surface)

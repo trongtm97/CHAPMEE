@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { sinceForRange } from "@/lib/admin/messaging-date-range";
 import { computeMessagingRiskScore } from "@/lib/admin/messaging-risk-score";
 import type { MessageUserRiskDetail } from "@/types/admin-messaging";
@@ -9,12 +9,12 @@ import type { MessageReportReasonCode } from "@/types/messages";
 export async function getMessageUserRiskDetail(
   userId: string
 ): Promise<MessageUserRiskDetail | null> {
-  const supabase = await createClient();
+  const db = await createClient();
   const since7d = sinceForRange("7d");
   const since24h = sinceForRange("24h");
   const now = Date.now();
 
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from("profiles")
     .select("id, display_name, username, avatar_url, role, created_at")
     .eq("id", userId)
@@ -36,36 +36,36 @@ export async function getMessageUserRiskDetail(
     restrictionsRes,
     recentReportsRes
   ] = await Promise.all([
-    supabase
+    db
       .from("message_reports")
       .select("id", { count: "exact", head: true })
       .eq("reported_user_id", userId)
       .in("status", ["open", "reviewing"]),
-    supabase
+    db
       .from("message_reports")
       .select("id", { count: "exact", head: true })
       .eq("reported_user_id", userId)
       .gte("created_at", since7d),
-    supabase
+    db
       .from("message_blocks")
       .select("id", { count: "exact", head: true })
       .eq("blocked_id", userId),
-    supabase
+    db
       .from("message_safety_logs")
       .select("status, reasons")
       .eq("user_id", userId)
       .gte("created_at", since7d),
-    supabase
+    db
       .from("message_requests")
       .select("id", { count: "exact", head: true })
       .eq("requester_id", userId)
       .gte("created_at", since24h),
-    supabase
+    db
       .from("account_restrictions")
       .select("id, restriction_type, reason, ends_at")
       .eq("user_id", userId)
       .eq("is_active", true),
-    supabase
+    db
       .from("message_reports")
       .select(
         `id, reason_code, status, created_at,

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { StoryStructureBadge } from "@/components/studio/stories/StoryStructureSelector";
+import { PublicCodeCopy } from "@/components/studio/import/PublicCodeCopy";
 import { StudioStatusBadge } from "@/components/studio/StudioStatusBadge";
 import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import { studioPath } from "@/lib/studio/constants";
@@ -64,6 +65,14 @@ export function ChapterManagerHeader({
         </div>
       ) : null}
 
+      {!canViewPublicStory(story) && stats && stats.publishedCount > 0 ? (
+        <div className="rounded-2xl border border-amber-400/25 bg-amber-400/10 p-4 text-sm leading-6 text-amber-100">
+          Truyện đang nháp hoặc riêng tư — {formatCount(stats.publishedCount)} chương đã
+          đăng sẽ tự hiện khi truyện công khai, không cần đăng lại từng chương. Chương
+          nháp vẫn ẩn cho đến khi bạn đăng thủ công.
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -71,6 +80,20 @@ export function ChapterManagerHeader({
             <StudioStatusBadge kind="story" status={story.displayStatus} />
           </div>
           <h1 className="line-clamp-2 text-2xl font-black text-white sm:text-3xl">{story.title}</h1>
+          {story.publicCode ? (
+            <PublicCodeCopy code={story.publicCode} label="Mã truyện (story_code)" />
+          ) : null}
+          <p className="text-xs leading-5 text-zinc-500">
+            Cập nhật hàng loạt: bấm <strong className="font-semibold text-zinc-400">Xuất chương CSV</strong>
+            {" → "}
+            sửa file (cột <span className="font-mono text-cyan-200/80">chapter_code</span>,{" "}
+            <span className="font-mono text-cyan-200/80">chapter_order</span>,{" "}
+            <span className="font-mono text-cyan-200/80">story_code</span>) →{" "}
+            <Link className="font-semibold text-cyan-200 underline-offset-2 hover:underline" href={studioPath("/import?tab=import-chapters")}>
+              Nhập chương CSV
+            </Link>
+            . Bấm mã chương trong bảng để sao chép.
+          </p>
           {stats ? (
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-4 lg:grid-cols-4">
               <div>
@@ -116,7 +139,19 @@ export function ChapterManagerHeader({
             className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-white/10"
             href={studioPath(`/stories/${storyId}/import`)}
           >
-            Nhập hàng loạt
+            Nhập hàng loạt (.txt)
+          </Link>
+          <Link
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
+            href={studioPath(`/import?tab=export&storyId=${storyId}`)}
+          >
+            Xuất chương CSV
+          </Link>
+          <Link
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-white/10"
+            href={studioPath("/import?tab=import-chapters")}
+          >
+            Nhập CSV cập nhật
           </Link>
           <Link
             className="hidden min-h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-white/10 lg:inline-flex"

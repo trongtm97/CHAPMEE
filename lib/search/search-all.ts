@@ -4,18 +4,22 @@ import { buildScoringConfig } from "@/lib/scoring/config";
 import { collectSearchCandidates } from "@/lib/search/collect-candidates";
 import {
   applySearchFairness,
+  applySearchOriginBalance,
   filterResultsByType,
   loadSearchFairnessContext,
   loadSearchMaxSameAuthorTop
 } from "@/lib/search/fairness";
+import { loadContentOriginMixSettings } from "@/lib/algorithm/content-origin-mix";
 import { resolveSearchWeights, scoreSearchCandidate } from "@/lib/search/ranking";
 import { calculateTextRelevance } from "@/lib/search/relevance";
 import { trackSearchResults } from "@/lib/search/track-search";
 import { getLatestScoresForItems } from "@/lib/scoring/snapshots";
-import { createPublicClient } from "@/lib/supabase/public-client";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/data/public-client";
+import { createClient } from "@/lib/data/server";
+import { checkScopedRateLimitFromSettings } from "@/lib/security/rate-limit";
+import { getSecurityRequestContext } from "@/lib/security/request-context";
 import type { SearchAllResult, SearchFilters } from "@/types/search";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 function freshnessFromPublishedAt(publishedAt: string | null | undefined) {
   if (!publishedAt) return 0.35;
@@ -33,7 +37,7 @@ function mapItemType(resultType: string) {
 }
 
 async function resolveScoresForCandidates(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   candidates: Awaited<ReturnType<typeof collectSearchCandidates>>
 ) {
   const storyIds: string[] = [];
@@ -49,8 +53,8 @@ async function resolveScoresForCandidates(
   }
 
   const [storyScores, chapterScores] = await Promise.all([
-    getLatestScoresForItems(supabase, "story", storyIds, "7d"),
-    getLatestScoresForItems(supabase, "chapter", chapterIds, "7d")
+    getLatestScoresForItems(db, "story", storyIds, "7d"),
+    getLatestScoresForItems(db, "chapter", chapterIds, "7d")
   ]);
 
   return { storyScores, chapterScores };
@@ -103,8 +107,33 @@ export async function searchAll(
     };
   }
 
+  const searchCtx = await getSecurityRequestContext("/search");
+  const rateSubject = userId ?? searchCtx.ipHash ?? "anon";
+  const searchRate = await checkScopedRateLimitFromSettings({
+    scope: "search",
+    subjectKey: rateSubject,
+    ctx: searchCtx,
+    profileId: userId ?? null,
+    path: "/search"
+  });
+
+  if (!searchRate.allowed) {
+    return {
+      query: trimmed,
+      requestId,
+      algorithmVersion: "1.0.0",
+      items: [],
+      totalCount: 0,
+      page,
+      pageSize,
+      totalPages: 1,
+      countsByType: {},
+      error: "Bạn tìm kiếm quá nhanh. Thử lại sau."
+    };
+  }
+
   try {
-    const supabase = createPublicClient();
+    const db = createPublicClient();
     const weights = await resolveSearchWeights();
     const config = await getAlgorithmConfig();
     const algorithmVersion =
@@ -112,11 +141,11 @@ export async function searchAll(
         ? config["system.algorithm_version"]
         : "1.0.0";
 
-    const raw = await collectSearchCandidates(supabase, trimmed, {
+    const raw = await collectSearchCandidates(db, trimmed, {
       genre: filters.genre
     });
 
-    const scoreMaps = await resolveScoresForCandidates(supabase, raw);
+    const scoreMaps = await resolveScoresForCandidates(db, raw);
 
     const scored = await Promise.all(
       raw.map(async (candidate) => {
@@ -175,6 +204,7 @@ export async function searchAll(
           authorUsername: candidate.authorUsername,
           authorDisplayName: candidate.authorDisplayName,
           episodeNumber: candidate.episodeNumber,
+          contentOrigin: candidate.contentOrigin,
           ...scoredItem
         };
       })
@@ -192,22 +222,33 @@ export async function searchAll(
       storySharePercent: exposure?.storySharePercent,
       fairnessConfig: scoringConfig.fairness
     });
+    const mixSettings = await loadContentOriginMixSettings();
+    const fairRankedWithOrigin = applySearchOriginBalance(fairRanked, {
+      enabled: mixSettings.contentOriginFairnessEnabled,
+      originalMinPercent: mixSettings.originalMinExposurePercent,
+      translationMaxPercent: mixSettings.translationMaxExposurePercent,
+      topWindow: 10
+    });
 
     const typeFiltered = filterResultsByType(
-      fairRanked,
+      fairRankedWithOrigin,
       filters.type === "all" ? undefined : filters.type
     );
+    const originFiltered =
+      filters.origin && filters.origin !== "all"
+        ? typeFiltered.filter((item) => item.contentOrigin === filters.origin)
+        : typeFiltered;
 
-    const countsByType = fairRanked.reduce<SearchAllResult["countsByType"]>((acc, item) => {
+    const countsByType = fairRankedWithOrigin.reduce<SearchAllResult["countsByType"]>((acc, item) => {
       acc[item.resultType] = (acc[item.resultType] ?? 0) + 1;
       return acc;
     }, {});
 
-    const totalCount = typeFiltered.length;
+    const totalCount = originFiltered.length;
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
     const safePage = Math.min(page, totalPages);
     const offset = (safePage - 1) * pageSize;
-    const pageItems = typeFiltered.slice(offset, offset + pageSize);
+    const pageItems = originFiltered.slice(offset, offset + pageSize);
 
     const authClient = await createClient();
     const {

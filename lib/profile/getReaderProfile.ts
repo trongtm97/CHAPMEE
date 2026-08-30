@@ -1,19 +1,21 @@
 import type { CurrentUserProfile } from "@/lib/auth/getCurrentUser";
-import { getReaderEarlyFanStories } from "@/lib/supabase/early-fans";
-import { getUserTopFanHighlights } from "@/lib/supabase/fan-scores";
+import { getReaderEarlyFanStories } from "@/lib/data/early-fans";
+import { getUserTopFanHighlights } from "@/lib/data/fan-scores";
 import {
   getUserMilestones,
   syncReaderMilestones,
   toMilestoneViewItems
-} from "@/lib/supabase/milestones";
+} from "@/lib/data/milestones";
 import {
   getUserBadges,
   syncReaderBadges,
   toBadgeViewItems,
   toProfileBadgeChips
-} from "@/lib/supabase/badges";
-import { createClient } from "@/lib/supabase/server";
+} from "@/lib/data/badges";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
 import { buildReaderAchievements } from "@/lib/profile/profileIdentity";
 import type { EarlyFanStoryItem } from "@/types/early-fan";
 import type { BadgeViewItem } from "@/types/badge";
@@ -43,11 +45,78 @@ type StoryRelation = {
 
 type BookshelfRow = {
   status: "saved" | "reading" | "completed";
-  stories: StoryRelation | StoryRelation[] | null;
+  story_id?: string | null;
+  stories?: StoryRelation | StoryRelation[] | null;
 };
 
 function firstRelation<T>(relation: T | T[] | null | undefined) {
   return Array.isArray(relation) ? (relation[0] ?? null) : (relation ?? null);
+}
+
+async function loadReaderProfileMetrics(
+  db: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<{ data: ReaderProfileMetricsRow | null; error: string | null }> {
+  const rpcResult = await db.rpc("get_reader_profile_metrics", {
+    input_user_id: userId
+  });
+
+  if (!rpcResult.error) {
+    const metrics = Array.isArray(rpcResult.data) ? rpcResult.data[0] : rpcResult.data;
+
+    return { data: (metrics as ReaderProfileMetricsRow | null) ?? null, error: null };
+  }
+
+  if (!isMissingSchemaError(rpcResult.error)) {
+    return {
+      data: null,
+      error: rpcResult.error.message ?? "Could not load reader profile metrics."
+    };
+  }
+
+  const [savedStoriesResult, followingResult, commentsResult, commentRowsResult] =
+    await Promise.all([
+      db
+        .from("bookshelf_items")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId),
+      db
+        .from("follows")
+        .select("id", { count: "exact", head: true })
+        .eq("follower_id", userId)
+        .not("creator_id", "is", null),
+      db
+        .from("comments")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId),
+      db.from("comments").select("id").eq("user_id", userId)
+    ]);
+
+  const commentIds = ((commentRowsResult.data ?? []) as Array<{ id: string }>).map(
+    (row) => row.id
+  );
+
+  let commentLikeCount = 0;
+  if (commentIds.length > 0) {
+    const likesResult = await db
+      .from("reactions")
+      .select("id", { count: "exact", head: true })
+      .eq("target_type", "comment")
+      .eq("reaction_type", "like")
+      .in("target_id", commentIds);
+
+    commentLikeCount = Number(likesResult.count ?? 0);
+  }
+
+  return {
+    data: {
+      saved_story_count: Number(savedStoriesResult.count ?? 0),
+      following_creator_count: Number(followingResult.count ?? 0),
+      comment_count: Number(commentsResult.count ?? 0),
+      comment_like_count: commentLikeCount
+    },
+    error: null
+  };
 }
 
 function toStoryItem(
@@ -62,7 +131,7 @@ function toStoryItem(
     slug: story.slug,
     publicCode: story.public_code,
     title: story.title,
-    coverUrl: story.cover_url,
+    coverUrl: resolveStoryCoverUrl(story.cover_url),
     subtitle: story.hook || creator?.pen_name || null,
     meta: status === "saved" ? genreName : `Đang ${status}`
   };
@@ -113,53 +182,41 @@ export async function getReaderProfile(
   profile: CurrentUserProfile
 ): Promise<ReaderProfileData> {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
 
     const [
-      { data: metricsRows, error: metricsError },
-      { data: bookshelfRows, error: bookshelfError },
+      metricsResult,
+      bookshelfRowsResult,
       earlyFanStories,
       topFanHighlights
     ] = await Promise.all([
-      supabase.rpc("get_reader_profile_metrics", {
-        input_user_id: profile.id
-      }),
-      supabase
+      loadReaderProfileMetrics(db, profile.id),
+      db
         .from("bookshelf_items")
-        .select(
-          "status, stories(id, title, slug, public_code, cover_url, hook, creator_profiles(pen_name))"
-        )
+        .select("status, story_id")
         .eq("user_id", profile.id)
         .order("updated_at", { ascending: false }),
-      getReaderEarlyFanStories(profile.id),
-      getUserTopFanHighlights(profile.id, 5)
+      getReaderEarlyFanStories(profile.id).catch(() => []),
+      getUserTopFanHighlights(profile.id, 5).catch(() => [])
     ]);
 
-    if (metricsError) {
-      throw metricsError;
-    }
-
-    if (bookshelfError) {
-      throw bookshelfError;
-    }
-
-    const metrics = (Array.isArray(metricsRows) ? metricsRows[0] : metricsRows) as
-      | ReaderProfileMetricsRow
-      | null;
-
-    const bookshelf = (bookshelfRows ?? []) as BookshelfRow[];
-    const storyIds = [
-      ...new Set(
-        bookshelf
-          .map((row) => firstRelation(row.stories)?.id)
-          .filter((id): id is string => Boolean(id))
-      )
-    ];
-    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
+    const metrics = metricsResult.data;
+    const bookshelf = (bookshelfRowsResult.data ?? []) as BookshelfRow[];
+    const storyIds = [...new Set(bookshelf.map((row) => row.story_id).filter((id): id is string => Boolean(id)))];
+    const { data: storyRows } = storyIds.length
+      ? await db
+          .from("stories")
+          .select("id, title, slug, public_code, cover_url, hook, creator_profiles(pen_name)")
+          .in("id", storyIds)
+      : { data: [] as StoryRelation[] };
+    const storyById = new Map(
+      ((storyRows ?? []) as StoryRelation[]).map((story) => [story.id, story])
+    );
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, storyIds);
     const savedStories = bookshelf
       .filter((row) => row.status === "saved")
       .map((row) => {
-        const story = firstRelation(row.stories);
+        const story = row.story_id ? storyById.get(row.story_id) ?? null : null;
 
         if (!story) {
           return null;
@@ -200,7 +257,7 @@ export async function getReaderProfile(
             storyTitle: item.title
           };
         })
-    });
+    }).catch(() => undefined);
 
     await syncReaderBadges({
       userId: profile.id,
@@ -210,7 +267,7 @@ export async function getReaderProfile(
       commentCount,
       commentLikeCount,
       earlyFanStories
-    });
+    }).catch(() => undefined);
 
     const badgeRecords = await getUserBadges({
       userId: profile.id,
@@ -223,6 +280,8 @@ export async function getReaderProfile(
       limit: 5
     });
     const milestones = toMilestoneViewItems(milestoneRecords);
+
+    const partialError = metricsResult.error ?? bookshelfRowsResult.error?.message ?? null;
 
     return {
       badges: badgeChips,
@@ -245,7 +304,7 @@ export async function getReaderProfile(
         commentCount,
         commentLikeCount
       },
-      error: null
+      error: partialError
     };
   } catch (error) {
     return {
@@ -272,7 +331,12 @@ export async function getReaderProfile(
       error:
         error instanceof Error
           ? error.message
-          : "Không thể tải trang hồ sơ người đọc."
+          : typeof error === "object" &&
+              error !== null &&
+              "message" in error &&
+              typeof (error as { message: unknown }).message === "string"
+            ? (error as { message: string }).message
+            : "Không thể tải trang hồ sơ người đọc."
     };
   }
 }

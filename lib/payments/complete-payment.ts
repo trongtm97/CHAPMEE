@@ -1,7 +1,7 @@
 "use server";
 
-import { getCheckoutSessionById, updateCheckoutSessionStatus } from "@/lib/supabase/checkout-sessions";
-import { processCoinPurchaseCheckoutRecord } from "@/lib/supabase/wallets";
+import { getCheckoutSessionById, updateCheckoutSessionStatus } from "@/lib/data/checkout-sessions";
+import { processCoinPurchaseCheckoutRecord } from "@/lib/data/wallets";
 
 export async function completeCheckoutPayment(input: {
   sessionId: string;
@@ -57,6 +57,24 @@ export async function completeCheckoutPayment(input: {
   }
 
   const processed = await processCoinPurchaseCheckoutRecord(marked.data.id);
+  if (!processed.error && processed.data && !processed.data.alreadyProcessed) {
+    const { awardTicketsFromCoinTopup } = await import(
+      "@/lib/recommendations/award-from-topup"
+    );
+    await awardTicketsFromCoinTopup({
+      userId: marked.data.user_id,
+      topupOrderId: marked.data.id,
+      paidCoinAmount: marked.data.total_coin_amount
+    }).catch((error) => {
+      console.error("[recommendation-tickets] topup award failed", error);
+    });
+    const { maybeAwardDailyActivityTickets } = await import(
+      "@/lib/recommendations/award-daily-activity"
+    );
+    await maybeAwardDailyActivityTickets(marked.data.user_id).catch((error) => {
+      console.error("[recommendation-tickets] daily activity award failed", error);
+    });
+  }
   if (processed.error || !processed.data) {
     await updateCheckoutSessionStatus({
       sessionId: marked.data.id,

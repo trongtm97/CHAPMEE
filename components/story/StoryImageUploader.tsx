@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { resolveStoryCoverPreviewUrl } from "@/lib/images/resolve-story-cover-preview-url";
 import { useRouter } from "next/navigation";
 import { FocalPointPicker } from "@/components/story/FocalPointPicker";
 import { StoryImageVariantPreview } from "@/components/story/StoryImageVariantPreview";
@@ -21,7 +22,9 @@ import type { StoryImage } from "@/types/story-images";
 
 type StoryImageUploaderProps = {
   storyId: string;
+  storageKey?: string | null;
   initialPreviewUrl?: string | null;
+  currentImage?: StoryImage | null;
   disabled?: boolean;
   onUploaded?: (payload: { image: StoryImage; coverUrl: string }) => void;
 };
@@ -51,9 +54,11 @@ function loadImageFromFile(file: File) {
 }
 
 export function StoryImageUploader({
+  currentImage = null,
   disabled = false,
   initialPreviewUrl,
   onUploaded,
+  storageKey,
   storyId
 }: StoryImageUploaderProps) {
   const router = useRouter();
@@ -61,7 +66,7 @@ export function StoryImageUploader({
   const localUrlRef = useRef<string | null>(null);
 
   const [step, setStep] = useState<Step>("idle");
-  const [previewUrl, setPreviewUrl] = useState(initialPreviewUrl ?? null);
+  const [uploadedStorageKey, setUploadedStorageKey] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
   const [focal, setFocal] = useState<FocalPoint>(DEFAULT_FOCAL_POINT);
@@ -74,6 +79,22 @@ export function StoryImageUploader({
       }
     };
   }, []);
+
+  useEffect(() => {
+    setUploadedStorageKey(null);
+  }, [storyId]);
+
+  const previewUrl = useMemo(() => {
+    if (uploadedStorageKey) {
+      return resolveStoryCoverPreviewUrl(uploadedStorageKey, currentImage);
+    }
+
+    if (initialPreviewUrl) {
+      return initialPreviewUrl;
+    }
+
+    return resolveStoryCoverPreviewUrl(storageKey, currentImage);
+  }, [currentImage, initialPreviewUrl, storageKey, uploadedStorageKey]);
 
   function revokeLocalPreview() {
     if (localUrlRef.current) {
@@ -176,8 +197,13 @@ export function StoryImageUploader({
         return;
       }
 
-      setPreviewUrl(payload.coverUrl);
-      onUploaded?.({ coverUrl: payload.coverUrl, image: payload.image });
+      const nextPreview =
+        payload.image.portraitUrl ??
+        payload.image.originalUrl ??
+        payload.coverUrl ??
+        "";
+      setUploadedStorageKey(nextPreview);
+      onUploaded?.({ coverUrl: nextPreview, image: payload.image });
       resetAdjustment();
       setStep("idle");
       router.refresh();

@@ -1,8 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 /** story_id → main_genre taxonomy term id */
 export async function loadStoryMainGenreTermIndex(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyIds: string[]
 ): Promise<Map<string, string>> {
   const index = new Map<string, string>();
@@ -11,7 +11,7 @@ export async function loadStoryMainGenreTermIndex(
   const chunkSize = 400;
   for (let i = 0; i < storyIds.length; i += chunkSize) {
     const chunk = storyIds.slice(i, i + chunkSize);
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("story_taxonomy_terms")
       .select("story_id, term_id")
       .in("story_id", chunk)

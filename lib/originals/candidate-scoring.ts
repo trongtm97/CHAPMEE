@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 function num(value: unknown) {
   const parsed = typeof value === "number" ? value : Number(value);
@@ -6,24 +6,24 @@ function num(value: unknown) {
 }
 
 export async function getOriginalsCandidateRecommendations(limit = 20) {
-  const supabase = await createClient();
+  const db = await createClient();
   const [storiesRes, eventsRes, tipsRes, riskRes] = await Promise.all([
-    supabase
+    db
       .from("stories")
       .select("id, title, slug, creator_profiles(user_id), status")
       .in("status", ["approved", "published"])
       .limit(500),
-    supabase
+    db
       .from("analytics_events")
       .select("event_name, target_id")
       .in("event_name", ["open_story", "share_clicked", "comment_created", "complete_chap"])
       .limit(10000),
-    supabase
+    db
       .from("support_tips")
       .select("story_id, coin_amount, status")
       .eq("status", "completed")
       .limit(10000),
-    supabase
+    db
       .from("risk_events")
       .select("creator_user_id, severity, status")
       .eq("status", "open")

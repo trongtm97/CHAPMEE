@@ -6,7 +6,7 @@ import {
 } from "@/lib/admin/content-quality-tabs";
 import { getQualityConfigForAdmin } from "@/lib/admin/update-quality-config";
 import { resolveAdminCreatorName } from "@/lib/admin/creator-display";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { validateStoryStructureConsistency } from "@/lib/publish/validate-story-for-publish";
 import { mapStoryStructureFromRow, normalizeStoryStructureType } from "@/lib/stories/story-structure";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
@@ -71,22 +71,22 @@ export async function getContentQualityPageData(
   };
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const config = await getQualityConfigForAdmin();
     const maxAttempts = config.maxLowQualityAttempts ?? 3;
 
-    const { data: userData } = await supabase.auth.getUser();
+    const { data: userData } = await db.auth.getUser();
     let canModerate = false;
     let canRefund = false;
     let canManageMonetization = false;
     if (userData.user?.id) {
       const uid = userData.user.id;
       const [{ data: modPerm }, { data: refundPerm }] = await Promise.all([
-        supabase.rpc("user_has_permission", {
+        db.rpc("user_has_permission", {
           input_user_id: uid,
           permission_code: "moderation.action.create"
         }),
-        supabase.rpc("user_has_permission", {
+        db.rpc("user_has_permission", {
           input_user_id: uid,
           permission_code: "finance.refund.create"
         })
@@ -96,7 +96,7 @@ export async function getContentQualityPageData(
       canManageMonetization = canModerate || canRefund;
     }
 
-    const { data: stories, error } = await supabase
+    const { data: stories, error } = await db
       .from("stories")
       .select(
         `
@@ -128,17 +128,17 @@ export async function getContentQualityPageData(
     }
 
     const storyIds = (stories ?? []).map((s) => s.id as string);
-    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, storyIds);
 
     const [{ data: appeals }, { data: latestReviews }] = await Promise.all([
       storyIds.length
-        ? supabase
+        ? db
             .from("content_quality_appeals")
             .select("story_id, status")
             .in("story_id", storyIds)
         : Promise.resolve({ data: [] }),
       storyIds.length
-        ? supabase
+        ? db
             .from("content_quality_reviews")
             .select("story_id, reason_codes, created_at")
             .in("story_id", storyIds)
@@ -160,7 +160,7 @@ export async function getContentQualityPageData(
 
     const episodeCountByStory = new Map<string, number>();
     if (storyIds.length > 0) {
-      const { data: episodeRows } = await supabase
+      const { data: episodeRows } = await db
         .from("episodes")
         .select("story_id")
         .in("story_id", storyIds)
@@ -249,7 +249,7 @@ export async function getContentQualityPageData(
     const summary = buildQualitySummary(allItems);
     const todayStart = startOfTodayIso();
 
-    const { data: auditToday } = await supabase
+    const { data: auditToday } = await db
       .from("admin_audit_logs")
       .select("id")
       .gte("created_at", todayStart)
@@ -257,7 +257,7 @@ export async function getContentQualityPageData(
 
     summary.processedToday = auditToday?.length ?? 0;
 
-    const { data: recentAudit } = await supabase
+    const { data: recentAudit } = await db
       .from("admin_audit_logs")
       .select("id, action, target_id, metadata, created_at, actor_id")
       .in("action", QUALITY_AUDIT_ACTIONS)
@@ -269,7 +269,7 @@ export async function getContentQualityPageData(
     ];
     const actorNames = new Map<string, string>();
     if (actorIds.length) {
-      const { data: actors } = await supabase
+      const { data: actors } = await db
         .from("profiles")
         .select("id, display_name, username")
         .in("id", actorIds);

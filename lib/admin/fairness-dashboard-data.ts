@@ -6,7 +6,7 @@ import {
   windowStartIso
 } from "@/lib/fairness/exposure-share";
 import { loadFairnessAlertThresholds } from "@/lib/fairness/thresholds";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import type { FairnessWarningLevel } from "@/types/fairness";
 
 export type FairnessSurfaceSnapshot = {
@@ -50,26 +50,35 @@ export type FairnessDashboardData = {
     newScore: number;
     createdAt: string;
   }>;
+  recentFeedMixLogs: Array<{
+    requestId: string;
+    surface: string;
+    algorithmVersion: string;
+    originalCount: number;
+    translationCount: number;
+    notes: string[];
+    createdAt: string;
+  }>;
 };
 
 const SURFACES = ["reels", "discover", "search", "ranking"] as const;
 
 async function countNewEntitiesToday(
-  supabase: ReturnType<typeof createAdminClient>,
+  db: ReturnType<typeof createAdminClient>,
   field: "author_user_id" | "story_id"
 ) {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const weekStart = windowStartIso("7d");
 
-  const { data: todayRows } = await supabase
+  const { data: todayRows } = await db
     .from("exposure_events")
     .select(field)
     .gte("created_at", todayStart.toISOString())
     .not(field, "is", null)
     .limit(20000);
 
-  const { data: weekRows } = await supabase
+  const { data: weekRows } = await db
     .from("exposure_events")
     .select(field)
     .gte("created_at", weekStart)
@@ -93,10 +102,10 @@ export async function loadFairnessDashboardData(): Promise<FairnessDashboardData
   const snapshotDate = new Date().toISOString().slice(0, 10);
 
   try {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
     const thresholds = await loadFairnessAlertThresholds();
 
-    const { data: storedSnapshots } = await supabase
+    const { data: storedSnapshots } = await db
       .from("exposure_distribution_snapshots")
       .select("*")
       .eq("snapshot_date", snapshotDate)
@@ -124,7 +133,7 @@ export async function loadFairnessDashboardData(): Promise<FairnessDashboardData
         continue;
       }
 
-      const live = await calculateExposureShare(supabase, surface, "7d");
+      const live = await calculateExposureShare(db, surface, "7d");
       const { resolveWarningLevel } = await import("@/lib/fairness/thresholds");
       surfaces.push({
         surface,
@@ -142,7 +151,7 @@ export async function loadFairnessDashboardData(): Promise<FairnessDashboardData
       });
     }
 
-    const reelsShare = await calculateExposureShare(supabase, "reels", "7d");
+    const reelsShare = await calculateExposureShare(db, "reels", "7d");
     const authorTops = topEntitiesFromMap(
       reelsShare.authorImpressions,
       reelsShare.totalImpressions,
@@ -159,13 +168,13 @@ export async function loadFairnessDashboardData(): Promise<FairnessDashboardData
 
     const [{ data: authorProfiles }, { data: stories }] = await Promise.all([
       authorIds.length > 0
-        ? supabase
+        ? db
             .from("profiles")
             .select("id, username, display_name")
             .in("id", authorIds)
         : Promise.resolve({ data: [] }),
       storyIds.length > 0
-        ? supabase.from("stories").select("id, title, slug").in("id", storyIds)
+        ? db.from("stories").select("id, title, slug").in("id", storyIds)
         : Promise.resolve({ data: [] })
     ]);
 
@@ -176,9 +185,9 @@ export async function loadFairnessDashboardData(): Promise<FairnessDashboardData
 
     const [newAuthorsTestedToday, newStoriesTestedToday, adjustmentsRes] =
       await Promise.all([
-        countNewEntitiesToday(supabase, "author_user_id"),
-        countNewEntitiesToday(supabase, "story_id"),
-        supabase
+        countNewEntitiesToday(db, "author_user_id"),
+        countNewEntitiesToday(db, "story_id"),
+        db
           .from("fairness_adjustment_logs")
           .select(
             "id, adjustment_type, surface, item_type, reason, old_score, new_score, created_at"
@@ -186,6 +195,11 @@ export async function loadFairnessDashboardData(): Promise<FairnessDashboardData
           .order("created_at", { ascending: false })
           .limit(20)
       ]);
+    const { data: feedMixRows } = await db
+      .from("algorithm_feed_requests")
+      .select("request_id, surface, algorithm_version, pool_counts, selected_items, created_at")
+      .order("created_at", { ascending: false })
+      .limit(30);
 
     return {
       error: null,
@@ -222,7 +236,45 @@ export async function loadFairnessDashboardData(): Promise<FairnessDashboardData
         oldScore: Number(row.old_score),
         newScore: Number(row.new_score),
         createdAt: row.created_at as string
-      }))
+      })),
+      recentFeedMixLogs: (feedMixRows ?? []).map((row) => {
+        const selectedItems: Array<{ content_origin?: string; selection_reason?: string | null }> =
+          Array.isArray(row.selected_items)
+          ? (row.selected_items as Array<{ content_origin?: string; selection_reason?: string | null }>)
+          : [];
+        const originalCount = selectedItems.filter(
+          (item) => item.content_origin !== "translation"
+        ).length;
+        const translationCount = selectedItems.filter(
+          (item) => item.content_origin === "translation"
+        ).length;
+        const poolCounts = row.pool_counts as Record<string, number> | null;
+        const reasonCounts = new Map<string, number>();
+        for (const item of selectedItems) {
+          const reason = item.selection_reason;
+          if (!reason) continue;
+          reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
+        }
+        const topReasons = [...reasonCounts.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([reason, count]) => `${reason} (${count})`);
+        const notes = [
+          ...(poolCounts?.origin_mix_notes
+            ? [`origin_mix_notes=${poolCounts.origin_mix_notes}`]
+            : []),
+          ...topReasons
+        ];
+        return {
+          requestId: String(row.request_id),
+          surface: String(row.surface),
+          algorithmVersion: String(row.algorithm_version),
+          originalCount,
+          translationCount,
+          notes,
+          createdAt: String(row.created_at)
+        };
+      })
     };
   } catch (error) {
     return {
@@ -242,7 +294,8 @@ export async function loadFairnessDashboardData(): Promise<FairnessDashboardData
       topStories: [],
       newAuthorsTestedToday: 0,
       newStoriesTestedToday: 0,
-      recentAdjustments: []
+      recentAdjustments: [],
+      recentFeedMixLogs: []
     };
   }
 }

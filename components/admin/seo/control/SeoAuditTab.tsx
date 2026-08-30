@@ -154,7 +154,7 @@ export function SeoAuditTab({ findings, capabilities, onRefresh, onToast }: Prop
                     {item.severity === "critical" ? "Sửa rule hoặc tắt index ngay." : "Xem tab Quy tắc SEO / Mẫu metadata."}
                   </td>
                   <td className="px-3 py-3">
-                    <Link className="text-xs font-semibold text-cyan-300 hover:text-cyan-200" href="/admin/seo?tab=rules">
+                    <Link className="text-xs font-semibold text-cyan-300 hover:text-cyan-200" href="/admin/seo/control?tab=rules">
                       Mở rule
                     </Link>
                   </td>

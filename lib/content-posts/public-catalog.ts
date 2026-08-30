@@ -1,5 +1,7 @@
 import type { ContentPostType } from "@/types/platform-content";
 
+export const PUBLIC_CONTENT_HUB_PAGE_SIZE = 18;
+
 export type PublicPostSort = "published" | "views" | "updated";
 
 export type PublicPostCategoryFilter =
@@ -55,6 +57,52 @@ export function estimateReadingMinutes(content: string): number {
   const words = content.trim().split(/\s+/).filter(Boolean).length;
   return Math.max(1, Math.ceil(words / 200));
 }
+
+const PUBLIC_POST_TYPE_LABELS: Record<ContentPostType, string> = {
+  article: "Bài viết",
+  guide: "Hướng dẫn",
+  seo: "SEO",
+  editorial: "Góc tác giả",
+  policy: "Chính sách",
+  news: "Tin nền tảng"
+};
+
+export function getPublicPostTypeLabel(type: ContentPostType | string): string {
+  return PUBLIC_POST_TYPE_LABELS[type as ContentPostType] ?? "Bài viết";
+}
+
+export const CONTENT_HUB_TOPIC_LINKS: Array<{
+  href: string;
+  label: string;
+  description: string;
+}> = [
+  {
+    href: "/bai-viet?category=guide",
+    label: "Hướng dẫn đọc truyện",
+    description: "Bắt đầu với ChapMee"
+  },
+  {
+    href: "/bai-viet?category=editorial",
+    label: "Góc tác giả",
+    description: "Studio & xuất bản"
+  },
+  {
+    href: "/bai-viet?category=reader",
+    label: "Góc người đọc",
+    description: "Thư viện & mẹo đọc"
+  },
+  {
+    href: "/bai-viet?category=update",
+    label: "Cập nhật nền tảng",
+    description: "Tin mới từ ChapMee"
+  }
+];
+
+export const CONTENT_HUB_HERO_CTAS: Array<{ href: string; label: string }> = [
+  { href: "/bai-viet?category=guide", label: "Hướng dẫn đọc truyện" },
+  { href: "/bai-viet?category=editorial", label: "Dành cho tác giả" },
+  { href: "/bai-viet?category=update", label: "Cập nhật ChapMee" }
+];
 
 export function buildPublicPostListQuery(input: {
   page?: number;

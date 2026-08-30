@@ -1,8 +1,8 @@
 import type { CurrentUserProfile } from "@/lib/auth/getCurrentUser";
 import { getMonetizationConfig, isMoneyModuleEnabledForUsers } from "@/lib/monetization/config";
 import { getOrCreateUserWallet } from "@/lib/wallets/user-wallet";
-import { getTransactionsForUser } from "@/lib/supabase/transactions";
-import { listChapterUnlocksByUser } from "@/lib/supabase/chapter-unlocks";
+import { getTransactionsForUser } from "@/lib/data/transactions";
+import { listChapterUnlocksByUser } from "@/lib/data/chapter-unlocks";
 import { getUserVipStatus, isVipModuleEnabled } from "@/lib/monetization/vip";
 import { getRewardedAdsAvailability } from "@/lib/monetization/rewarded-ads";
 import { getPurchaseUiPolicyForRequest } from "@/lib/payments/purchase-mode";

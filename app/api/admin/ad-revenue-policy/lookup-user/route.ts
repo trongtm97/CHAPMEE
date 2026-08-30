@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { requireFinanceSettingsView } from "@/lib/auth/require-permission";
 
 export async function GET(request: Request) {
@@ -13,8 +13,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ users: [] });
   }
 
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const db = createAdminClient();
+  const { data, error } = await db
     .from("profiles")
     .select("id, username, display_name")
     .or(`username.ilike.%${q}%,display_name.ilike.%${q}%,id.eq.${q}`)

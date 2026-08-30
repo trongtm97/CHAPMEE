@@ -5,6 +5,7 @@ import {
   type KhamPhaHubSectionWithStats
 } from "@/lib/discovery/kham-pha-hub";
 import type { KhamPhaHubSectionStats } from "@/lib/discovery/kham-pha-hub-stats";
+import { UTILITY_ITEMS } from "@/lib/utilities/utilities-hub";
 
 function formatHubStats(stats: KhamPhaHubSectionStats | undefined) {
   if (!stats || stats.termCount <= 0) {
@@ -71,6 +72,21 @@ export function KhamPhaHubPage({ sectionStats }: KhamPhaHubPageProps) {
           {KHAM_PHA_QUICK_LINKS.map((item) => (
             <HubCard item={item} key={item.href} />
           ))}
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-zinc-400">Tiện ích</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {UTILITY_ITEMS.map((item) => (
+            <HubCard item={item} key={item.href} />
+          ))}
+          <Link
+            className="chap-card flex items-center justify-center p-4 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300/30"
+            href="/tien-ich"
+          >
+            Xem tất cả tiện ích →
+          </Link>
         </div>
       </div>
 

@@ -7,6 +7,8 @@ export type RankingItemType = (typeof RANKING_ITEM_TYPES)[number];
 export const RANKING_BOARD_TYPES = [
   "top_stories",
   "new_stories",
+  "original_stories",
+  "translation_stories",
   "new_authors",
   "genre_stories",
   "completed_stories",
@@ -14,7 +16,8 @@ export const RANKING_BOARD_TYPES = [
   "reels_read_through",
   "most_saved",
   "chapter_next_rate",
-  "long_tail_quality"
+  "long_tail_quality",
+  "boosted_stories"
 ] as const;
 
 export type RankingBoardType = (typeof RANKING_BOARD_TYPES)[number];
@@ -56,7 +59,8 @@ export type RankingReasonBadge =
   | "most_saved"
   | "reels_pull"
   | "long_tail"
-  | "completed";
+  | "completed"
+  | "boosted";
 
 export type RankingBoardItem = {
   rank: number;
@@ -77,6 +81,10 @@ export type RankingBoardItem = {
   scoreBreakdown: RankingScoreBreakdown;
   reasonBadge: RankingReasonBadge | null;
   statsLine: string | null;
+  hasPublishedAudio?: boolean;
+  hasContinuousPlayback?: boolean;
+  /** Auth user id of ranked author / story owner — for share owner tone. */
+  ownerUserId?: string | null;
 };
 
 export type RankingBoardResult = {
@@ -89,6 +97,10 @@ export type RankingBoardResult = {
   pageSize: number;
   totalPages: number;
   snapshotAt: string | null;
+  /** Shown when live fallback widens period or metrics are still accumulating. */
+  fallbackNote?: string | null;
+  /** Shown when ranking uses live/fallback data instead of full metrics snapshots. */
+  metricsNote?: string | null;
   error: string | null;
 };
 
@@ -97,6 +109,8 @@ export type RankingUiTabId =
   | "week"
   | "month"
   | "new_stories"
+  | "original_stories"
+  | "translation_stories"
   | "new_authors"
   | "reels"
   | "genre"
@@ -104,18 +118,24 @@ export type RankingUiTabId =
   | "completed"
   | "most_saved"
   | "chapter_next"
-  | "long_tail";
+  | "long_tail"
+  | "boosted";
 
 export type RankingUiTab = {
   id: RankingUiTabId;
   slug: string;
   label: string;
+  /** Mô tả ngắn cho độc giả (picker, UI). */
+  tagline: string;
+  /** SEO / Open Graph — cùng giọng độc giả. */
   description: string;
   boardType: RankingBoardType;
   timeWindow: RankingTimeWindow;
   showGenreFilter?: boolean;
   emptyTitle?: string;
   emptyDescription?: string;
+  /** Tab visible in UI but snapshot pipeline not ready — show empty state, no fetch. */
+  comingSoon?: boolean;
 };
 
 export const RANKING_UI_TABS: RankingUiTab[] = [
@@ -123,7 +143,8 @@ export const RANKING_UI_TABS: RankingUiTab[] = [
     id: "today",
     slug: "hom-nay",
     label: "Hôm nay",
-    description: "Truyện nổi bật trong 24 giờ qua — dựa trên chất lượng đọc, không chỉ lượt xem.",
+    tagline: "Truyện hot nhất trong 24 giờ",
+    description: "Xem truyện được đọc và yêu thích nhiều nhất hôm nay trên ChapMee.",
     boardType: "top_stories",
     timeWindow: "day"
   },
@@ -131,7 +152,8 @@ export const RANKING_UI_TABS: RankingUiTab[] = [
     id: "week",
     slug: "tuan",
     label: "Tuần",
-    description: "Top truyện tuần này với công thức cân bằng giữa giữ chân, lưu và đọc tiếp.",
+    tagline: "Top truyện tuần này",
+    description: "Bảng xếp hạng truyện nổi bật nhất trong tuần.",
     boardType: "top_stories",
     timeWindow: "week"
   },
@@ -139,7 +161,8 @@ export const RANKING_UI_TABS: RankingUiTab[] = [
     id: "month",
     slug: "thang",
     label: "Tháng",
-    description: "Truyện dẫn đầu trong 30 ngày qua.",
+    tagline: "Dẫn đầu cả tháng",
+    description: "Những truyện dẫn đầu trong 30 ngày qua.",
     boardType: "top_stories",
     timeWindow: "month"
   },
@@ -147,23 +170,44 @@ export const RANKING_UI_TABS: RankingUiTab[] = [
     id: "new_stories",
     slug: "truyen-moi",
     label: "Truyện mới",
-    description: "Truyện mới xuất bản gần đây đang được đọc tích cực.",
+    tagline: "Tác phẩm mới đang được săn đón",
+    description: "Truyện mới ra mắt và đang được độc giả đón đọc.",
     boardType: "new_stories",
+    timeWindow: "week"
+  },
+  {
+    id: "original_stories",
+    slug: "truyen-sang-tac",
+    label: "Truyện sáng tác",
+    tagline: "Tác phẩm gốc được yêu thích",
+    description: "Bảng xếp hạng truyện sáng tác trên ChapMee.",
+    boardType: "original_stories",
+    timeWindow: "week"
+  },
+  {
+    id: "translation_stories",
+    slug: "truyen-dich",
+    label: "Truyện dịch",
+    tagline: "Bản dịch được độc giả săn đón",
+    description: "Bảng xếp hạng truyện dịch trên ChapMee.",
+    boardType: "translation_stories",
     timeWindow: "week"
   },
   {
     id: "new_authors",
     slug: "tac-gia-moi",
     label: "Tác giả mới",
-    description: "Tác giả mới đang tạo dấu ấn với độc giả.",
+    tagline: "Tài năng mới nổi bật",
+    description: "Tác giả mới được cộng đồng quan tâm.",
     boardType: "new_authors",
     timeWindow: "week"
   },
   {
     id: "reels",
     slug: "reels-keo-doc",
-    label: "Reels kéo đọc",
-    description: "Reels chuyển đổi tốt nhất sang đọc truyện.",
+    label: "Reels",
+    tagline: "Clip dẫn bạn vào truyện hay",
+    description: "Reels giúp độc giả khám phá và đọc tiếp truyện.",
     boardType: "reels_read_through",
     timeWindow: "week"
   },
@@ -171,7 +215,8 @@ export const RANKING_UI_TABS: RankingUiTab[] = [
     id: "genre",
     slug: "theo-the-loai",
     label: "Theo thể loại",
-    description: "Xếp hạng theo thể loại bạn chọn.",
+    tagline: "Top theo thể loại bạn chọn",
+    description: "Xếp hạng truyện theo từng thể loại.",
     boardType: "genre_stories",
     timeWindow: "week",
     showGenreFilter: true
@@ -180,7 +225,8 @@ export const RANKING_UI_TABS: RankingUiTab[] = [
     id: "rising",
     slug: "dang-len",
     label: "Đang lên",
-    description: "Truyện tăng trưởng nhanh so với tuần trước.",
+    tagline: "Truyện tăng tốc mạnh",
+    description: "Truyện đang leo hạng nhanh trên ChapMee.",
     boardType: "rising_stories",
     timeWindow: "week"
   },
@@ -188,7 +234,8 @@ export const RANKING_UI_TABS: RankingUiTab[] = [
     id: "completed",
     slug: "hoan-thanh",
     label: "Hoàn thành",
-    description: "Truyện đã hoàn thành được yêu thích nhất.",
+    tagline: "Trọn bộ được yêu thích",
+    description: "Truyện đã hoàn thành được độc giả đánh giá cao.",
     boardType: "completed_stories",
     timeWindow: "week"
   },
@@ -196,6 +243,7 @@ export const RANKING_UI_TABS: RankingUiTab[] = [
     id: "most_saved",
     slug: "luu-nhieu",
     label: "Lưu nhiều",
+    tagline: "Được thêm vào tủ sách nhiều nhất",
     description: "Truyện được lưu vào thư viện nhiều nhất.",
     boardType: "most_saved",
     timeWindow: "week"
@@ -204,7 +252,8 @@ export const RANKING_UI_TABS: RankingUiTab[] = [
     id: "chapter_next",
     slug: "doc-tiep-cao",
     label: "Đọc tiếp cao",
-    description: "Chương có tỷ lệ đọc chương tiếp cao nhất.",
+    tagline: "Khó dừng ở một chương",
+    description: "Chương khiến độc giả muốn đọc tiếp ngay.",
     boardType: "chapter_next_rate",
     timeWindow: "week"
   },
@@ -212,9 +261,23 @@ export const RANKING_UI_TABS: RankingUiTab[] = [
     id: "long_tail",
     slug: "giu-chan-tot",
     label: "Giữ chân tốt",
-    description: "Truyện ít hiển thị nhưng giữ chân độc giả rất tốt.",
+    tagline: "Đọc lâu, quay lại nhiều",
+    description: "Truyện giữ chân độc giả bền bỉ theo thời gian.",
     boardType: "long_tail_quality",
     timeWindow: "week"
+  },
+  {
+    id: "boosted",
+    slug: "duoc-de-cu",
+    label: "Được đề cử",
+    tagline: "Những truyện được cộng đồng ChapMee đề cử nhiều nhất.",
+    description:
+      "Khám phá những truyện được cộng đồng ChapMee đề cử nhiều nhất, cập nhật theo tuần, tháng và toàn thời gian.",
+    boardType: "boosted_stories",
+    timeWindow: "week",
+    emptyTitle: "Chưa có truyện nào được đề cử",
+    emptyDescription:
+      "Khi người đọc bắt đầu đề cử truyện yêu thích, bảng xếp hạng sẽ được cập nhật tại đây."
   }
 ];
 

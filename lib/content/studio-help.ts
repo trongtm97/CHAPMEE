@@ -501,8 +501,12 @@ export const STUDIO_HELP_GUIDE_MODULES: StudioHelpGuideModule[] = [
         title: "Không đạo nhái"
       },
       {
-        body: "Không nội dung vi phạm pháp luật Việt Nam hoặc quy định nền tảng.",
+        body: "Không đăng tác phẩm đồi trụy, vi phạm pháp luật Việt Nam hoặc quy định nền tảng.",
         title: "Không vi phạm pháp luật"
+      },
+      {
+        body: "Tác phẩm có tỉ lệ đạo văn trên 20% không được xem là tự sáng tác. Truyện dịch nên dịch đúng tinh thần, trau chuốt câu văn, phù hợp người Việt và không copy 100%.",
+        title: "Đạo văn / bản dịch"
       },
       {
         body: "Không quấy rối, đe dọa, phân biệt hay thù ghét cá nhân/nhóm.",

@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import { sinceForRange } from "@/lib/admin/messaging-date-range";
 import type { MessageSafetyDecisionItem } from "@/types/messaging-safety";
 import type { MessagingDateRange } from "@/types/admin-messaging";
@@ -11,9 +11,9 @@ export async function getMessageSafetyDecisions(input: {
   decision?: string;
   limit?: number;
 }): Promise<MessageSafetyDecisionItem[]> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  let query = supabase
+  let query = db
     .from("message_safety_decisions")
     .select(
       `id, message_id, conversation_id, sender_id, recipient_id, decision, risk_level,

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export async function unblockUser(
   blockerId: string,
@@ -11,9 +11,9 @@ export async function unblockUser(
     return { ok: false, error: "Thao tác không hợp lệ." };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { error } = await supabase
+  const { error } = await db
     .from("message_blocks")
     .delete()
     .eq("blocker_id", blockerId)

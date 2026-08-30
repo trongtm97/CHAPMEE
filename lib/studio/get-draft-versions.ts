@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { StudioDraftVersionRecord } from "@/types/drafts";
 
 type VersionRow = {
@@ -17,9 +17,9 @@ export async function getStudioDraftVersions(
   draftId: string
 ): Promise<{ versions: StudioDraftVersionRecord[]; error: string | null }> {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
 
-    const { data: draft, error: draftError } = await supabase
+    const { data: draft, error: draftError } = await db
       .from("creator_drafts")
       .select("id")
       .eq("id", draftId)
@@ -34,7 +34,7 @@ export async function getStudioDraftVersions(
       return { error: "Không tìm thấy nháp.", versions: [] };
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("creator_draft_versions")
       .select(
         "id, draft_id, version_number, title, content, plain_text, word_count, created_at"

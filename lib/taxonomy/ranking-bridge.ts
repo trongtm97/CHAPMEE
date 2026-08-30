@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type TaxonomyMainGenreBoardKey = {
   termId: string;
@@ -7,9 +7,9 @@ export type TaxonomyMainGenreBoardKey = {
 };
 
 export async function listTaxonomyMainGenresForRanking(
-  supabase: SupabaseClient
+  db: DatabaseClient
 ): Promise<TaxonomyMainGenreBoardKey[]> {
-  const { data: terms, error } = await supabase
+  const { data: terms, error } = await db
     .from("taxonomy_terms")
     .select("id, slug, name")
     .eq("type", "main_genre")
@@ -31,12 +31,12 @@ export async function listTaxonomyMainGenresForRanking(
 }
 
 export async function resolveMainGenreTermBySlug(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   genreSlug: string | null | undefined
 ) {
   if (!genreSlug) return null;
 
-  const { data } = await supabase
+  const { data } = await db
     .from("taxonomy_terms")
     .select("id, slug, name")
     .eq("type", "main_genre")

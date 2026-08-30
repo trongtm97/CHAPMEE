@@ -10,11 +10,11 @@ import {
   requireCreatorFeeUpdateAccess
 } from "@/lib/auth/creator-fee-guards";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 async function loadPolicy(policyId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("creator_fee_policies")
     .select("*")
     .eq("id", policyId)
@@ -36,8 +36,8 @@ export async function pauseCreatorFeePolicyAction(policyId: string, reason: stri
   const before = await loadPolicy(policyId);
   if (!before) return { ok: false, error: "Không tìm thấy chính sách." };
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("creator_fee_policies")
     .update({
       status: "paused",
@@ -80,11 +80,11 @@ export async function resumeCreatorFeePolicyAction(policyId: string, reason: str
   const before = await loadPolicy(policyId);
   if (!before) return { ok: false, error: "Không tìm thấy chính sách." };
 
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date();
   const status = new Date(before.starts_at).getTime() > now.getTime() ? "scheduled" : "active";
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("creator_fee_policies")
     .update({
       status,
@@ -131,8 +131,8 @@ export async function revokeCreatorFeePolicyAction(policyId: string, reason: str
   if (!before) return { ok: false, error: "Không tìm thấy chính sách." };
 
   const now = new Date().toISOString();
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("creator_fee_policies")
     .update({
       status: "revoked",
@@ -183,8 +183,8 @@ export async function duplicateCreatorFeePolicyAction(policyId: string) {
   const source = await loadPolicy(policyId);
   if (!source) return { ok: false, error: "Không tìm thấy chính sách nguồn." };
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("creator_fee_policies")
     .insert({
       creator_id: source.creator_id,

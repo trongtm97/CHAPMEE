@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { redirectToCanonicalIfNeeded, tryRedirectFromLookupTable } from "@/lib/urls/canonical";
 import { getReelUrl } from "@/lib/seo/canonical";
 import { parsePublicSegment } from "@/lib/urls/parse";
@@ -11,10 +11,10 @@ type ReelRouteProps = {
 
 async function resolveReel(segment: string) {
   const parsed = parsePublicSegment(segment, "reel");
-  const supabase = await createClient();
+  const db = await createClient();
 
   if (parsed) {
-    const { data } = await supabase
+    const { data } = await db
       .from("reels_items")
       .select("id, slug, public_code, status")
       .eq("public_code", parsed.publicCode)
@@ -31,7 +31,7 @@ async function resolveReel(segment: string) {
     };
   }
 
-  const { data } = await supabase
+  const { data } = await db
     .from("reels_items")
     .select("id, slug, public_code, status")
     .eq("slug", segment)

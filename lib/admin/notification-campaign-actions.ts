@@ -335,9 +335,9 @@ export async function sendAdminNotificationCampaignAction(input: {
     return { ok: false, message: delivery.error };
   }
 
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  await appendNotificationCampaignAuditLog(supabase, {
+  const { createClient } = await import("@/lib/data/server");
+  const db = await createClient();
+  await appendNotificationCampaignAuditLog(db, {
     campaignId: input.campaignId,
     actorId: staff.userId,
     action: "send_now",
@@ -365,10 +365,10 @@ export async function searchUsersForNotificationCampaignAction(
     return { users: [], error: null };
   }
 
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
+  const { createClient } = await import("@/lib/data/server");
+  const db = await createClient();
 
-  let builder = supabase
+  let builder = db
     .from("profiles")
     .select("id, username, display_name, avatar_url")
     .order("created_at", { ascending: false })
@@ -407,7 +407,7 @@ export async function searchUsersForNotificationCampaignAction(
 
 async function resolveUserIdByEmail(email: string) {
   try {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const { createAdminClient } = await import("@/lib/data/admin");
     const admin = createAdminClient();
     const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
     for (const user of data.users ?? []) {
@@ -458,9 +458,9 @@ export async function testSendNotificationCampaignAction(input: {
     return { ok: false, message: delivery.error };
   }
 
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  await appendNotificationCampaignAuditLog(supabase, {
+  const { createClient } = await import("@/lib/data/server");
+  const db = await createClient();
+  await appendNotificationCampaignAuditLog(db, {
     campaignId: input.campaignId,
     actorId: staff.userId,
     action: "test_send",
@@ -530,9 +530,9 @@ export async function deleteNotificationCampaignAction(
     return { ok: false, message: "Chỉ xóa được campaign ở trạng thái nháp." };
   }
 
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  await appendNotificationCampaignAuditLog(supabase, {
+  const { createClient } = await import("@/lib/data/server");
+  const db = await createClient();
+  await appendNotificationCampaignAuditLog(db, {
     campaignId: id,
     actorId: staff.userId,
     action: "delete"
@@ -596,10 +596,10 @@ export async function getNotificationCampaignAuditLogsAction(campaignId: string)
     return { items: [], error: staff.error };
   }
 
-  const { createClient } = await import("@/lib/supabase/server");
+  const { createClient } = await import("@/lib/data/server");
   const { listNotificationCampaignAuditLogs } = await import(
     "@/lib/notification-campaigns/campaign-audit"
   );
-  const supabase = await createClient();
-  return listNotificationCampaignAuditLogs(supabase, campaignId);
+  const db = await createClient();
+  return listNotificationCampaignAuditLogs(db, campaignId);
 }

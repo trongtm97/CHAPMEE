@@ -1,5 +1,5 @@
 import type { StoryCatalogSort } from "@/types/story";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type CatalogMetricSort =
   | "saved"
@@ -29,15 +29,15 @@ function metricRpcName(sort: CatalogMetricSort): string {
 }
 
 export async function isStoryCatalogMetricsViewAvailable(
-  supabase: SupabaseClient
+  db: DatabaseClient
 ): Promise<boolean> {
-  const { error } = await supabase.from("story_catalog_metrics").select("story_id").limit(1);
+  const { error } = await db.from("story_catalog_metrics").select("story_id").limit(1);
   if (!error) return true;
   return !error.message.includes("story_catalog_metrics");
 }
 
 export async function getCatalogStoryIdsByMetricView(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   sort: CatalogMetricSort,
   options: {
     storyIds?: string[] | null;
@@ -50,7 +50,7 @@ export async function getCatalogStoryIdsByMetricView(
     sort === "price_asc" || sort === "chapter_price_asc" ? "asc" : "desc";
   const offset = (Math.max(options.page, 1) - 1) * options.pageSize;
 
-  const { data, error } = await supabase.rpc("get_catalog_story_ids_by_metric", {
+  const { data, error } = await db.rpc("get_catalog_story_ids_by_metric", {
     p_metric: metric,
     p_story_ids:
       options.storyIds && options.storyIds.length > 0 ? options.storyIds : null,
@@ -72,7 +72,7 @@ export async function getCatalogStoryIdsByMetricView(
 
   const rows = (data ?? []) as Array<{ story_id: string; total_count: number | string }>;
   if (rows.length === 0) {
-    let countQuery = supabase
+    let countQuery = db
       .from("story_catalog_metrics")
       .select("story_id", { count: "exact", head: true });
 
@@ -99,9 +99,9 @@ export async function getCatalogStoryIdsByMetricView(
 }
 
 export async function refreshStoryCatalogMetrics(
-  supabase: SupabaseClient
+  db: DatabaseClient
 ): Promise<{ ok: boolean; error: string | null }> {
-  const { error } = await supabase.rpc("refresh_story_catalog_metrics");
+  const { error } = await db.rpc("refresh_story_catalog_metrics");
   if (error) {
     return { ok: false, error: error.message };
   }

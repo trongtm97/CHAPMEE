@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/client";
 import type { AdRenderEventType } from "@/types/ads";
 
 export type LogAdEventInput = {
@@ -36,18 +35,22 @@ function getSessionId(): string {
  */
 export async function logAdEvent(input: LogAdEventInput): Promise<void> {
   try {
-    const supabase = createClient();
-    await supabase.from("ad_render_events").insert({
-      placement_id: input.placementId,
-      user_id: input.userId ?? null,
-      story_id: input.storyId ?? null,
-      chapter_id: input.chapterId ?? null,
-      author_id: input.authorId ?? null,
-      route: input.route ?? null,
-      device: input.device ?? null,
-      event_type: input.eventType,
-      reason: input.reason ?? null,
-      session_id: input.sessionId ?? getSessionId()
+    await fetch("/api/ads/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        placement_id: input.placementId,
+        user_id: input.userId ?? null,
+        story_id: input.storyId ?? null,
+        chapter_id: input.chapterId ?? null,
+        author_id: input.authorId ?? null,
+        route: input.route ?? null,
+        device: input.device ?? null,
+        event_type: input.eventType,
+        reason: input.reason ?? null,
+        session_id: input.sessionId ?? getSessionId()
+      }),
+      keepalive: true
     });
   } catch {
     // Swallow — ads must not break reading UX

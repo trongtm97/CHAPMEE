@@ -1,5 +1,5 @@
-import { upsertChapterMonetizationSetting } from "@/lib/supabase/chapter-monetization";
-import { createClient } from "@/lib/supabase/server";
+import { upsertChapterMonetizationSetting } from "@/lib/data/chapter-monetization";
+import { createClient } from "@/lib/data/server";
 import type { ChapterPricingSource, StoryMonetizationSettings } from "@/types/story-monetization";
 
 type EpisodeRow = {
@@ -67,9 +67,9 @@ export async function applyStoryAutoPricing(input: {
   overwriteOverrides: boolean;
   chapterIds?: string[];
 }) {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  let episodesQuery = supabase
+  let episodesQuery = db
     .from("episodes")
     .select("id, episode_number, status")
     .eq("story_id", input.storyId)
@@ -93,7 +93,7 @@ export async function applyStoryAutoPricing(input: {
   const episodeRows = episodes as EpisodeRow[];
   const episodeIds = episodeRows.map((row) => row.id);
 
-  const { data: existingSettings } = await supabase
+  const { data: existingSettings } = await db
     .from("chapter_monetization_settings")
     .select("chapter_id, monetization_override")
     .eq("story_id", input.storyId)

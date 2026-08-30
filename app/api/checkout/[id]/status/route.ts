@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
-import { getCheckoutSessionById, updateCheckoutSessionStatus } from "@/lib/supabase/checkout-sessions";
+import { getCheckoutSessionById, updateCheckoutSessionStatus } from "@/lib/data/checkout-sessions";
 
 type StatusRouteProps = {
   params: Promise<{ id: string }>;

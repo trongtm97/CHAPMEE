@@ -12,6 +12,7 @@ import {
 import {
   previewTaxonomyCatalogImportAction
 } from "@/lib/admin/taxonomy-import-export-actions";
+import { readImportTextFile } from "@/lib/encoding/read-import-text-file";
 import { TAXONOMY_CSV_IMPORT_TEMPLATE } from "@/lib/taxonomy/csv-import-template";
 import type { TaxonomyExportScope } from "@/lib/taxonomy/admin-data";
 import type { TaxonomyAdminNotify } from "@/lib/taxonomy/admin-ui";
@@ -159,16 +160,30 @@ export function TaxonomyImportModal({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                const reader = new FileReader();
-                reader.onload = () => {
-                  const text = String(reader.result ?? "");
-                  setPayload(text);
-                  if (file.name.endsWith(".json")) setFormat("json");
-                  else setFormat("csv");
-                  setPreview(null);
-                  setReport(null);
-                };
-                reader.readAsText(file, "UTF-8");
+                if (file.name.endsWith(".json")) {
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    setPayload(String(reader.result ?? ""));
+                    setFormat("json");
+                    setPreview(null);
+                    setReport(null);
+                  };
+                  reader.readAsText(file, "UTF-8");
+                } else {
+                  void readImportTextFile(file)
+                    .then((text) => {
+                      setPayload(text);
+                      setFormat("csv");
+                      setPreview(null);
+                      setReport(null);
+                    })
+                    .catch(() => {
+                      onMessage(
+                        "File CSV không phải UTF-8 hợp lệ hoặc được lưu từ Excel ở định dạng cũ. " +
+                          "Vui lòng tải template CSV UTF-8 từ hệ thống, hoặc upload file .xlsx."
+                      );
+                    });
+                }
                 e.target.value = "";
               }}
               type="file"

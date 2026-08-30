@@ -1,4 +1,4 @@
-﻿import {
+import {
   validateChapterForPublish,
   validationErrorMessage,
   validateStoryForPublish
@@ -7,10 +7,10 @@ import { validateReelsBeforePublishFromDb } from "@/lib/publish/validate-reels-b
 import { publishTargetByType } from "@/lib/studio/scheduling/publish-target";
 import { STUDIO_DEFAULT_TIMEZONE, isReelsScheduledTarget } from "@/types/scheduling";
 import type { ScheduledTargetType } from "@/types/scheduling";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type SchedulePublicationInput = {
-  supabase: SupabaseClient;
+  db: DatabaseClient;
   profileId: string;
   creatorProfileId: string;
   targetType: ScheduledTargetType;
@@ -26,12 +26,12 @@ export async function schedulePublication(
   const scheduledAtMs = new Date(input.scheduledAt).getTime();
 
   if (!Number.isFinite(scheduledAtMs) || scheduledAtMs <= Date.now()) {
-    return { error: "Thời gian lên lịch phải ở trong tương lai.", ok: false };
+    return { error: "Th?i gian lên l?ch ph?i ? trong tuong lai.", ok: false };
   }
 
   if (input.targetType === "story") {
     const validation = await validateStoryForPublish(
-      input.supabase,
+      input.db,
       input.targetId,
       input.creatorProfileId
     );
@@ -50,7 +50,7 @@ export async function schedulePublication(
     }
 
     const validation = await validateChapterForPublish(
-      input.supabase,
+      input.db,
       input.targetId,
       input.storyId,
       input.creatorProfileId
@@ -66,7 +66,7 @@ export async function schedulePublication(
 
   if (isReelsScheduledTarget(input.targetType)) {
     const validation = await validateReelsBeforePublishFromDb(
-      input.supabase,
+      input.db,
       input.targetId,
       input.profileId
     );
@@ -84,7 +84,7 @@ export async function schedulePublication(
       ? input.targetId
       : (input.storyId ?? null);
 
-  const { data: existing } = await input.supabase
+  const { data: existing } = await input.db
     .from("scheduled_publications")
     .select("id")
     .eq("target_type", input.targetType)
@@ -93,7 +93,7 @@ export async function schedulePublication(
     .maybeSingle();
 
   if (existing?.id) {
-    const { error } = await input.supabase
+    const { error } = await input.db
       .from("scheduled_publications")
       .update({
         canceled_at: null,
@@ -114,7 +114,7 @@ export async function schedulePublication(
     return { id: existing.id as string, ok: true };
   }
 
-  const { data, error } = await input.supabase
+  const { data, error } = await input.db
     .from("scheduled_publications")
     .insert({
       creator_id: input.profileId,
@@ -128,15 +128,15 @@ export async function schedulePublication(
     .select("id")
     .single();
 
-  if (error) {
-    return { error: error.message, ok: false };
+  if (error || !data) {
+    return { error: error?.message ?? "Không lên l?ch du?c.", ok: false };
   }
 
   return { id: data.id as string, ok: true };
 }
 
 export async function publishNowPublication(input: {
-  supabase: SupabaseClient;
+  db: DatabaseClient;
   profileId: string;
   creatorProfileId: string;
   targetType: ScheduledTargetType;
@@ -144,11 +144,12 @@ export async function publishNowPublication(input: {
   storyId?: string | null;
 }) {
   const publishResult = await publishTargetByType(
-    input.supabase,
+    input.db,
     input.targetType,
     input.targetId,
     input.storyId ?? null,
-    input.creatorProfileId
+    input.creatorProfileId,
+    input.profileId
   );
 
   if (!publishResult.ok) {
@@ -157,7 +158,7 @@ export async function publishNowPublication(input: {
 
   const now = new Date().toISOString();
 
-  await input.supabase
+  await input.db
     .from("scheduled_publications")
     .update({
       canceled_at: null,

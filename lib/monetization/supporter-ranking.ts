@@ -3,7 +3,7 @@ import {
   getTopSupportersApp,
   getTopSupportersByAuthor,
   getTopSupportersByStory
-} from "@/lib/supabase/tips";
+} from "@/lib/data/tips";
 
 export async function getSupporterRankingForStory(storyId: string, limit = 5) {
   const config = await getMonetizationConfig();

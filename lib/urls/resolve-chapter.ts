@@ -1,5 +1,5 @@
 import { PERMANENTLY_HIDDEN_QUALITY_STATUS } from "@/lib/content-quality/public-visibility";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { publicContentStatuses } from "@/lib/visibility/contentVisibility";
 import { parsePublicSegment } from "@/lib/urls/parse";
 import { pickPublicRedirectPath } from "@/lib/urls/redirect-canonical";
@@ -27,8 +27,8 @@ export type PublicChapterWithStory = {
 export async function getChapterByPublicCode(
   publicCode: string
 ): Promise<PublicChapterWithStory | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("episodes")
     .select(
       "id, title, slug, public_code, episode_number, story_id, canonical_path, status, stories!inner(id, slug, public_code, title, visibility, status, quality_status)"
@@ -105,9 +105,9 @@ export async function resolveChapterFromSegments(
     return null;
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const storyParsed = parsePublicSegment(storySegment, "story");
-  let storyQuery = supabase
+  let storyQuery = db
     .from("stories")
     .select("id, title, slug, public_code, visibility, status, quality_status")
     .eq("visibility", "public")
@@ -125,7 +125,7 @@ export async function resolveChapterFromSegments(
     return null;
   }
 
-  const { data: episodeRow } = await supabase
+  const { data: episodeRow } = await db
     .from("episodes")
     .select("id, title, slug, public_code, episode_number, story_id, canonical_path, status")
     .eq("story_id", storyRow.id)
@@ -169,8 +169,8 @@ export async function resolveChapterFromSegments(
 export async function resolveStoryPublicFieldsBySlug(
   slug: string
 ): Promise<(StoryUrlFields & { id: string }) | null> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("stories")
     .select("id, slug, public_code")
     .eq("slug", slug)

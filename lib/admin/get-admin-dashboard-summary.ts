@@ -1,8 +1,9 @@
 import { startOfTodayIso } from "@/lib/admin/messaging-date-range";
 import { getAdminDashboard } from "@/lib/admin/getAdminDashboard";
+import { getPlatformViewStats } from "@/lib/admin/get-platform-view-stats";
 import { buildAdminShortcutGroups } from "@/lib/admin/admin-navigation";
 import { analyticsEvents } from "@/lib/analytics/events";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type {
   AdminActionQueueItem,
   AdminDashboardSummary,
@@ -14,7 +15,7 @@ import type { ClientPermissionFlags } from "@/types/permissions";
 const LARGE_WITHDRAWAL_VND = 5_000_000;
 const LARGE_COIN_ADJUSTMENT = 10_000;
 
-function countOrZero(result: { count: number | null; error: unknown }) {
+function countOrZero(result: { count?: number | null; error: unknown }) {
   if (result.error) return null;
   return result.count ?? 0;
 }
@@ -27,7 +28,8 @@ export async function getAdminDashboardSummary(
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
+    const platformViews = await getPlatformViewStats();
 
     const [
       pendingWithdrawals,
@@ -49,24 +51,24 @@ export async function getAdminDashboardSummary(
       largePendingWithdrawal,
       largeCoinAdjustments
     ] = await Promise.all([
-      supabase
+      db
         .from("payout_requests")
         .select("id", { count: "exact", head: true })
         .in("status", ["requested", "under_review"]),
-      supabase
+      db
         .from("checkout_sessions")
         .select("id", { count: "exact", head: true })
         .eq("status", "manual_review"),
-      supabase
+      db
         .from("checkout_sessions")
         .select("id", { count: "exact", head: true })
         .in("status", ["pending", "created"]),
-      supabase
+      db
         .from("payment_webhook_events")
         .select("id", { count: "exact", head: true })
         .eq("status", "failed")
         .gte("created_at", weekAgo),
-      supabase
+      db
         .from("stories")
         .select("id", { count: "exact", head: true })
         .in("quality_status", [
@@ -76,61 +78,61 @@ export async function getAdminDashboardSummary(
           "low_quality_warning_2",
           "low_quality_final_review"
         ]),
-      supabase
+      db
         .from("content_quality_appeals")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending"),
-      supabase
+      db
         .from("moderation_appeals")
         .select("id", { count: "exact", head: true })
         .in("status", ["open", "reviewing"]),
-      supabase
+      db
         .from("risk_events")
         .select("id", { count: "exact", head: true })
         .in("status", ["open", "reviewing"]),
-      supabase
+      db
         .from("profiles")
         .select("id", { count: "exact", head: true })
         .gte("created_at", todayStart),
-      supabase
+      db
         .from("stories")
         .select("id", { count: "exact", head: true })
         .gte("created_at", todayStart),
-      supabase
+      db
         .from("creator_profiles")
         .select("id", { count: "exact", head: true })
         .eq("status", "active"),
-      supabase
+      db
         .from("analytics_events")
         .select("id", { count: "exact", head: true })
         .eq("event_name", analyticsEvents.completeChap)
         .gte("created_at", todayStart),
-      supabase
+      db
         .from("transactions")
         .select("gross_amount_vnd")
         .gte("created_at", todayStart)
         .in("type", ["coin_purchase", "creator_revenue_share", "chapter_unlock"]),
-      supabase
+      db
         .from("transactions")
         .select("amount_coin")
         .gte("created_at", todayStart)
         .eq("type", "coin_purchase"),
-      supabase
+      db
         .from("transactions")
         .select("amount_coin")
         .gte("created_at", todayStart)
         .in("type", ["chapter_unlock", "story_unlock", "author_tip"]),
-      supabase
+      db
         .from("payout_requests")
         .select("id", { count: "exact", head: true })
         .gte("created_at", todayStart)
         .in("status", ["requested", "under_review", "approved", "processing"]),
-      supabase
+      db
         .from("payout_requests")
         .select("id", { count: "exact", head: true })
         .in("status", ["requested", "under_review"])
         .gte("amount_vnd", LARGE_WITHDRAWAL_VND),
-      supabase
+      db
         .from("transactions")
         .select("id", { count: "exact", head: true })
         .eq("type", "admin_coin_adjustment")
@@ -308,6 +310,46 @@ export async function getAdminDashboardSummary(
         sublabel: readsToday.error ? "Chưa có dữ liệu" : "Hoàn thành chương",
         unavailable: Boolean(readsToday.error),
         href: "/admin/analytics"
+      },
+      {
+        id: "platform-views-total",
+        label: "Lượt xem toàn hệ thống",
+        value: platformViews.allViewsTotal,
+        sublabel: platformViews.error
+          ? "Chưa có dữ liệu"
+          : `Truyện ${(platformViews.storyViewsTotal ?? 0).toLocaleString("vi-VN")} · Chương ${(platformViews.chapterViewsTotal ?? 0).toLocaleString("vi-VN")} · Reels ${(platformViews.reelsViewsTotal ?? 0).toLocaleString("vi-VN")} · Bài viết ${(platformViews.articleViewsTotal ?? 0).toLocaleString("vi-VN")} · Tiện ích ${(platformViews.utilityUsesTotal ?? 0).toLocaleString("vi-VN")}`,
+        unavailable: Boolean(platformViews.error),
+        href: "/admin/growth"
+      },
+      {
+        id: "article-views-total",
+        label: "Lượt xem bài viết",
+        value: platformViews.articleViewsTotal,
+        sublabel: platformViews.error
+          ? "Chưa có dữ liệu"
+          : `${(platformViews.articleViews7d ?? 0).toLocaleString("vi-VN")} lượt trong 7 ngày`,
+        unavailable: Boolean(platformViews.error),
+        href: "/admin/content-hub"
+      },
+      {
+        id: "utility-uses-total",
+        label: "Lượt dùng tiện ích",
+        value: platformViews.utilityUsesTotal,
+        sublabel: platformViews.error
+          ? "Chưa có dữ liệu"
+          : `${(platformViews.utilityUses7d ?? 0).toLocaleString("vi-VN")} lượt trong 7 ngày`,
+        unavailable: Boolean(platformViews.error),
+        href: "/admin/growth"
+      },
+      {
+        id: "platform-views-7d",
+        label: "Lượt xem 7 ngày",
+        value: platformViews.allViews7d,
+        sublabel: platformViews.error
+          ? "Chưa có dữ liệu"
+          : "Truyện + chương + Reels + bài viết + tiện ích",
+        unavailable: Boolean(platformViews.error),
+        href: "/admin/growth"
       },
       {
         id: "gross-revenue",

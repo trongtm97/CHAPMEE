@@ -1,13 +1,26 @@
-import { buildCanonicalUrl, resolvePublicUrl } from "@/lib/seo/metadata";
+import {
+  loadCurrentStoryImagesByStoryIds,
+  resolveStoryImageUrl
+} from "@/lib/images/get-current-story-image";
+import { buildCanonicalUrl } from "@/lib/seo/metadata";
+import { resolveContentPostOgImageUrl } from "@/lib/platform-content/resolve-content-post-media";
+import { resolveTaxonomyOgImageUrl } from "@/lib/taxonomy/resolve-taxonomy-media";
 import {
   getTaxonomySeoDescription,
   getTaxonomySeoTitle,
   isTaxonomyPinterestEligible,
   resolveTaxonomyCanonicalPath
 } from "@/lib/seo/taxonomy-seo";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/data/public-client";
+import { createClient } from "@/lib/data/server";
+import { publicContentStatuses } from "@/lib/visibility/contentVisibility";
 import { mapTaxonomyTermRow } from "@/lib/taxonomy/map-row";
 import { getStoryUrl } from "@/lib/seo/canonical";
+import { getContentPostUrl } from "@/lib/urls/paths";
+import {
+  isContentPostPubliclyVisible,
+  listContentPosts
+} from "@/lib/platform-content/content-posts";
 import type { TaxonomyTerm } from "@/types/taxonomy";
 
 export type PinterestFeedItem = {
@@ -28,22 +41,33 @@ function isCanonicalStoryPath(pathname: string): boolean {
   return pathname.includes("-s.");
 }
 
-export async function buildPinterestFeedItems(): Promise<PinterestFeedItem[]> {
-  const supabase = await createClient();
+function dedupeByLink(items: PinterestFeedItem[]): PinterestFeedItem[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.link)) return false;
+    seen.add(item.link);
+    return true;
+  });
+}
+
+/** Stories (truyện) feed items — canonical /truyen URLs only. */
+export async function buildStoryPinterestFeedItems(): Promise<PinterestFeedItem[]> {
+  const db = createPublicClient();
   const items: PinterestFeedItem[] = [];
 
-  const { data: stories } = await supabase
+  const { data: stories } = await db
     .from("stories")
     .select(
-      "id, title, slug, public_code, synopsis, cover_url, updated_at, visibility, status"
+      "id, title, slug, public_code, hook, short_description, cover_url, updated_at, visibility, status"
     )
     .eq("visibility", "public")
-    .in("status", ["published", "approved"])
+    .in("status", [...publicContentStatuses])
     .not("public_code", "is", null)
     .order("updated_at", { ascending: false })
     .limit(500);
 
   const storyIds = (stories ?? []).map((row) => String(row.id));
+  const storyImagesById = await loadCurrentStoryImagesByStoryIds(db, storyIds);
 
   const taxonomyByStory = new Map<
     string,
@@ -51,7 +75,7 @@ export async function buildPinterestFeedItems(): Promise<PinterestFeedItem[]> {
   >();
 
   if (storyIds.length > 0) {
-    const { data: links } = await supabase
+    const { data: links } = await db
       .from("story_taxonomy_terms")
       .select("story_id, taxonomy_terms(type, name, slug, is_active, is_public)")
       .in("story_id", storyIds);
@@ -87,24 +111,39 @@ export async function buildPinterestFeedItems(): Promise<PinterestFeedItem[]> {
     if (!link) continue;
 
     const tax = taxonomyByStory.get(String(story.id));
-    const synopsis = String(story.synopsis ?? "").trim();
+    const summary = [story.hook, story.short_description]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+      .join(" ");
     const description =
-      synopsis.length > 20
-        ? synopsis.slice(0, 500)
+      summary.length > 20
+        ? summary.slice(0, 500)
         : `Đọc truyện ${story.title} trên ChapMee.`;
 
     items.push({
       title: String(story.title),
       description,
       link,
-      imageLink: resolvePublicUrl(story.cover_url ? String(story.cover_url) : null),
+      imageLink: resolveStoryImageUrl({
+        image: storyImagesById.get(String(story.id)) ?? null,
+        variant: "landscape",
+        coverUrl: story.cover_url ? String(story.cover_url) : null
+      }),
       category: tax?.mainGenre ?? null,
       tags: tax?.tags.slice(0, 5) ?? [],
       availability: "in stock"
     });
   }
 
-  const { data: pinterestTerms } = await supabase
+  return dedupeByLink(items);
+}
+
+/** Taxonomy hub feed items (genres / tags flagged for Pinterest). */
+export async function buildTaxonomyPinterestFeedItems(): Promise<PinterestFeedItem[]> {
+  const db = await createClient();
+  const items: PinterestFeedItem[] = [];
+
+  const { data: pinterestTerms } = await db
     .from("taxonomy_terms")
     .select("*")
     .eq("is_active", true)
@@ -126,17 +165,60 @@ export async function buildPinterestFeedItems(): Promise<PinterestFeedItem[]> {
       title: getTaxonomySeoTitle(term),
       description: getTaxonomySeoDescription(term),
       link,
-      imageLink: resolvePublicUrl(term.og_image_url),
+      imageLink: await resolveTaxonomyOgImageUrl(term),
       category: term.type === "main_genre" ? term.name : null,
       tags: [term.name],
       availability: "in stock"
     });
   }
 
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    if (seen.has(item.link)) return false;
-    seen.add(item.link);
-    return true;
-  });
+  return dedupeByLink(items);
+}
+
+/** Articles (bài viết) feed items — public, indexable content posts. */
+export async function buildContentPostPinterestFeedItems(): Promise<PinterestFeedItem[]> {
+  const { items: posts } = await listContentPosts({ publicOnly: true, limit: 500 });
+  const items: PinterestFeedItem[] = [];
+
+  for (const post of posts) {
+    if (!isContentPostPubliclyVisible(post)) continue;
+    if (!post.indexable) continue;
+    if (!post.public_code) continue;
+
+    const pathname = getContentPostUrl({
+      slug: post.slug,
+      public_code: post.public_code
+    });
+    const link = buildCanonicalUrl(pathname);
+    if (!link) continue;
+
+    const summary = String(post.excerpt ?? post.seo_description ?? "").trim();
+    const description =
+      summary.length > 20 ? summary.slice(0, 500) : `Đọc bài viết ${post.title} trên ChapMee.`;
+
+    const imageLink = await resolveContentPostOgImageUrl(post);
+
+    items.push({
+      title: post.title,
+      description,
+      link,
+      imageLink,
+      category: post.category ?? null,
+      tags: (post.tags ?? []).slice(0, 5),
+      availability: "in stock"
+    });
+  }
+
+  return dedupeByLink(items);
+}
+
+/** Combined feed: stories + articles + taxonomy hubs. */
+export async function buildPinterestFeedItems(): Promise<PinterestFeedItem[]> {
+  const [stories, posts, taxonomy] = await Promise.all([
+    buildStoryPinterestFeedItems(),
+    buildContentPostPinterestFeedItems(),
+    buildTaxonomyPinterestFeedItems()
+  ]);
+
+  return dedupeByLink([...stories, ...posts, ...taxonomy]);
 }

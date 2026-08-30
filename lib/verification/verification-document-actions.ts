@@ -3,7 +3,7 @@
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { registerStorageAsset } from "@/lib/storage/asset-service";
 import {
   isStudioVerificationType,
@@ -76,10 +76,10 @@ export async function uploadVerificationDocumentAction(formData: FormData) {
     return { error: validation.error, ok: false as const };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
   if (requestId) {
-    const { data: request } = await supabase
+    const { data: request } = await db
       .from("account_verifications")
       .select("id, user_id, status")
       .eq("id", requestId)
@@ -99,7 +99,7 @@ export async function uploadVerificationDocumentAction(formData: FormData) {
     }
   }
 
-  const { data: existingDocs } = await supabase
+  const { data: existingDocs } = await db
     .from("account_verification_documents")
     .select("file_size_bytes")
     .eq("user_id", ctx.userId)
@@ -123,7 +123,7 @@ export async function uploadVerificationDocumentAction(formData: FormData) {
   const filePath = `${ctx.userId}/${folderKey}/${documentType}/${randomName}`;
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const { error: uploadError } = await supabase.storage
+  const { error: uploadError } = await db.storage
     .from(VERIFICATION_STORAGE_BUCKET)
     .upload(filePath, buffer, {
       contentType: file.type,
@@ -134,7 +134,7 @@ export async function uploadVerificationDocumentAction(formData: FormData) {
     return { error: "Không thể tải file lên. Vui lòng thử lại.", ok: false as const };
   }
 
-  const { data: inserted, error: insertError } = await supabase
+  const { data: inserted, error: insertError } = await db
     .from("account_verification_documents")
     .insert({
       document_type: documentType,
@@ -150,10 +150,10 @@ export async function uploadVerificationDocumentAction(formData: FormData) {
     .single();
 
   if (insertError || !inserted) {
-    await supabase.storage.from(VERIFICATION_STORAGE_BUCKET).remove([filePath]);
+    await db.storage.from(VERIFICATION_STORAGE_BUCKET).remove([filePath]);
     return { error: "Không thể lưu thông tin file.", ok: false as const };
   }
-  await registerStorageAsset(supabase, {
+  await registerStorageAsset(db, {
     bucket: VERIFICATION_STORAGE_BUCKET,
     isOriginal: true,
     isPublic: false,
@@ -202,8 +202,8 @@ export async function deleteVerificationDocumentAction(documentId: string) {
     return { error: "Bạn cần đăng nhập.", ok: false as const };
   }
 
-  const supabase = await createClient();
-  const { data: doc } = await supabase
+  const db = await createClient();
+  const { data: doc } = await db
     .from("account_verification_documents")
     .select("*")
     .eq("id", documentId)
@@ -215,7 +215,7 @@ export async function deleteVerificationDocumentAction(documentId: string) {
   }
 
   if (doc.request_id) {
-    const { data: request } = await supabase
+    const { data: request } = await db
       .from("account_verifications")
       .select("status")
       .eq("id", doc.request_id)
@@ -226,12 +226,12 @@ export async function deleteVerificationDocumentAction(documentId: string) {
     }
   }
 
-  await supabase.storage.from(VERIFICATION_STORAGE_BUCKET).remove([doc.file_path]);
-  await supabase
+  await db.storage.from(VERIFICATION_STORAGE_BUCKET).remove([doc.file_path]);
+  await db
     .from("account_verification_documents")
     .update({ status: "deleted" })
     .eq("id", documentId);
-  await supabase
+  await db
     .from("storage_assets")
     .update({ deleted_at: new Date().toISOString(), status: "deleted" })
     .eq("bucket", VERIFICATION_STORAGE_BUCKET)
@@ -261,9 +261,7 @@ export async function submitVerificationRequestAction(input: {
     return { error: "Bạn cần đăng nhập.", ok: false as const };
   }
 
-  if (!input.consent) {
-    return { error: "Vui lòng xác nhận đồng ý sử dụng hồ sơ cho mục đích xét duyệt.", ok: false as const };
-  }
+  // Implicit consent: submitting a verification request implies consent (see UI notice).
 
   if (!isStudioVerificationType(input.verificationType)) {
     return { error: "Loại xác thực không hợp lệ.", ok: false as const };
@@ -279,10 +277,10 @@ export async function submitVerificationRequestAction(input: {
     return { error: "Vui lòng mô tả lý do xác thực (tối thiểu 20 ký tự).", ok: false as const };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const sessionId = input.uploadSessionId.trim();
 
-  const { data: sessionDocs } = await supabase
+  const { data: sessionDocs } = await db
     .from("account_verification_documents")
     .select("*")
     .eq("user_id", ctx.userId)
@@ -304,7 +302,7 @@ export async function submitVerificationRequestAction(input: {
   let requestId = input.requestId ?? null;
 
   if (requestId) {
-    const { data: existing } = await supabase
+    const { data: existing } = await db
       .from("account_verifications")
       .select("*")
       .eq("id", requestId)
@@ -321,7 +319,7 @@ export async function submitVerificationRequestAction(input: {
     }
 
     const now = new Date().toISOString();
-    const { data: created, error: createError } = await supabase
+    const { data: created, error: createError } = await db
       .from("account_verifications")
       .insert({
         display_badge: true,
@@ -342,7 +340,7 @@ export async function submitVerificationRequestAction(input: {
     requestId = created.id;
   }
 
-  await supabase
+  await db
     .from("account_verification_documents")
     .update({ request_id: requestId, upload_session_id: null })
     .in(
@@ -353,7 +351,7 @@ export async function submitVerificationRequestAction(input: {
   const now = new Date().toISOString();
 
   if (input.requestId) {
-    await supabase
+    await db
       .from("account_verifications")
       .update({
         request_reason: reason,
@@ -392,8 +390,8 @@ export async function listVerificationDocumentsAction(input: {
     return { documents: [], error: "Bạn cần đăng nhập." };
   }
 
-  const supabase = await createClient();
-  let query = supabase
+  const db = await createClient();
+  let query = db
     .from("account_verification_documents")
     .select("*")
     .eq("user_id", ctx.userId)

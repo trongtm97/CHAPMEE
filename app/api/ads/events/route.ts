@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getCurrentProfile } from "@/lib/auth/getCurrentProfile";
 import type { AdRenderEventType } from "@/types/ads";
 
@@ -28,8 +28,8 @@ export async function POST(request: Request) {
   const { user } = await getCurrentProfile();
 
   try {
-    const supabase = await createClient();
-    const { error } = await supabase.from("ad_render_events").insert({
+    const db = await createClient();
+    const { error } = await db.from("ad_render_events").insert({
       placement_id: placementId,
       user_id: user?.id ?? null,
       story_id: typeof body.storyId === "string" ? body.storyId : null,

@@ -8,7 +8,7 @@ import { normalizePolicyText } from "@/lib/username/normalize-policy-text";
 import { normalizeDisplayNamePolicyText } from "@/lib/username/normalize-policy-text";
 import { validateDisplayName } from "@/lib/username/validate-display-name";
 import { validateUsername } from "@/lib/username/validate-username";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { UsernamePolicyCheckResult } from "@/types/username-policy";
 
 function buildSuggestions(base: string) {
@@ -111,8 +111,8 @@ export async function checkUsernamePolicyAction(input: {
       : [];
 
     if (input.username?.trim() && usernameResult.normalized) {
-      const supabase = await createClient();
-      let q = supabase
+      const db = await createClient();
+      let q = db
         .from("profiles")
         .select("id")
         .eq("username", usernameResult.normalized)

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { recordFanScoreAction } from "@/lib/supabase/fan-scores";
-import { createClient } from "@/lib/supabase/server";
+import { recordFanScoreAction } from "@/lib/data/fan-scores";
+import { createClient } from "@/lib/data/server";
 import type { FanScoreEventKey } from "@/types/fan";
 
 type RecordFanScoreRequest = {
@@ -13,10 +13,10 @@ type RecordFanScoreRequest = {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const {
       data: { user }
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
     if (!user) {
       return NextResponse.json({ awarded: false, error: "unauthorized" }, { status: 401 });

@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { redirect } from "next/navigation";
 import { followCreatorAction } from "@/lib/actions/followCreator";
@@ -7,7 +7,7 @@ import { toggleEpisodeLikeAction } from "@/lib/actions/toggleEpisodeLike";
 import { analyticsEvents } from "@/lib/analytics/events";
 import { trackServerEvent } from "@/lib/analytics/trackServerEvent";
 import { REELS_PUBLIC_PATH } from "@/lib/routes/reels-paths";
-import { createClient } from "@/lib/supabase/server";
+import { getOptionalSessionUser } from "@/lib/auth/get-optional-session-user";
 import { getStoryUrl } from "@/lib/urls/paths";
 
 type ReelsRailEventInput = {
@@ -23,10 +23,7 @@ type ReelsRailEventInput = {
 };
 
 async function requireReelsUser(nextPath: string) {
-  const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const user = await getOptionalSessionUser();
 
   if (!user) {
     redirect(`/login?next=${encodeURIComponent(nextPath)}`);

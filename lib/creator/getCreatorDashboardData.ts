@@ -1,8 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
+import { profileAvatarUrlFromRow } from "@/lib/profile/map-profile-row";
+import { createClient } from "@/lib/data/server";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 import type { MilestoneViewItem } from "@/types/milestone";
 import type { TopFanPerson } from "@/types/fan";
-import { toMilestoneViewItems, getUserMilestones } from "@/lib/supabase/milestones";
+import { toMilestoneViewItems, getUserMilestones } from "@/lib/data/milestones";
 import { normalizeStoryStructureType } from "@/lib/stories/story-structure";
 
 export type DashboardStatCard = {
@@ -74,26 +75,26 @@ export async function getCreatorDashboard(
   creatorProfile: CreatorProfile
 ): Promise<CreatorDashboardData> {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const creatorId = creatorProfile.id;
     const userId = creatorProfile.user_id;
 
     const [storiesResult, episodesCountResult, followsResult] =
       await Promise.all([
-        supabase
+        db
           .from("stories")
           .select("id, title, slug, hook, status, structure_type")
           .eq("creator_id", creatorId)
           .in("status", ["approved", "published", "draft", "pending"])
           .order("updated_at", { ascending: false }),
-        supabase
+        db
           .from("episodes")
           .select("id, stories!inner(creator_id)", {
             count: "exact",
             head: true
           })
           .eq("stories.creator_id", creatorId),
-        supabase
+        db
           .from("follows")
           .select("id", { count: "exact", head: true })
           .eq("following_id", creatorId)
@@ -114,16 +115,16 @@ export async function getCreatorDashboard(
     if (storyIds.length > 0) {
       const [engagementResult, weekReadsResult, weekFollowersResult] =
         await Promise.all([
-          supabase.rpc("get_public_story_save_counts", {
+          db.rpc("get_public_story_save_counts", {
             input_story_ids: storyIds
           }),
-          supabase
+          db
             .from("analytics_events")
             .select("id", { count: "exact", head: true })
             .in("target_id", storyIds)
             .eq("event_name", "open_story")
             .gte("created_at", weekAgo),
-          supabase
+          db
             .from("follows")
             .select("id", { count: "exact", head: true })
             .eq("following_id", creatorId)
@@ -143,12 +144,12 @@ export async function getCreatorDashboard(
       );
 
       const [reactionsResult, commentsResult] = await Promise.all([
-        supabase
+        db
           .from("reactions")
           .select("target_id")
           .in("target_id", storyIds)
           .eq("target_type", "story"),
-        supabase
+        db
           .from("comments")
           .select("story_id")
           .in("story_id", storyIds)
@@ -177,7 +178,7 @@ export async function getCreatorDashboard(
 
       const episodeCounts = new Map<string, number>();
       if (storyIds.length > 0) {
-        const { data: episodeRows } = await supabase
+        const { data: episodeRows } = await db
           .from("episodes")
           .select("story_id")
           .in("story_id", storyIds);
@@ -191,7 +192,7 @@ export async function getCreatorDashboard(
         }
       }
 
-      const { data: readsData } = await supabase
+      const { data: readsData } = await db
         .from("analytics_events")
         .select("target_id")
         .in("target_id", storyIds)
@@ -326,7 +327,7 @@ export async function getCreatorDashboard(
 
     const episodeCountMap = new Map<string, number>();
     if (storyIds.length > 0) {
-      const { data: epRows } = await supabase
+      const { data: epRows } = await db
         .from("episodes")
         .select("story_id")
         .in("story_id", storyIds);
@@ -405,8 +406,8 @@ async function getAuthorTopFansSafe(
   limit: number
 ): Promise<TopFanPerson[]> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase.rpc("get_author_top_fans", {
+    const db = await createClient();
+    const { data, error } = await db.rpc("get_author_top_fans", {
       input_author_id: authorId,
       input_user_id: userId,
       input_limit: limit
@@ -430,7 +431,7 @@ async function getAuthorTopFansSafe(
       score: Number(row.score ?? 0),
       displayName: row.display_name ?? row.username ?? "ChapMee reader",
       handle: row.username ? `@${row.username}` : null,
-      avatarUrl: row.avatar_url ?? null,
+      avatarUrl: profileAvatarUrlFromRow({ id: row.user_id, avatar_url: row.avatar_url }),
       isCurrentUser: Boolean(row.is_current_user)
     }));
   } catch {

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentCreatorProfile } from "@/lib/creator/getCurrentCreatorProfile";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { assertCreatorOwnsComment } from "@/lib/studio/assert-creator-owns-comment";
 import { studioPath } from "@/lib/studio/constants";
 
@@ -26,8 +26,8 @@ export async function unhideCommentAsCreator(
     return { ok: false, error: "Bạn không có quyền bỏ ẩn bình luận này." };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("unhide_comment_by_story_owner", {
+  const db = await createClient();
+  const { error } = await db.rpc("unhide_comment_by_story_owner", {
     input_comment_id: commentId
   });
 
@@ -39,6 +39,13 @@ export async function unhideCommentAsCreator(
         : error.message
     };
   }
+
+  const { refreshGroupFeedVisibilityForComment } = await import(
+    "@/lib/community-sync/comment-sync"
+  );
+  void refreshGroupFeedVisibilityForComment(commentId).catch((syncError) => {
+    console.error("[community-sync] unhide visibility sync failed", syncError);
+  });
 
   revalidatePath(studioPath("/comments"));
 

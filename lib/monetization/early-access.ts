@@ -12,12 +12,13 @@ import {
   createEarlyAccessUnlock,
   getChapterEarlyAccessSetting,
   getEarlyAccessUnlockByUser
-} from "@/lib/supabase/early-access";
-import { createClient } from "@/lib/supabase/server";
+} from "@/lib/data/early-access";
+import { createClient } from "@/lib/data/server";
 import { recordCreatorNetEarning } from "@/lib/finance/record-creator-net-earning";
 import { calculateWalletBalance, debitUserCoins } from "@/lib/wallets/user-wallet";
 import { addRiskEvent, detectRapidSpendAfterRewardAds, shouldBlockTransaction, shouldHoldCreatorRevenue } from "@/lib/risk/risk-engine";
 import type { CoinLotAllocation } from "@/types/coin-lot";
+import { loadStoryOriginPolicy } from "@/lib/content-origin/load-story-origin-policy";
 
 function toNumber(value: unknown, fallback = 0) {
   const parsed = typeof value === "number" ? value : Number(value);
@@ -36,6 +37,11 @@ export async function getEarlyAccessReaderState(input: {
   chapterId: string;
   creatorUserId: string | null;
 }) {
+  const originPolicy = await loadStoryOriginPolicy(input.storyId);
+  if (!originPolicy.canUseCoinUnlock) {
+    return { locked: false as const };
+  }
+
   const config = await getMonetizationConfig({ includePrivate: true });
   const enabled =
     Boolean(config.settings["monetization.enabled"]) &&
@@ -91,6 +97,11 @@ export async function unlockEarlyAccessAction(input: {
   chapterId: string;
   requestId?: string;
 }) {
+  const originPolicy = await loadStoryOriginPolicy(input.storyId);
+  if (!originPolicy.canUseCoinUnlock) {
+    return { ok: false, error: "Story nay khong ho tro coin unlock." };
+  }
+
   const { user } = await getCurrentUser();
   if (!user) {
     return { ok: false, error: "Bạn cần đăng nhập để đọc sớm." };
@@ -148,8 +159,8 @@ export async function unlockEarlyAccessAction(input: {
     return { ok: false, error: "Kiếm tiền đang bị tắt bởi ChapMee cho tác giả này." };
   }
 
-  const supabase = await createClient();
-  const { data: chapter } = await supabase
+  const db = await createClient();
+  const { data: chapter } = await db
     .from("episodes")
     .select("status, stories(status)")
     .eq("id", input.chapterId)
@@ -228,7 +239,7 @@ export async function unlockEarlyAccessAction(input: {
     moduleType: "early_access",
     creatorUserId: setting.data.creator_user_id,
     coinSpent: coinPrice,
-    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1000),
+    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1),
     paidCoinAmount: debit.data.paid_coin_amount ?? 0,
     bonusCoinAmount: debit.data.bonus_coin_amount ?? 0,
     coinLotAllocations: ((debit.data.metadata?.coin_lot_allocations as CoinLotAllocation[] | undefined) ?? []),
@@ -266,7 +277,7 @@ export async function unlockEarlyAccessAction(input: {
     storyId: input.storyId,
     chapterId: input.chapterId,
     coinAmount: coinPrice,
-    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1000),
+    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1),
     revenue,
     revenueStatus: creditStatus,
     transactionType: "chapter_unlock",
@@ -283,8 +294,8 @@ export async function unlockEarlyAccessAction(input: {
   }
 
   const recentUnlocks = await createClient()
-    .then((supabase) =>
-      supabase
+    .then((db) =>
+      db
         .from("early_access_unlocks")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)

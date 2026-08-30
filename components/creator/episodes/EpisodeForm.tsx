@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import {
-  GuidelinesAcknowledgementField,
+  PublishGuidelinesNotice,
   useGuidelinesSubmitGuard
 } from "@/components/creator/GuidelinesSubmitAcknowledgement";
 import { Button, Card, Input, Textarea } from "@/components/ui";
@@ -68,13 +68,7 @@ export function EpisodeForm({
 }: EpisodeFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [content, setContent] = useState(episode?.content ?? "");
-  const {
-    acknowledged,
-    ackError,
-    guardSubmit,
-    setAcknowledged,
-    setPendingIntent
-  } = useGuidelinesSubmitGuard();
+  const { setPendingIntent } = useGuidelinesSubmitGuard();
 
   return (
     <div className="space-y-4">
@@ -94,7 +88,7 @@ export function EpisodeForm({
       </Card>
 
       <Card>
-        <form action={formAction} className="space-y-5" onSubmit={guardSubmit}>
+        <form action={formAction} className="space-y-5">
           <input name="story_id" type="hidden" value={storyId} />
           <input
             name="return_base_path"
@@ -213,14 +207,6 @@ export function EpisodeForm({
             </p>
           </div>
 
-          <GuidelinesAcknowledgementField
-            acknowledged={acknowledged}
-            disabled={pending}
-            error={ackError}
-            onAckChange={setAcknowledged}
-            variant="episode"
-          />
-
           {state.error ? (
             <p className="rounded-lg border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-100">
               {state.error}
@@ -238,15 +224,19 @@ export function EpisodeForm({
             >
               Lưu nháp
             </Button>
-            <Button
-              loading={pending}
-              name="intent"
-              onClick={() => setPendingIntent("review")}
-              type="submit"
-              value="review"
-            >
-              Gửi duyệt
-            </Button>
+            <div className="space-y-2 sm:col-span-2">
+              <PublishGuidelinesNotice bare variant="episode" />
+              <Button
+                className="w-full"
+                loading={pending}
+                name="intent"
+                onClick={() => setPendingIntent("review")}
+                type="submit"
+                value="review"
+              >
+                Gửi duyệt
+              </Button>
+            </div>
             {previewHref ? (
               <Link
                 className="inline-flex min-h-11 items-center justify-center rounded-lg bg-zinc-800 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-700"

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { requireFinanceSettingsView } from "@/lib/auth/require-permission";
 
 export async function GET(request: Request) {
@@ -9,8 +9,8 @@ export async function GET(request: Request) {
   }
 
   const limit = Number(new URL(request.url).searchParams.get("limit") ?? 30);
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const db = createAdminClient();
+  const { data, error } = await db
     .from("admin_audit_logs")
     .select("id, action, target_type, target_id, metadata, created_at, actor_id")
     .or("target_type.eq.ad_placement,action.like.ad_placement.%")

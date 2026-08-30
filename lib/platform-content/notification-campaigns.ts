@@ -4,7 +4,7 @@ import {
   buildCampaignUpdatePayload,
   hasExtendedNotificationCampaignSchema
 } from "@/lib/notification-campaigns/schema-capabilities";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { sanitizeUserNotificationHref } from "@/lib/platform-content/campaign-href";
 import {
   estimateCampaignRecipientCount,
@@ -152,8 +152,8 @@ export async function getNotificationCampaignStats(): Promise<{
   stats: NotificationCampaignStats;
   error: string | null;
 }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("notification_campaigns")
     .select("id, status, estimated_recipient_count, updated_at");
 
@@ -189,7 +189,7 @@ export async function getNotificationCampaignStats(): Promise<{
 
   const sentIds = rows.filter((row) => row.status === "sent").map((row) => String(row.id));
   if (sentIds.length > 0) {
-    const delivery = await getCampaignDeliveryStatsBatch(supabase, sentIds.slice(0, 50));
+    const delivery = await getCampaignDeliveryStatsBatch(db, sentIds.slice(0, 50));
     const rates = Object.values(delivery).map((item) => item.open_rate).filter((rate) => rate > 0);
     if (rates.length > 0) {
       stats.avgOpenRate = Math.round((rates.reduce((sum, rate) => sum + rate, 0) / rates.length) * 10) / 10;
@@ -216,7 +216,7 @@ function emptyCampaignStats(): NotificationCampaignStats {
 }
 
 async function getCampaignDeliveryStatsBatch(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   campaignIds: string[]
 ): Promise<Record<string, NotificationCampaignDeliveryStats>> {
   const result: Record<string, NotificationCampaignDeliveryStats> = {};
@@ -232,7 +232,7 @@ async function getCampaignDeliveryStatsBatch(
     };
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("user_notifications")
     .select("campaign_id, is_read, href")
     .in("campaign_id", campaignIds);
@@ -267,11 +267,11 @@ export async function attachCampaignDeliveryStats(
   campaigns: NotificationCampaign[]
 ): Promise<NotificationCampaign[]> {
   if (campaigns.length === 0) return campaigns;
-  const supabase = await createClient();
+  const db = await createClient();
   const sentIds = campaigns.filter((item) => item.status === "sent").map((item) => item.id);
   if (sentIds.length === 0) return campaigns;
 
-  const batch = await getCampaignDeliveryStatsBatch(supabase, sentIds);
+  const batch = await getCampaignDeliveryStatsBatch(db, sentIds);
   return campaigns.map((campaign) => ({
     ...campaign,
     delivery_stats: batch[campaign.id]
@@ -281,14 +281,14 @@ export async function attachCampaignDeliveryStats(
 export async function listNotificationCampaigns(
   options: ListInput = {}
 ): Promise<{ items: NotificationCampaign[]; total: number; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
   const isAdminFilters = "page" in options;
   const limit = isAdminFilters ? options.pageSize : (options.limit ?? 50);
   const offset = isAdminFilters
     ? (options.page - 1) * options.pageSize
     : (options.offset ?? 0);
 
-  let query = supabase.from("notification_campaigns").select("*", { count: "exact" });
+  let query = db.from("notification_campaigns").select("*", { count: "exact" });
 
   if (isAdminFilters) {
     query = applyAdminListFilters(query, options);
@@ -322,8 +322,8 @@ export async function listNotificationCampaigns(
 export async function getNotificationCampaignById(
   id: string
 ): Promise<{ item: NotificationCampaign | null; error: string | null }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("notification_campaigns")
     .select("*")
     .eq("id", id)
@@ -342,11 +342,11 @@ export async function getNotificationCampaignById(
 export async function createNotificationCampaign(
   input: CreateNotificationCampaignInput
 ): Promise<{ item: NotificationCampaign | null; error: string | null }> {
-  const supabase = await createClient();
-  const extended = await hasExtendedNotificationCampaignSchema(supabase);
+  const db = await createClient();
+  const extended = await hasExtendedNotificationCampaignSchema(db);
   const payload = buildCampaignInsertPayload(input as Record<string, unknown>, extended);
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("notification_campaigns")
     .insert(payload)
     .select("*")
@@ -357,7 +357,7 @@ export async function createNotificationCampaign(
   }
 
   const item = mapCampaign(data as Record<string, unknown>);
-  await appendNotificationCampaignAuditLog(supabase, {
+  await appendNotificationCampaignAuditLog(db, {
     campaignId: item.id,
     actorId: input.created_by ?? null,
     action: "create",
@@ -372,14 +372,14 @@ export async function updateNotificationCampaign(
   input: UpdateNotificationCampaignInput,
   actorId?: string | null
 ): Promise<{ item: NotificationCampaign | null; error: string | null }> {
-  const supabase = await createClient();
-  const extended = await hasExtendedNotificationCampaignSchema(supabase);
+  const db = await createClient();
+  const extended = await hasExtendedNotificationCampaignSchema(db);
   const payload = buildCampaignUpdatePayload(
     { ...input, updated_by: actorId ?? input.updated_by ?? null } as Record<string, unknown>,
     extended
   );
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("notification_campaigns")
     .update(payload)
     .eq("id", id)
@@ -391,7 +391,7 @@ export async function updateNotificationCampaign(
   }
 
   const item = mapCampaign(data as Record<string, unknown>);
-  await appendNotificationCampaignAuditLog(supabase, {
+  await appendNotificationCampaignAuditLog(db, {
     campaignId: id,
     actorId: actorId ?? null,
     action: "update",
@@ -402,8 +402,8 @@ export async function updateNotificationCampaign(
 }
 
 export async function deleteNotificationCampaign(id: string): Promise<{ error: string | null }> {
-  const supabase = await createClient();
-  const { error } = await supabase.from("notification_campaigns").delete().eq("id", id);
+  const db = await createClient();
+  const { error } = await db.from("notification_campaigns").delete().eq("id", id);
   return { error: error?.message ?? null };
 }
 
@@ -440,8 +440,8 @@ export async function duplicateNotificationCampaign(
   });
 
   if (result.item) {
-    const supabase = await createClient();
-    await appendNotificationCampaignAuditLog(supabase, {
+    const db = await createClient();
+    await appendNotificationCampaignAuditLog(db, {
       campaignId: result.item.id,
       actorId,
       action: "clone",
@@ -528,7 +528,7 @@ export async function createUserNotificationsForCampaign(
     return { created: 0, error: null };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const uniqueIds = [...new Set(recipientUserIds)];
   const batchSize = 500;
   let created = 0;
@@ -545,7 +545,7 @@ export async function createUserNotificationsForCampaign(
       href
     }));
 
-    const { error, count } = await supabase
+    const { error, count } = await db
       .from("user_notifications")
       .upsert(rows, {
         onConflict: "user_id,campaign_id",
@@ -566,11 +566,11 @@ export async function createUserNotificationsForCampaign(
 export async function listUserNotifications(
   options: import("@/types/platform-content").ListUserNotificationsOptions
 ): Promise<{ items: UserNotification[]; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
   const limit = options.limit ?? 30;
   const offset = options.offset ?? 0;
 
-  let query = supabase
+  let query = db
     .from("user_notifications")
     .select("*")
     .eq("user_id", options.userId)
@@ -593,8 +593,8 @@ export async function listUserNotifications(
 }
 
 export async function getUnreadCampaignNotificationCount(userId: string) {
-  const supabase = await createClient();
-  const { count, error } = await supabase
+  const db = await createClient();
+  const { count, error } = await db
     .from("user_notifications")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
@@ -611,8 +611,8 @@ export async function markNotificationRead(
   userId: string,
   notificationId: string
 ): Promise<{ error: string | null }> {
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("user_notifications")
     .update({
       is_read: true,
@@ -632,8 +632,8 @@ export async function markNotificationRead(
 export async function markAllUserNotificationsRead(
   userId: string
 ): Promise<{ error: string | null }> {
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("user_notifications")
     .update({
       is_read: true,
@@ -674,8 +674,8 @@ export async function updateSeoRule(
   id: string,
   input: Partial<import("@/types/platform-content").SeoRule>
 ): Promise<{ error: string | null }> {
-  const supabase = await createClient();
-  const { error } = await supabase.from("seo_rules").update(input).eq("id", id);
+  const db = await createClient();
+  const { error } = await db.from("seo_rules").update(input).eq("id", id);
 
   return { error: error?.message ?? null };
 }
@@ -684,8 +684,8 @@ export async function listSeoAuditLogs(limit = 50): Promise<{
   items: import("@/types/platform-content").SeoAuditLog[];
   error: string | null;
 }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("seo_audit_logs")
     .select("*")
     .order("created_at", { ascending: false })

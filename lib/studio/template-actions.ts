@@ -6,7 +6,7 @@ import { getStudioTemplateById } from "@/lib/studio/get-templates";
 import { mapTemplateRow } from "@/lib/studio/map-template-row";
 import { getTemplateBody } from "@/lib/studio/template-content";
 import { studioPath } from "@/lib/studio/constants";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   STUDIO_TEMPLATE_TITLE_MAX,
   STUDIO_TEMPLATE_TYPES,
@@ -74,13 +74,13 @@ export async function listTemplatesForPickerAction(input?: {
     return { error, templates: [] };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const search = (input?.search ?? "").trim();
   const typeFilter = input?.templateType ?? "chapter";
 
   const templates: ReturnType<typeof mapTemplateRow>[] = [];
 
-  let systemQuery = supabase
+  let systemQuery = db
     .from("creator_templates")
     .select(
       "id, owner_id, template_type, title, description, content, plain_text, is_system, status, created_at, updated_at"
@@ -88,7 +88,7 @@ export async function listTemplatesForPickerAction(input?: {
     .eq("is_system", true)
     .eq("status", "active");
 
-  let mineQuery = supabase
+  let mineQuery = db
     .from("creator_templates")
     .select(
       "id, owner_id, template_type, title, description, content, plain_text, is_system, status, created_at, updated_at"
@@ -146,10 +146,10 @@ export async function createTemplateAction(input: {
     return { error: validated.error, ok: false as const };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const content = { body: validated.values.body, format: "plain" as const };
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("creator_templates")
     .insert({
       content,
@@ -164,8 +164,8 @@ export async function createTemplateAction(input: {
     .select("id")
     .single();
 
-  if (error) {
-    return { error: error.message, ok: false as const };
+  if (error || !data) {
+    return { error: error?.message ?? "Không tạo được template.", ok: false as const };
   }
 
   revalidatePath(TEMPLATES_PATH);
@@ -206,10 +206,10 @@ export async function updateTemplateAction(input: {
     return { error: validated.error, ok: false as const };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const content = { body: validated.values.body, format: "plain" as const };
 
-  const { error } = await supabase
+  const { error } = await db
     .from("creator_templates")
     .update({
       content,
@@ -238,9 +238,9 @@ export async function deleteTemplateAction(templateId: string) {
     return { error: authError, ok: false as const };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { error } = await supabase
+  const { error } = await db
     .from("creator_templates")
     .delete()
     .eq("id", templateId)

@@ -1,6 +1,6 @@
 import { getAutoModerationSettings, getActiveKeywordRules } from "@/lib/community/get-auto-moderation-settings";
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type {
   AutoModerationDashboardStats,
   AutoModerationPageData,
@@ -24,13 +24,13 @@ export async function getAutoModerationPageData(): Promise<AutoModerationPageDat
   };
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const since24h = new Date(Date.now() - 86_400_000).toISOString();
 
     const [settings, keywordRules, decisionsRes] = await Promise.all([
       getAutoModerationSettings(),
       getActiveKeywordRules(),
-      supabase
+      db
         .from("community_moderation_decisions")
         .select(
           "id, post_id, user_id, decision, trust_score, reason_codes, matched_rules, final_status, overridden_by, overridden_at, created_at, profiles:user_id(display_name, username)"
@@ -40,7 +40,7 @@ export async function getAutoModerationPageData(): Promise<AutoModerationPageDat
         .limit(200)
     ]);
 
-    const recentAllRes = await supabase
+    const recentAllRes = await db
       .from("community_moderation_decisions")
       .select(
         "id, post_id, user_id, decision, trust_score, reason_codes, matched_rules, final_status, overridden_by, overridden_at, created_at, profiles:user_id(display_name, username)"

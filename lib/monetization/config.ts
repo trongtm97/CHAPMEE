@@ -8,7 +8,7 @@ import type {
   RevenueShareConfig,
   RevenueShareType
 } from "@/types/monetization";
-import { fetchMonetizationSettings } from "@/lib/supabase/monetization-settings";
+import { fetchMonetizationSettings } from "@/lib/data/monetization-settings";
 import { normalizeRevenueSharePercents } from "@/lib/admin/creator-fee-policy-shared";
 
 export const MONETIZATION_CACHE_TAG = "monetization-settings";
@@ -52,8 +52,8 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "coin.enabled",
-    label: "Bật coin",
-    description: "Bật nền tảng coin nội bộ, chưa bao gồm mua coin.",
+    label: "Bật Xu",
+    description: "Bật nền tảng Xu nội bộ, chưa bao gồm nạp Xu.",
     group: "coin",
     defaultValue: false,
     inputType: "boolean",
@@ -61,7 +61,7 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "coin.purchase_enabled",
-    label: "Cho mua coin",
+    label: "Cho nạp Xu",
     description: "Chỉ bật sau khi payment thật sẵn sàng.",
     group: "coin",
     defaultValue: false,
@@ -70,8 +70,8 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "coin.reward_enabled",
-    label: "Cho thưởng coin",
-    description: "Bật coin thưởng/non-withdrawable.",
+    label: "Cho thưởng Xu",
+    description: "Bật Xu thưởng/non-withdrawable.",
     group: "coin",
     defaultValue: false,
     inputType: "boolean",
@@ -79,19 +79,19 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "coin.display_name",
-    label: "Tên hiển thị coin",
-    description: "Tên coin hiển thị trong UI nếu coin được bật.",
+    label: "Tên hiển thị Xu",
+    description: "Tên Xu hiển thị trong UI nếu Xu được bật.",
     group: "coin",
-    defaultValue: "Coin",
+    defaultValue: "Xu",
     inputType: "text",
     isPublic: true
   },
   {
     key: "coin.exchange_rate_vnd",
-    label: "Tỷ giá VND/coin",
-    description: "Số VND tương ứng 1 coin.",
+    label: "Tỷ giá VND/Xu",
+    description: "Số VND tương ứng 1 Xu.",
     group: "coin",
-    defaultValue: 1000,
+    defaultValue: 1,
     inputType: "number",
     isPublic: true,
     min: 1,
@@ -100,7 +100,7 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   {
     key: "coin.min_purchase_amount_vnd",
     label: "Mức mua tối thiểu (VND)",
-    description: "Ngưỡng tối thiểu khi mua coin sau này.",
+    description: "Ngưỡng tối thiểu khi mua Xu sau này.",
     group: "coin",
     defaultValue: 10000,
     inputType: "number",
@@ -110,8 +110,8 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "coin.min_purchase_coins",
-    label: "Coin tối thiểu mỗi lần mua",
-    description: "Số coin tối thiểu trong một giao dịch mua.",
+    label: "Xu tối thiểu mỗi lần mua",
+    description: "Số Xu tối thiểu trong một giao dịch mua.",
     group: "coin",
     defaultValue: 10,
     inputType: "number",
@@ -121,8 +121,8 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "coin.max_purchase_coins",
-    label: "Coin tối đa mỗi lần mua",
-    description: "Số coin tối đa trong một giao dịch mua.",
+    label: "Xu tối đa mỗi lần mua",
+    description: "Số Xu tối đa trong một giao dịch mua.",
     group: "coin",
     defaultValue: 100000,
     inputType: "number",
@@ -461,7 +461,7 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   ...[
     [
       "revenue_share.bonus_withdrawable_factor.coin_pack",
-      "Bonus từ coin pack có thể rút (%)",
+      "Bonus từ gói Xu có thể rút (%)",
       30
     ],
     [
@@ -476,14 +476,14 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
     ],
     [
       "revenue_share.bonus_withdrawable_factor.admin_grant",
-      "Bonus từ admin grant/test coin có thể rút (%)",
+      "Bonus từ admin grant/test Xu có thể rút (%)",
       0
     ]
   ].map(([key, label, defaultValue]) => ({
     key: key as MonetizationConfigKey,
     label: String(label),
     description:
-      "Hệ số rút được áp dụng cho doanh thu phát sinh từ bonus coin theo nguồn thưởng.",
+      "Hệ số rút được áp dụng cho doanh thu phát sinh từ bonus Xu theo nguồn thưởng.",
     group: "revenue_share" as const,
     defaultValue: Number(defaultValue),
     inputType: "number" as const,
@@ -503,7 +503,7 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "paid_chapters.default_coin_price",
-    label: "Giá coin mặc định chapter",
+    label: "Giá Xu mặc định chapter",
     description: "Giá mặc định khi creator không set giá riêng.",
     group: "modules",
     defaultValue: 10,
@@ -514,7 +514,7 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "paid_chapters.min_coin_price",
-    label: "Giá coin tối thiểu",
+    label: "Giá Xu tối thiểu",
     description: "Giới hạn giá tối thiểu cho paid chapter.",
     group: "modules",
     defaultValue: 1,
@@ -525,7 +525,7 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "paid_chapters.max_coin_price",
-    label: "Giá coin tối đa",
+    label: "Giá Xu tối đa",
     description: "Giới hạn giá tối đa cho paid chapter.",
     group: "modules",
     defaultValue: 200,
@@ -568,7 +568,7 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "early_access.default_coin_price",
-    label: "Giá coin mặc định đọc sớm",
+    label: "Giá Xu mặc định đọc sớm",
     description: "Giá đọc sớm mặc định khi creator không set.",
     group: "modules",
     defaultValue: 8,
@@ -591,7 +591,7 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   {
     key: "early_access.min_coin_price",
     label: "Giá đọc sớm tối thiểu",
-    description: "Giới hạn giá coin tối thiểu của đọc sớm.",
+    description: "Giới hạn giá Xu tối thiểu của đọc sớm.",
     group: "modules",
     defaultValue: 1,
     inputType: "number",
@@ -602,7 +602,7 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   {
     key: "early_access.max_coin_price",
     label: "Giá đọc sớm tối đa",
-    description: "Giới hạn giá coin tối đa của đọc sớm.",
+    description: "Giới hạn giá Xu tối đa của đọc sớm.",
     group: "modules",
     defaultValue: 200,
     inputType: "number",
@@ -654,8 +654,8 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "vip_subscription.default_coin_bonus_amount",
-    label: "VIP coin bonus mặc định",
-    description: "Coin bonus mặc định khi mua VIP.",
+    label: "Xu bonus mặc định cho VIP",
+    description: "Xu bonus mặc định khi mua VIP.",
     group: "modules",
     defaultValue: 0,
     inputType: "number",
@@ -674,7 +674,7 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "fan_club.min_coin_price",
-    label: "Fan club giá coin tối thiểu",
+    label: "Fan club giá Xu tối thiểu",
     description: "Giới hạn giá tối thiểu cho plan fan club.",
     group: "modules",
     defaultValue: 10,
@@ -685,7 +685,7 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "fan_club.max_coin_price",
-    label: "Fan club giá coin tối đa",
+    label: "Fan club giá Xu tối đa",
     description: "Giới hạn giá tối đa cho plan fan club.",
     group: "modules",
     defaultValue: 1000,
@@ -768,8 +768,8 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "rewarded_ads.reward_coin_amount",
-    label: "Reward coin mỗi lượt",
-    description: "Số bonus coin nhận được sau khi xem quảng cáo xong.",
+    label: "Xu thưởng mỗi lượt",
+    description: "Số Xu bonus nhận được sau khi xem quảng cáo xong.",
     group: "modules",
     defaultValue: 10,
     inputType: "number",
@@ -812,7 +812,7 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "rewarded_ads.bonus_coin_expires_days",
-    label: "Bonus coin hết hạn sau (ngày)",
+    label: "Xu bonus hết hạn sau (ngày)",
     description: "Để 0 nghĩa là không hết hạn. Nếu > 0 sẽ lưu metadata để xử lý sau.",
     group: "modules",
     defaultValue: 0,
@@ -823,8 +823,8 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "rewarded_ads.allowed_use_for_paid_chapters",
-    label: "Cho dùng bonus coin mở khóa chapter",
-    description: "Cho phép bonus coin từ rewarded ad được dùng cho paid chapter.",
+    label: "Cho dùng Xu bonus mở khóa chapter",
+    description: "Cho phép Xu bonus từ rewarded ad được dùng cho paid chapter.",
     group: "modules",
     defaultValue: true,
     inputType: "boolean",
@@ -832,8 +832,8 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "rewarded_ads.allowed_use_for_tips",
-    label: "Cho dùng bonus coin để tip",
-    description: "Cho phép bonus coin từ rewarded ad được dùng cho tips.",
+    label: "Cho dùng Xu bonus để tip",
+    description: "Cho phép Xu bonus từ rewarded ad được dùng cho tips.",
     group: "modules",
     defaultValue: true,
     inputType: "boolean",
@@ -1088,8 +1088,8 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "fraud.block_bonus_coin_withdrawal",
-    label: "Chặn rút coin thưởng",
-    description: "Coin thưởng không được quy đổi/rút tiền.",
+    label: "Chặn rút Xu thưởng",
+    description: "Xu thưởng không được quy đổi/rút tiền.",
     group: "fraud",
     defaultValue: true,
     inputType: "boolean",
@@ -1124,8 +1124,8 @@ export const MONETIZATION_SETTING_DEFINITIONS = [
   },
   {
     key: "fraud.lock_revenue_on_refund_dispute",
-    label: "Khóa doanh thu khi tranh chấp hoàn coin",
-    description: "Tự khóa khi có khiếu nại hoàn coin đang xử lý.",
+    label: "Khóa doanh thu khi tranh chấp hoàn Xu",
+    description: "Tự khóa khi có khiếu nại hoàn Xu đang xử lý.",
     group: "fraud",
     defaultValue: true,
     inputType: "boolean",
@@ -1203,8 +1203,12 @@ function sanitizeValue(
   return typeof value === "string" ? value : String(definition.defaultValue);
 }
 
-async function loadMonetizationConfig(): Promise<MonetizationConfig> {
-  const rows = await fetchMonetizationSettings();
+async function loadMonetizationConfig(options?: {
+  includePrivate?: boolean;
+}): Promise<MonetizationConfig> {
+  const rows = await fetchMonetizationSettings({
+    includePrivate: options?.includePrivate === true
+  });
   const settings = { ...DEFAULT_MONETIZATION_SETTINGS };
   let updatedAt: string | null = null;
 
@@ -1226,8 +1230,14 @@ async function loadMonetizationConfig(): Promise<MonetizationConfig> {
 }
 
 const getCachedMonetizationConfig = unstable_cache(
-  loadMonetizationConfig,
+  () => loadMonetizationConfig(),
   ["monetization-settings"],
+  { revalidate: 60, tags: [MONETIZATION_CACHE_TAG] }
+);
+
+const getCachedPrivateMonetizationConfig = unstable_cache(
+  () => loadMonetizationConfig({ includePrivate: true }),
+  ["monetization-settings-private"],
   { revalidate: 60, tags: [MONETIZATION_CACHE_TAG] }
 );
 
@@ -1235,9 +1245,12 @@ export async function getMonetizationConfig(options?: {
   includePrivate?: boolean;
   useCache?: boolean;
 }): Promise<MonetizationConfig> {
+  const shouldIncludePrivate = options?.includePrivate === true;
   const config = options?.useCache === false
-    ? await loadMonetizationConfig()
-    : await getCachedMonetizationConfig();
+    ? await loadMonetizationConfig({ includePrivate: shouldIncludePrivate })
+    : shouldIncludePrivate
+      ? await getCachedPrivateMonetizationConfig()
+      : await getCachedMonetizationConfig();
 
   if (options?.includePrivate) {
     return config;
@@ -1318,38 +1331,56 @@ export async function getRevenueShareConfig(
 ): Promise<RevenueShareConfig> {
   const { settings } = await getMonetizationConfig({ includePrivate: true });
 
-  const keys: Record<RevenueShareType, MonetizationConfigKey[]> = {
-    default: [
-      "revenue_share.default_creator_percent",
-      "revenue_share.default_platform_percent"
-    ],
-    tip: [
-      "revenue_share.tip_creator_percent",
-      "revenue_share.tip_platform_percent"
-    ],
-    paid_chapter: [
-      "revenue_share.paid_chapter_creator_percent",
-      "revenue_share.paid_chapter_platform_percent"
-    ],
-    early_access: [
-      "revenue_share.early_access_creator_percent",
-      "revenue_share.default_platform_percent"
-    ],
-    gift: [
-      "revenue_share.gift_creator_percent",
-      "revenue_share.default_platform_percent"
-    ],
-    fan_club: [
-      "revenue_share.fan_club_creator_percent",
-      "revenue_share.default_platform_percent"
-    ],
-    vip_pool: [
-      "revenue_share.vip_creator_pool_percent",
-      "revenue_share.platform_fee_percent"
-    ]
+  const sourceKeys: Record<
+    RevenueShareType,
+    {
+      creator: MonetizationConfigKey;
+      platform: MonetizationConfigKey;
+      useDefault?: MonetizationConfigKey;
+    }
+  > = {
+    default: {
+      creator: "revenue_share.default_creator_percent",
+      platform: "revenue_share.default_platform_percent"
+    },
+    tip: {
+      creator: "revenue_share.tip_creator_percent",
+      platform: "revenue_share.tip_platform_percent",
+      useDefault: "revenue_share.tip_use_default"
+    },
+    paid_chapter: {
+      creator: "revenue_share.paid_chapter_creator_percent",
+      platform: "revenue_share.paid_chapter_platform_percent",
+      useDefault: "revenue_share.paid_chapter_use_default"
+    },
+    early_access: {
+      creator: "revenue_share.early_access_creator_percent",
+      platform: "revenue_share.early_access_platform_percent",
+      useDefault: "revenue_share.early_access_use_default"
+    },
+    gift: {
+      creator: "revenue_share.gift_creator_percent",
+      platform: "revenue_share.gift_platform_percent",
+      useDefault: "revenue_share.gift_use_default"
+    },
+    fan_club: {
+      creator: "revenue_share.fan_club_creator_percent",
+      platform: "revenue_share.fan_club_platform_percent",
+      useDefault: "revenue_share.fan_club_use_default"
+    },
+    vip_pool: {
+      creator: "revenue_share.vip_creator_pool_percent",
+      platform: "revenue_share.platform_fee_percent",
+      useDefault: "revenue_share.vip_use_default"
+    }
   };
 
-  const [creatorKey, platformKey] = keys[type];
+  const defaultKeys = sourceKeys.default;
+  const keys = sourceKeys[type];
+  const useDefault =
+    type !== "default" && keys.useDefault ? Boolean(settings[keys.useDefault]) : false;
+  const creatorKey = useDefault ? defaultKeys.creator : keys.creator;
+  const platformKey = useDefault ? defaultKeys.platform : keys.platform;
   const creatorPercent = numberSetting(settings, creatorKey);
   const platformPercent = numberSetting(settings, platformKey);
   const normalized = normalizeRevenueSharePercents(creatorPercent, platformPercent);
@@ -1357,10 +1388,7 @@ export async function getRevenueShareConfig(
   return {
     creatorPercent: normalized.authorPercent,
     platformPercent: normalized.platformPercent,
-    platformFeePercent: numberSetting(
-      settings,
-      "revenue_share.platform_fee_percent"
-    )
+    platformFeePercent: normalized.platformPercent
   };
 }
 

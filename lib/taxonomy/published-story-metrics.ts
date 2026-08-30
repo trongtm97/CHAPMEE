@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 type StoryJoin = {
   updated_at: string;
@@ -24,15 +24,15 @@ async function fetchPublishedCountsViaRpc(
 ): Promise<Map<string, number> | null> {
   if (termIds.length === 0) return new Map();
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_taxonomy_published_story_counts", {
+  const db = await createClient();
+  const { data, error } = await db.rpc("get_taxonomy_published_story_counts", {
     term_ids: termIds
   });
 
   if (error) return null;
 
   const counts = new Map<string, number>();
-  for (const row of data ?? []) {
+  for (const row of Array.isArray(data) ? data : []) {
     counts.set(String(row.term_id), Number(row.story_count ?? 0));
   }
   return counts;
@@ -43,15 +43,15 @@ async function fetchLatestUpdatedViaRpc(
 ): Promise<Map<string, string> | null> {
   if (termIds.length === 0) return new Map();
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_taxonomy_latest_story_updated", {
+  const db = await createClient();
+  const { data, error } = await db.rpc("get_taxonomy_latest_story_updated", {
     term_ids: termIds
   });
 
   if (error) return null;
 
   const latest = new Map<string, string>();
-  for (const row of data ?? []) {
+  for (const row of Array.isArray(data) ? data : []) {
     if (row.latest_updated) {
       latest.set(String(row.term_id), String(row.latest_updated));
     }
@@ -65,12 +65,12 @@ async function fetchPublishedCountsFallback(
   const counts = new Map<string, number>();
   if (termIds.length === 0) return counts;
 
-  const supabase = await createClient();
+  const db = await createClient();
   const chunkSize = 200;
 
   for (let i = 0; i < termIds.length; i += chunkSize) {
     const chunk = termIds.slice(i, i + chunkSize);
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("story_taxonomy_terms")
       .select("term_id, story_id, stories!inner(visibility, status)")
       .in("term_id", chunk);
@@ -100,12 +100,12 @@ async function fetchLatestUpdatedFallback(termIds: string[]): Promise<Map<string
   const latest = new Map<string, string>();
   if (termIds.length === 0) return latest;
 
-  const supabase = await createClient();
+  const db = await createClient();
   const chunkSize = 200;
 
   for (let i = 0; i < termIds.length; i += chunkSize) {
     const chunk = termIds.slice(i, i + chunkSize);
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("story_taxonomy_terms")
       .select("term_id, stories!inner(updated_at, visibility, status)")
       .in("term_id", chunk);

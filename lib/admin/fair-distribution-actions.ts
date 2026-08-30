@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { requireFinanceSettingsView } from "@/lib/auth/require-permission";
 import {
   explainRecommendation,
@@ -19,13 +19,12 @@ export async function runFairDistributionSimulationAction(input: {
     return { success: false as const, error: guard.error };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
-  const result = await runSimulation(
-    supabase,
+  const result = await runSimulation(db,
     input.surface,
     user?.id ?? null,
     input.limit ?? 30
@@ -43,9 +42,8 @@ export async function explainRecommendationAction(input: {
     return { success: false as const, error: guard.error };
   }
 
-  const supabase = await createClient();
-  const result = await explainRecommendation(
-    supabase,
+  const db = await createClient();
+  const result = await explainRecommendation(db,
     input.storyId.trim(),
     input.surface ?? "reels"
   );

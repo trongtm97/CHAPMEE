@@ -1,6 +1,10 @@
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
-import type { CreatorDashboardStats } from "@/lib/creator/getCreatorDashboard";
+import type {
+  CreatorDashboardStats,
+  CreatorDashboardStory
+} from "@/lib/creator/getCreatorDashboard";
 import type { ContinueReadingItem } from "@/lib/reading/getContinueReading";
+import type { ContinueListeningAudioItem } from "@/src/lib/audio/continue-listening";
 import type { ReaderProfileData } from "@/lib/profile/getReaderProfile";
 import type { CollectionSummary } from "@/types/collection";
 import type { ProfileBadge, ProfileStat } from "@/types/profile";
@@ -43,6 +47,7 @@ export type CreatorStudioStats = {
   stories: number;
   reads: number;
   comments: number;
+  drafts?: number;
   revenue?: number | null;
 };
 
@@ -51,19 +56,25 @@ export type MePageUser = {
   email: string | null;
   displayName: string;
   handle: string | null;
+  username: string | null;
   bio: string | null;
   avatarUrl: string | null;
   role: string;
+  isVerified: boolean;
 };
 
 export type MePageData = {
   user: MePageUser;
+  publicProfilePath: string | null;
   stats: ProfileStat[];
   profileBadges: ProfileBadge[];
   currentlyReading: ContinueReadingItem[];
+  continueListeningAudio: ContinueListeningAudioItem[];
   readerProfile: ReaderProfileData;
   creatorProfile: CreatorProfile | null;
   creatorStats: CreatorStudioStats | null;
+  recentCreatorStories: CreatorDashboardStory[];
+  unreadMessagesCount: number;
   collections: CollectionSummary[];
   thankYous: AuthorThankYouView[];
   communityGroupsCount: number;

@@ -8,6 +8,8 @@ type ProfileShareButtonProps = {
   title: string;
   buttonClassName?: string;
   iconClassName?: string;
+  /** Nếu có — hiển thị chữ thay vì chỉ icon (mobile profile). */
+  label?: string;
 };
 
 function ShareIcon({ className = "size-4" }: { className?: string }) {
@@ -46,6 +48,7 @@ async function copyShareUrl(url: string) {
 export function ProfileShareButton({
   buttonClassName = "tap-highlight inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/8 bg-white/[0.04] text-zinc-400 transition hover:border-white/12 hover:bg-white/[0.06] hover:text-zinc-200",
   iconClassName = "size-3.5",
+  label,
   shareText,
   shareUrl,
   title
@@ -81,12 +84,16 @@ export function ProfileShareButton({
   return (
     <>
       <button
-        aria-label="Chia sẻ hồ sơ"
+        aria-label={label ? undefined : "Chia sẻ hồ sơ"}
         className={buttonClassName}
         onClick={() => void handleShare()}
         type="button"
       >
-        <ShareIcon className={iconClassName} />
+        {label ? (
+          <span>{label}</span>
+        ) : (
+          <ShareIcon className={iconClassName} />
+        )}
       </button>
 
       {toast ? (

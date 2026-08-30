@@ -1,12 +1,13 @@
-import Link from "next/link";
+import { DiscoverTaxonomyExplorer } from "@/components/discovery/DiscoverTaxonomyExplorer";
 import { StoryCarouselSection } from "@/components/discover/StoryCarouselSection";
-import { TaxonomyChipSection } from "@/components/discovery/TaxonomyChipSection";
 import type { DiscoverStory } from "@/lib/discover/getDiscoverData";
 import type { DiscoverTaxonomyPayload } from "@/lib/discovery/types";
 import type { StoryCatalogStory } from "@/types/story";
 
 type DiscoverTaxonomySectionsProps = {
   taxonomy: DiscoverTaxonomyPayload;
+  activeGenre?: string;
+  query?: string;
 };
 
 function toDiscoverStory(story: StoryCatalogStory): DiscoverStory {
@@ -16,6 +17,7 @@ function toDiscoverStory(story: StoryCatalogStory): DiscoverStory {
     slug: story.slug,
     publicCode: story.publicCode,
     coverUrl: story.coverUrl,
+    currentImage: story.currentImage ?? null,
     hook: story.hook,
     shortDescription: story.shortDescription,
     longDescription: null,
@@ -27,33 +29,48 @@ function toDiscoverStory(story: StoryCatalogStory): DiscoverStory {
     isCompleted: story.isCompleted,
     publishedAt: story.publishedAt,
     tagNames: story.tagPreview ?? [],
-    score: story.score
+    score: story.score,
+    contentOrigin: story.contentOrigin,
+    rightsStatus: story.rightsStatus,
+    structureType: story.structureType,
+    standaloneReadingTimeMinutes: story.standaloneReadingTimeMinutes
   };
 }
 
-export function DiscoverTaxonomySections({ taxonomy }: DiscoverTaxonomySectionsProps) {
+export function DiscoverTaxonomySections({
+  activeGenre = "",
+  query = "",
+  taxonomy
+}: DiscoverTaxonomySectionsProps) {
+  const hasStories = taxonomy.storySections.some((section) => section.stories.length > 0);
+  const hasChips =
+    taxonomy.featuredGenres.terms.length > 0 ||
+    taxonomy.readerExperiences.terms.length > 0 ||
+    taxonomy.settingTags.terms.length > 0 ||
+    taxonomy.presentationModes.terms.length > 0;
+
   return (
-    <div className="space-y-7 md:space-y-8">
-      <TaxonomyChipSection section={taxonomy.featuredGenres} />
-      <TaxonomyChipSection section={taxonomy.readerExperiences} />
-      <TaxonomyChipSection section={taxonomy.settingTags} />
-      <TaxonomyChipSection section={taxonomy.presentationModes} />
+    <div className="space-y-5 md:space-y-6">
+      {hasStories ? (
+        <div className="space-y-5 md:space-y-6">
+          {taxonomy.storySections.map((section) =>
+            section.stories.length > 0 ? (
+              <StoryCarouselSection
+                href={section.seeAllHref}
+                key={section.key}
+                stories={section.stories.map(toDiscoverStory)}
+                subtitle="Gợi ý từ nhãn taxonomy"
+                title={section.title}
+                trackingSurface="discover"
+              />
+            ) : null
+          )}
+        </div>
+      ) : null}
 
-      {taxonomy.storySections.map((section) => (
-        <StoryCarouselSection
-          href={section.seeAllHref}
-          key={section.key}
-          stories={section.stories.map(toDiscoverStory)}
-          title={section.title}
-          trackingSurface="discover"
-        />
-      ))}
-
-      <p className="text-center">
-        <Link className="text-xs font-bold text-cyan-200 hover:text-cyan-100" href="/kham-pha">
-          Xem tất cả nhóm taxonomy →
-        </Link>
-      </p>
+      {hasChips ? (
+        <DiscoverTaxonomyExplorer activeGenre={activeGenre} query={query} taxonomy={taxonomy} />
+      ) : null}
     </div>
   );
 }

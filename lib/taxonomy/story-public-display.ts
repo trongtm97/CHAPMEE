@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import { presentationModeDescription } from "@/lib/taxonomy/presentation-labels";
 
@@ -17,10 +17,10 @@ export type StoryPublicTaxonomyDisplay = {
 const VISIBLE_TAG_LIMIT = 6;
 
 export async function resolveStoryPublicTaxonomyDisplay(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string
 ): Promise<StoryPublicTaxonomyDisplay> {
-  const labels = await getStoryTaxonomyLabelsByStoryIds(supabase, [storyId]);
+  const labels = await getStoryTaxonomyLabelsByStoryIds(db, [storyId]);
   const taxonomy = labels.get(storyId);
 
   const allTags = (taxonomy?.tagNames ?? [])
@@ -29,7 +29,7 @@ export async function resolveStoryPublicTaxonomyDisplay(
   const visibleTags = allTags.slice(0, VISIBLE_TAG_LIMIT);
   const tagsExtra = allTags.slice(VISIBLE_TAG_LIMIT);
 
-  const { data: presentation } = await supabase
+  const { data: presentation } = await db
     .from("story_presentation_settings")
     .select("mode")
     .eq("story_id", storyId)

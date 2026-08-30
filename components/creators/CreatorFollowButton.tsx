@@ -7,9 +7,11 @@ type CreatorFollowButtonProps = {
   isFollowing: boolean;
   isLoggedIn: boolean;
   returnTo: string;
+  buttonClassName?: string;
 };
 
 export function CreatorFollowButton({
+  buttonClassName,
   creatorId,
   isFollowing,
   isLoggedIn,
@@ -17,14 +19,15 @@ export function CreatorFollowButton({
 }: CreatorFollowButtonProps) {
   if (!isLoggedIn) {
     return (
-      <div className="space-y-2">
-        <Link
-          className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-cyan-300 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-200"
-          href={`/login?next=${encodeURIComponent(returnTo)}`}
-        >
-          Đăng nhập để theo dõi
-        </Link>
-      </div>
+      <Link
+        className={
+          buttonClassName ??
+          "inline-flex h-9 w-full items-center justify-center rounded-full bg-cyan-300 px-4 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-200"
+        }
+        href={`/login?next=${encodeURIComponent(returnTo)}`}
+      >
+        Theo dõi
+      </Link>
     );
   }
 
@@ -40,7 +43,7 @@ export function CreatorFollowButton({
       }}
     >
       <Button
-        className="w-full normal-case tracking-normal"
+        className={`h-9 w-full normal-case tracking-normal ${buttonClassName ?? ""}`}
         type="submit"
         variant={isFollowing ? "secondary" : "primary"}
       >

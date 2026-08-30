@@ -144,4 +144,4 @@ Thông báo tiếng Việt qua `mapStoryImageUploadError`:
 | `lib/images/story-image-health.ts` | Thiếu variant |
 | `lib/images/map-upload-error.ts` | Message lỗi |
 | `components/common/StoryImageMedia.tsx` | Blur + fade-in + onError |
-| `supabase/migrations/070_story_images.sql` | Schema + RLS |
+| `db/migrations/legacy/070_story_images.sql` | Schema + RLS |

@@ -10,13 +10,13 @@ import {
   removeStoryFromCollection,
   updateCollection,
   getCollectionById
-} from "@/lib/supabase/collections";
+} from "@/lib/data/collections";
 import type { CollectionFormValues } from "@/types/collection";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 async function getCurrentUserId() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
+  const db = await createClient();
+  const { data } = await db.auth.getUser();
   return data.user?.id ?? null;
 }
 

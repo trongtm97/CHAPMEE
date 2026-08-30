@@ -47,20 +47,32 @@ export function ReelsCreatorAvatar({
   onFollow,
   showFollow
 }: ReelsCreatorAvatarProps) {
+  const avatar = (
+    <AvatarFallback
+      className="ring-2 ring-white/10 shadow-[0_14px_28px_rgba(0,0,0,0.26)]"
+      name={creatorName}
+      size="md"
+      src={avatarUrl}
+    />
+  );
+
   return (
     <div className="relative">
-      <Link className="tap-highlight block" href={creatorHref}>
-        <AvatarFallback
-          className="ring-2 ring-white/10 shadow-[0_14px_28px_rgba(0,0,0,0.26)]"
-          name={creatorName}
-          size="md"
-          src={avatarUrl}
-        />
-      </Link>
+      {creatorHref && creatorHref !== "#" ? (
+        <Link
+          className="tap-highlight relative z-10 block"
+          href={creatorHref}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {avatar}
+        </Link>
+      ) : (
+        <div className="relative z-10">{avatar}</div>
+      )}
 
       {showFollow ? (
         <button
-          className={`tap-highlight absolute -bottom-1 left-1/2 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full border border-[#081118] shadow-[0_8px_18px_rgba(0,0,0,0.36)] transition ${
+          className={`tap-highlight absolute -bottom-1 left-1/2 z-20 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full border border-[#081118] shadow-[0_8px_18px_rgba(0,0,0,0.36)] transition ${
             following ? "bg-white text-[#081118]" : "bg-[#ff3b6b] text-white"
           }`}
           disabled={disabled}

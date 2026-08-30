@@ -49,7 +49,7 @@ export function CreatorDashboardClient({
           action={
             <a
               className="tap-highlight inline-flex min-h-11 items-center justify-center rounded-full bg-cyan-300 px-5 text-sm font-black uppercase tracking-[0.12em] text-zinc-950 transition hover:bg-cyan-200"
-              href="/studio/setup"
+              href="/studio"
             >
               Bắt đầu viết
             </a>

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   DEFAULT_PROFILE_PRIVACY,
   type ProfilePrivacySettings
@@ -49,8 +49,8 @@ export function defaultPrivacyForUser(userId: string): ProfilePrivacySettings {
 export async function getProfilePrivacySettings(
   userId: string
 ): Promise<ProfilePrivacySettings> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("profile_privacy_settings")
     .select("*")
     .eq("user_id", userId)
@@ -67,8 +67,8 @@ export async function ensureProfilePrivacySettings(
   userId: string
 ): Promise<ProfilePrivacySettings> {
   const existing = await getProfilePrivacySettings(userId);
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("profile_privacy_settings")
     .select("user_id")
     .eq("user_id", userId)
@@ -78,7 +78,7 @@ export async function ensureProfilePrivacySettings(
     return existing;
   }
 
-  const { data: inserted, error } = await supabase
+  const { data: inserted, error } = await db
     .from("profile_privacy_settings")
     .insert({
       user_id: userId,

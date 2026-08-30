@@ -10,7 +10,7 @@ import {
 } from "@/lib/admin/creator-fee-policy-shared";
 import { requireCreatorFeeUpdateAccess } from "@/lib/auth/creator-fee-guards";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CreatorFeePolicyInput } from "@/types/creator-fee-policy";
 
 export type UpdateCreatorFeePolicyInput = CreatorFeePolicyInput & {
@@ -33,9 +33,9 @@ export async function updateCreatorFeePolicyAction(input: UpdateCreatorFeePolicy
     return { ok: false, error: validationError };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: existing, error: fetchError } = await supabase
+  const { data: existing, error: fetchError } = await db
     .from("creator_fee_policies")
     .select("*")
     .eq("id", input.policyId)
@@ -51,7 +51,7 @@ export async function updateCreatorFeePolicyAction(input: UpdateCreatorFeePolicy
   const endsAtIso = input.endsAt ? new Date(input.endsAt).toISOString() : null;
 
   if ((status === "active" || status === "scheduled") && !input.confirmOverlap) {
-    const { data: overlaps } = await supabase
+    const { data: overlaps } = await db
       .from("creator_fee_policies")
       .select("id")
       .eq("creator_id", before.creator_id)
@@ -71,7 +71,7 @@ export async function updateCreatorFeePolicyAction(input: UpdateCreatorFeePolicy
 
   if (status === "active" || status === "scheduled") {
     const now = new Date().toISOString();
-    await supabase
+    await db
       .from("creator_fee_policies")
       .update({ status: "expired", ends_at: now, updated_at: now, updated_by: ctx.userId })
       .eq("creator_id", before.creator_id)
@@ -87,7 +87,7 @@ export async function updateCreatorFeePolicyAction(input: UpdateCreatorFeePolicy
   };
   delete (updatePayload as Record<string, unknown>).creator_id;
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("creator_fee_policies")
     .update(updatePayload)
     .eq("id", input.policyId)

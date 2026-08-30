@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import type { NormalizedCommunityGroupsParams } from "@/lib/community/community-groups-query";
 import {
@@ -57,10 +57,10 @@ async function getStoryIdsForPersonalFilters(
     return null;
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
   if (status === "following") {
-    const { data } = await supabase
+    const { data } = await db
       .from("follows")
       .select("story_id")
       .eq("follower_id", userId)
@@ -70,7 +70,7 @@ async function getStoryIdsForPersonalFilters(
     return [...new Set((data ?? []).map((row) => row.story_id).filter(Boolean))] as string[];
   }
 
-  const { data } = await supabase
+  const { data } = await db
     .from("bookshelf_items")
     .select("story_id")
     .eq("user_id", userId)
@@ -88,8 +88,8 @@ async function enrichPostCounts(storyIds: string[]) {
     return postCountByStory;
   }
 
-  const supabase = await createClient();
-  const { data: posts } = await supabase
+  const db = await createClient();
+  const { data: posts } = await db
     .from("community_posts")
     .select("story_id")
     .in("story_id", storyIds)
@@ -137,7 +137,7 @@ async function fetchPublicStoryRows(options: {
   page: number;
   pageSize: number;
 }) {
-  const supabase = await createClient();
+  const db = await createClient();
   const canUseDbPagination =
     options.sort === "newest" &&
     !options.q.trim() &&
@@ -149,7 +149,7 @@ async function fetchPublicStoryRows(options: {
     const offset = getCatalogOffset(options.page, options.pageSize);
     const to = offset + options.pageSize - 1;
 
-    const { data, error, count } = await supabase
+    const { data, error, count } = await db
       .from("stories")
       .select(STORY_GROUP_SELECT, { count: "exact" })
       .eq("visibility", "public")
@@ -168,7 +168,7 @@ async function fetchPublicStoryRows(options: {
     };
   }
 
-  let query = supabase
+  let query = db
     .from("stories")
     .select(STORY_GROUP_SELECT)
     .eq("visibility", "public")
@@ -188,7 +188,7 @@ async function fetchPublicStoryRows(options: {
       "@/lib/taxonomy/public-genres"
     );
     const taxonomyStoryIds = await getPublicStoryIdsForMainGenreSlug(
-      supabase,
+      db,
       options.genre,
       COMMUNITY_GROUPS_MAX_SCAN
     );
@@ -206,7 +206,7 @@ async function fetchPublicStoryRows(options: {
 
   const fetchedRows = (data ?? []) as unknown as StoryRow[];
   const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(
-    supabase,
+    db,
     fetchedRows.map((row) => row.id)
   );
   const rows = filterRowsBySearch(fetchedRows, options.q, taxonomyByStory);
@@ -220,11 +220,11 @@ async function fetchPublicStoryRows(options: {
 
 export async function getCommunityGroupGenres(): Promise<CommunityGroupGenre[]> {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const { getPublicMainGenresWithStoryCounts } = await import(
       "@/lib/taxonomy/public-genres"
     );
-    const taxonomyGenres = await getPublicMainGenresWithStoryCounts(supabase);
+    const taxonomyGenres = await getPublicMainGenresWithStoryCounts(db);
 
     if (taxonomyGenres.length > 0) {
       return taxonomyGenres.map((row) => ({ slug: row.slug, name: row.name }));
@@ -264,8 +264,8 @@ async function getRecommendedGroupsQuick(
   limit: number
 ): Promise<CommunityGroupItem[]> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("stories")
       .select(STORY_GROUP_SELECT)
       .eq("visibility", "public")
@@ -280,7 +280,7 @@ async function getRecommendedGroupsQuick(
     const rows = (data ?? []) as unknown as StoryRow[];
     const postCountByStory = await enrichPostCounts(rows.map((row) => row.id));
     const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(
-      supabase,
+      db,
       rows.map((row) => row.id)
     );
     let groups = mapRowsToGroups(rows, taxonomyByStory, {
@@ -294,7 +294,7 @@ async function getRecommendedGroupsQuick(
 
     const exclude = new Set<string>();
     if (userId) {
-      const { data: shelf } = await supabase
+      const { data: shelf } = await db
         .from("bookshelf_items")
         .select("story_id")
         .eq("user_id", userId)
@@ -350,10 +350,10 @@ export async function getCommunityGroupsCatalog(
     let items: CommunityGroupItem[] = [];
 
     if (fetchResult.usedDbPagination) {
-      const supabase = await createClient();
+      const db = await createClient();
       const postCountByStory = await enrichPostCounts(fetchResult.rows.map((row) => row.id));
       const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(
-        supabase,
+        db,
         fetchResult.rows.map((row) => row.id)
       );
       items = mapRowsToGroups(fetchResult.rows, taxonomyByStory, {
@@ -443,15 +443,15 @@ export async function getMyCommunityGroups(userId: string | null): Promise<{
   }
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const [{ data: follows }, { data: bookshelf }] = await Promise.all([
-      supabase
+      db
         .from("follows")
         .select("story_id")
         .eq("follower_id", userId)
         .not("story_id", "is", null)
         .limit(12),
-      supabase
+      db
         .from("bookshelf_items")
         .select("story_id")
         .eq("user_id", userId)
@@ -472,7 +472,7 @@ export async function getMyCommunityGroups(userId: string | null): Promise<{
       return { groups: [], isLoggedIn: true };
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("stories")
       .select(STORY_GROUP_SELECT)
       .in("id", storyIds)
@@ -485,7 +485,7 @@ export async function getMyCommunityGroups(userId: string | null): Promise<{
 
     const rows = (data ?? []) as unknown as StoryRow[];
     const postCountByStory = await enrichPostCounts(storyIds);
-    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, storyIds);
     const order = new Map(storyIds.map((id, index) => [id, index]));
     const groups = mapRowsToGroups(rows, taxonomyByStory, {
       postCount: 0,
@@ -534,8 +534,8 @@ export async function getCommunityGroupById(groupId: string): Promise<{
     : groupId;
 
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("stories")
       .select(STORY_GROUP_SELECT)
       .eq("id", storyId)
@@ -546,7 +546,7 @@ export async function getCommunityGroupById(groupId: string): Promise<{
     }
 
     if (!data) {
-      const { data: bySlug } = await supabase
+      const { data: bySlug } = await db
         .from("stories")
         .select(STORY_GROUP_SELECT)
         .eq("slug", groupId)
@@ -557,7 +557,7 @@ export async function getCommunityGroupById(groupId: string): Promise<{
       }
 
       const postCountByStory = await enrichPostCounts([bySlug.id as string]);
-      const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, [
+      const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, [
         bySlug.id as string
       ]);
       const taxonomy = taxonomyByStory.get(bySlug.id as string);
@@ -579,7 +579,7 @@ export async function getCommunityGroupById(groupId: string): Promise<{
     }
 
     const postCountByStory = await enrichPostCounts([data.id as string]);
-    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, [
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, [
       data.id as string
     ]);
     const taxonomy = taxonomyByStory.get(data.id as string);

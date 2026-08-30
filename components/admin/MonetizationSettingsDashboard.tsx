@@ -204,7 +204,7 @@ export function MonetizationSettingsDashboard({
       on: monetizationOn
     },
     {
-      label: "Mua coin",
+      label: "Nạp Xu",
       on: Boolean(draft["coin.purchase_enabled"])
     },
     {
@@ -216,8 +216,8 @@ export function MonetizationSettingsDashboard({
       on: Boolean(draft["payout.enabled"])
     },
     {
-      label: "Tỷ giá coin",
-      value: `${coinRate.toLocaleString("vi-VN")} ₫/coin`
+      label: "1 VNĐ = 1 Xu",
+      value: `1 ₫ = 1 Xu`
     }
   ];
 
@@ -350,11 +350,11 @@ export function MonetizationSettingsDashboard({
         <MoneySettingCard
           description="Tỷ giá mới chỉ áp dụng cho giao dịch mới."
           id="coin"
-          title="Coin & tỷ giá"
+          title="Xu & tỷ giá"
         >
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm sm:col-span-2">
-              <span className="text-zinc-400">Tỷ giá coin → VND</span>
+              <span className="text-zinc-400">1 VNĐ = 1 Xu</span>
               <Input
                 className="mt-1 max-w-xs"
                 disabled={inputDisabled(permissions.canUpdateCoin)}
@@ -368,7 +368,7 @@ export function MonetizationSettingsDashboard({
               <FieldError message={validation.fieldErrors["coin.exchange_rate_vnd"]} />
             </label>
             <label className="block text-sm">
-              <span className="text-zinc-400">Giá coin tối thiểu / chương</span>
+              <span className="text-zinc-400">Giá Xu tối thiểu / chương</span>
               <Input
                 className="mt-1"
                 disabled={inputDisabled(permissions.canUpdateCoin)}
@@ -381,7 +381,7 @@ export function MonetizationSettingsDashboard({
               />
             </label>
             <label className="block text-sm">
-              <span className="text-zinc-400">Giá coin tối đa / chương</span>
+              <span className="text-zinc-400">Giá Xu tối đa / chương</span>
               <Input
                 className="mt-1"
                 disabled={inputDisabled(permissions.canUpdateCoin)}
@@ -398,7 +398,7 @@ export function MonetizationSettingsDashboard({
               />
             </label>
             <label className="block text-sm">
-              <span className="text-zinc-400">Coin tối thiểu mỗi lần mua</span>
+              <span className="text-zinc-400">Xu tối thiểu mỗi lần mua</span>
               <Input
                 className="mt-1"
                 disabled={inputDisabled(permissions.canUpdateCoin)}
@@ -411,7 +411,7 @@ export function MonetizationSettingsDashboard({
               />
             </label>
             <label className="block text-sm">
-              <span className="text-zinc-400">Coin tối đa mỗi lần mua</span>
+              <span className="text-zinc-400">Xu tối đa mỗi lần mua</span>
               <Input
                 className="mt-1"
                 disabled={inputDisabled(permissions.canUpdateCoin)}
@@ -426,7 +426,7 @@ export function MonetizationSettingsDashboard({
             </label>
           </div>
           <p className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-zinc-300">
-            Ví dụ: 100 coin ={" "}
+            Ví dụ: 100 Xu ={" "}
             <span className="text-cyan-300">
               {(100 * coinRate).toLocaleString("vi-VN")} ₫
             </span>{" "}
@@ -486,9 +486,9 @@ export function MonetizationSettingsDashboard({
               </label>
             </div>
             <p className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-zinc-300">
-              Người đọc chi <span className="text-white">X coin</span> → Tác giả nhận{" "}
-              <span className="text-cyan-300">{defaultCreator} coin</span> → Nền tảng giữ{" "}
-              <span className="text-cyan-300">{defaultPlatform} coin</span>.
+              Người đọc chi <span className="text-white">X Xu</span> → Tác giả nhận{" "}
+              <span className="text-cyan-300">{defaultCreator} Xu</span> → Nền tảng giữ{" "}
+              <span className="text-cyan-300">{defaultPlatform} Xu</span>.
             </p>
           </div>
         </MoneySettingCard>
@@ -518,7 +518,7 @@ export function MonetizationSettingsDashboard({
         </MoneySettingCard>
 
         <MoneySettingCard
-          description="Doanh thu nên được giữ trước khi cho rút để xử lý hoàn coin, khiếu nại và nội dung vi phạm."
+          description="Doanh thu nên được giữ trước khi cho rút để xử lý hoàn Xu, khiếu nại và nội dung vi phạm."
           id="withdrawal"
           title="Rút tiền tác giả"
         >
@@ -681,7 +681,7 @@ export function MonetizationSettingsDashboard({
                 ["fraud.lock_revenue_on_severe_report", "Tự khóa khi báo cáo nghiêm trọng"],
                 ["fraud.lock_revenue_on_low_quality", "Tự khóa khi chất lượng thấp"],
                 ["fraud.lock_revenue_on_creator_warning", "Tự khóa khi tác giả bị cảnh báo"],
-                ["fraud.lock_revenue_on_refund_dispute", "Tự khóa khi tranh chấp hoàn coin"],
+                ["fraud.lock_revenue_on_refund_dispute", "Tự khóa khi tranh chấp hoàn Xu"],
                 ["fraud.allow_admin_manual_revenue_unlock", "Cho phép admin mở khóa thủ công"]
               ] as const
             ).map(([key, label]) => (
@@ -719,7 +719,7 @@ export function MonetizationSettingsDashboard({
         >
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
-              <span className="text-zinc-400">Số coin người đọc chi</span>
+              <span className="text-zinc-400">Số Xu người đọc chi</span>
               <Input
                 className="mt-1"
                 min={0}
@@ -786,19 +786,19 @@ export function MonetizationSettingsDashboard({
           </label>
           <dl className="mt-3 grid gap-2 rounded-xl border border-cyan-400/15 bg-cyan-400/5 p-3 text-sm">
             <div className="flex justify-between gap-2">
-              <dt className="text-zinc-400">Tổng coin</dt>
+              <dt className="text-zinc-400">Tổng Xu</dt>
               <dd className="text-white">{preview.totalCoin}</dd>
             </div>
             <div className="flex justify-between gap-2">
               <dt className="text-zinc-400">Tác giả nhận</dt>
               <dd className="text-cyan-200">
-                {preview.creatorCoin} ({preview.creatorPercent}%)
+                {preview.creatorCoin} Xu ({preview.creatorPercent}%)
               </dd>
             </div>
             <div className="flex justify-between gap-2">
               <dt className="text-zinc-400">Nền tảng giữ</dt>
               <dd className="text-white">
-                {preview.platformCoin} ({preview.platformPercent}%)
+                {preview.platformCoin} Xu ({preview.platformPercent}%)
               </dd>
             </div>
             <div className="flex justify-between gap-2">

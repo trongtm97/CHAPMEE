@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 
@@ -100,9 +100,9 @@ export async function getCreatorStories(
 ): Promise<CreatorStoriesData> {
   try {
     const activeFilter = normalizeFilter(filter);
-    const supabase = await createClient();
+    const db = await createClient();
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("stories")
       .select("id, title, slug, public_code, hook, status, updated_at")
       .eq("creator_id", creatorProfile.id)
@@ -114,11 +114,11 @@ export async function getCreatorStories(
 
     const rows = (data ?? []) as unknown as StoryRow[];
     const storyIds = rows.map((story) => story.id);
-    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, storyIds);
     const episodeCountByStory = new Map<string, number>();
 
     if (storyIds.length > 0) {
-      const { data: episodeRows } = await supabase
+      const { data: episodeRows } = await db
         .from("episodes")
         .select("story_id")
         .in("story_id", storyIds);

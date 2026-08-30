@@ -1,15 +1,15 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { containsExternalLink } from "@/lib/moderation/message-safety";
 import type { MessageReportQueueItem } from "@/types/messaging-safety";
 import type { MessagingDashboardFilters } from "@/types/admin-messaging";
 
 async function countPriorReports(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   userId: string
 ) {
-  const { count } = await supabase
+  const { count } = await db
     .from("message_reports")
     .select("id", { count: "exact", head: true })
     .eq("reported_user_id", userId);
@@ -52,9 +52,9 @@ function matchesFilters(
 export async function getMessageReportsQueue(
   filters: MessagingDashboardFilters
 ): Promise<MessageReportQueueItem[]> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  let query = supabase
+  let query = db
     .from("message_reports")
     .select(
       `id, reason_code, detail, status, risk_level, created_at, conversation_id, message_id,
@@ -115,7 +115,7 @@ export async function getMessageReportsQueue(
       | null;
 
     const preview = messageRow?.body ?? requestRow?.first_message ?? null;
-    const priorReportCount = await countPriorReports(supabase, reported.id);
+    const priorReportCount = await countPriorReports(db, reported.id);
 
     items.push({
       id: row.id as string,

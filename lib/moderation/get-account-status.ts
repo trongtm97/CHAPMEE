@@ -1,5 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type {
   AccountRestrictionRecord,
   AccountStatusSummary,
@@ -26,7 +26,7 @@ function mapViolation(row: Record<string, unknown>): ViolationRecord {
 export async function getAccountStatus(
   userId: string
 ): Promise<AccountStatusSummary> {
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date().toISOString();
 
   const empty: AccountStatusSummary = {
@@ -38,14 +38,14 @@ export async function getAccountStatus(
   };
 
   const [strikesRes, restrictionsRes, violationsRes] = await Promise.all([
-    supabase
+    db
       .from("account_strikes")
       .select("id, policy_area, points, created_at, expires_at, is_active")
       .eq("user_id", userId)
       .eq("is_active", true)
       .gt("expires_at", now)
       .order("created_at", { ascending: false }),
-    supabase
+    db
       .from("account_restrictions")
       .select(
         "id, restriction_type, reason, starts_at, ends_at, is_active"
@@ -55,7 +55,7 @@ export async function getAccountStatus(
       .lte("starts_at", now)
       .or(`ends_at.is.null,ends_at.gt.${now}`)
       .order("created_at", { ascending: false }),
-    supabase
+    db
       .from("violations")
       .select("*")
       .eq("user_id", userId)

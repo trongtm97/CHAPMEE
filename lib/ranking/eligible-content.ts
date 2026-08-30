@@ -1,6 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { publicContentStatuses } from "@/lib/visibility/contentVisibility";
-import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { profileAvatarUrlFromRow } from "@/lib/profile/map-profile-row";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/postgrest-selects";
 import {
   loadMainGenreLabelsByStoryIds,
   pickMainGenreFromLabels
@@ -59,10 +61,10 @@ function isEligibleModeration(status: string | null | undefined) {
 }
 
 export async function fetchEligibleStories(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   limit = 2000
 ): Promise<EligibleStory[]> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("stories")
     .select(
       `id, title, slug, hook, short_description, cover_url, is_completed, published_at, moderation_status, ${CREATOR_PROFILE_STORY_JOIN}`
@@ -94,11 +96,11 @@ export async function fetchEligibleStories(
     "@/lib/ranking/story-main-genre-index"
   );
   const mainGenreIndex = await loadStoryMainGenreTermIndex(
-    supabase,
+    db,
     rows.map((row) => row.id)
   );
   const taxonomyByStory = await loadMainGenreLabelsByStoryIds(
-    supabase,
+    db,
     rows.map((row) => row.id)
   );
 
@@ -114,7 +116,7 @@ export async function fetchEligibleStories(
         slug: row.slug,
         hook: row.hook,
         shortDescription: row.short_description,
-        coverUrl: row.cover_url,
+        coverUrl: resolveStoryCoverUrl(row.cover_url),
         genreId: mainGenreTermId,
         mainGenreTermId,
         genreName: picked.genreName,
@@ -130,10 +132,10 @@ export async function fetchEligibleStories(
 }
 
 export async function fetchEligibleReels(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   limit = 800
 ): Promise<EligibleReel[]> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("reels_items")
     .select("id, story_id, published_at, owner_id, status")
     .eq("status", "published")
@@ -151,10 +153,10 @@ export async function fetchEligibleReels(
 }
 
 export async function fetchEligibleChapters(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   limit = 600
 ): Promise<EligibleChapter[]> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("episodes")
     .select(
       "id, story_id, episode_number, title, published_at, moderation_status, stories!inner(id, status, visibility, moderation_status, creator_profiles(user_id))"
@@ -207,13 +209,13 @@ export async function fetchEligibleChapters(
 }
 
 export async function fetchEligibleAuthors(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   stories: EligibleStory[]
 ): Promise<EligibleAuthor[]> {
   const authorIds = [...new Set(stories.map((s) => s.authorUserId))];
   if (authorIds.length === 0) return [];
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("creator_profiles")
     .select(
       "id, user_id, pen_name, status, profiles!creator_profiles_user_id_fkey(username, avatar_url)"
@@ -244,17 +246,17 @@ export async function fetchEligibleAuthors(
       creatorId: row.id,
       penName: row.pen_name,
       username: profile?.username ?? null,
-      avatarUrl: profile?.avatar_url ?? null,
+      avatarUrl: profileAvatarUrlFromRow(profile),
       firstPublishedAt: firstPublished.get(row.user_id) ?? null
     };
   });
 }
 
-export async function fetchPublicGenres(supabase: SupabaseClient) {
+export async function fetchPublicGenres(db: DatabaseClient) {
   const { listTaxonomyMainGenresForRanking } = await import(
     "@/lib/taxonomy/ranking-bridge"
   );
-  const genres = await listTaxonomyMainGenresForRanking(supabase);
+  const genres = await listTaxonomyMainGenresForRanking(db);
   return genres.map((genre) => ({
     id: genre.termId,
     name: genre.name,

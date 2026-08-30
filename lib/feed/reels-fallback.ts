@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import {
   fetchReelCatalogCandidates,
   filterCandidates,
@@ -7,6 +7,12 @@ import {
 } from "@/lib/feed/catalog";
 import { enrichReelsCandidates } from "@/lib/feed/enrich-reels";
 import { enforceFeedDiversity } from "@/lib/fairness/diversity";
+import {
+  createReelsShuffleSeed,
+  interleaveReelsByStory,
+  REELS_DIVERSITY_RULES,
+  shuffleReelsFeedCandidates
+} from "@/lib/feed/reels-session-shuffle";
 import type { ReelsItem } from "@/lib/reels/getReelsItems";
 
 function logFallbackError(error: unknown) {
@@ -15,7 +21,7 @@ function logFallbackError(error: unknown) {
 }
 
 export async function getReelsQualityFallback(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   options: {
     limit: number;
     offset?: number;
@@ -23,6 +29,7 @@ export async function getReelsQualityFallback(
     excludeKeys?: Set<string>;
     requestId?: string;
     cause?: unknown;
+    shuffleSeed?: number;
   }
 ): Promise<{
   items: ReelsItem[];
@@ -38,7 +45,7 @@ export async function getReelsQualityFallback(
   const offset = Math.max(0, options.offset ?? 0);
   const requestId = options.requestId ?? randomUUID();
 
-  const catalog = await fetchReelCatalogCandidates(supabase, 220);
+  const catalog = await fetchReelCatalogCandidates(db, 220);
   const filtered = filterCandidates(catalog, {
     excludeKeys: options.excludeKeys
   });
@@ -51,19 +58,35 @@ export async function getReelsQualityFallback(
   const diversified = enforceFeedDiversity(sorted, {
     targetLength: offset + limit + 24,
     rerankRules: {
-      maxConsecutiveSameAuthor: 1,
-      maxSameStoryInWindow: 3,
-      storyWindowSize: 30
-    }
+      maxConsecutiveSameAuthor: REELS_DIVERSITY_RULES.maxConsecutiveSameAuthor,
+      maxConsecutiveSameStory: REELS_DIVERSITY_RULES.maxConsecutiveSameStory,
+      maxSameStoryInWindow: REELS_DIVERSITY_RULES.maxSameStoryInWindow,
+      storyWindowSize: REELS_DIVERSITY_RULES.storyWindowSize
+    },
+    preservePlacementOrder: true
   });
 
-  const pageCandidates = diversified.slice(offset, offset + limit).map((candidate) => ({
+  const shuffleSeed = options.shuffleSeed ?? createReelsShuffleSeed();
+  const shuffled = shuffleReelsFeedCandidates(diversified, shuffleSeed);
+  const interleaved = interleaveReelsByStory(shuffled);
+  const rebalanced = enforceFeedDiversity(interleaved, {
+    targetLength: offset + limit + 24,
+    rerankRules: {
+      maxConsecutiveSameAuthor: REELS_DIVERSITY_RULES.maxConsecutiveSameAuthor,
+      maxConsecutiveSameStory: REELS_DIVERSITY_RULES.maxConsecutiveSameStory,
+      maxSameStoryInWindow: REELS_DIVERSITY_RULES.maxSameStoryInWindow,
+      storyWindowSize: REELS_DIVERSITY_RULES.storyWindowSize
+    },
+    preservePlacementOrder: true
+  });
+
+  const pageCandidates = rebalanced.slice(offset, offset + limit).map((candidate) => ({
     ...candidate,
     pool: candidate.pool ?? ("fresh" as const)
   }));
 
   const items = await enrichReelsCandidates(
-    supabase,
+    db,
     pageCandidates,
     {
       requestId,

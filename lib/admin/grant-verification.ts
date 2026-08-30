@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminAuditLog } from "@/lib/admin/create-audit-log";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { syncProfileVerificationCache } from "@/lib/verification/sync-profile-cache";
 import {
   VERIFICATION_TYPES,
@@ -62,7 +62,7 @@ export async function grantVerificationAction(input: GrantInput) {
       return { ok: false, error: "Lý do nội bộ là bắt buộc khi cấp thủ công." };
     }
 
-    const supabase = await createClient();
+    const db = await createClient();
     const now = new Date().toISOString();
     const displayBadge = input.publicBadgeEnabled ?? true;
 
@@ -70,7 +70,7 @@ export async function grantVerificationAction(input: GrantInput) {
     let before: Record<string, unknown> | null = null;
 
     if (recordId) {
-      const { data: existing } = await supabase
+      const { data: existing } = await db
         .from("account_verifications")
         .select("*")
         .eq("id", recordId)
@@ -82,7 +82,7 @@ export async function grantVerificationAction(input: GrantInput) {
 
       before = existing as Record<string, unknown>;
 
-      const { error } = await supabase
+      const { error } = await db
         .from("account_verifications")
         .update({
           status: "approved",
@@ -100,7 +100,7 @@ export async function grantVerificationAction(input: GrantInput) {
         return { ok: false, error: "Không thể cấp xác thực." };
       }
     } else {
-      const { data: conflict } = await supabase
+      const { data: conflict } = await db
         .from("account_verifications")
         .select("id, status")
         .eq("user_id", input.userId)
@@ -114,7 +114,7 @@ export async function grantVerificationAction(input: GrantInput) {
         }
 
         recordId = String(conflict.id);
-        const { error } = await supabase
+        const { error } = await db
           .from("account_verifications")
           .update({
             status: "approved",
@@ -132,7 +132,7 @@ export async function grantVerificationAction(input: GrantInput) {
           return { ok: false, error: "Không thể cấp xác thực." };
         }
       } else {
-        const { data: inserted, error } = await supabase
+        const { data: inserted, error } = await db
           .from("account_verifications")
           .insert({
             user_id: input.userId,
@@ -150,7 +150,7 @@ export async function grantVerificationAction(input: GrantInput) {
           .select("id")
           .single();
 
-        if (error) {
+        if (error || !inserted) {
           return { ok: false, error: "Không thể cấp xác thực." };
         }
 
@@ -160,7 +160,7 @@ export async function grantVerificationAction(input: GrantInput) {
 
     await syncProfileVerificationCache(input.userId);
 
-    const { data: after } = await supabase
+    const { data: after } = await db
       .from("account_verifications")
       .select("*")
       .eq("id", recordId)
@@ -216,8 +216,8 @@ export async function approveVerificationAction(input: {
   adminNote?: string | null;
   publicBadgeEnabled?: boolean;
 }) {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("account_verifications")
     .select("user_id, verification_type, public_label, display_badge")
     .eq("id", input.requestId)
@@ -252,8 +252,8 @@ export async function rejectVerificationAction(input: {
       return { ok: false, error: "Vui lòng nhập lý do từ chối." };
     }
 
-    const supabase = await createClient();
-    const { data: before } = await supabase
+    const db = await createClient();
+    const { data: before } = await db
       .from("account_verifications")
       .select("*")
       .eq("id", input.requestId)
@@ -264,7 +264,7 @@ export async function rejectVerificationAction(input: {
     }
 
     const now = new Date().toISOString();
-    const { error } = await supabase
+    const { error } = await db
       .from("account_verifications")
       .update({
         status: "rejected",
@@ -282,7 +282,7 @@ export async function rejectVerificationAction(input: {
 
     await syncProfileVerificationCache(String(before.user_id));
 
-    const { data: after } = await supabase
+    const { data: after } = await db
       .from("account_verifications")
       .select("*")
       .eq("id", input.requestId)
@@ -324,9 +324,9 @@ export async function updateVerificationRecordAction(input: {
 }) {
   try {
     await assertAdminUpdate();
-    const supabase = await createClient();
+    const db = await createClient();
 
-    const { data: before } = await supabase
+    const { data: before } = await db
       .from("account_verifications")
       .select("*")
       .eq("id", input.requestId)
@@ -350,7 +350,7 @@ export async function updateVerificationRecordAction(input: {
       patch.admin_note = input.adminNote?.trim() || null;
     }
 
-    const { error } = await supabase
+    const { error } = await db
       .from("account_verifications")
       .update(patch)
       .eq("id", input.requestId);
@@ -361,7 +361,7 @@ export async function updateVerificationRecordAction(input: {
 
     await syncProfileVerificationCache(String(before.user_id));
 
-    const { data: after } = await supabase
+    const { data: after } = await db
       .from("account_verifications")
       .select("*")
       .eq("id", input.requestId)

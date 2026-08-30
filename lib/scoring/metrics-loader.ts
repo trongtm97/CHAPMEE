@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { parseMetricsWindowDays, safeRate, windowStartDate } from "@/lib/scoring/math";
 import type {
   ExposureStats,
@@ -148,12 +148,12 @@ function buildStoryAggregateFromRows(
 }
 
 export async function loadStoryMetricsAggregate(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   window: string
 ): Promise<StoryMetricsAggregate> {
   const since = startDateForWindow(window);
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("story_metrics_daily")
     .select(
       "impressions, story_opens, chapter_starts, chapter_completes, next_chapter_clicks, saves, follows_generated, hides, reports, paid_unlocks, tips, revenue_coin, completion_rate, next_chapter_rate, save_rate, report_rate, hide_rate, click_through_rate"
@@ -165,23 +165,23 @@ export async function loadStoryMetricsAggregate(
     return buildStoryAggregateFromRows(data);
   }
 
-  return loadStoryMetricsFromEvents(supabase, storyId, window);
+  return loadStoryMetricsFromEvents(db, storyId, window);
 }
 
 async function loadStoryMetricsFromEvents(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   window: string
 ): Promise<StoryMetricsAggregate> {
   const since = windowStartDate(window);
 
   const [exposureRes, actionsRes] = await Promise.all([
-    supabase
+    db
       .from("exposure_events")
       .select("id", { count: "exact", head: true })
       .eq("story_id", storyId)
       .gte("created_at", since),
-    supabase
+    db
       .from("user_action_events")
       .select("action_type")
       .eq("story_id", storyId)
@@ -231,12 +231,12 @@ async function loadStoryMetricsFromEvents(
 }
 
 export async function loadReelMetricsAggregate(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   reelId: string,
   window: string
 ): Promise<ReelMetricsAggregate> {
   const since = startDateForWindow(window);
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("reel_metrics_daily")
     .select(
       "impressions, opens, read_more_clicks, story_opens, chapter_starts, chapter_completes_after_reel, saves, follows_generated, hides, reports, reels_to_read_rate, completion_after_reel_rate"
@@ -294,23 +294,23 @@ export async function loadReelMetricsAggregate(
     };
   }
 
-  return loadReelMetricsFromEvents(supabase, reelId, window);
+  return loadReelMetricsFromEvents(db, reelId, window);
 }
 
 async function loadReelMetricsFromEvents(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   reelId: string,
   window: string
 ): Promise<ReelMetricsAggregate> {
   const since = windowStartDate(window);
 
   const [exposureRes, actionsRes] = await Promise.all([
-    supabase
+    db
       .from("exposure_events")
       .select("id", { count: "exact", head: true })
       .eq("reel_id", reelId)
       .gte("created_at", since),
-    supabase
+    db
       .from("user_action_events")
       .select("action_type, value_text")
       .eq("reel_id", reelId)
@@ -382,7 +382,7 @@ async function loadReelMetricsFromEvents(
 }
 
 export async function loadExposureStats(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     authorUserId: string;
     storyId: string | null;
@@ -396,7 +396,7 @@ export async function loadExposureStats(
   since.setUTCDate(since.getUTCDate() - windowDays);
   const sinceIso = since.toISOString();
 
-  const { data: allExposures } = await supabase
+  const { data: allExposures } = await db
     .from("exposure_events")
     .select("author_user_id, story_id, item_id")
     .gte("created_at", sinceIso)

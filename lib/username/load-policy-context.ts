@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getActiveUsernamePolicyRules } from "@/lib/username/get-policy-rules";
 import type {
   UsernamePolicyExceptionRow,
@@ -14,10 +14,10 @@ export type UsernamePolicyContext = {
 };
 
 export async function loadActivePolicyExceptions() {
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date().toISOString();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("username_policy_exceptions")
     .select("*")
     .is("revoked_at", null);

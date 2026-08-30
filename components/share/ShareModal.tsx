@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { trackEvent } from "@/lib/analytics/trackEvent";
 import { analyticsEvents } from "@/lib/analytics/events";
 import { recordFanScoreFromClient } from "@/lib/fans/fan-score";
+import { resolvePayloadShareUrl } from "@/lib/share/getShareUrl";
 import {
   exportCardToImage,
   getShareImageFilename
@@ -21,10 +22,6 @@ type ShareModalProps = {
 };
 
 type ActionState = "idle" | "sharing" | "copying" | "downloading" | "done" | "error";
-
-function getShareUrl(payload: ShareCardPayload) {
-  return payload.url || window.location.href;
-}
 
 function getFanScoreShareScope(payload: ShareCardPayload) {
   const storyId =
@@ -66,6 +63,10 @@ async function copyLink(url: string) {
 
 export function ShareModal({ onClose, onCompleted, open, payload }: ShareModalProps) {
   const [status, setStatus] = useState<ActionState>("idle");
+  const shareUrl = useMemo(
+    () => (open ? resolvePayloadShareUrl(payload.url) : ""),
+    [open, payload.url]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -100,12 +101,12 @@ export function ShareModal({ onClose, onCompleted, open, payload }: ShareModalPr
 
   async function handleShare() {
     setStatus("sharing");
-    const shareUrl = getShareUrl(payload);
+    const resolvedShareUrl = resolvePayloadShareUrl(payload.url);
 
     try {
       const imageBlob = await exportCardToImage(payload);
       const imageFile = imageBlob && typeof File !== "undefined" ? new File([imageBlob], `${getShareImageFilename(payload)}.png`, { type: "image/png" }) : null;
-      const shareData: ShareData = { title: payload.title, text: payload.text, url: shareUrl };
+      const shareData: ShareData = { title: payload.title, text: payload.text, url: resolvedShareUrl };
 
       if (imageFile && navigator.canShare?.({ files: [imageFile] })) {
         await navigator.share({ ...shareData, files: [imageFile] });
@@ -114,7 +115,7 @@ export function ShareModal({ onClose, onCompleted, open, payload }: ShareModalPr
         await navigator.share(shareData);
         await finishShare("share_clicked");
       } else {
-        await copyLink(shareUrl);
+        await copyLink(resolvedShareUrl);
         await finishShare("share_copied");
       }
 
@@ -126,7 +127,7 @@ export function ShareModal({ onClose, onCompleted, open, payload }: ShareModalPr
         return;
       }
       try {
-        await copyLink(shareUrl);
+        await copyLink(resolvedShareUrl);
         await finishShare("share_copied");
         setStatus("done");
         window.setTimeout(() => setStatus("idle"), 1400);
@@ -140,8 +141,8 @@ export function ShareModal({ onClose, onCompleted, open, payload }: ShareModalPr
   async function handleCopyLink() {
     setStatus("copying");
     try {
-      const shareUrl = getShareUrl(payload);
-      await copyLink(shareUrl);
+      const resolvedShareUrl = resolvePayloadShareUrl(payload.url);
+      await copyLink(resolvedShareUrl);
       await finishShare("share_copied");
       setStatus("done");
       window.setTimeout(() => setStatus("idle"), 1400);
@@ -185,6 +186,8 @@ export function ShareModal({ onClose, onCompleted, open, payload }: ShareModalPr
               ? "Thử lại"
               : "Chia sẻ";
 
+  const copyLabel = status === "copying" ? "Đang sao chép..." : "Copy link";
+
   if (!open) return null;
 
   return (
@@ -198,8 +201,8 @@ export function ShareModal({ onClose, onCompleted, open, payload }: ShareModalPr
 
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-bold uppercase tracking-[0.18em] text-cyan-300">Share preview</p>
-            <h2 className="mt-2 text-xl font-black leading-tight text-white">Chia sẻ nội dung ChapMee</h2>
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-cyan-300">Xem trước</p>
+            <h2 className="mt-2 text-xl font-black leading-tight text-white">Chia sẻ truyện</h2>
           </div>
           <Button onClick={onClose} type="button" variant="ghost">Đóng</Button>
         </div>
@@ -208,13 +211,19 @@ export function ShareModal({ onClose, onCompleted, open, payload }: ShareModalPr
           <ShareCard payload={payload} />
         </div>
 
+        {shareUrl ? (
+          <p className="break-all rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 font-mono text-[0.72rem] leading-5 text-zinc-400">
+            {shareUrl}
+          </p>
+        ) : null}
+
         <div className="grid gap-2 sm:grid-cols-3">
           <Button className="w-full" disabled={status === "sharing"} onClick={() => void handleShare()} type="button">{statusLabel}</Button>
-          <Button className="w-full" disabled={status === "copying"} onClick={() => void handleCopyLink()} type="button" variant="secondary">Copy link</Button>
+          <Button className="w-full" disabled={status === "copying"} onClick={() => void handleCopyLink()} type="button" variant="secondary">{copyLabel}</Button>
           <Button className="w-full" disabled={status === "downloading"} onClick={() => void handleDownload()} type="button" variant="ghost">Tải ảnh 9:16</Button>
         </div>
 
-        <p className="text-xs leading-5 text-zinc-500">Nếu browser chưa hỗ trợ chia sẻ ảnh, ChapMee sẽ tự rơi về share link hoặc copy link để không làm người dùng bị kẹt.</p>
+        <p className="text-xs leading-5 text-zinc-500">Nếu trình duyệt chưa hỗ trợ chia sẻ ảnh, ChapMee sẽ tự sao chép link để bạn không bị kẹt.</p>
       </Card>
     </div>
   );

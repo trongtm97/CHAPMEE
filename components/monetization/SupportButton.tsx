@@ -1,7 +1,7 @@
 import { TipGiftSheet } from "@/components/monetization/TipGiftSheet";
 import { getMonetizationConfig } from "@/lib/monetization/config";
 import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
-import { getActiveVirtualGifts } from "@/lib/supabase/virtual-gifts";
+import { getActiveVirtualGifts } from "@/lib/data/virtual-gifts";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
 type SupportButtonProps = {

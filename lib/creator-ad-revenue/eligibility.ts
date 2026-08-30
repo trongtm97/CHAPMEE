@@ -1,5 +1,5 @@
 import { getCreatorAccessStatus } from "@/lib/creator-access";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { resolveLiveComplianceStatuses } from "@/lib/creator-ad-revenue/sync-compliance";
 import type {
   CreatorAdEligibilityChecklistItem,
@@ -20,6 +20,8 @@ export async function buildCreatorAdEligibilityChecklist(input: {
   checklist: CreatorAdEligibilityChecklistItem[];
   allRequirementsMet: boolean;
 }> {
+  // TODO(content-origin): enforce translation rights policy at story-level for ad revenue
+  // share (content_origin/rights_status/monetization_policy) before enabling payouts.
   const live = await resolveLiveComplianceStatuses(input.userId);
   const creatorAccess = await getCreatorAccessStatus(input.userId);
 
@@ -47,7 +49,7 @@ export async function buildCreatorAdEligibilityChecklist(input: {
       label: "Thông tin thuế",
       met,
       ctaLabel: met ? undefined : "Liên hệ hỗ trợ / cập nhật thuế",
-      ctaHref: "/studio/settings"
+      ctaHref: "/studio/finance?tab=ads"
     });
   }
 
@@ -74,9 +76,9 @@ export async function buildCreatorAdEligibilityChecklist(input: {
   }
 
   if (input.policy.min_monthly_valid_reads > 0 || input.policy.min_monthly_ad_impressions > 0) {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
     const month = currentMonthKey();
-    const { data: monthly } = await supabase
+    const { data: monthly } = await db
       .from("ad_monthly_author_stats")
       .select("estimated_reads, rendered_impressions")
       .eq("author_id", input.userId)

@@ -1,5 +1,5 @@
 import { removeStoryImageStorageFolder } from "@/lib/images/upload-story-image-variants";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type CleanupSupersededStoryImagesResult = {
   removedIds: string[];
@@ -12,11 +12,11 @@ export type CleanupSupersededStoryImagesResult = {
  * Hàng DB cũ giữ lại để audit; URL trong DB có thể không còn file.
  */
 export async function cleanupSupersededStoryImageStorage(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   keepImageId: string
 ): Promise<CleanupSupersededStoryImagesResult> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("story_images")
     .select("id")
     .eq("story_id", storyId)
@@ -39,7 +39,7 @@ export async function cleanupSupersededStoryImageStorage(
     const imageId = String(row.id);
 
     try {
-      await removeStoryImageStorageFolder(supabase, storyId, imageId);
+      await removeStoryImageStorageFolder(db, storyId, imageId);
       removedIds.push(imageId);
     } catch (cleanupError) {
       failedIds.push(imageId);

@@ -1,5 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server";
-import { isStandaloneStory, normalizeStoryStructureType } from "@/lib/stories/story-structure";
+import { createClient } from "@/lib/data/server";
 import { mapDraftRowToItem, isDraftStale } from "@/lib/studio/draft-item";
 import {
   normalizeDraftSort,
@@ -19,7 +18,7 @@ import type {
   StudioDraftType
 } from "@/types/drafts";
 
-type DraftRow = {
+type DraftBaseRow = {
   id: string;
   draft_type: StudioDraftType;
   title: string | null;
@@ -28,18 +27,84 @@ type DraftRow = {
   story_id: string | null;
   chapter_id: string | null;
   plain_text: string | null;
-  stories:
-    | { title: string; structure_type?: string | null }
-    | { title: string; structure_type?: string | null }[]
-    | null;
-  episodes:
-    | { title: string; episode_number: number }
-    | { title: string; episode_number: number }[]
-    | null;
+};
+
+type DraftRow = DraftBaseRow & {
+  stories: { title: string; structure_type?: string | null } | null;
+  episodes: { title: string; episode_number: number } | null;
+};
+
+type StoryLookupRow = {
+  id: string;
+  title: string;
+  structure_type?: string | null;
+};
+
+type EpisodeLookupRow = {
+  id: string;
+  title: string;
+  episode_number: number;
 };
 
 function firstRelation<T>(relation: T | T[] | null | undefined) {
   return Array.isArray(relation) ? (relation[0] ?? null) : (relation ?? null);
+}
+
+async function loadDraftRelatedRows(
+  db: Awaited<ReturnType<typeof createClient>>,
+  rows: DraftBaseRow[]
+) {
+  const storyIds = [
+    ...new Set(rows.map((row) => row.story_id).filter((id): id is string => Boolean(id)))
+  ];
+  const chapterIds = [
+    ...new Set(rows.map((row) => row.chapter_id).filter((id): id is string => Boolean(id)))
+  ];
+
+  const storiesById = new Map<string, DraftRow["stories"]>();
+  const episodesById = new Map<string, DraftRow["episodes"]>();
+
+  if (storyIds.length > 0) {
+    const { data: storyRows, error: storyError } = await db
+      .from("stories")
+      .select("id, title, structure_type")
+      .in("id", storyIds);
+
+    if (storyError) {
+      throw new Error(storyError.message);
+    }
+
+    for (const story of (storyRows ?? []) as StoryLookupRow[]) {
+      storiesById.set(story.id, {
+        title: story.title,
+        structure_type: story.structure_type
+      });
+    }
+  }
+
+  if (chapterIds.length > 0) {
+    const { data: episodeRows, error: episodeError } = await db
+      .from("episodes")
+      .select("id, title, episode_number")
+      .in("id", chapterIds);
+
+    if (episodeError) {
+      throw new Error(episodeError.message);
+    }
+
+    for (const episode of (episodeRows ?? []) as EpisodeLookupRow[]) {
+      episodesById.set(episode.id, {
+        title: episode.title,
+        episode_number: episode.episode_number
+      });
+    }
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    stories: row.story_id ? (storiesById.get(row.story_id) ?? null) : null,
+    episodes: row.chapter_id ? (episodesById.get(row.chapter_id) ?? null) : null
+  }));
 }
 
 export function normalizeDraftListFilter(filter?: string): StudioDraftListFilter {
@@ -184,14 +249,12 @@ export async function getStudioDraftsPage(
   const pageSize = parseDraftPageSize(options?.pageSize);
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("creator_drafts")
       .select(
-        `id, draft_type, title, status, last_saved_at, story_id, chapter_id, plain_text,
-        stories(title, structure_type),
-        episodes(title, episode_number)`
+        "id, draft_type, title, status, last_saved_at, story_id, chapter_id, plain_text"
       )
       .eq("owner_id", profileId)
       .eq("status", "draft")
@@ -201,13 +264,16 @@ export async function getStudioDraftsPage(
       throw new Error(error.message);
     }
 
-    const rows = (data ?? []) as unknown as DraftRow[];
+    const rows = await loadDraftRelatedRows(
+      db,
+      (data ?? []) as DraftBaseRow[]
+    );
 
     const draftIds = rows.map((row) => row.id);
     const versionCounts = new Map<string, number>();
 
     if (draftIds.length > 0) {
-      const { data: versionRows } = await supabase
+      const { data: versionRows } = await db
         .from("creator_draft_versions")
         .select("draft_id")
         .in("draft_id", draftIds);
@@ -321,7 +387,7 @@ export async function getStudioDraftsPage(
       error:
         error instanceof Error
           ? error.message
-          : "Không thể tải danh sách nháp.",
+          : "Kh\u00F4ng th\u1EC3 t\u1EA3i danh s\u00E1ch nh\u00E1p.",
       filteredIds: [] as string[],
       page: 1,
       pageSize,

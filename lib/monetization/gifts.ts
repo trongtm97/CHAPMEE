@@ -1,5 +1,5 @@
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { getActiveVirtualGifts } from "@/lib/supabase/virtual-gifts";
+import { getActiveVirtualGifts } from "@/lib/data/virtual-gifts";
 
 export async function getEnabledGiftCatalog() {
   const config = await getMonetizationConfig();

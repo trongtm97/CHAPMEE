@@ -129,7 +129,9 @@ export type AnalyticsEventName =
   | "search_result_impression"
   | "search_result_click"
   | "report_wrong_tag"
-  | "report_missing_warning";
+  | "report_missing_warning"
+  | "content_post_viewed"
+  | "utility_used";
 
 export type AnalyticsEventCategory =
   | "app"

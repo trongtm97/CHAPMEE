@@ -1,0 +1,32 @@
+⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+[seo_redirects] lookup failed AggregateError: 
+    at async j (D:\PROGRAM-TRONG\CHAPCHAP\.next\server\middleware.js:65:96693)
+    at async k (D:\PROGRAM-TRONG\CHAPCHAP\.next\server\middleware.js:65:97047)
+    at async i (D:\PROGRAM-TRONG\CHAPCHAP\.next\server\middleware.js:62:120220)
+    at async o (D:\PROGRAM-TRONG\CHAPCHAP\.next\server\middleware.js:62:85113)
+    at async handler (D:\PROGRAM-TRONG\CHAPCHAP\.next\server\middleware.js:62:102573)
+    at async (D:\PROGRAM-TRONG\CHAPCHAP\.next\server\middleware.js:62:153749)
+    at async G (D:\PROGRAM-TRONG\CHAPCHAP\.next\server\middleware.js:62:152723) {
+  code: 'ECONNREFUSED',
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:5432
+        at <unknown> (Error: connect ECONNREFUSED ::1:5432) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 5432
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:5432
+        at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:5432) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 5432
+    }
+  ]
+}
+2026-06-04T10:56:56.268Z ERROR [Better Auth]: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+# SERVER_ERROR:  SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+    at JSON.parse (<anonymous>)

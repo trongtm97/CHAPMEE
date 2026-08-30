@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge, Card } from "@/components/ui";
+import { PublicCodeCopy } from "@/components/studio/import/PublicCodeCopy";
 import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import type { CreatorStoryFormStory } from "@/lib/creator/getStoryFormData";
 
@@ -42,6 +43,10 @@ export function StoryFormSidePanel({
             value={canViewPublicPage(story) ? "Available" : "Hidden"}
           />
         </div>
+
+        {story?.publicCode ? (
+          <PublicCodeCopy code={story.publicCode} label="Mã truyện (story_code)" />
+        ) : null}
 
         <div className="grid gap-2">
           <Link

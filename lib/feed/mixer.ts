@@ -1,4 +1,5 @@
 import { candidateKeyFromFeed } from "@/lib/feed/catalog";
+import { reelsMixerScoreWithJitter } from "@/lib/feed/reels-session-shuffle";
 import type {
   CandidatePoolId,
   CandidatePools,
@@ -39,15 +40,23 @@ export function allocatePoolSlots(weights: PoolWeights, limit: number) {
 export function mixCandidatePools(
   pools: CandidatePools,
   weights: PoolWeights,
-  limit: number
+  limit: number,
+  options?: { shuffleSeed?: number }
 ): FeedCandidate[] {
   const target = Math.max(limit, limit + 20);
   const slots = allocatePoolSlots(weights, target);
   const used = new Set<string>();
   const queues = new Map<CandidatePoolId, FeedCandidate[]>();
+  const shuffleSeed = options?.shuffleSeed;
+  const scorePick = (candidate: FeedCandidate) =>
+    shuffleSeed != null
+      ? reelsMixerScoreWithJitter(candidate, shuffleSeed)
+      : candidate.mixerScore;
 
   for (const [poolId, take] of slots) {
-    const sorted = [...(pools[poolId] ?? [])].sort((a, b) => b.mixerScore - a.mixerScore);
+    const sorted = [...(pools[poolId] ?? [])].sort(
+      (a, b) => scorePick(b) - scorePick(a)
+    );
     const picked: FeedCandidate[] = [];
     for (const candidate of sorted) {
       if (picked.length >= take) break;
@@ -62,6 +71,10 @@ export function mixCandidatePools(
   const poolOrder = Object.keys(weights).sort(
     (a, b) => (weights[b as CandidatePoolId] ?? 0) - (weights[a as CandidatePoolId] ?? 0)
   ) as CandidatePoolId[];
+  if (shuffleSeed != null && poolOrder.length > 1) {
+    const rotateBy = shuffleSeed % poolOrder.length;
+    poolOrder.push(...poolOrder.splice(0, rotateBy));
+  }
 
   const mixed: FeedCandidate[] = [];
   let progress = true;
@@ -79,7 +92,7 @@ export function mixCandidatePools(
 
   if (mixed.length < target) {
     const leftovers = poolOrder.flatMap((poolId) => pools[poolId] ?? []);
-    leftovers.sort((a, b) => b.mixerScore - a.mixerScore);
+    leftovers.sort((a, b) => scorePick(b) - scorePick(a));
     for (const candidate of leftovers) {
       if (mixed.length >= target) break;
       const key = candidateKeyFromFeed(candidate);

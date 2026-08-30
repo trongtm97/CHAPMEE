@@ -1,6 +1,6 @@
 import type { StoryCatalogFilterParams } from "@/lib/discovery/types";
 import type { TaxonomyType } from "@/types/taxonomy";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type TaxonomyFilterGroup = {
   type: TaxonomyType;
@@ -43,7 +43,7 @@ export function buildTaxonomyFilterGroups(
 }
 
 export async function filterPublicStoryIdsByTaxonomyGroups(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   groups: TaxonomyFilterGroup[],
   limit = 5000
 ): Promise<string[]> {
@@ -56,7 +56,7 @@ export async function filterPublicStoryIdsByTaxonomyGroups(
     slugs: group.slugs
   }));
 
-  const { data, error } = await supabase.rpc(
+  const { data, error } = await db.rpc(
     "filter_public_story_ids_by_taxonomy_groups",
     {
       filter_groups: payload,
@@ -69,5 +69,6 @@ export async function filterPublicStoryIdsByTaxonomyGroups(
     return [];
   }
 
-  return (data ?? []).map((row: { story_id: string }) => String(row.story_id));
+  const rows = Array.isArray(data) ? data : [];
+  return rows.map((row: { story_id: string }) => String(row.story_id));
 }

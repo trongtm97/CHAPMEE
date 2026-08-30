@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 type BonusWeights = {
   unique_readers: number;
@@ -68,38 +68,38 @@ export async function calculateCreatorBonusCandidates(input: {
   periodEnd: string;
   weights?: Record<string, unknown>;
 }) {
-  const supabase = await createClient();
+  const db = await createClient();
   const weights = normalizeBonusWeights(input.weights);
 
   const [profilesRes, eventsRes, commentsRes, savesRes, followersRes, txRes] = await Promise.all([
-    supabase
+    db
       .from("creator_monetization_profiles")
       .select("user_id, status, monetization_enabled")
       .eq("status", "approved")
       .eq("monetization_enabled", true),
-    supabase
+    db
       .from("analytics_events")
       .select("event_name, target_id, user_id")
       .gte("created_at", input.periodStart)
       .lte("created_at", input.periodEnd),
-    supabase
+    db
       .from("comments")
       .select("id, author_id, story_id")
       .eq("status", "visible")
       .gte("created_at", input.periodStart)
       .lte("created_at", input.periodEnd),
-    supabase
+    db
       .from("bookshelf_items")
       .select("id, story_id")
       .eq("status", "saved")
       .gte("created_at", input.periodStart)
       .lte("created_at", input.periodEnd),
-    supabase
+    db
       .from("follows")
       .select("id, creator_id")
       .gte("created_at", input.periodStart)
       .lte("created_at", input.periodEnd),
-    supabase
+    db
       .from("transactions")
       .select("creator_user_id, user_id, type, status, money_amount_vnd, metadata")
       .eq("status", "completed")

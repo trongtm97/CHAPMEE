@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useMessageUnread } from "@/components/messages/message-unread-context";
 import { buildMeQuickActionHref } from "@/lib/me/profileQuickActions";
 
 type ProfileQuickActionsProps = {
   readingCount: number;
   savedCount: number;
   collectionsCount: number;
-  groupsCount: number;
-  coinBalance?: number | null;
   isCreator: boolean;
+  hasStories?: boolean;
+  unreadMessagesCount?: number;
   showCoinWallet?: boolean;
 };
 
@@ -27,7 +28,7 @@ function ActionTile({ action }: { action: QuickAction }) {
   const showBadge =
     action.badge != null && (action.showZeroBadge || action.badge > 0);
 
-  const className = `tap-highlight flex min-h-[4.25rem] flex-col items-center justify-center rounded-[0.9rem] px-1 py-1.5 transition ${
+  const className = `tap-highlight flex min-h-[4rem] flex-col items-center justify-center rounded-xl px-1 py-1.5 transition ${
     action.emphasize
       ? "border border-cyan-300/15 bg-cyan-300/[0.04] hover:border-cyan-300/25 hover:bg-cyan-300/[0.07]"
       : "border border-white/5 bg-white/[0.015] hover:border-white/10 hover:bg-white/[0.03]"
@@ -45,7 +46,7 @@ function ActionTile({ action }: { action: QuickAction }) {
         {action.icon}
         {showBadge ? (
           <span className="absolute -right-1.5 -top-1 inline-flex min-w-[0.95rem] items-center justify-center rounded-full bg-cyan-300 px-0.5 py-px text-[0.5rem] font-black leading-none text-zinc-950">
-            {action.badge}
+            {action.badge! > 99 ? "99+" : action.badge}
           </span>
         ) : null}
       </span>
@@ -57,15 +58,18 @@ function ActionTile({ action }: { action: QuickAction }) {
 }
 
 export function ProfileQuickActions({
-  coinBalance,
   collectionsCount,
-  groupsCount,
+  hasStories = false,
   isCreator,
   readingCount,
   savedCount,
-  showCoinWallet = true
+  showCoinWallet = false,
+  unreadMessagesCount
 }: ProfileQuickActionsProps) {
   const quickActionOptions = { isCreator, showCoinWallet };
+  const contextUnread = useMessageUnread()?.messageUnread ?? 0;
+  const messageUnread = unreadMessagesCount ?? contextUnread;
+  const studioLabel = isCreator || hasStories ? "Mở Studio" : "Bắt đầu viết";
 
   const actions: QuickAction[] = [
     {
@@ -73,8 +77,8 @@ export function ProfileQuickActions({
       label: "Đọc tiếp",
       href: buildMeQuickActionHref("continue", quickActionOptions),
       badge: readingCount,
-      showZeroBadge: true,
-      emphasize: true,
+      showZeroBadge: false,
+      emphasize: readingCount > 0,
       icon: <BookIcon />
     },
     {
@@ -89,30 +93,20 @@ export function ProfileQuickActions({
       label: "Đã lưu",
       href: buildMeQuickActionHref("saved", quickActionOptions),
       badge: savedCount,
-      showZeroBadge: true,
+      showZeroBadge: false,
       icon: <BookmarkIcon />
     },
     {
-      id: "groups",
-      label: "Nhóm theo dõi",
-      href: buildMeQuickActionHref("groups", quickActionOptions),
-      badge: groupsCount,
-      icon: <UsersIcon />
+      id: "messages",
+      label: "Tin nhắn",
+      href: "/messages",
+      badge: messageUnread,
+      emphasize: messageUnread > 0,
+      icon: <MessageIcon />
     },
-    ...(showCoinWallet
-      ? [
-          {
-            id: "wallet",
-            label: "Ví coin",
-            href: buildMeQuickActionHref("wallet", quickActionOptions),
-            badge: coinBalance,
-            icon: <CoinIcon />
-          } satisfies QuickAction
-        ]
-      : []),
     {
       id: "studio",
-      label: isCreator ? "Studio" : "Bắt đầu viết",
+      label: studioLabel,
       href: buildMeQuickActionHref("studio", quickActionOptions),
       emphasize: true,
       icon: <PenIcon />
@@ -120,7 +114,7 @@ export function ProfileQuickActions({
   ];
 
   return (
-    <div className="grid grid-cols-3 gap-1.5">
+    <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
       {actions.map((action) => (
         <ActionTile action={action} key={action.id} />
       ))}
@@ -153,28 +147,23 @@ function BookmarkIcon() {
   );
 }
 
-function UsersIcon() {
-  return (
-    <svg aria-hidden="true" className="size-3.5" fill="none" viewBox="0 0 24 24">
-      <path d="M8 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm11 1a2.5 2.5 0 1 0-2.5-2.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-      <path d="M3.5 19a4.5 4.5 0 0 1 9 0M14 19a3.5 3.5 0 0 1 7 0" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function CoinIcon() {
-  return (
-    <svg aria-hidden="true" className="size-3.5" fill="none" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M12 8.5v7M9.5 10.5h4a1.5 1.5 0 0 1 0 3h-2" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
 function PenIcon() {
   return (
     <svg aria-hidden="true" className="size-3.5" fill="none" viewBox="0 0 24 24">
       <path d="m14 5 5 5-9 9H5v-5l9-9Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function MessageIcon() {
+  return (
+    <svg aria-hidden="true" className="size-3.5" fill="none" viewBox="0 0 24 24">
+      <path
+        d="M4 7h16a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H8l-4 3v-3.5"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
     </svg>
   );
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { MainGenreIndexPage } from "@/components/taxonomy/MainGenreIndexPage";
 import { buildCanonicalUrl } from "@/lib/seo/metadata";
 import { getPublicMainGenresWithStoryCounts } from "@/lib/taxonomy/public-genres";
-import { createPublicClient } from "@/lib/supabase/public-client";
+import { createPublicClient } from "@/lib/data/public-client";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default async function TheLoaiIndexPage() {
-  const supabase = createPublicClient();
-  const genres = await getPublicMainGenresWithStoryCounts(supabase);
+  const db = createPublicClient();
+  const genres = await getPublicMainGenresWithStoryCounts(db);
   return <MainGenreIndexPage genres={genres} />;
 }

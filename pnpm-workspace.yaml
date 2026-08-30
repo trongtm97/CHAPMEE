@@ -1,0 +1,6 @@
+# pnpm 11+: allow native postinstall scripts (Next.js / sharp / eslint resolver).
+# See https://pnpm.io/settings#allowbuilds
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true

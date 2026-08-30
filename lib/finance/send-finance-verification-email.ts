@@ -1,6 +1,6 @@
 /**
  * Gửi mã xác nhận tài chính qua email.
- * TODO: tích hợp Resend / Supabase Edge Function khi có dịch vụ email production.
+ * TODO: chuyển sang enqueueEmail (lib/email) khi bật flow SMTP production.
  */
 export async function sendFinanceVerificationEmail(input: {
   to: string;

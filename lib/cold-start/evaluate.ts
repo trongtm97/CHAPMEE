@@ -1,15 +1,15 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { loadColdStartConfig } from "@/lib/cold-start/config";
 import { computeTestMetrics, countDeliveredImpressions } from "@/lib/cold-start/metrics";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { ColdStartTestRow } from "@/types/cold-start";
 
 export async function evaluateColdStartTest(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   testId: string,
   options?: { forceQualify?: boolean; forceFail?: boolean; reason?: string }
 ) {
-  const { data: test, error } = await supabase
+  const { data: test, error } = await db
     .from("cold_start_tests")
     .select("*")
     .eq("id", testId)
@@ -25,11 +25,11 @@ export async function evaluateColdStartTest(
   }
 
   const config = await loadColdStartConfig();
-  const metrics = await computeTestMetrics(supabase, row);
+  const metrics = await computeTestMetrics(db, row);
   const now = new Date().toISOString();
 
   if (options?.forceQualify) {
-    await supabase
+    await db
       .from("cold_start_tests")
       .update({
         status: "qualified",
@@ -42,7 +42,7 @@ export async function evaluateColdStartTest(
   }
 
   if (options?.forceFail) {
-    await supabase
+    await db
       .from("cold_start_tests")
       .update({
         status: "failed",
@@ -75,7 +75,7 @@ export async function evaluateColdStartTest(
       metrics.hide_rate >= config.hideRateThreshold);
 
   if (qualifies) {
-    await supabase
+    await db
       .from("cold_start_tests")
       .update({
         status: "qualified",
@@ -94,7 +94,7 @@ export async function evaluateColdStartTest(
         ? "Completion rate quá thấp."
         : "Không đạt ngưỡng chất lượng.";
 
-    await supabase
+    await db
       .from("cold_start_tests")
       .update({
         status: "failed",
@@ -107,7 +107,7 @@ export async function evaluateColdStartTest(
     return { ok: true as const, status: "failed" as const, metrics };
   }
 
-  await supabase
+  await db
     .from("cold_start_tests")
     .update({
       qualification_metrics: metrics,
@@ -118,12 +118,12 @@ export async function evaluateColdStartTest(
   return { ok: true as const, status: "active" as const, metrics };
 }
 
-export async function updateColdStartProgress(supabase: SupabaseClient) {
+export async function updateColdStartProgress(db: DatabaseClient) {
   const config = await loadColdStartConfig();
   const now = Date.now();
   const minWindowMs = config.minTestWindowHours * 60 * 60 * 1000;
 
-  const { data: activeTests, error } = await supabase
+  const { data: activeTests, error } = await db
     .from("cold_start_tests")
     .select("*")
     .eq("status", "active")
@@ -140,9 +140,9 @@ export async function updateColdStartProgress(supabase: SupabaseClient) {
   let evaluated = 0;
 
   for (const test of (activeTests ?? []) as ColdStartTestRow[]) {
-    const delivered = await countDeliveredImpressions(supabase, test);
+    const delivered = await countDeliveredImpressions(db, test);
 
-    await supabase
+    await db
       .from("cold_start_tests")
       .update({
         delivered_impressions: delivered,
@@ -166,14 +166,14 @@ export async function updateColdStartProgress(supabase: SupabaseClient) {
         delivered >= config.minImpressionsBeforeEval * 2);
 
     if (shouldEvaluate) {
-      const result = await evaluateColdStartTest(supabase, test.id);
+      const result = await evaluateColdStartTest(db, test.id);
 
       if (
         result.ok &&
         result.status === "active" &&
         (targetReached || windowExpired)
       ) {
-        await supabase
+        await db
           .from("cold_start_tests")
           .update({ status: "completed", updated_at: new Date().toISOString() })
           .eq("id", test.id)

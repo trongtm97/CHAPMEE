@@ -14,7 +14,7 @@ export function MessageIconButton() {
       aria-label={
         messageUnread > 0 ? `Tin nhắn, ${messageUnread} chưa đọc` : "Tin nhắn"
       }
-      className="tap-highlight relative z-10 inline-flex min-h-10 shrink-0 items-center gap-1.5 px-1 text-zinc-100"
+      className="tap-highlight relative inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-white/[0.04] hover:text-zinc-100"
       onClick={() => router.push("/messages")}
       type="button"
     >

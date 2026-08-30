@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type PostTypeOption = {
   label: string;
@@ -17,22 +17,58 @@ const postTypes: PostTypeOption[] = [
   { label: "Thử thách", typeParam: "challenge" }
 ];
 
+type CommunityComposerPreset = {
+  askAuthor?: boolean;
+  typeParam?: string;
+};
+
 type CommunityComposerSheetProps = {
   open: boolean;
   isLoggedIn: boolean;
   onClose: () => void;
+  preset?: CommunityComposerPreset | null;
 };
+
+function resolvePresetOption(preset?: CommunityComposerPreset | null) {
+  if (!preset?.typeParam) {
+    return postTypes[0];
+  }
+
+  return (
+    postTypes.find(
+      (option) =>
+        option.typeParam === preset.typeParam &&
+        Boolean(option.askAuthor) === Boolean(preset.askAuthor)
+    ) ??
+    postTypes.find((option) => option.typeParam === preset.typeParam) ??
+    postTypes[0]
+  );
+}
 
 export function CommunityComposerSheet({
   isLoggedIn,
   onClose,
-  open
+  open,
+  preset = null
 }: CommunityComposerSheetProps) {
   const [step, setStep] = useState<"type" | "context">("type");
   const [selected, setSelected] = useState<PostTypeOption>(postTypes[0]);
   const [storyId, setStoryId] = useState("");
   const [chapter, setChapter] = useState("");
   const [spoiler, setSpoiler] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const nextSelected = resolvePresetOption(preset);
+    setSelected(nextSelected);
+    setStep(preset?.typeParam ? "context" : "type");
+    setStoryId("");
+    setChapter("");
+    setSpoiler(false);
+  }, [open, preset]);
 
   if (!open) {
     return null;

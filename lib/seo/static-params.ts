@@ -1,12 +1,11 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-
 import { buildStorySegment, buildChapterSegment } from "@/lib/urls/paths";
+import { createPublicClient } from "@/lib/data/public-client";
 
 function getPublicClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
-  return createSupabaseClient(url, key);
+  if (!process.env.DATABASE_URL && !process.env.POSTGREST_URL) {
+    return null;
+  }
+  return createPublicClient();
 }
 
 export async function getPublicStorySlugs(limit = 500) {
@@ -15,9 +14,9 @@ export async function getPublicStorySlugs(limit = 500) {
 }
 
 export async function getPublicStorySegments(limit = 500) {
-  const supabase = getPublicClient();
-  if (!supabase) return [];
-  const { data } = await supabase
+  const db = getPublicClient();
+  if (!db) return [];
+  const { data } = await db
     .from("stories")
     .select("slug, public_code")
     .eq("visibility", "public")
@@ -39,9 +38,9 @@ export async function getPublicChapterParams(limit = 1000) {
 }
 
 export async function getPublicChapterSegments(limit = 1000) {
-  const supabase = getPublicClient();
-  if (!supabase) return [];
-  const { data } = await supabase
+  const db = getPublicClient();
+  if (!db) return [];
+  const { data } = await db
     .from("episodes")
     .select("slug, public_code, stories!inner(slug, public_code, visibility, status, structure_type)")
     .in("status", ["approved", "published"])
@@ -74,9 +73,9 @@ export async function getPublicChapterSegments(limit = 1000) {
 }
 
 export async function getPublicAuthorUsernames(limit = 300) {
-  const supabase = getPublicClient();
-  if (!supabase) return [];
-  const { data } = await supabase
+  const db = getPublicClient();
+  if (!db) return [];
+  const { data } = await db
     .from("profiles")
     .select("username")
     .not("username", "is", null)
@@ -89,15 +88,15 @@ export async function getPublicAuthorUsernames(limit = 300) {
 }
 
 export async function getPublicGenreSlugs() {
-  const supabase = getPublicClient();
-  if (!supabase) return [];
+  const db = getPublicClient();
+  if (!db) return [];
 
   const { hasTaxonomyMainGenres, getPublicMainGenreSlugs } = await import(
     "@/lib/taxonomy/public-genres"
   );
 
-  if (await hasTaxonomyMainGenres(supabase)) {
-    const taxonomySlugs = await getPublicMainGenreSlugs(supabase);
+  if (await hasTaxonomyMainGenres(db)) {
+    const taxonomySlugs = await getPublicMainGenreSlugs(db);
     return taxonomySlugs;
   }
 
@@ -105,9 +104,9 @@ export async function getPublicGenreSlugs() {
 }
 
 export async function getTagSlugs(limit = 500) {
-  const supabase = getPublicClient();
-  if (!supabase) return [];
-  const { data } = await supabase
+  const db = getPublicClient();
+  if (!db) return [];
+  const { data } = await db
     .from("taxonomy_terms")
     .select("slug")
     .eq("type", "trope_tag")

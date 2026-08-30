@@ -5,10 +5,10 @@ import {
   getPayoutRequestById,
   shiftCreatorWalletBalances,
   updatePayoutRequestStatus
-} from "@/lib/supabase/payouts";
-import { insertCreatorWalletLedgerEntry } from "@/lib/supabase/creator-finance";
+} from "@/lib/data/payouts";
+import { insertCreatorWalletLedgerEntry } from "@/lib/data/creator-finance";
 import { getCreatorAccessStatus } from "@/lib/creator-access";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { PayoutRequestStatus } from "@/types/payout";
 
 async function appendLedgerForRequest(input: {
@@ -33,9 +33,9 @@ async function appendLedgerForRequest(input: {
 }
 
 export async function validateWithdrawalCanApprove(creatorUserId: string) {
-  const supabase = await createClient();
+  const db = await createClient();
   const [{ data: profile }, access] = await Promise.all([
-    supabase.from("profiles").select("status").eq("id", creatorUserId).maybeSingle(),
+    db.from("profiles").select("status").eq("id", creatorUserId).maybeSingle(),
     getCreatorAccessStatus(creatorUserId)
   ]);
 

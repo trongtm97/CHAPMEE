@@ -1,4 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/data/admin";
+
+function taxonomyAdminDb() {
+  return createAdminClient();
+}
 import { slugify } from "@/lib/slugify";
 import {
   defaultFlagsForType,
@@ -105,6 +109,7 @@ export type UpsertTaxonomyTermInput = {
   sitemap_priority?: number | null;
   sitemap_changefreq?: string | null;
   og_image_url?: string | null;
+  og_image_asset_id?: string | null;
   use_for_pinterest_feed?: boolean;
   min_stories_override?: number | null;
   sort_order?: number;
@@ -119,8 +124,8 @@ export async function assertTaxonomySlugAvailable(
   slug: string,
   excludeId?: string
 ): Promise<string | null> {
-  const supabase = await createClient();
-  let query = supabase
+  const db = taxonomyAdminDb();
+  let query = db
     .from("taxonomy_terms")
     .select("id")
     .eq("type", type)
@@ -147,8 +152,8 @@ async function validateAgeRatingMinimumActive(
     return null;
   }
 
-  const supabase = await createClient();
-  const { count, error } = await supabase
+  const db = taxonomyAdminDb();
+  const { count, error } = await db
     .from("taxonomy_terms")
     .select("id", { count: "exact", head: true })
     .eq("type", "age_rating")
@@ -171,14 +176,14 @@ async function attachParentLabels(
 ): Promise<TaxonomyTermAdminRow[]> {
   if (items.length === 0) return [];
 
-  const supabase = await createClient();
+  const db = taxonomyAdminDb();
   const parentIds = [
     ...new Set(items.map((t) => t.parent_id).filter(Boolean))
   ] as string[];
 
   const parentMap = new Map<string, { slug: string; name: string }>();
   if (parentIds.length > 0) {
-    const { data } = await supabase
+    const { data } = await db
       .from("taxonomy_terms")
       .select("id, slug, name")
       .in("id", parentIds);
@@ -201,13 +206,13 @@ async function attachParentLabels(
 }
 
 export async function listTaxonomyTermsForAdmin(filters: AdminTaxonomyListFilters = {}) {
-  const supabase = await createClient();
+  const db = taxonomyAdminDb();
   const page = Math.max(1, filters.page ?? 1);
   const pageSize = Math.min(100, Math.max(10, filters.pageSize ?? 25));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase.from("taxonomy_terms").select("*", { count: "exact" });
+  let query = db.from("taxonomy_terms").select("*", { count: "exact" });
 
   const sort = filters.sort ?? "updated_desc";
   if (sort === "usage_desc") {
@@ -293,8 +298,8 @@ export async function listTaxonomyTermsForAdmin(filters: AdminTaxonomyListFilter
 }
 
 export async function getTaxonomyTermById(termId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = taxonomyAdminDb();
+  const { data, error } = await db
     .from("taxonomy_terms")
     .select("*")
     .eq("id", termId)
@@ -308,13 +313,13 @@ export async function getTaxonomyTermById(termId: string) {
 }
 
 export async function getParentChainIds(termId: string): Promise<string[]> {
-  const supabase = await createClient();
+  const db = taxonomyAdminDb();
   const chain: string[] = [];
   let currentId: string | null = termId;
 
   for (let depth = 0; depth < 12 && currentId; depth++) {
     const { data: parentRow }: { data: { parent_id: string | null } | null } =
-      await supabase
+      await db
         .from("taxonomy_terms")
         .select("parent_id")
         .eq("id", currentId)
@@ -338,13 +343,13 @@ export async function listTaxonomyRequestsForAdmin(options?: {
   page?: number;
   pageSize?: number;
 }) {
-  const supabase = await createClient();
+  const db = taxonomyAdminDb();
   const page = Math.max(1, options?.page ?? 1);
   const pageSize = Math.min(50, Math.max(10, options?.pageSize ?? 25));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase
+  let query = db
     .from("taxonomy_requests")
     .select("*, requester:profiles!requested_by(username, display_name)", {
       count: "exact"
@@ -363,7 +368,7 @@ export async function listTaxonomyRequestsForAdmin(options?: {
   let { data, error, count } = await query.range(from, to);
 
   if (error) {
-    let fallbackQuery = supabase
+    let fallbackQuery = db
       .from("taxonomy_requests")
       .select("*", { count: "exact" })
       .order("created_at", { ascending: false });
@@ -394,7 +399,7 @@ export async function listTaxonomyRequestsForAdmin(options?: {
   >();
 
   if (requesterIds.length > 0) {
-    const { data: profiles } = await supabase
+    const { data: profiles } = await db
       .from("profiles")
       .select("id, username, display_name")
       .in("id", requesterIds);
@@ -435,13 +440,13 @@ export async function listTaxonomyAuditLogsForAdmin(options?: {
   pageSize?: number;
   action?: string;
 }) {
-  const supabase = await createClient();
+  const db = taxonomyAdminDb();
   const page = Math.max(1, options?.page ?? 1);
   const pageSize = Math.min(50, Math.max(5, options?.pageSize ?? 15));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase
+  let query = db
     .from("admin_audit_logs")
     .select("id, action, target_type, target_id, metadata, created_at, actor_id", {
       count: "exact"
@@ -466,7 +471,7 @@ export async function listTaxonomyAuditLogsForAdmin(options?: {
 
   const actorMap = new Map<string, string>();
   if (actorIds.length > 0) {
-    const { data: actors } = await supabase
+    const { data: actors } = await db
       .from("profiles")
       .select("id, display_name, username")
       .in("id", actorIds);
@@ -555,7 +560,7 @@ export async function getTaxonomyAdminStats() {
 }
 
 export async function getTaxonomyAdminDashboardStats(): Promise<TaxonomyAdminDashboardStats> {
-  const supabase = await createClient();
+  const db = taxonomyAdminDb();
 
   const [
     totalRes,
@@ -566,31 +571,31 @@ export async function getTaxonomyAdminDashboardStats(): Promise<TaxonomyAdminDas
     ageRatingRes,
     topRes
   ] = await Promise.all([
-    supabase.from("taxonomy_terms").select("id", { count: "exact", head: true }),
-    supabase
+    db.from("taxonomy_terms").select("id", { count: "exact", head: true }),
+    db
       .from("taxonomy_terms")
       .select("id", { count: "exact", head: true })
       .eq("is_active", true),
-    supabase
+    db
       .from("taxonomy_terms")
       .select("id", { count: "exact", head: true })
       .eq("type", "main_genre")
       .eq("is_active", true),
-    supabase
+    db
       .from("taxonomy_terms")
       .select("id", { count: "exact", head: true })
       .eq("is_selectable_by_creator", true)
       .eq("is_active", true),
-    supabase
+    db
       .from("taxonomy_requests")
       .select("id", { count: "exact", head: true })
       .eq("status", "pending"),
-    supabase
+    db
       .from("taxonomy_terms")
       .select("id", { count: "exact", head: true })
       .eq("type", "age_rating")
       .eq("is_active", true),
-    supabase
+    db
       .from("taxonomy_terms")
       .select("name, slug, type, usage_count")
       .order("usage_count", { ascending: false })
@@ -634,8 +639,8 @@ export async function getCatalogQualityForAdmin(): Promise<{
   summary: CatalogQualitySummary;
   error: string | null;
 }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = taxonomyAdminDb();
+  const { data, error } = await db
     .from("taxonomy_terms")
     .select("*")
     .order("updated_at", { ascending: false })
@@ -691,6 +696,7 @@ function buildInsertPayload(actorId: string, input: UpsertTaxonomyTermInput) {
     sitemap_priority: input.sitemap_priority ?? null,
     sitemap_changefreq: input.sitemap_changefreq?.trim() || null,
     og_image_url: input.og_image_url?.trim() || null,
+    og_image_asset_id: input.og_image_asset_id?.trim() || null,
     use_for_pinterest_feed: input.use_for_pinterest_feed ?? false,
     min_stories_override: input.min_stories_override ?? null,
     sort_order: input.sort_order ?? 0,
@@ -709,8 +715,8 @@ export async function createTaxonomyTermAdmin(
   const slugError = await assertTaxonomySlugAvailable(input.type, input.slug);
   if (slugError) return { item: null, error: slugError };
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = taxonomyAdminDb();
+  const { data, error } = await db
     .from("taxonomy_terms")
     .insert(buildInsertPayload(actorId, input))
     .select("*")
@@ -783,6 +789,10 @@ export async function updateTaxonomyTermAdmin(
         : existing.item.sitemap_changefreq,
     og_image_url:
       patch.og_image_url !== undefined ? patch.og_image_url : existing.item.og_image_url,
+    og_image_asset_id:
+      patch.og_image_asset_id !== undefined
+        ? patch.og_image_asset_id
+        : existing.item.og_image_asset_id,
     use_for_pinterest_feed:
       patch.use_for_pinterest_feed ?? existing.item.use_for_pinterest_feed,
     min_stories_override:
@@ -817,11 +827,11 @@ export async function updateTaxonomyTermAdmin(
   );
   if (ageRatingError) return { item: null, error: ageRatingError };
 
-  const supabase = await createClient();
+  const db = taxonomyAdminDb();
   const insertPayload = buildInsertPayload(actorId, merged);
   const { created_by: _createdBy, ...updatePayload } = insertPayload;
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("taxonomy_terms")
     .update(updatePayload)
     .eq("id", termId)
@@ -847,8 +857,8 @@ export async function deleteTaxonomyTermAdmin(termId: string) {
     };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("taxonomy_terms").delete().eq("id", termId);
+  const db = taxonomyAdminDb();
+  const { error } = await db.from("taxonomy_terms").delete().eq("id", termId);
 
   if (error) {
     return { ok: false, error: error.message };
@@ -866,10 +876,10 @@ export async function duplicateTaxonomyTermAdmin(termId: string, actorId: string
   const baseSlug = `${existing.item.slug}-copy`;
   let slug = baseSlug;
   let suffix = 2;
-  const supabase = await createClient();
+  const db = taxonomyAdminDb();
 
   while (true) {
-    const { data } = await supabase
+    const { data } = await db
       .from("taxonomy_terms")
       .select("id")
       .eq("type", existing.item.type)
@@ -924,15 +934,15 @@ export async function mergeTaxonomyTermsAdmin(
     return { ok: false, error: "Hai nhãn phải cùng nhóm type." };
   }
 
-  const supabase = await createClient();
+  const db = taxonomyAdminDb();
 
-  const { data: links } = await supabase
+  const { data: links } = await db
     .from("story_taxonomy_terms")
     .select("story_id")
     .eq("term_id", sourceId);
 
   for (const row of links ?? []) {
-    await supabase.from("story_taxonomy_terms").upsert(
+    await db.from("story_taxonomy_terms").upsert(
       {
         story_id: row.story_id,
         term_id: targetId,
@@ -942,21 +952,21 @@ export async function mergeTaxonomyTermsAdmin(
     );
   }
 
-  await supabase.from("story_taxonomy_terms").delete().eq("term_id", sourceId);
+  await db.from("story_taxonomy_terms").delete().eq("term_id", sourceId);
 
   const aliases = [...new Set([...target.item.aliases, source.item.name, source.item.slug])];
 
   await updateTaxonomyTermAdmin(targetId, actorId, { aliases });
   await updateTaxonomyTermAdmin(sourceId, actorId, { is_active: false });
 
-  await supabase.rpc("refresh_taxonomy_usage_counts");
+  await db.rpc("refresh_taxonomy_usage_counts");
 
   return { ok: true, error: null };
 }
 
 export async function listStoriesUsingTerm(termId: string, limit = 20) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = taxonomyAdminDb();
+  const { data, error } = await db
     .from("story_taxonomy_terms")
     .select("story_id, stories(id, title, slug, status, visibility)")
     .eq("term_id", termId)
@@ -989,8 +999,8 @@ export async function resolveParentSlugToId(
   const parentType = taxonomyParentTypeFor(type);
   if (!parentType) return null;
 
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = taxonomyAdminDb();
+  const { data } = await db
     .from("taxonomy_terms")
     .select("id")
     .eq("type", parentType)
@@ -1001,8 +1011,8 @@ export async function resolveParentSlugToId(
 }
 
 export async function listFormatTemplatesForAdmin() {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = taxonomyAdminDb();
+  const { data, error } = await db
     .from("story_format_templates")
     .select("*")
     .order("mode", { ascending: true })
@@ -1036,7 +1046,7 @@ export async function saveFormatTemplateAdmin(
   actorId: string,
   input: UpsertFormatTemplateInput
 ) {
-  const supabase = await createClient();
+  const db = taxonomyAdminDb();
   const payload = {
     mode: input.mode.trim(),
     name: input.name.trim(),
@@ -1049,7 +1059,7 @@ export async function saveFormatTemplateAdmin(
   };
 
   if (input.id) {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("story_format_templates")
       .update(payload)
       .eq("id", input.id)
@@ -1060,7 +1070,7 @@ export async function saveFormatTemplateAdmin(
     return { item: mapFormatTemplateRow(data as Record<string, unknown>), error: null };
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("story_format_templates")
     .insert(payload)
     .select("*")
@@ -1071,8 +1081,8 @@ export async function saveFormatTemplateAdmin(
 }
 
 export async function duplicateFormatTemplateAdmin(templateId: string, actorId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = taxonomyAdminDb();
+  const { data, error } = await db
     .from("story_format_templates")
     .select("*")
     .eq("id", templateId)
@@ -1113,13 +1123,13 @@ export async function exportTaxonomyTermsForAdmin(scope?: TaxonomyExportScope) {
   }
 
   const parentSlugs = new Map<string, string>();
-  const supabase = await createClient();
+  const db = taxonomyAdminDb();
   const parentIds = [
     ...new Set(result.items.map((t) => t.parent_id).filter(Boolean))
   ] as string[];
 
   if (parentIds.length > 0) {
-    const { data } = await supabase
+    const { data } = await db
       .from("taxonomy_terms")
       .select("id, slug")
       .in("id", parentIds);

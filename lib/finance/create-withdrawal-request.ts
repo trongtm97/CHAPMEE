@@ -5,14 +5,14 @@ import { getCreatorFinanceConfig } from "@/lib/finance/get-creator-finance-confi
 import { resolveStudioFinanceEligibility } from "@/lib/finance/finance-eligibility";
 import { verifyWithdrawalPin } from "@/lib/finance/verify-withdrawal-pin";
 import { logFinanceSecurityEvent } from "@/lib/finance/log-finance-security";
-import { insertCreatorWalletLedgerEntry } from "@/lib/supabase/creator-finance";
+import { insertCreatorWalletLedgerEntry } from "@/lib/data/creator-finance";
 import { requestPayoutAction } from "@/lib/monetization/payouts";
-import { getCreatorWithdrawalSecurity } from "@/lib/supabase/creator-finance";
+import { getCreatorWithdrawalSecurity } from "@/lib/data/creator-finance";
 import { calculateCreatorBalance } from "@/lib/finance/calculate-creator-balance";
 import { getCreatorAccessStatus } from "@/lib/creator-access";
 import { getFinanceIdentityStatus } from "@/lib/finance/get-finance-identity-status";
 import { mapBankAccountViews } from "@/lib/finance/map-bank-account-view";
-import { getCreatorPayoutAccountById, listCreatorPayoutAccounts } from "@/lib/supabase/payouts";
+import { getCreatorPayoutAccountById, listCreatorPayoutAccounts } from "@/lib/data/payouts";
 import type { PayoutMethod } from "@/types/payout";
 
 export type CreateWithdrawalInput = {

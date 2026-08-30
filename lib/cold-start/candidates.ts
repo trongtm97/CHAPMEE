@@ -1,6 +1,6 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { publicContentStatuses } from "@/lib/visibility/contentVisibility";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import {
   loadMainGenreLabelsByStoryIds,
   pickMainGenreFromLabels
@@ -18,13 +18,13 @@ function candidateKey(c: FeedCandidate) {
 }
 
 export async function loadActiveColdStartTests(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   surface: FeedSurface
 ) {
   const itemTypes =
     surface === "reels" ? (["reel", "author"] as const) : (["story", "author"] as const);
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("cold_start_tests")
     .select("*")
     .eq("status", "active")
@@ -42,7 +42,7 @@ export async function loadActiveColdStartTests(
 }
 
 export async function loadQualifiedColdStartTests(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   surface: FeedSurface
 ) {
   const itemTypes =
@@ -50,7 +50,7 @@ export async function loadQualifiedColdStartTests(
 
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("cold_start_tests")
     .select("*")
     .eq("status", "qualified")
@@ -67,7 +67,7 @@ export async function loadQualifiedColdStartTests(
 }
 
 async function storyCandidatesFromTests(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   tests: ColdStartTestRow[]
 ): Promise<FeedCandidate[]> {
   const storyIds = new Set<string>();
@@ -79,14 +79,14 @@ async function storyCandidatesFromTests(
   }
 
   if (authorIds.size > 0) {
-    const { data: creators } = await supabase
+    const { data: creators } = await db
       .from("creator_profiles")
       .select("id, user_id")
       .in("user_id", [...authorIds]);
 
     const creatorIds = (creators ?? []).map((c) => c.id as string);
     if (creatorIds.length > 0) {
-      const { data: stories } = await supabase
+      const { data: stories } = await db
         .from("stories")
         .select("id")
         .in("creator_id", creatorIds)
@@ -103,7 +103,7 @@ async function storyCandidatesFromTests(
 
   if (storyIds.size === 0) return [];
 
-  const { data } = await supabase
+  const { data } = await db
     .from("stories")
     .select(
       "id, published_at, is_completed, creator_profiles(id, user_id)"
@@ -114,7 +114,7 @@ async function storyCandidatesFromTests(
 
   const stories = data ?? [];
   const taxonomyByStory = await loadMainGenreLabelsByStoryIds(
-    supabase,
+    db,
     stories.map((story) => String(story.id))
   );
 
@@ -146,7 +146,7 @@ async function storyCandidatesFromTests(
 }
 
 async function reelCandidatesFromTests(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   tests: ColdStartTestRow[]
 ): Promise<FeedCandidate[]> {
   const reelIds = new Set<string>();
@@ -158,7 +158,7 @@ async function reelCandidatesFromTests(
   }
 
   if (authorIds.size > 0) {
-    const { data: reels } = await supabase
+    const { data: reels } = await db
       .from("reels_items")
       .select("id")
       .in("owner_id", [...authorIds])
@@ -171,7 +171,7 @@ async function reelCandidatesFromTests(
 
   if (reelIds.size === 0) return [];
 
-  const { data } = await supabase
+  const { data } = await db
     .from("reels_items")
     .select(
       "id, published_at, stories!inner(id, creator_id, creator_profiles(id, user_id))"
@@ -187,7 +187,7 @@ async function reelCandidatesFromTests(
     if (story?.id) storyIdsForTaxonomy.push(story.id);
   }
   const taxonomyByStory = await loadMainGenreLabelsByStoryIds(
-    supabase,
+    db,
     storyIdsForTaxonomy
   );
 
@@ -238,15 +238,15 @@ async function reelCandidatesFromTests(
 }
 
 export async function getColdStartCandidates(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   surface: FeedSurface,
   limit = 40
 ): Promise<FeedCandidate[]> {
-  const active = await loadActiveColdStartTests(supabase, surface);
+  const active = await loadActiveColdStartTests(db, surface);
   const raw =
     surface === "reels"
-      ? await reelCandidatesFromTests(supabase, active)
-      : await storyCandidatesFromTests(supabase, active);
+      ? await reelCandidatesFromTests(db, active)
+      : await storyCandidatesFromTests(db, active);
 
   const seen = new Set<string>();
   const unique: FeedCandidate[] = [];
@@ -263,15 +263,15 @@ export async function getColdStartCandidates(
 }
 
 export async function getQualifiedGrowthCandidates(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   surface: FeedSurface,
   limit = 30
 ): Promise<FeedCandidate[]> {
-  const qualified = await loadQualifiedColdStartTests(supabase, surface);
+  const qualified = await loadQualifiedColdStartTests(db, surface);
   const raw =
     surface === "reels"
-      ? await reelCandidatesFromTests(supabase, qualified)
-      : await storyCandidatesFromTests(supabase, qualified);
+      ? await reelCandidatesFromTests(db, qualified)
+      : await storyCandidatesFromTests(db, qualified);
 
   return raw.slice(0, limit).map((c) => ({
     ...c,

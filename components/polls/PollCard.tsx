@@ -1,4 +1,4 @@
-import { votePollAction } from "@/lib/supabase/polls";
+import { votePollAction } from "@/lib/data/polls";
 import type { PollView } from "@/types/poll";
 import { Button, Card } from "@/components/ui";
 

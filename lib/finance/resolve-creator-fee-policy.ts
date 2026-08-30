@@ -1,5 +1,5 @@
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   CREATOR_FEE_REVENUE_SOURCES,
   moduleToRevenueSource,
@@ -22,6 +22,39 @@ export type FeePolicyTransactionType = CreatorRevenueModule | string;
 function numberValue(value: unknown, fallback = 0) {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function defaultCreatorPercent(settings: Record<string, unknown>) {
+  return numberValue(settings["revenue_share.default_creator_percent"], 70);
+}
+
+function defaultPlatformPercent(settings: Record<string, unknown>) {
+  return numberValue(
+    settings["revenue_share.default_platform_percent"],
+    Math.max(0, 100 - defaultCreatorPercent(settings))
+  );
+}
+
+function resolveSourceRateFromSettings(
+  source: (typeof CREATOR_FEE_REVENUE_SOURCES)[number],
+  settings: Record<string, unknown>
+) {
+  const useDefault =
+    "useDefaultConfigKey" in source &&
+    Boolean(settings[source.useDefaultConfigKey as MonetizationConfigKey]);
+  const creator = useDefault
+    ? defaultCreatorPercent(settings)
+    : numberValue(
+        settings[source.creatorConfigKey as MonetizationConfigKey],
+        defaultCreatorPercent(settings)
+      );
+  const platform = useDefault
+    ? defaultPlatformPercent(settings)
+    : numberValue(
+        settings[source.platformConfigKey as MonetizationConfigKey],
+        Math.max(0, 100 - creator)
+      );
+  return normalizeRevenueSharePercents(creator, platform);
 }
 
 /** Mô hình đơn giản: chỉ tỉ lệ ăn chia tác giả / nền tảng trên doanh thu gộp. */
@@ -80,8 +113,8 @@ async function fetchActivePolicyForCreator(
   creatorId: string,
   at: Date
 ): Promise<CreatorFeePolicyRow | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("creator_fee_policies")
     .select("*")
     .eq("creator_id", creatorId)
@@ -110,15 +143,7 @@ export async function buildDefaultSourceRates(): Promise<CreatorFeeSourceRates> 
   const rates: CreatorFeeSourceRates = {};
 
   for (const source of CREATOR_FEE_REVENUE_SOURCES) {
-    const creator = numberValue(
-      settings[source.creatorConfigKey as MonetizationConfigKey],
-      numberValue(settings["revenue_share.default_creator_percent"], 70)
-    );
-    const configuredPlatform = numberValue(
-      settings[source.platformConfigKey as MonetizationConfigKey],
-      Math.max(0, 100 - creator)
-    );
-    const normalized = normalizeRevenueSharePercents(creator, configuredPlatform);
+    const normalized = resolveSourceRateFromSettings(source, settings);
     rates[source.id] = {
       author_percent: normalized.authorPercent,
       platform_percent: normalized.platformPercent
@@ -133,22 +158,12 @@ function buildDefaultResolved(
   settings: Record<string, unknown>
 ): ResolvedCreatorFeePolicy {
   const sourceDef = CREATOR_FEE_REVENUE_SOURCES.find((s) => s.id === revenueSource);
-  const creatorRevenueSharePercent = numberValue(
-    sourceDef
-      ? settings[sourceDef.creatorConfigKey as MonetizationConfigKey]
-      : settings["revenue_share.default_creator_percent"],
-    70
-  );
-  const configuredPlatform = sourceDef
-    ? numberValue(
-        settings[sourceDef.platformConfigKey as MonetizationConfigKey],
-        Math.max(0, 100 - creatorRevenueSharePercent)
-      )
-    : Math.max(0, 100 - creatorRevenueSharePercent);
-  const normalized = normalizeRevenueSharePercents(
-    creatorRevenueSharePercent,
-    configuredPlatform
-  );
+  const normalized = sourceDef
+    ? resolveSourceRateFromSettings(sourceDef, settings)
+    : normalizeRevenueSharePercents(
+        defaultCreatorPercent(settings),
+        defaultPlatformPercent(settings)
+      );
 
   return {
     source: "default_config",

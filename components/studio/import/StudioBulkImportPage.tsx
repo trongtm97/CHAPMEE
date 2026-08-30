@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
+import { readImportTextFile } from "@/lib/encoding/read-import-text-file";
 import { BulkImportPreview } from "@/components/studio/import/BulkImportPreview";
 import { BulkImportTemplateBox } from "@/components/studio/import/BulkImportTemplateBox";
 import { Button } from "@/components/ui";
@@ -9,9 +11,12 @@ import {
   previewBulkImportAction
 } from "@/lib/import/bulk-import-actions";
 import {
+  BULK_IMPORT_OPTIONAL_FIELDS,
+  BULK_IMPORT_REQUIRED_FIELDS,
   BULK_IMPORT_TEMPLATE_SHORT_PLACEHOLDER
 } from "@/lib/import/bulk-import-template";
 import { validateImportInputSize } from "@/lib/import/validate-import-chapters";
+import { studioPath } from "@/lib/studio/constants";
 import { countWords } from "@/lib/text/countWords";
 import { buildImportChapterPreviews } from "@/lib/import/validate-import-chapters";
 import {
@@ -43,7 +48,11 @@ export function StudioBulkImportPage({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
+  const BLOCKING_STATUSES = new Set(["duplicate_in_file", "duplicate_in_story"]);
   const selectedCount = previews.filter((item) => item.selected).length;
+  const importableCount = previews.filter(
+    (item) => item.selected && !BLOCKING_STATUSES.has(item.status)
+  ).length;
 
   const canPreview = useMemo(() => text.trim().length > 0, [text]);
 
@@ -119,19 +128,14 @@ export function StudioBulkImportPage({
       return;
     }
 
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const content = String(reader.result ?? "");
-      setText(content);
-      setTab("paste");
-    };
-
-    reader.onerror = () => {
-      setError("Không đọc được file. Hãy dùng UTF-8.");
-    };
-
-    reader.readAsText(file, "UTF-8");
+    void readImportTextFile(file)
+      .then((content) => {
+        setText(content);
+        setTab("paste");
+      })
+      .catch(() => {
+        setError("Không đọc được file. Hãy lưu UTF-8 hoặc ANSI Windows.");
+      });
   }
 
   function handleConfirmImport() {
@@ -179,18 +183,51 @@ export function StudioBulkImportPage({
         <p className="mt-2 text-amber-100/80">
           Truyện đích: <span className="font-semibold text-white">{storyTitle}</span>
         </p>
+        <p className="mt-2 text-xs text-amber-100/75">
+          Cần import CSV/XLSX hoặc cập nhật chương cũ? Dùng{" "}
+          <Link className="font-semibold text-cyan-200 underline" href={studioPath("/import?tab=import-chapters")}>
+            Nhập chương CSV
+          </Link>
+          {" "}— xuất file tại{" "}
+          <Link
+            className="font-semibold text-cyan-200 underline"
+            href={studioPath(`/import?tab=export&storyId=${storyId}`)}
+          >
+            Xuất chương
+          </Link>
+          {" "}để lấy mã.
+        </p>
       </div>
 
       <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4 text-sm text-zinc-300">
-        <p className="font-semibold text-cyan-100">Lưu ý</p>
-        <ul className="mt-2 list-disc space-y-1 pl-5">
-          <li>Mỗi chương phải bắt đầu bằng dòng === CHƯƠNG SỐ ===</li>
-          <li>Giữ lại dòng “Tiêu đề:” và “Nội dung:”</li>
-          <li>Nội dung sau khi nhập sẽ là nháp, chưa đăng công khai</li>
-          <li>
-            Nếu truyện có hơn {BULK_IMPORT_MAX_CHAPTERS} chương, hãy chia thành nhiều lần nhập
-          </li>
-          <li>Chỉ hỗ trợ file .txt trong phiên bản hiện tại</li>
+        <p className="font-semibold text-cyan-100">Quy tắc nhập — linh hoạt</p>
+        <p className="mt-2 text-zinc-400">
+          Chỉ cần đúng dòng <span className="font-mono text-cyan-100">=== CHƯƠNG SỐ ===</span>.
+          Tiêu đề và nội dung có thể thiếu — hệ thống vẫn tạo nháp để bạn sửa sau.
+          Một vài chương lỗi (trùng số) sẽ bị bỏ qua, các chương còn lại vẫn nhập bình thường.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          {BULK_IMPORT_REQUIRED_FIELDS.map((item) => (
+            <span
+              className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-emerald-100"
+              key={item.field}
+            >
+              Bắt buộc: {item.field}
+            </span>
+          ))}
+          {BULK_IMPORT_OPTIONAL_FIELDS.map((item) => (
+            <span
+              className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-zinc-400"
+              key={item.field}
+            >
+              Tùy chọn: {item.field}
+            </span>
+          ))}
+        </div>
+        <ul className="mt-3 list-disc space-y-1 pl-5 text-zinc-500">
+          <li>Nội dung nhập xong là nháp, chưa đăng công khai</li>
+          <li>Tối đa {BULK_IMPORT_MAX_CHAPTERS} chương/lần — truyện dài hãy chia nhiều lần</li>
+          <li>Chỉ hỗ trợ file .txt (UTF-8)</li>
         </ul>
       </div>
 
@@ -272,11 +309,18 @@ export function StudioBulkImportPage({
       )}
 
       {parseErrors.length > 0 ? (
-        <ul className="space-y-1 text-sm text-amber-200">
-          {parseErrors.map((item) => (
-            <li key={item}>• {item}</li>
-          ))}
-        </ul>
+        <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-sm text-amber-100">
+          <p className="font-semibold">
+            {previews.length > 0
+              ? "Một số chương không đọc được — các chương hợp lệ vẫn xem trước bên dưới"
+              : "Không đọc được chương nào"}
+          </p>
+          <ul className="mt-2 space-y-1 text-amber-100/90">
+            {parseErrors.map((item) => (
+              <li key={item}>• {item}</li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       {error ? <p className="text-sm text-rose-300">{error}</p> : null}
@@ -287,11 +331,11 @@ export function StudioBulkImportPage({
 
           <div className="flex flex-wrap gap-3">
             <Button
-              disabled={pending || selectedCount === 0}
+              disabled={pending || importableCount === 0}
               onClick={() => setConfirmOpen(true)}
               type="button"
             >
-              Nhập vào nháp
+              Nhập {importableCount} chương vào nháp
             </Button>
           </div>
         </>
@@ -302,8 +346,12 @@ export function StudioBulkImportPage({
           <div className="w-full max-w-md space-y-4 rounded-2xl border border-white/10 bg-zinc-950 p-6">
             <h3 className="text-lg font-semibold text-white">Xác nhận nhập</h3>
             <p className="text-sm text-zinc-300">
-              Bạn sắp nhập {selectedCount} chương vào nháp. Nội dung sẽ chưa được đăng
-              công khai. Bạn có thể kiểm tra và chỉnh sửa từng chương trước khi đăng.
+              Sẽ nhập <span className="font-semibold text-white">{importableCount}</span>{" "}
+              chương vào nháp
+              {selectedCount > importableCount
+                ? ` (${selectedCount - importableCount} chương trùng sẽ bỏ qua)`
+                : ""}
+              . Chưa đăng công khai — bạn có thể chỉnh sửa từng chương trước khi đăng.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button disabled={pending} onClick={handleConfirmImport} type="button">

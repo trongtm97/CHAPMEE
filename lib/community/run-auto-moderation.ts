@@ -9,7 +9,7 @@ import type { UserTrustScoreBreakdown } from "@/types/community-auto-moderation"
 import { effectiveTrustThresholds } from "@/lib/community/get-auto-moderation-settings";
 import type { CommunityAutoModerationSettings } from "@/types/community-auto-moderation";
 import { hasActiveRestriction } from "@/lib/moderation/check-restriction";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type {
   AutoModerationDecision,
   AutoModerationResult,
@@ -32,7 +32,7 @@ export type RunAutoModerationInput = {
 async function checkRateLimit(
   input: RunAutoModerationInput
 ): Promise<{ limited: boolean; matched: MatchedRule[] }> {
-  const supabase = await createClient();
+  const db = await createClient();
   const limits = input.settings.rateLimits;
   const matched: MatchedRule[] = [];
   const todayStart = new Date();
@@ -45,7 +45,7 @@ async function checkRateLimit(
     dailyCap = limits.new_user_posts_per_day;
   }
 
-  const { count: todayCount } = await supabase
+  const { count: todayCount } = await db
     .from("community_posts")
     .select("id", { count: "exact", head: true })
     .eq("user_id", input.userId)
@@ -61,7 +61,7 @@ async function checkRateLimit(
 
   if (limits.post_cooldown_seconds > 0) {
     const since = new Date(Date.now() - limits.post_cooldown_seconds * 1000).toISOString();
-    const { count: recent } = await supabase
+    const { count: recent } = await db
       .from("community_posts")
       .select("id", { count: "exact", head: true })
       .eq("user_id", input.userId)
@@ -81,8 +81,8 @@ async function checkRateLimit(
 
 async function isStoryGroupLocked(storyId: string | null) {
   if (!storyId) return false;
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("community_group_settings")
     .select("posting_locked, status")
     .eq("group_type", "story")
@@ -207,9 +207,9 @@ export async function runAutoModeration(
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const isDuplicate = await checkDuplicateContent(
-    supabase,
+    db,
     input.userId,
     input.title,
     input.content

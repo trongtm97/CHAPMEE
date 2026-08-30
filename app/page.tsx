@@ -6,34 +6,19 @@ import { ErrorState, LoadingState } from "@/components/ui";
 import { loadPublicCampaignContext } from "@/lib/campaigns/load-public-campaigns";
 import { getProductConfigFast } from "@/lib/config/product-config";
 import { getReelsItems } from "@/lib/reels/getReelsItems";
-import { buildCanonicalUrl, getDefaultOgImage } from "@/lib/seo/metadata";
+import { SITE_NAME } from "@/lib/seo/metadata";
+import { metadataForStaticRoute } from "@/lib/seo/public-page-metadata";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const title = "Reels";
-  const description =
-    "Lướt nhanh các trích đoạn truyện hấp dẫn, khám phá chương mới và tìm truyện đáng đọc.";
-  const canonical = buildCanonicalUrl("/");
-
-  return {
-    title,
-    description,
-    alternates: { canonical },
-    openGraph: {
-      title,
-      description,
-      type: "website",
-      ...(canonical ? { url: canonical } : {}),
-      images: [{ url: getDefaultOgImage(), alt: title }]
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-      images: [getDefaultOgImage()]
-    }
-  };
+  return metadataForStaticRoute({
+    path: "/",
+    pageType: "reels",
+    fallbackTitle: SITE_NAME,
+    fallbackDescription:
+      "Lướt nhanh các trích đoạn truyện hấp dẫn, khám phá chương mới và tìm truyện đáng đọc."
+  });
 }
 
 async function ReelsContent() {

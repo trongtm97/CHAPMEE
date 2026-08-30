@@ -18,9 +18,9 @@ const FOCUSED_KEYS: Array<{
   { key: "revenue_share.default_creator_percent", label: "% tác giả (mặc định)", type: "number" },
   { key: "revenue_share.platform_fee_percent", label: "% phí nền tảng", type: "number" },
   { key: "payout.min_withdraw_amount_vnd", label: "Rút tối thiểu (VND)", type: "number" },
-  { key: "coin.exchange_rate_vnd", label: "Tỷ giá coin → VND", type: "number" },
-  { key: "paid_chapters.min_coin_price", label: "Giá coin tối thiểu", type: "number" },
-  { key: "paid_chapters.max_coin_price", label: "Giá coin tối đa", type: "number" },
+  { key: "coin.exchange_rate_vnd", label: "1 VNĐ = 1 Xu", type: "number" },
+  { key: "paid_chapters.min_coin_price", label: "Giá Xu tối thiểu", type: "number" },
+  { key: "paid_chapters.max_coin_price", label: "Giá Xu tối đa", type: "number" },
   { key: "payout.manual_review_required", label: "Rút tiền cần duyệt thủ công", type: "boolean" },
   { key: "payout.hold_days", label: "Ngày giữ/ xử lý rút (tham khảo)", type: "number" }
 ];

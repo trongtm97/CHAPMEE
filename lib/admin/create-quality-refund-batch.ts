@@ -3,7 +3,7 @@
 import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { getQualityRefundPreview } from "@/lib/admin/get-quality-refund-preview";
 import { checkStaffPermission } from "@/lib/auth/staff-guards";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type {
   QualityRefundPurchaseScope,
   QualityRefundReasonCode,
@@ -39,11 +39,11 @@ export async function createQualityRefundBatch(input: {
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const targetType = input.chapterId ? "chapter" : "story";
   const targetId = input.chapterId ?? input.storyId;
 
-  const { data: batch, error: batchError } = await supabase
+  const { data: batch, error: batchError } = await db
     .from("coin_refund_batches")
     .insert({
       target_type: targetType,
@@ -84,10 +84,10 @@ export async function createQualityRefundBatch(input: {
     status: "pending"
   }));
 
-  const { error: itemsError } = await supabase.from("coin_refund_items").insert(itemRows);
+  const { error: itemsError } = await db.from("coin_refund_items").insert(itemRows);
 
   if (itemsError) {
-    await supabase.from("coin_refund_batches").delete().eq("id", batch.id);
+    await db.from("coin_refund_batches").delete().eq("id", batch.id);
     return { ok: false, error: itemsError.message, batchId: null };
   }
 

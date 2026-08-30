@@ -1,4 +1,4 @@
-import { fetchAppSettingByKey } from "@/lib/supabase/app-settings";
+import { fetchAppSettingByKey } from "@/lib/data/app-settings";
 
 export async function getAdminCoinGrantMaxPerAction() {
   const setting = await fetchAppSettingByKey("admin.coin_grant_max_per_action");

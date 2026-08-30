@@ -28,8 +28,8 @@ import { useLatestRequestGuard } from "@/hooks/useLatestRequestGuard";
 
 function Flag({ on }: { on: boolean }) {
   return (
-    <span className={on ? "text-emerald-400" : "text-zinc-600"} title={on ? "CÃ³" : "KhÃ´ng"}>
-      {on ? "âœ“" : "â€”"}
+    <span className={on ? "text-emerald-400" : "text-zinc-600"} title={on ? "Có" : "Không"}>
+      {on ? "✓" : "—"}
     </span>
   );
 }
@@ -67,6 +67,9 @@ type TaxonomyTermsTableProps = {
   onSelect?: (term: TaxonomyTermAdminRow) => void;
   onMessage: TaxonomyAdminNotify;
   onStatsRefresh?: () => void;
+  initialItems?: TaxonomyTermAdminRow[];
+  initialTotal?: number;
+  initialLoadError?: string | null;
 };
 
 export function TaxonomyTermsTable({
@@ -78,7 +81,10 @@ export function TaxonomyTermsTable({
   onActionRequestHandled,
   onSelect,
   onMessage,
-  onStatsRefresh
+  onStatsRefresh,
+  initialItems = [],
+  initialTotal = 0,
+  initialLoadError = null
 }: TaxonomyTermsTableProps) {
   const [pending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
@@ -93,8 +99,8 @@ export function TaxonomyTermsTable({
   const [moderationOnly, setModerationOnly] = useState(false);
   const [presentationOnly, setPresentationOnly] = useState(false);
   const [page, setPage] = useState(1);
-  const [items, setItems] = useState<TaxonomyTermAdminRow[]>([]);
-  const [total, setTotal] = useState(0);
+  const [items, setItems] = useState<TaxonomyTermAdminRow[]>(initialItems);
+  const [total, setTotal] = useState(initialTotal);
   const [editTerm, setEditTerm] = useState<TaxonomyTermAdminRow | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [mergeSource, setMergeSource] = useState<TaxonomyTermAdminRow | null>(null);
@@ -108,6 +114,12 @@ export function TaxonomyTermsTable({
   const [filtersOpen, setFiltersOpen] = useState(true);
   const searchTimerRef = useRef<number | null>(null);
   const requestGuard = useLatestRequestGuard();
+
+  useEffect(() => {
+    if (initialLoadError) {
+      onMessage(initialLoadError);
+    }
+  }, [initialLoadError, onMessage]);
 
   const totalPages = Math.max(1, Math.ceil(total / TAXONOMY_ADMIN_PAGE_SIZE));
   const defaultType = groupFilter === "all" ? "main_genre" : groupFilter;
@@ -190,7 +202,7 @@ export function TaxonomyTermsTable({
         onMessage(result.error);
         return;
       }
-      onMessage(nextActive ? "Da bat taxonomy." : "Da tat taxonomy.", "success");
+      onMessage(nextActive ? "Đã bật taxonomy." : "Đã tắt taxonomy.", "success");
       load();
       onStatsRefresh?.();
     });
@@ -199,9 +211,9 @@ export function TaxonomyTermsTable({
   const requestToggle = useCallback((term: TaxonomyTermAdminRow, nextActive: boolean) => {
     if (!nextActive) {
       const parts: string[] = [];
-      if (term.usage_count > 0) parts.push(`${term.usage_count} truyá»‡n Ä‘ang dÃ¹ng.`);
+      if (term.usage_count > 0) parts.push(`${term.usage_count} truyện đang dùng.`);
       if (term.use_for_seo || term.use_for_discover) {
-        parts.push("áº¢nh hÆ°á»Ÿng SEO/Discover.");
+        parts.push("Ảnh hưởng SEO/Discover.");
       }
       if (parts.length > 0) {
         setToggleConfirm({ term, nextActive, description: parts.join("\n") });
@@ -251,7 +263,7 @@ export function TaxonomyTermsTable({
                   setPage(1);
                 }
               }}
-              placeholder="TÃ¬m tÃªn, slug, aliasâ€¦"
+              placeholder="Tìm tên, slug, alias…"
               value={searchDraft}
             />
             <Button
@@ -262,16 +274,16 @@ export function TaxonomyTermsTable({
               type="button"
               variant="secondary"
             >
-              TÃ¬m
+              Tìm
             </Button>
             <select
               className="min-h-10 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm text-white"
               onChange={(e) => setSort(e.target.value as TaxonomyTermSort)}
               value={sort}
             >
-              <option value="updated_desc">Má»›i cáº­p nháº­t</option>
+              <option value="updated_desc">Mới cập nhật</option>
               <option value="usage_desc">Usage cao</option>
-              <option value="usage_asc">Usage tháº¥p</option>
+              <option value="usage_asc">Usage thấp</option>
               <option value="name_asc">A-Z</option>
             </select>
           </div>
@@ -281,13 +293,13 @@ export function TaxonomyTermsTable({
               type="button"
               variant="secondary"
             >
-              {filtersOpen ? "áº¨n lá»c" : "Bá»™ lá»c"}
+              {filtersOpen ? "Ẩn lọc" : "Bộ lọc"}
             </Button>
             <Button disabled={pending} onClick={() => load()} type="button" variant="secondary">
-              LÃ m má»›i
+              Làm mới
             </Button>
             <Button onClick={() => setCreateOpen(true)} type="button">
-              ThÃªm
+              Thêm
             </Button>
           </div>
         </div>
@@ -299,7 +311,7 @@ export function TaxonomyTermsTable({
               onChange={(e) => setStatusFilter(e.target.value as TaxonomyTermStatusFilter)}
               value={statusFilter}
             >
-              <option value="all">Má»i tráº¡ng thÃ¡i</option>
+              <option value="all">Mọi trạng thái</option>
               <option value="active">Active</option>
               <option value="disabled">Disabled</option>
               <option value="deprecated">Deprecated</option>
@@ -309,10 +321,10 @@ export function TaxonomyTermsTable({
               onChange={(e) => setUsageFilter(e.target.value as TaxonomyUsageFilter)}
               value={usageFilter}
             >
-              <option value="all">Má»i usage</option>
-              <option value="unused">ChÆ°a dÃ¹ng</option>
-              <option value="low">Ãt dÃ¹ng (1â€“5)</option>
-              <option value="high">Nhiá»u dÃ¹ng (100+)</option>
+              <option value="all">Mọi usage</option>
+              <option value="unused">Chưa dùng</option>
+              <option value="low">Ít dùng (1–5)</option>
+              <option value="high">Nhiều dùng (100+)</option>
             </select>
             <label className="flex items-center gap-1.5 rounded-lg border border-white/5 px-2 text-xs text-zinc-400">
               <input checked={creatorOnly} onChange={(e) => setCreatorOnly(e.target.checked)} type="checkbox" />
@@ -352,7 +364,9 @@ export function TaxonomyTermsTable({
 
       {empty ? (
         <div className="rounded-xl border border-dashed border-white/15 px-6 py-12 text-center text-sm text-zinc-500">
-          KhÃ´ng cÃ³ taxonomy phÃ¹ há»£p bá»™ lá»c. Thá»­ Ä‘á»•i nhÃ³m hoáº·c thÃªm má»¥c má»›i.
+          {total === 0 && !search.trim() && statusFilter === "all" && usageFilter === "all"
+            ? "Chưa có taxonomy trong hệ thống. Chạy npm run db:legacy (seed 161) hoặc bấm Thêm để tạo mục đầu tiên."
+            : "Không có taxonomy phù hợp bộ lọc. Thử đổi nhóm hoặc thêm mục mới."}
         </div>
       ) : (
         <div
@@ -361,17 +375,17 @@ export function TaxonomyTermsTable({
           <table className="min-w-[1100px] w-full text-left text-sm">
             <thead className="sticky top-0 z-10 border-b border-white/10 bg-zinc-950 text-xs uppercase text-zinc-500">
               <tr>
-                <th className="px-3 py-2.5">TÃªn hiá»ƒn thá»‹</th>
+                <th className="px-3 py-2.5">Tên hiển thị</th>
                 <th className="px-3 py-2.5">Slug</th>
-                {groupFilter === "all" ? <th className="px-3 py-2.5">NhÃ³m</th> : null}
-                <th className="px-3 py-2.5">Tráº¡ng thÃ¡i</th>
+                {groupFilter === "all" ? <th className="px-3 py-2.5">Nhóm</th> : null}
+                <th className="px-3 py-2.5">Trạng thái</th>
                 <th className="px-3 py-2.5">Cr</th>
                 <th className="px-3 py-2.5">Dis</th>
                 <th className="px-3 py-2.5">SEO</th>
                 <th className="px-3 py-2.5">Rank</th>
                 <th className="px-3 py-2.5">Usage</th>
-                <th className="px-3 py-2.5">Cáº­p nháº­t</th>
-                <th className="px-3 py-2.5">HÃ nh Ä‘á»™ng</th>
+                <th className="px-3 py-2.5">Cập nhật</th>
+                <th className="px-3 py-2.5">Hành động</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -394,7 +408,7 @@ export function TaxonomyTermsTable({
                           rel="noopener noreferrer"
                           target="_blank"
                         >
-                          â†—
+                          ↗
                         </Link>
                       ) : null}
                     </td>
@@ -428,28 +442,28 @@ export function TaxonomyTermsTable({
                           onClick={() => setEditTerm(term)}
                           type="button"
                         >
-                          Sá»­a
+                          Sửa
                         </button>
                         <button
                           className="text-xs text-zinc-400 hover:underline"
                           onClick={() => requestToggle(term, !term.is_active)}
                           type="button"
                         >
-                          {term.is_active ? "Táº¯t" : "Báº­t"}
+                          {term.is_active ? "Tắt" : "Bật"}
                         </button>
                         <button
                           className="text-xs text-zinc-400 hover:underline"
                           onClick={() => setMergeSource(term)}
                           type="button"
                         >
-                          Gá»™p
+                          Gộp
                         </button>
                         <button
                           className="text-xs text-zinc-400 hover:underline"
                           onClick={() => setStoriesTerm(term)}
                           type="button"
                         >
-                          Truyá»‡n
+                          Truyện
                         </button>
                         {term.usage_count === 0 ? (
                           <button
@@ -457,7 +471,7 @@ export function TaxonomyTermsTable({
                             onClick={() => setDeleteConfirm(term)}
                             type="button"
                           >
-                            XÃ³a
+                            Xóa
                           </button>
                         ) : null}
                       </div>
@@ -517,9 +531,9 @@ export function TaxonomyTermsTable({
       />
 
       <ConfirmActionModal
-        confirmLabel="Táº¯t"
+        confirmLabel="Tắt"
         description={
-          toggleConfirm ? `Táº¯t "${toggleConfirm.term.name}"?\n\n${toggleConfirm.description}` : ""
+          toggleConfirm ? `Tắt "${toggleConfirm.term.name}"?\n\n${toggleConfirm.description}` : ""
         }
         onClose={() => setToggleConfirm(null)}
         onConfirm={() => {
@@ -530,15 +544,15 @@ export function TaxonomyTermsTable({
         }}
         open={Boolean(toggleConfirm)}
         pending={pending}
-        title="Táº¯t taxonomy"
+        title="Tắt taxonomy"
         variant="danger"
       />
 
       <ConfirmActionModal
-        confirmLabel="XÃ³a vÄ©nh viá»…n"
+        confirmLabel="Xóa vĩnh viễn"
         description={
           deleteConfirm
-            ? `XÃ³a "${deleteConfirm.name}"? Chá»‰ dÃ¹ng khi chÆ°a cÃ³ usage.`
+            ? `Xóa "${deleteConfirm.name}"? Chỉ dùng khi chưa có usage.`
             : ""
         }
         onClose={() => setDeleteConfirm(null)}
@@ -549,17 +563,17 @@ export function TaxonomyTermsTable({
           startTransition(async () => {
             const result = await deleteTaxonomyTermAdminAction(id);
             if (result.error || !result.ok) {
-              onMessage(result.error ?? "KhÃ´ng xÃ³a Ä‘Æ°á»£c.");
+              onMessage(result.error ?? "Không xóa được.");
               return;
             }
-            onMessage("ÄÃ£ xÃ³a taxonomy.", "success");
+            onMessage("Đã xóa taxonomy.", "success");
             load();
             onStatsRefresh?.();
           });
         }}
         open={Boolean(deleteConfirm)}
         pending={pending}
-        title="XÃ³a taxonomy"
+        title="Xóa taxonomy"
         variant="danger"
       />
     </div>

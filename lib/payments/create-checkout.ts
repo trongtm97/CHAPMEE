@@ -2,7 +2,7 @@
 
 import { checkStaffAnyPermission } from "@/lib/auth/staff-guards";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { getCheckoutSessionById, updateCheckoutSessionStatus } from "@/lib/supabase/checkout-sessions";
+import { getCheckoutSessionById, updateCheckoutSessionStatus } from "@/lib/data/checkout-sessions";
 import { getPaymentProviderAdapter } from "@/lib/payments/providers";
 import { buildTransactionCode } from "@/lib/transactions/ledger";
 import { completeCheckoutPayment } from "@/lib/payments/complete-payment";

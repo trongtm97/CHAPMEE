@@ -1,4 +1,4 @@
-import { getCreatorAccessOverrideByUserId } from "@/lib/supabase/creator-access-overrides";
+import { getCreatorAccessOverrideByUserId } from "@/lib/data/creator-access-overrides";
 import type {
   CreatorAccessOverrideRow,
   CreatorAccessStatus

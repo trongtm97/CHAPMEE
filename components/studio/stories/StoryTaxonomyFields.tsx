@@ -13,7 +13,11 @@ import {
   modeUsesStructuredContent
 } from "@/lib/presentation/constants";
 import { filterTermsByParent } from "@/lib/taxonomy/parent-types";
-import { STORY_TAXONOMY_LIMITS } from "@/lib/taxonomy/constants";
+import {
+  DEPRECATED_CONTENT_TYPE_SLUGS,
+  STORY_FORM_CONTENT_TYPE_SLUGS,
+  STORY_TAXONOMY_LIMITS
+} from "@/lib/taxonomy/constants";
 import type { StoryFormTaxonomyBundle } from "@/lib/creator/get-story-form-taxonomy";
 import type { TaxonomyType } from "@/types/taxonomy";
 
@@ -60,6 +64,23 @@ function buildInitialOptional(
   return map;
 }
 
+export function buildStoryTaxonomySelectionFromBundle(
+  bundle: StoryFormTaxonomyBundle
+): StoryTaxonomySelection {
+  return {
+    ageRatingId: bundle.selectedByType.age_rating?.[0] ?? "",
+    contentTypeId: bundle.selectedByType.content_type?.[0] ?? "",
+    contentWarningIds: bundle.selectedByType.content_warning ?? [],
+    contentWarningsConfirmed: bundle.contentWarningsConfirmed,
+    formatTemplateId: bundle.selectedFormatTemplateId ?? "",
+    mainGenreId: bundle.selectedByType.main_genre?.[0] ?? "",
+    optionalTermIds: buildInitialOptional(bundle),
+    presentationMode: bundle.presentationMode ?? "standard_prose",
+    warningMode:
+      (bundle.selectedByType.content_warning?.length ?? 0) > 0 ? "has" : "none"
+  };
+}
+
 export function StoryTaxonomyFields({
   bundle,
   collapsibleAdvanced = false,
@@ -67,36 +88,39 @@ export function StoryTaxonomyFields({
   onPresentationModeChange,
   onSelectionChange
 }: StoryTaxonomyFieldsProps) {
-  const [contentTypeId, setContentTypeId] = useState(
-    bundle.selectedByType.content_type?.[0] ?? ""
-  );
-  const [mainGenreId, setMainGenreId] = useState(
-    bundle.selectedByType.main_genre?.[0] ?? ""
-  );
-  const [ageRatingId, setAgeRatingId] = useState(
-    bundle.selectedByType.age_rating?.[0] ?? ""
-  );
+  const initialSelection = buildStoryTaxonomySelectionFromBundle(bundle);
+  const [contentTypeId, setContentTypeId] = useState(initialSelection.contentTypeId);
+  const [mainGenreId, setMainGenreId] = useState(initialSelection.mainGenreId);
+  const [ageRatingId, setAgeRatingId] = useState(initialSelection.ageRatingId);
   const [presentationMode, setPresentationMode] = useState(
-    bundle.presentationMode ?? "standard_prose"
+    initialSelection.presentationMode
   );
   const [formatTemplateId, setFormatTemplateId] = useState(
-    bundle.selectedFormatTemplateId ?? ""
+    initialSelection.formatTemplateId
   );
-  const [optionalTermIds, setOptionalTermIds] = useState<
-    Partial<Record<TaxonomyType, string[]>>
-  >(() => buildInitialOptional(bundle));
-  const [contentWarningIds, setContentWarningIds] = useState<string[]>(
-    bundle.selectedByType.content_warning ?? []
+  const [optionalTermIds, setOptionalTermIds] = useState(
+    initialSelection.optionalTermIds
+  );
+  const [contentWarningIds, setContentWarningIds] = useState(
+    initialSelection.contentWarningIds
   );
   const [contentWarningsConfirmed, setContentWarningsConfirmed] = useState(
-    bundle.contentWarningsConfirmed
+    initialSelection.contentWarningsConfirmed
   );
-  const [warningMode, setWarningMode] = useState<"none" | "has">(() => {
-    const count = bundle.selectedByType.content_warning?.length ?? 0;
-    return count > 0 ? "has" : "none";
-  });
+  const [warningMode, setWarningMode] = useState(initialSelection.warningMode);
 
   const formatTemplates = bundle.formatTemplatesByMode[presentationMode] ?? [];
+
+  const contentTypeTerms = useMemo(() => {
+    const allowed = new Set<string>(STORY_FORM_CONTENT_TYPE_SLUGS);
+    return (bundle.optionsByType.content_type ?? []).filter(
+      (term) =>
+        allowed.has(term.slug) &&
+        !DEPRECATED_CONTENT_TYPE_SLUGS.includes(
+          term.slug as (typeof DEPRECATED_CONTENT_TYPE_SLUGS)[number]
+        )
+    );
+  }, [bundle.optionsByType.content_type]);
 
   const subgenres = useMemo(
     () =>
@@ -127,6 +151,13 @@ export function StoryTaxonomyFields({
     const next = { ...optionalTermIds, [type]: ids };
     setOptionalTermIds(next);
     emit({ optionalTermIds: next });
+  }
+
+  function handleMainGenreChange(value: string) {
+    setMainGenreId(value);
+    const nextOptional = { ...optionalTermIds, subgenre: [] as string[] };
+    setOptionalTermIds(nextOptional);
+    emit({ mainGenreId: value, optionalTermIds: nextOptional });
   }
 
   const hasAnyTaxonomy = useMemo(
@@ -160,18 +191,34 @@ export function StoryTaxonomyFields({
     );
   }
 
+  const subgenreField =
+    !mainGenreId ? (
+      <div className="space-y-1 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+        <span className="text-sm font-bold text-zinc-200">Thể loại phụ</span>
+        <p className="text-xs text-zinc-500">
+          Chọn thể loại chính trước để xem thể loại phụ phù hợp.
+        </p>
+      </div>
+    ) : subgenres.length > 0 ? (
+      <TaxonomyMultiPicker
+        disabled={disabled}
+        max={STORY_TAXONOMY_LIMITS.subgenre?.max ?? 3}
+        onChange={(ids) => updateOptional("subgenre", ids)}
+        selectedIds={optionalTermIds.subgenre ?? []}
+        terms={subgenres}
+        type="subgenre"
+      />
+    ) : (
+      <div className="space-y-1 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+        <span className="text-sm font-bold text-zinc-200">Thể loại phụ</span>
+        <p className="text-xs text-zinc-500">
+          Chưa có thể loại phụ cho thể loại chính này.
+        </p>
+      </div>
+    );
+
   const advancedFields = (
     <>
-      {subgenres.length > 0 ? (
-        <TaxonomyMultiPicker
-          disabled={disabled}
-          max={3}
-          onChange={(ids) => updateOptional("subgenre", ids)}
-          selectedIds={optionalTermIds.subgenre ?? []}
-          terms={subgenres}
-          type="subgenre"
-        />
-      ) : null}
       {OPTIONAL_MULTI.filter((type) => type !== "subgenre").map((type) => {
         const terms = bundle.optionsByType[type];
         if (!terms?.length) return null;
@@ -195,7 +242,7 @@ export function StoryTaxonomyFields({
       <input name="use_taxonomy" type="hidden" value="1" />
 
       <div className="grid gap-5 lg:grid-cols-2">
-        {(bundle.optionsByType.content_type?.length ?? 0) > 0 ? (
+        {(contentTypeTerms.length ?? 0) > 0 ? (
           <TaxonomySinglePicker
             disabled={disabled}
             onChange={(value) => {
@@ -203,7 +250,7 @@ export function StoryTaxonomyFields({
               emit({ contentTypeId: value });
             }}
             required
-            terms={bundle.optionsByType.content_type ?? []}
+            terms={contentTypeTerms}
             type="content_type"
             value={contentTypeId}
           />
@@ -211,10 +258,7 @@ export function StoryTaxonomyFields({
         {(bundle.optionsByType.main_genre?.length ?? 0) > 0 ? (
           <TaxonomySinglePicker
             disabled={disabled}
-            onChange={(value) => {
-              setMainGenreId(value);
-              emit({ mainGenreId: value });
-            }}
+            onChange={handleMainGenreChange}
             required
             terms={bundle.optionsByType.main_genre ?? []}
             type="main_genre"
@@ -286,8 +330,12 @@ export function StoryTaxonomyFields({
               <input name="format_template_id" type="hidden" value="" />
             )}
           </div>
-        ) : null}
+        ) : (
+          <input name="presentation_mode" type="hidden" value={presentationMode} />
+        )}
       </div>
+
+      {subgenreField}
 
       {collapsibleAdvanced ? (
         <details className="group rounded-xl border border-white/10 bg-zinc-950/40">
@@ -362,23 +410,7 @@ export function StoryTaxonomyFields({
         )}
       </div>
 
-      <label className="flex items-start gap-3 rounded-xl border border-white/10 bg-zinc-950/50 px-4 py-3 text-sm text-zinc-200">
-        <input
-          checked={contentWarningsConfirmed}
-          className="mt-1 size-4 accent-cyan-300"
-          disabled={disabled}
-          name="content_warnings_confirmed"
-          onChange={(event) => {
-            setContentWarningsConfirmed(event.target.checked);
-            emit({ contentWarningsConfirmed: event.target.checked });
-          }}
-          type="checkbox"
-          value="on"
-        />
-        <span>
-          Tôi xác nhận đã chọn đúng phân loại và cảnh báo nội dung cho truyện này.
-        </span>
-      </label>
+      <input name="content_warnings_confirmed" type="hidden" value="on" />
 
       <p className="text-center text-xs text-zinc-600">
         Không thấy mục phù hợp?{" "}

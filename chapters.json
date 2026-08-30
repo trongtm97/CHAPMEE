@@ -1,0 +1,10 @@
+{
+  "summary": {
+    "scanned": 0,
+    "missing": 0,
+    "hash_mismatch": 0,
+    "size_mismatch": 0,
+    "verify_hash": true
+  },
+  "issues": []
+}

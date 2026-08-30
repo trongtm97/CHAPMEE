@@ -1,3 +1,21 @@
+export const BULK_IMPORT_REQUIRED_FIELDS = [
+  {
+    field: "=== CHƯƠNG SỐ ===",
+    note: "Bắt buộc — mỗi chương một dòng, số phải là số nguyên dương."
+  }
+] as const;
+
+export const BULK_IMPORT_OPTIONAL_FIELDS = [
+  {
+    field: "Tiêu đề:",
+    note: "Không bắt buộc — nếu bỏ trống sẽ dùng \"Chương {số}\"."
+  },
+  {
+    field: "Nội dung:",
+    note: "Không bắt buộc — có thể để trống, nhập nháp rồi viết sau trong Studio."
+  }
+] as const;
+
 export const BULK_IMPORT_TEMPLATE_SAMPLE = `=== CHƯƠNG 1 ===
 Tiêu đề: Tên chương đầu tiên
 
@@ -19,9 +37,9 @@ Nội dung:
 Dán nội dung chương 3 ở đây.`;
 
 export const BULK_IMPORT_TEMPLATE_SHORT_PLACEHOLDER = `=== CHƯƠNG 1 ===
-Tiêu đề: ...
+Tiêu đề: ... (không bắt buộc)
 
-Nội dung:
+Nội dung: (không bắt buộc — có thể để trống)
 ...`;
 
 export const BULK_IMPORT_EXAMPLE = `=== CHƯƠNG 1 ===

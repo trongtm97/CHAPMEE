@@ -2,7 +2,7 @@
 
 import { caseKey, getTargetTitle, resolveReportedUserId } from "@/lib/admin/get-report-page-data";
 import { normalizeTargetType } from "@/lib/admin/report-labels";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { ReportCaseDetail, ReportCaseQueueItem } from "@/types/reports";
 
 function firstRelation<T>(relation: unknown): T | null {
@@ -11,14 +11,14 @@ function firstRelation<T>(relation: unknown): T | null {
 }
 
 async function getTargetBody(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   targetType: string,
   targetId: string
 ) {
   const type = normalizeTargetType(targetType);
 
   if (type === "story") {
-    const { data } = await supabase
+    const { data } = await db
       .from("stories")
       .select("hook, short_description, long_description")
       .eq("id", targetId)
@@ -31,7 +31,7 @@ async function getTargetBody(
     );
   }
   if (type === "chapter") {
-    const { data } = await supabase
+    const { data } = await db
       .from("episodes")
       .select("excerpt, content")
       .eq("id", targetId)
@@ -40,11 +40,11 @@ async function getTargetBody(
     return content.slice(0, 800) || (data?.excerpt as string) || null;
   }
   if (type === "comment") {
-    const { data } = await supabase.from("comments").select("content").eq("id", targetId).maybeSingle();
+    const { data } = await db.from("comments").select("content").eq("id", targetId).maybeSingle();
     return (data?.content as string) ?? null;
   }
   if (type === "community_post") {
-    const { data } = await supabase
+    const { data } = await db
       .from("community_posts")
       .select("content")
       .eq("id", targetId)
@@ -55,17 +55,17 @@ async function getTargetBody(
 }
 
 async function getTargetHref(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   targetType: string,
   targetId: string
 ) {
   const type = normalizeTargetType(targetType);
   if (type === "story") {
-    const { data } = await supabase.from("stories").select("slug").eq("id", targetId).maybeSingle();
+    const { data } = await db.from("stories").select("slug").eq("id", targetId).maybeSingle();
     return data?.slug ? `/stories/${data.slug}` : null;
   }
   if (type === "chapter") {
-    const { data } = await supabase
+    const { data } = await db
       .from("episodes")
       .select("episode_number, stories(slug)")
       .eq("id", targetId)
@@ -82,10 +82,10 @@ export async function getReportCaseDetail(
   item: ReportCaseQueueItem
 ): Promise<{ detail: ReportCaseDetail | null; error: string | null }> {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const key = caseKey(item.targetType, item.targetId);
 
-    const { data: reportRows, error } = await supabase
+    const { data: reportRows, error } = await db
       .from("reports")
       .select(
         "id, reason, reason_code, reason_detail, details, created_at, reporter_id, profiles:reporter_id(display_name, username)"
@@ -97,7 +97,7 @@ export async function getReportCaseDetail(
 
     if (error) {
       const altType = item.targetType === "chapter" ? "episode" : item.targetType;
-      const retry = await supabase
+      const retry = await db
         .from("reports")
         .select(
           "id, reason, reason_code, reason_detail, details, created_at, reporter_id, profiles:reporter_id(display_name, username)"
@@ -124,14 +124,14 @@ export async function getReportCaseDetail(
     });
 
     const reportedUserId = await resolveReportedUserId(
-      supabase,
+      db,
       item.targetType,
       item.targetId
     );
 
     let reportedUserName = item.reportedUserName;
     if (reportedUserId && !reportedUserName) {
-      const { data } = await supabase
+      const { data } = await db
         .from("profiles")
         .select("display_name, username")
         .eq("id", reportedUserId)
@@ -140,28 +140,28 @@ export async function getReportCaseDetail(
         (data?.display_name as string) ?? (data?.username as string) ?? null;
     }
 
-    const { count: targetReportHistory } = await supabase
+    const { count: targetReportHistory } = await db
       .from("reports")
       .select("id", { count: "exact", head: true })
       .eq("target_id", item.targetId);
 
     let userReportHistory = 0;
     if (reportedUserId) {
-      const { count } = await supabase
+      const { count } = await db
         .from("reports")
         .select("id", { count: "exact", head: true })
         .eq("reported_user_id", reportedUserId);
       userReportHistory = count ?? 0;
     }
 
-    const title = await getTargetTitle(supabase, item.targetType, item.targetId);
+    const title = await getTargetTitle(db, item.targetType, item.targetId);
 
     return {
       detail: {
         case: { ...item, title, caseKey: key },
         targetPreview: title,
-        targetBody: await getTargetBody(supabase, item.targetType, item.targetId),
-        targetHref: await getTargetHref(supabase, item.targetType, item.targetId),
+        targetBody: await getTargetBody(db, item.targetType, item.targetId),
+        targetHref: await getTargetHref(db, item.targetType, item.targetId),
         reportedUserName,
         assignedToName: item.assignedToName,
         reports,

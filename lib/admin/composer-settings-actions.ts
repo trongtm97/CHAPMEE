@@ -14,8 +14,9 @@ import {
   type ComposerValidationSettings
 } from "@/lib/composer/composer-settings-defaults";
 import { checkStaffAnyPermission } from "@/lib/auth/staff-guards";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { listFormatTemplatesForAdmin } from "@/lib/taxonomy/admin-data";
+import { resolveComposerTemplateDocument } from "@/lib/composer/template-validation";
 
 async function assertAdmin() {
   const guard = await checkStaffAnyPermission([
@@ -24,10 +25,10 @@ async function assertAdmin() {
     "admin.settings.update"
   ]);
   if (!guard.ok) {
-    return { error: guard.error ?? "Không có quyền.", supabase: null as never, userId: null };
+    return { error: guard.error ?? "Không có quyền.", db: null as never, userId: null };
   }
-  const supabase = await createClient();
-  return { error: null, supabase, userId: guard.userId };
+  const db = await createClient();
+  return { error: null, db, userId: guard.userId };
 }
 
 export async function loadComposerAdminSettingsAction(): Promise<{
@@ -39,7 +40,7 @@ export async function loadComposerAdminSettingsAction(): Promise<{
     return { error: auth.error, settings: getDefaultComposerAdminSettings() };
   }
 
-  const { data, error } = await auth.supabase.from("composer_settings").select("key, value");
+  const { data, error } = await auth.db.from("composer_settings").select("key, value");
 
   if (error) {
     return { error: error.message, settings: getDefaultComposerAdminSettings() };
@@ -54,31 +55,98 @@ export async function loadComposerAdminSettingsAction(): Promise<{
       validation: mergeValidationSettings(byKey.get("validation")),
       modes: mergeModeSettings(byKey.get("modes")),
       blockTypes: mergeBlockTypeSettings(byKey.get("block_types")),
-      templates: templates.items.map((item) => ({
-        id: item.id,
-        name: item.name,
-        slug: item.name.toLowerCase().replace(/\s+/g, "-"),
-        mode_key: item.mode as ComposerModeRegistryEntry["mode"],
-        content_structure: "both",
-        description: item.description,
-        starter_blocks_json: item.example_json ?? {},
-        preview_text: item.description ?? null,
-        active: item.is_active,
-        creator_selectable: true,
-        sort_order: item.sort_order,
-        updated_at: item.updated_at
-      }))
+      templates: templates.items.map((item) => {
+        const resolved = resolveComposerTemplateDocument(item.mode, item.example_json ?? null);
+        return {
+          id: item.id,
+          name: item.name,
+          slug: item.name.toLowerCase().replace(/\s+/g, "-"),
+          mode_key: resolved.doc.mode,
+          content_structure: "both" as const,
+          description: item.description,
+          starter_blocks_json: resolved.doc,
+          preview_text:
+            resolved.errors[0] ?? resolved.warnings[0] ?? item.description ?? null,
+          active: item.is_active && resolved.ok,
+          creator_selectable: true,
+          sort_order: item.sort_order,
+          updated_at: item.updated_at
+        };
+      })
     }
   };
 }
 
+export async function validateComposerTemplatesAction(): Promise<{
+  error: string | null;
+  total: number;
+  valid: number;
+  invalid: number;
+  warnings: number;
+  items: Array<{
+    id: string;
+    name: string;
+    mode: string;
+    source: string;
+    ok: boolean;
+    errors: string[];
+    warnings: string[];
+  }>;
+}> {
+  const auth = await assertAdmin();
+  if (auth.error) {
+    return {
+      error: auth.error,
+      total: 0,
+      valid: 0,
+      invalid: 0,
+      warnings: 0,
+      items: []
+    };
+  }
+
+  const templates = await listFormatTemplatesForAdmin();
+  if (templates.error) {
+    return {
+      error: templates.error,
+      total: 0,
+      valid: 0,
+      invalid: 0,
+      warnings: 0,
+      items: []
+    };
+  }
+
+  const items = templates.items.map((item) => {
+    const resolved = resolveComposerTemplateDocument(item.mode, item.example_json ?? null);
+    return {
+      id: item.id,
+      name: item.name,
+      mode: resolved.doc.mode,
+      source: resolved.source,
+      ok: resolved.ok,
+      errors: resolved.errors,
+      warnings: resolved.warnings
+    };
+  });
+
+  return {
+    error: null,
+    total: items.length,
+    valid: items.filter((item) => item.ok).length,
+    invalid: items.filter((item) => !item.ok).length,
+    warnings: items.filter((item) => item.warnings.length > 0).length,
+    items
+  };
+}
+
 async function upsertSetting(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   key: string,
   value: unknown
 ) {
-  const { error } = await supabase.from("composer_settings").upsert(
+  const { error } = await db.from("composer_settings").upsert(
     {
       key,
       value,
@@ -97,7 +165,7 @@ export async function saveComposerValidationSettingsAction(
     return { error: auth.error };
   }
 
-  const error = await upsertSetting(auth.supabase, auth.userId!, "validation", settings);
+  const error = await upsertSetting(auth.db, auth.userId!, "validation", settings);
   if (error) {
     return { error: error.message };
   }
@@ -123,16 +191,16 @@ export async function restoreComposerDefaultsAction(): Promise<{
   }
   const defaults = getDefaultComposerAdminSettings();
   const validationError = await upsertSetting(
-    auth.supabase,
+    auth.db,
     auth.userId!,
     "validation",
     defaults.validation
   );
   if (validationError) return { error: validationError.message };
-  const modeError = await upsertSetting(auth.supabase, auth.userId!, "modes", defaults.modes);
+  const modeError = await upsertSetting(auth.db, auth.userId!, "modes", defaults.modes);
   if (modeError) return { error: modeError.message };
   const blockError = await upsertSetting(
-    auth.supabase,
+    auth.db,
     auth.userId!,
     "block_types",
     defaults.blockTypes
@@ -158,7 +226,7 @@ export async function saveComposerModesAction(
     return { error: auth.error };
   }
 
-  const error = await upsertSetting(auth.supabase, auth.userId!, "modes", modes);
+  const error = await upsertSetting(auth.db, auth.userId!, "modes", modes);
   if (error) {
     return { error: error.message };
   }
@@ -183,7 +251,7 @@ export async function saveComposerBlockTypesAction(
     return { error: auth.error };
   }
 
-  const error = await upsertSetting(auth.supabase, auth.userId!, "block_types", blockTypes);
+  const error = await upsertSetting(auth.db, auth.userId!, "block_types", blockTypes);
   if (error) {
     return { error: error.message };
   }
@@ -243,15 +311,15 @@ export async function importComposerSettingsAction(input: {
   const blockTypes = mergeBlockTypeSettings(record.blockTypes ?? record.block_types);
 
   const validationError = await upsertSetting(
-    auth.supabase,
+    auth.db,
     auth.userId!,
     "validation",
     validation
   );
   if (validationError) return { error: validationError.message };
-  const modeError = await upsertSetting(auth.supabase, auth.userId!, "modes", modes);
+  const modeError = await upsertSetting(auth.db, auth.userId!, "modes", modes);
   if (modeError) return { error: modeError.message };
-  const blockError = await upsertSetting(auth.supabase, auth.userId!, "block_types", blockTypes);
+  const blockError = await upsertSetting(auth.db, auth.userId!, "block_types", blockTypes);
   if (blockError) return { error: blockError.message };
 
   await logAdminAction({

@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
   mobileTopBar: "chapmee:mobile-top-bar",
   coinBalance: "chapmee:coin-balance",
   readingPreferences: "chapmee:reading-preferences",
+  readingScrollPositions: "chapmee:reading-scroll-positions",
   privacySettings: "chapmee:privacy-settings",
   notificationPrefsExtended: "chapmee:notification-prefs-extended",
   experimentsAnonymousId: "chapmee.experiments.anonymous_id",

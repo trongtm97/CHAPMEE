@@ -51,7 +51,7 @@ export function TaxonomySeoTable({ rows, canManageSeo }: TaxonomySeoTableProps) 
                   <td className="px-2 py-2">
                     <Link
                       className="text-cyan-300 hover:text-cyan-200"
-                      href={canManageSeo ? "/admin/seo?tab=taxonomy" : "/admin/seo"}
+                      href={canManageSeo ? "/admin/seo/control?tab=taxonomy" : "/admin/seo"}
                     >
                       Mở SEO
                     </Link>

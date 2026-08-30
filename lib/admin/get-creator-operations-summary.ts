@@ -1,10 +1,10 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CreatorOperationsSummary } from "@/types/admin-creator";
 
 export async function getCreatorOperationsSummary(): Promise<CreatorOperationsSummary> {
-  const supabase = await createClient();
+  const db = await createClient();
 
   const [
     totalCreatorsRes,
@@ -18,41 +18,41 @@ export async function getCreatorOperationsSummary(): Promise<CreatorOperationsSu
     lowQualityRes,
     warnedRes
   ] = await Promise.all([
-    supabase.from("creator_profiles").select("id", { count: "exact", head: true }),
-    supabase
+    db.from("creator_profiles").select("id", { count: "exact", head: true }),
+    db
       .from("creator_profiles")
       .select("id", { count: "exact", head: true })
       .eq("status", "active"),
-    supabase
+    db
       .from("creator_monetization_profiles")
       .select("id", { count: "exact", head: true })
       .eq("status", "pending_review"),
-    supabase
+    db
       .from("creator_monetization_profiles")
       .select("id", { count: "exact", head: true })
       .eq("status", "approved"),
-    supabase
+    db
       .from("creator_monetization_profiles")
       .select("id", { count: "exact", head: true })
       .in("status", ["suspended", "permanently_disabled"]),
-    supabase
+    db
       .from("account_verifications")
       .select("id", { count: "exact", head: true })
       .eq("status", "pending"),
-    supabase
+    db
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .eq("is_verified", true)
       .not("verification_type", "is", null),
-    supabase
+    db
       .from("payout_requests")
       .select("id", { count: "exact", head: true })
       .in("status", ["requested", "under_review"]),
-    supabase
+    db
       .from("stories")
       .select("id", { count: "exact", head: true })
       .in("quality_status", ["low_quality_warning_1", "low_quality_warning_2"]),
-    supabase
+    db
       .from("content_quality_reviews")
       .select("author_id", { count: "exact", head: true })
       .in("action", ["low_quality_warning_1", "low_quality_warning_2"])

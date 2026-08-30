@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import { loadStoryMainGenreTermIndex } from "@/lib/ranking/story-main-genre-index";
 
@@ -9,10 +9,10 @@ export type StoryMainGenreLabels = {
 
 /** Overlay main_genre taxonomy labels onto feed/ranking candidates keyed by story id. */
 export async function loadMainGenreLabelsByStoryIds(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyIds: string[]
 ) {
-  return getStoryTaxonomyLabelsByStoryIds(supabase, [...new Set(storyIds.filter(Boolean))]);
+  return getStoryTaxonomyLabelsByStoryIds(db, [...new Set(storyIds.filter(Boolean))]);
 }
 
 export function pickMainGenreFromLabels(labels: StoryMainGenreLabels | undefined) {
@@ -24,10 +24,10 @@ export function pickMainGenreFromLabels(labels: StoryMainGenreLabels | undefined
 
 /** Distinct main_genre taxonomy terms used by a creator's stories (for studio/monetization filters). */
 export async function loadCreatorMainGenreFilterOptions(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   creatorProfileId: string
 ): Promise<Array<{ id: string; name: string }>> {
-  const { data: stories } = await supabase
+  const { data: stories } = await db
     .from("stories")
     .select("id")
     .eq("creator_id", creatorProfileId);
@@ -37,13 +37,13 @@ export async function loadCreatorMainGenreFilterOptions(
     return [];
   }
 
-  const mainGenreIndex = await loadStoryMainGenreTermIndex(supabase, storyIds);
+  const mainGenreIndex = await loadStoryMainGenreTermIndex(db, storyIds);
   const termIds = [...new Set(mainGenreIndex.values())];
   if (termIds.length === 0) {
     return [];
   }
 
-  const { data: terms } = await supabase
+  const { data: terms } = await db
     .from("taxonomy_terms")
     .select("id, name")
     .in("id", termIds)
@@ -57,12 +57,12 @@ export async function loadCreatorMainGenreFilterOptions(
 }
 
 export async function isTaxonomyMainGenreTermId(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   termId: string
 ) {
   if (!termId.trim()) return false;
 
-  const { count } = await supabase
+  const { count } = await db
     .from("taxonomy_terms")
     .select("id", { count: "exact", head: true })
     .eq("id", termId)
@@ -73,10 +73,10 @@ export async function isTaxonomyMainGenreTermId(
 
 /** Genre + trope/subgenre labels for a story from taxonomy. */
 export async function loadStoryCatalogDisplayLabels(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string
 ): Promise<{ genreName: string | null; tagNames: string[] }> {
-  const labelsMap = await getStoryTaxonomyLabelsByStoryIds(supabase, [storyId]);
+  const labelsMap = await getStoryTaxonomyLabelsByStoryIds(db, [storyId]);
   const labels = labelsMap.get(storyId);
   const picked = pickMainGenreFromLabels(labels);
   const tagNames = [...(labels?.subgenreNames ?? []), ...(labels?.tagNames ?? [])];

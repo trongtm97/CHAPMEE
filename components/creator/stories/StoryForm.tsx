@@ -2,7 +2,10 @@
 
 import { useActionState } from "react";
 import { Button, Card, Input, Textarea } from "@/components/ui";
-import { GuidelinesAcknowledgementField, useGuidelinesSubmitGuard } from "@/components/creator/GuidelinesSubmitAcknowledgement";
+import {
+  PublishGuidelinesNotice,
+  useGuidelinesSubmitGuard
+} from "@/components/creator/GuidelinesSubmitAcknowledgement";
 import { StoryContentClassification } from "@/components/creator/StoryContentClassification";
 import { StoryCoverField } from "@/components/story/StoryCoverField";
 import { StoryTaxonomyFields } from "@/components/studio/stories/StoryTaxonomyFields";
@@ -39,17 +42,11 @@ export function StoryForm({
   const canSaveDraft =
     !story || (story.status !== "approved" && story.status !== "published");
 
-  const {
-    acknowledged,
-    ackError,
-    guardSubmit,
-    setAcknowledged,
-    setPendingIntent
-  } = useGuidelinesSubmitGuard();
+  const { setPendingIntent } = useGuidelinesSubmitGuard();
 
   return (
     <Card>
-      <form action={formAction} className="space-y-5" onSubmit={guardSubmit}>
+      <form action={formAction} className="space-y-5">
         {story ? <input name="story_id" type="hidden" value={story.id} /> : null}
         <input
           name="return_base_path"
@@ -145,14 +142,6 @@ export function StoryForm({
           </label>
         </div>
 
-        <GuidelinesAcknowledgementField
-          acknowledged={acknowledged}
-          disabled={pending}
-          error={ackError}
-          onAckChange={setAcknowledged}
-          variant="story"
-        />
-
         {state.error ? (
           <p className="rounded-lg border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-100">
             {state.error}
@@ -171,15 +160,19 @@ export function StoryForm({
           >
             Lưu nháp
           </Button>
-          <Button
-            loading={pending}
-            name="intent"
-            onClick={() => setPendingIntent("review")}
-            type="submit"
-            value="review"
-          >
-            Gửi duyệt
-          </Button>
+          <div className="space-y-2">
+            <PublishGuidelinesNotice bare variant="story" />
+            <Button
+              className="w-full"
+              loading={pending}
+              name="intent"
+              onClick={() => setPendingIntent("review")}
+              type="submit"
+              value="review"
+            >
+              Gửi duyệt
+            </Button>
+          </div>
         </div>
 
         {!canSaveDraft ? (

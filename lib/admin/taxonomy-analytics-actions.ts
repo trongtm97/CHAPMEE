@@ -7,7 +7,7 @@ import {
 } from "@/lib/taxonomy-analytics/aggregate-daily";
 import { TAXONOMY_PERMISSION_FALLBACK } from "@/lib/admin/taxonomy-permissions";
 import { requireAnyPermission } from "@/lib/auth/require-permission";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export async function rebuildTaxonomyAnalyticsAction(input?: {
   from?: string;
@@ -27,10 +27,10 @@ export async function rebuildTaxonomyAnalyticsAction(input?: {
     return { ok: false as const, error: guard.error };
   }
 
-  const supabase = createAdminClient();
+  const db = createAdminClient();
 
   if (input?.from && input?.to) {
-    const results = await aggregateTaxonomyDateRange(supabase, input.from, input.to);
+    const results = await aggregateTaxonomyDateRange(db, input.from, input.to);
     const failed = results.find((row) => !row.ok);
     if (failed) {
       return { ok: false as const, error: failed.error ?? "Aggregation failed." };
@@ -43,7 +43,7 @@ export async function rebuildTaxonomyAnalyticsAction(input?: {
   }
 
   const date = input?.date ?? defaultAggregationDate();
-  const result = await aggregateTaxonomyDailyMetrics(supabase, date);
+  const result = await aggregateTaxonomyDailyMetrics(db, date);
   if (!result.ok) {
     return { ok: false as const, error: result.error ?? "Aggregation failed." };
   }

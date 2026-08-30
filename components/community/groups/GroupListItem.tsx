@@ -1,9 +1,5 @@
 import Link from "next/link";
-import { getStoryImageForUsage } from "@/lib/images/get-story-image";
-import {
-  STORY_IMAGE_PLACEHOLDER_GRADIENT_CLASS,
-  getStoryPlaceholderInitial
-} from "@/lib/images/placeholders";
+import { ChapMeeStoryCover } from "@/components/common/ChapMeeCover";
 import type { CommunityGroupItem } from "@/types/community-group";
 
 const badgeLabel: Record<NonNullable<CommunityGroupItem["badge"]>, string> = {
@@ -18,10 +14,6 @@ type GroupListItemProps = {
 };
 
 export function GroupListItem({ group, cta = "join" }: GroupListItemProps) {
-  const cover = getStoryImageForUsage(
-    { title: group.name, coverUrl: group.coverUrl },
-    "communityCard"
-  );
   const meta =
     group.postCount > 0
       ? `${group.newCommentCount} bình luận mới`
@@ -29,26 +21,13 @@ export function GroupListItem({ group, cta = "join" }: GroupListItemProps) {
 
   return (
     <article className="flex gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
-      <Link
-        className="relative h-[3.25rem] w-[4.75rem] shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-cyan-500/20 to-fuchsia-600/20"
-        href={`/community/groups/${group.id}`}
-      >
-        {cover.src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            alt=""
-            className="h-full w-full object-cover"
-            loading="lazy"
-            src={cover.src}
-            style={{ objectPosition: cover.objectPosition }}
-          />
-        ) : (
-          <span
-            className={`flex h-full items-center justify-center text-lg font-black text-white/70 ${STORY_IMAGE_PLACEHOLDER_GRADIENT_CLASS}`}
-          >
-            {getStoryPlaceholderInitial(group.name)}
-          </span>
-        )}
+      <Link className="shrink-0" href={`/community/groups/${group.id}`}>
+        <ChapMeeStoryCover
+          className="!w-[3.25rem] rounded-lg"
+          size="sm"
+          story={{ title: group.name, coverUrl: group.coverUrl }}
+          usage="communityCard"
+        />
       </Link>
 
       <div className="min-w-0 flex-1 space-y-1">

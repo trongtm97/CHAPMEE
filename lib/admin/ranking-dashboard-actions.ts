@@ -1,9 +1,9 @@
 "use server";
 
 import { generateRankingSnapshots } from "@/lib/ranking/generate-snapshots";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export async function regenerateRankingSnapshotsAction() {
-  const supabase = createAdminClient();
-  return generateRankingSnapshots(supabase);
+  const db = createAdminClient();
+  return generateRankingSnapshots(db);
 }

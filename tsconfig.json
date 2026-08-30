@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": false,
     "skipLibCheck": true,
     "strict": true,
@@ -19,15 +23,30 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     }
   },
   "include": [
     "next-env.d.ts",
+    "types/**/*.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "updatevps",
+    "components/utilities/love-insight/forms/LoveNameDobForm.tsx",
+    "components/utilities/love-insight/forms/LoveNameForm.tsx",
+    "components/utilities/love-insight/forms/NameDobReadingForm.tsx",
+    "components/utilities/love-insight/forms/NameReadingForm.tsx",
+    "components/utilities/love-insight/result/CalculationBreakdownList.tsx",
+    "components/utilities/love-insight/result/ListBlocks.tsx",
+    "components/utilities/love-insight/result/ResultHero.tsx",
+    "components/utilities/love-insight/result/Section.tsx",
+    "components/utilities/love-insight/result/SubscoreGrid.tsx"
+  ]
 }

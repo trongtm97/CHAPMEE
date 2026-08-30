@@ -6,14 +6,15 @@ import { getMonetizationConfig } from "@/lib/monetization/config";
 import {
   createCheckoutSessionRecord,
   updateCheckoutSessionStatus
-} from "@/lib/supabase/checkout-sessions";
-import { getPaymentProviderSettings } from "@/lib/supabase/payment-provider-settings";
+} from "@/lib/data/checkout-sessions";
+import { getPaymentProviderSettings } from "@/lib/data/payment-provider-settings";
 import { getPaymentProviderAdapter } from "@/lib/payments/providers";
 import { calculateChannelAmounts } from "@/lib/payments/payment-fees";
 import { getSePayRuntimeConfig } from "@/lib/payments/sepay-config";
 import { generateNumericPaymentCode } from "@/lib/payments/payment-code";
 import { validateTopupPackageForPayment } from "@/lib/topup-packages/validate-payment";
 import type { PaymentProviderKey } from "@/types/payment";
+import { isStaffFromContext } from "@/lib/auth/permissions";
 
 const CHANNEL_BY_PROVIDER: Record<PaymentProviderKey, "web_sepay" | "google_play_billing" | "apple_iap" | "manual_admin"> = {
   sepay: "web_sepay",
@@ -69,135 +70,147 @@ export type CreateTopupIntentResult = {
 export async function createTopupIntent(
   input: CreateTopupIntentInput
 ): Promise<CreateTopupIntentResult> {
-  const [{ profile }, config, packageValidation, providerSettingsResult] = await Promise.all([
-    getCurrentUser(),
-    getMonetizationConfig({ includePrivate: true }),
-    validateTopupPackageForPayment(input.packageId),
-    getPaymentProviderSettings()
-  ]);
+  try {
+    const [{ profile }, config, packageValidation, providerSettingsResult] =
+      await Promise.all([
+        getCurrentUser(),
+        getMonetizationConfig({ includePrivate: true }),
+        validateTopupPackageForPayment(input.packageId),
+        getPaymentProviderSettings()
+      ]);
 
-  if (!profile || profile.id !== input.userId) {
-    return { ok: false, error: "Bạn không có quyền tạo checkout cho user khác." };
-  }
-
-  const authContext = await getCurrentAuthContext();
-  if (authContext?.flags.isBanned) {
-    return {
-      ok: false,
-      error: "Tài khoản của bạn đang bị hạn chế. Không thể nạp coin."
-    };
-  }
-  if (!authContext?.permissions.includes("wallet.topup")) {
-    return { ok: false, error: "Bạn không có quyền nạp coin." };
-  }
-
-  if (!isPurchaseEnabled(config.settings as Record<string, unknown>)) {
-    return { ok: false, error: "Coin purchase đang tắt bởi admin config." };
-  }
-
-  if (!packageValidation.ok) {
-    return { ok: false, error: packageValidation.error };
-  }
-
-  const snapshot = packageValidation.snapshot;
-  const provider = input.provider;
-
-  if (provider === "sepay") {
-    if (!Boolean(config.settings["payments.provider_sepay_enabled"])) {
-      return { ok: false, error: "SePay đang tắt bởi admin config." };
+    if (!profile || profile.id !== input.userId) {
+      return { ok: false, error: "Bạn không có quyền tạo checkout cho user khác." };
     }
-    const sepay = await getSePayRuntimeConfig();
-    if (!sepay.ready) {
+
+    const authContext = await getCurrentAuthContext();
+    if (authContext?.flags.isBanned) {
       return {
         ok: false,
-        error: `SePay provider chưa cấu hình: ${sepay.missing.join(", ")}`
+        error: "Tài khoản của bạn đang bị hạn chế. Không thể nạp Xu."
       };
     }
-  }
+    const canTopup =
+      Boolean(authContext?.permissions.includes("wallet.topup")) ||
+      Boolean(authContext?.permissions.includes("finance.wallet.adjust")) ||
+      isStaffFromContext(authContext);
 
-  const providerSetting = providerSettingsResult.data.find(
-    (item) => item.provider_key === provider
-  );
-  if (!providerSetting || !providerSetting.enabled) {
-    return { ok: false, error: "Payment provider này đang tắt." };
-  }
-
-  const paymentChannel = resolveChannel(provider);
-  const checkoutCode = generateNumericPaymentCode(12);
-  const sepayRuntime = provider === "sepay" ? await getSePayRuntimeConfig() : null;
-  const expiresInMinutes = sepayRuntime?.config.orderExpireMinutes ?? 30;
-  const created = await createCheckoutSessionRecord({
-    checkoutCode,
-    userId: input.userId,
-    coinPackId: snapshot.package_id,
-    paymentChannel,
-    provider,
-    grossAmountVnd: snapshot.amount_vnd,
-    ...calculateChannelAmounts(
-      snapshot.amount_vnd,
-      paymentChannel,
-      config.settings
-    ),
-    currency: "VND",
-    baseCoinAmount: snapshot.base_coin,
-    bonusCoinAmount: snapshot.bonus_coin,
-    platform: resolvePlatform(paymentChannel),
-    transferContent: checkoutCode,
-    providerPayload: {},
-    packageSnapshotJson: snapshot,
-    expiresAt: new Date(Date.now() + expiresInMinutes * 60 * 1000).toISOString()
-  });
-
-  if (!created.data) {
-    return { ok: false, error: created.error ?? "Không tạo được checkout session." };
-  }
-
-  const adapter = getPaymentProviderAdapter(provider);
-  const providerResult = await adapter.createCheckout(created.data, {
-    testMode:
-      Boolean(config.settings["payments.test_mode"]) ||
-      Boolean(config.settings["monetization.test_mode"])
-  });
-
-  if (!providerResult.ok) {
-    await updateCheckoutSessionStatus({
-      sessionId: created.data.id,
-      status: "failed",
-      providerPayload: { error: providerResult.error ?? "Provider create failed." }
-    });
-    return {
-      ok: false,
-      error: providerResult.error ?? "Cannot create provider checkout."
-    };
-  }
-
-  const updated = await updateCheckoutSessionStatus({
-    sessionId: created.data.id,
-    status: "pending",
-    paymentReference: providerResult.providerReference ?? null,
-    providerReference: providerResult.providerReference ?? null,
-    transferContent:
-      typeof providerResult.rawPayload?.transferContent === "string"
-        ? providerResult.rawPayload.transferContent
-        : created.data.transfer_content,
-    qrUrl:
-      typeof providerResult.rawPayload?.qrUrl === "string"
-        ? providerResult.rawPayload.qrUrl
-        : created.data.qr_url,
-    providerPayload: providerResult.rawPayload ?? {
-      instruction: providerResult.instruction ?? null,
-      redirectUrl: providerResult.redirectUrl ?? null
+    if (!canTopup) {
+      return { ok: false, error: "Bạn không có quyền nạp Xu." };
     }
-  });
 
-  if (!updated.data) {
-    return { ok: false, error: updated.error ?? "Không cập nhật được checkout session." };
+    if (!isPurchaseEnabled(config.settings as Record<string, unknown>)) {
+      return { ok: false, error: "Nạp Xu đang tắt bởi admin config." };
+    }
+
+    if (!packageValidation.ok) {
+      return { ok: false, error: packageValidation.error };
+    }
+
+    const snapshot = packageValidation.snapshot;
+    const provider = input.provider;
+
+    if (provider === "sepay") {
+      if (!Boolean(config.settings["payments.provider_sepay_enabled"])) {
+        return { ok: false, error: "SePay đang tắt bởi admin config." };
+      }
+      const sepay = await getSePayRuntimeConfig();
+      if (!sepay.ready) {
+        return {
+          ok: false,
+          error: `SePay provider chưa cấu hình: ${sepay.missing.join(", ")}`
+        };
+      }
+    }
+
+    const providerSetting = providerSettingsResult.data.find(
+      (item) => item.provider_key === provider
+    );
+    if (!providerSetting || !providerSetting.enabled) {
+      return { ok: false, error: "Payment provider này đang tắt." };
+    }
+
+    const paymentChannel = resolveChannel(provider);
+    const checkoutCode = generateNumericPaymentCode(12);
+    const sepayRuntime = provider === "sepay" ? await getSePayRuntimeConfig() : null;
+    const expiresInMinutes = sepayRuntime?.config.orderExpireMinutes ?? 30;
+    const created = await createCheckoutSessionRecord({
+      checkoutCode,
+      userId: input.userId,
+      coinPackId: snapshot.package_id,
+      paymentChannel,
+      provider,
+      grossAmountVnd: snapshot.amount_vnd,
+      ...calculateChannelAmounts(
+        snapshot.amount_vnd,
+        paymentChannel,
+        config.settings
+      ),
+      currency: "VND",
+      baseCoinAmount: snapshot.base_coin,
+      bonusCoinAmount: snapshot.bonus_coin,
+      platform: resolvePlatform(paymentChannel),
+      transferContent: checkoutCode,
+      providerPayload: {},
+      packageSnapshotJson: snapshot,
+      expiresAt: new Date(Date.now() + expiresInMinutes * 60 * 1000).toISOString()
+    });
+
+    if (!created.data) {
+      return { ok: false, error: created.error ?? "Không tạo được checkout session." };
+    }
+
+    const adapter = getPaymentProviderAdapter(provider);
+    const providerResult = await adapter.createCheckout(created.data, {
+      testMode:
+        Boolean(config.settings["payments.test_mode"]) ||
+        Boolean(config.settings["monetization.test_mode"])
+    });
+
+    if (!providerResult.ok) {
+      await updateCheckoutSessionStatus({
+        sessionId: created.data.id,
+        status: "failed",
+        providerPayload: { error: providerResult.error ?? "Provider create failed." }
+      });
+      return {
+        ok: false,
+        error: providerResult.error ?? "Cannot create provider checkout."
+      };
+    }
+
+    const updated = await updateCheckoutSessionStatus({
+      sessionId: created.data.id,
+      status: "pending",
+      paymentReference: providerResult.providerReference ?? null,
+      providerReference: providerResult.providerReference ?? null,
+      transferContent:
+        typeof providerResult.rawPayload?.transferContent === "string"
+          ? providerResult.rawPayload.transferContent
+          : created.data.transfer_content,
+      qrUrl:
+        typeof providerResult.rawPayload?.qrUrl === "string"
+          ? providerResult.rawPayload.qrUrl
+          : created.data.qr_url,
+      providerPayload: providerResult.rawPayload ?? {
+        instruction: providerResult.instruction ?? null,
+        redirectUrl: providerResult.redirectUrl ?? null
+      }
+    });
+
+    if (!updated.data) {
+      return { ok: false, error: updated.error ?? "Không cập nhật được checkout session." };
+    }
+
+    return {
+      ok: true,
+      checkoutSessionId: updated.data.id,
+      redirectUrl: providerResult.redirectUrl ?? null,
+      instruction: providerResult.instruction ?? null
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[payments] createTopupIntent failed:", error);
+    return { ok: false, error: message || "Không tạo được giao dịch nạp." };
   }
-
-  return {
-    ok: true,
-    checkoutSessionId: updated.data.id,
-    redirectUrl: providerResult.redirectUrl ?? null,
-    instruction: providerResult.instruction ?? null
-  };
 }

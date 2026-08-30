@@ -32,7 +32,18 @@ export async function MeDesktopMonetizationSection({
   role,
   userId
 }: MeDesktopMonetizationSectionProps) {
-  const monetization = await loadMeMonetization({ userId, role });
+  let monetization: Awaited<ReturnType<typeof loadMeMonetization>>;
+  try {
+    monetization = await loadMeMonetization({ userId, role });
+  } catch (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn(
+        "[me] monetization section:",
+        error instanceof Error ? error.message : error
+      );
+    }
+    return <MeDesktopMonetizationFallback />;
+  }
 
   return (
     <>

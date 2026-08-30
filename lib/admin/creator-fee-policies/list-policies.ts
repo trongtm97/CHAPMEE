@@ -3,7 +3,7 @@
 import { getSourceRate, mapCreatorFeePolicyRow } from "@/lib/admin/creator-fee-policy-shared";
 import { CREATOR_FEE_STATUS_LABELS } from "@/lib/admin/creator-fee-policies/constants";
 import { requireCreatorFeeViewAccess } from "@/lib/auth/creator-fee-guards";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type {
   CreatorFeePolicyDashboardFilters,
   CreatorFeePolicyListRow
@@ -96,12 +96,12 @@ function sortRows(rows: CreatorFeePolicyListRow[], sort: CreatorFeePolicyDashboa
 }
 
 async function loadRevenue30d(creatorIds: string[]) {
-  const supabase = await createClient();
+  const db = await createClient();
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
   const map = new Map<string, number>();
   if (creatorIds.length === 0) return map;
 
-  const { data } = await supabase
+  const { data } = await db
     .from("creator_earning_transactions")
     .select("creator_user_id, creator_net_amount_vnd")
     .in("creator_user_id", creatorIds)
@@ -116,10 +116,10 @@ async function loadRevenue30d(creatorIds: string[]) {
 }
 
 async function loadProfileLabels(userIds: string[]) {
-  const supabase = await createClient();
+  const db = await createClient();
   const map = new Map<string, string>();
   if (userIds.length === 0) return map;
-  const { data } = await supabase
+  const { data } = await db
     .from("profiles")
     .select("id, username, display_name")
     .in("id", userIds);
@@ -140,8 +140,8 @@ export async function listCreatorFeePoliciesAction(filters: CreatorFeePolicyDash
     return { rows: [] as CreatorFeePolicyListRow[], total: 0, error: guard.error };
   }
 
-  const supabase = await createClient();
-  let query = supabase.from("creator_fee_policies").select("*");
+  const db = await createClient();
+  let query = db.from("creator_fee_policies").select("*");
 
   if (filters.status !== "all") {
     query = query.eq("status", filters.status);
@@ -169,11 +169,11 @@ export async function listCreatorFeePoliciesAction(filters: CreatorFeePolicyDash
   );
 
   const [profilesRes, studiosRes, revenueMap, updaterLabels, txCounts] = await Promise.all([
-    supabase
+    db
       .from("profiles")
       .select("id, username, display_name, avatar_url")
       .in("id", creatorIds.length ? creatorIds : ["00000000-0000-0000-0000-000000000000"]),
-    supabase
+    db
       .from("creator_monetization_profiles")
       .select("user_id, studio_display_name, monetization_status")
       .in("user_id", creatorIds.length ? creatorIds : ["00000000-0000-0000-0000-000000000000"]),
@@ -181,7 +181,7 @@ export async function listCreatorFeePoliciesAction(filters: CreatorFeePolicyDash
     loadProfileLabels(updaterIds),
     Promise.all(
       policies.map(async (p) => {
-        const { count } = await supabase
+        const { count } = await db
           .from("creator_earning_transactions")
           .select("id", { count: "exact", head: true })
           .filter("calculation_snapshot->>policy_id", "eq", p.id);

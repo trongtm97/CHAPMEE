@@ -1,0 +1,10 @@
+{
+  "summary": {
+    "jobs_scanned": 0,
+    "items_scanned": 0,
+    "missing_raw": 0,
+    "missing_processed": 0,
+    "failed_jobs": 0
+  },
+  "issues": []
+}

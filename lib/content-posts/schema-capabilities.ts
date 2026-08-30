@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 let extendedSchemaCache: boolean | null = null;
 
@@ -9,6 +9,8 @@ const EXTENDED_COLUMNS = [
   "og_title",
   "og_description",
   "og_image_url",
+  "cover_media_asset_id",
+  "og_image_media_asset_id",
   "updated_by",
   "archived_at",
   "view_count"
@@ -21,13 +23,13 @@ export function isMissingColumnError(message: string | undefined) {
 
 /** Probe once whether migration 139 columns exist on admin_content_posts. */
 export async function hasExtendedContentPostSchema(
-  supabase: SupabaseClient
+  db: DatabaseClient
 ): Promise<boolean> {
   if (extendedSchemaCache !== null) {
     return extendedSchemaCache;
   }
 
-  const { error } = await supabase.from("admin_content_posts").select("deleted_at").limit(1);
+  const { error } = await db.from("admin_content_posts").select("deleted_at").limit(1);
 
   if (error && isMissingColumnError(error.message)) {
     extendedSchemaCache = false;
@@ -107,6 +109,7 @@ export function buildContentPostInsertPayload(
     excerpt: input.excerpt ?? null,
     content: input.content ?? null,
     cover_image_url: input.cover_image_url ?? null,
+    cover_media_asset_id: input.cover_media_asset_id ?? null,
     category: input.category ?? null,
     tags: input.tags ?? [],
     post_type: input.post_type ?? "article",
@@ -130,6 +133,7 @@ export function buildContentPostInsertPayload(
     og_title: input.og_title ?? null,
     og_description: input.og_description ?? null,
     og_image_url: input.og_image_url ?? null,
+    og_image_media_asset_id: input.og_image_media_asset_id ?? null,
     updated_by: input.updated_by ?? null,
     scheduled_at: input.scheduled_at ?? null,
     archived_at: input.archived_at ?? null

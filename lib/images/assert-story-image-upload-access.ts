@@ -1,7 +1,7 @@
 import { getCurrentCreatorProfile } from "@/lib/creator/getCreatorProfile";
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
 import { getCurrentProfile, isAdminOrModerator } from "@/lib/auth/getCurrentProfile";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export class StoryImageUploadAccessError extends Error {
   constructor(message: string) {
@@ -11,11 +11,11 @@ export class StoryImageUploadAccessError extends Error {
 }
 
 export async function assertStoryImageUploadAccess(storyId: string) {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user },
     error: userError
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (userError || !user) {
     throw new StoryImageUploadAccessError("Bạn cần đăng nhập để tải ảnh bìa.");
@@ -24,7 +24,7 @@ export async function assertStoryImageUploadAccess(storyId: string) {
   const { profile } = await getCurrentProfile();
 
   if (isAdminOrModerator(profile)) {
-    const { data: story, error } = await supabase
+    const { data: story, error } = await db
       .from("stories")
       .select("id")
       .eq("id", storyId)
@@ -56,7 +56,7 @@ export async function assertStoryImageUploadAccess(storyId: string) {
     throw error;
   }
 
-  const { data: ownedStory, error: ownedError } = await supabase
+  const { data: ownedStory, error: ownedError } = await db
     .from("stories")
     .select("id")
     .eq("id", storyId)

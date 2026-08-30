@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 
 import StoryPage, { generateMetadata as generateStoryMetadata } from "@/app/stories/[slug]/page";
+
+/** Stories published after build must render on-demand (avoid DYNAMIC_SERVER_USAGE 500). */
+export const dynamic = "force-dynamic";
 import { redirectToCanonicalIfNeeded, tryRedirectFromLookupTable } from "@/lib/urls/canonical";
 import { getPublicStorySegments } from "@/lib/seo/static-params";
 import { resolveStoryFromSegment } from "@/lib/urls/resolve-story";

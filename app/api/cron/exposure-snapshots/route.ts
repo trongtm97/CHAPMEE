@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateAllExposureSnapshots } from "@/lib/fairness/snapshots";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -23,12 +23,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
     const window = (new URL(request.url).searchParams.get("window") ?? "7d") as
       | "24h"
       | "7d"
       | "30d";
-    const results = await generateAllExposureSnapshots(supabase, window);
+    const results = await generateAllExposureSnapshots(db, window);
     return NextResponse.json({ ok: true, results });
   } catch (error) {
     return NextResponse.json(

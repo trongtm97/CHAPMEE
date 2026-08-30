@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { MessageSafetyResult } from "@/types/messages";
 
 const PREVIEW_MAX = 200;
@@ -19,13 +19,13 @@ export async function logMessageSafetyEvent(input: {
   }
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const preview =
       input.text.trim().length > PREVIEW_MAX
         ? `${input.text.trim().slice(0, PREVIEW_MAX - 1)}…`
         : input.text.trim();
 
-    const { error } = await supabase.from("message_safety_logs").insert({
+    const { error } = await db.from("message_safety_logs").insert({
       user_id: input.userId,
       conversation_id: input.conversationId ?? null,
       message_request_id: input.messageRequestId ?? null,

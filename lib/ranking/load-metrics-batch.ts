@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { windowStartDate } from "@/lib/ranking/window";
 import type { RankingTimeWindow } from "@/types/ranking-board";
 
@@ -44,13 +44,13 @@ type ReelMetricRow = {
 };
 
 export async function loadAggregatedStoryMetrics(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   window: RankingTimeWindow
 ): Promise<Map<string, AggregatedStoryMetrics>> {
   const map = new Map<string, AggregatedStoryMetrics>();
   const start = windowStartDate(window);
 
-  let query = supabase
+  let query = db
     .from("story_metrics_daily")
     .select(
       "story_id, author_user_id, impressions, chapter_completes, chapter_starts, next_chapter_clicks, saves, follows_generated, paid_unlocks, reports, hides, completion_rate, next_chapter_rate, save_rate, report_rate, hide_rate"
@@ -104,7 +104,7 @@ export async function loadAggregatedStoryMetrics(
 }
 
 export async function loadAggregatedReelMetrics(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   window: RankingTimeWindow
 ) {
   const map = new Map<
@@ -113,7 +113,7 @@ export async function loadAggregatedReelMetrics(
   >();
   const start = windowStartDate(window);
 
-  let query = supabase
+  let query = db
     .from("reel_metrics_daily")
     .select("reel_id, story_id, author_user_id, impressions, read_more_clicks, reels_to_read_rate")
     .limit(5000);

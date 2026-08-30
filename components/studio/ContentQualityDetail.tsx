@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlgorithmTransparencyCard } from "@/components/studio/AlgorithmTransparencyCard";
 import { QualityHistoryTimeline } from "@/components/studio/QualityHistoryTimeline";
 import { StudioContentQualityAlerts } from "@/components/studio/StudioContentQualityAlerts";
+import { ContentQualityResubmitConsentNotice } from "@/components/legal/ImplicitConsentNotice";
 import { Button, Card } from "@/components/ui";
 import {
   resubmitContentQualityReviewAction,
@@ -29,7 +30,6 @@ export function ContentQualityDetailPanel({
 }: ContentQualityDetailPanelProps) {
   const [authorNote, setAuthorNote] = useState("");
   const [appealMessage, setAppealMessage] = useState("");
-  const [acknowledged, setAcknowledged] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -37,7 +37,6 @@ export function ContentQualityDetailPanel({
     setError(null);
     startTransition(async () => {
       const result = await resubmitContentQualityReviewAction({
-        acknowledged,
         authorNote,
         storyId: detail.storyId
       });
@@ -180,14 +179,7 @@ export function ContentQualityDetailPanel({
               rows={4}
               value={authorNote}
             />
-            <label className="flex items-start gap-2 text-sm text-zinc-300">
-              <input
-                checked={acknowledged}
-                onChange={(event) => setAcknowledged(event.target.checked)}
-                type="checkbox"
-              />
-              Tôi đã đọc lý do cảnh báo và đã chỉnh nội dung.
-            </label>
+            <ContentQualityResubmitConsentNotice />
             <Button disabled={pending} onClick={handleResubmit} type="button">
               Gửi xét duyệt lại
             </Button>

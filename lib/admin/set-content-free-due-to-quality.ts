@@ -3,7 +3,7 @@
 import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { checkStaffAnyPermission } from "@/lib/auth/staff-guards";
 import { notifyAuthorContentQualityMonetization } from "@/lib/content-quality/notify-author-monetization";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { FreeAccessReason } from "@/types/quality-refund";
 
 async function assertMonetizationAccess() {
@@ -23,10 +23,10 @@ export async function setContentFreeDueToQuality(input: {
   const auth = await assertMonetizationAccess();
   if (!auth.ok) return { ok: false, error: auth.error };
 
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date().toISOString();
 
-  const { data: story, error: storyError } = await supabase
+  const { data: story, error: storyError } = await db
     .from("stories")
     .select(
       "id, title, creator_id, creator_profiles(id, user_id)"
@@ -38,7 +38,7 @@ export async function setContentFreeDueToQuality(input: {
     return { ok: false, error: storyError?.message ?? "Không tìm thấy truyện." };
   }
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await db
     .from("stories")
     .update({
       monetization_status: "free_due_to_quality",
@@ -53,14 +53,14 @@ export async function setContentFreeDueToQuality(input: {
     return { ok: false, error: updateError.message };
   }
 
-  const { data: episodes } = await supabase
+  const { data: episodes } = await db
     .from("episodes")
     .select("id")
     .eq("story_id", input.storyId);
 
   const episodeIds = (episodes ?? []).map((e) => e.id as string);
   if (episodeIds.length) {
-    await supabase
+    await db
       .from("chapter_monetization_settings")
       .update({ is_paid: false })
       .in("chapter_id", episodeIds);
@@ -70,7 +70,7 @@ export async function setContentFreeDueToQuality(input: {
     ? story.creator_profiles[0]
     : story.creator_profiles;
 
-  await supabase.from("content_quality_reviews").insert({
+  await db.from("content_quality_reviews").insert({
     action_taken: "set_free_due_to_quality",
     attempt_number: 0,
     author_id: story.creator_id,
@@ -116,10 +116,10 @@ export async function restoreContentPaidStatus(input: {
   const auth = await assertMonetizationAccess();
   if (!auth.ok) return { ok: false, error: auth.error };
 
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date().toISOString();
 
-  const { data: story, error: storyError } = await supabase
+  const { data: story, error: storyError } = await db
     .from("stories")
     .select("id, title, creator_id, monetization_disabled_by_quality")
     .eq("id", input.storyId)
@@ -133,7 +133,7 @@ export async function restoreContentPaidStatus(input: {
     ? "disabled_due_to_quality"
     : "paid";
 
-  const { error } = await supabase
+  const { error } = await db
     .from("stories")
     .update({
       monetization_status: nextStatus,
@@ -148,7 +148,7 @@ export async function restoreContentPaidStatus(input: {
     return { ok: false, error: error.message };
   }
 
-  await supabase.from("content_quality_reviews").insert({
+  await db.from("content_quality_reviews").insert({
     action_taken: "paid_restored",
     attempt_number: 0,
     author_id: story.creator_id,
@@ -183,10 +183,10 @@ export async function disableContentMonetizationDueToQuality(input: {
   const auth = await assertMonetizationAccess();
   if (!auth.ok) return { ok: false, error: auth.error };
 
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date().toISOString();
 
-  const { data: story, error: storyError } = await supabase
+  const { data: story, error: storyError } = await db
     .from("stories")
     .select("id, creator_id")
     .eq("id", input.storyId)
@@ -196,7 +196,7 @@ export async function disableContentMonetizationDueToQuality(input: {
     return { ok: false, error: storyError?.message ?? "Không tìm thấy truyện." };
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("stories")
     .update({
       monetization_disabled_by_quality: true,
@@ -212,14 +212,14 @@ export async function disableContentMonetizationDueToQuality(input: {
     return { ok: false, error: error.message };
   }
 
-  const { data: episodes } = await supabase
+  const { data: episodes } = await db
     .from("episodes")
     .select("id")
     .eq("story_id", input.storyId);
 
   const episodeIds = (episodes ?? []).map((e) => e.id as string);
   if (episodeIds.length) {
-    await supabase
+    await db
       .from("chapter_monetization_settings")
       .update({ is_paid: false })
       .in("chapter_id", episodeIds);

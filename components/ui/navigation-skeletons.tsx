@@ -62,7 +62,7 @@ export function MePageSkeleton() {
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        {Array.from({ length: 3 }).map((_, index) => (
+        {Array.from({ length: 6 }).map((_, index) => (
           <Pulse className="h-14 rounded-xl" key={index} />
         ))}
       </div>
@@ -89,6 +89,94 @@ export function TruyenPageSkeleton() {
         {Array.from({ length: 6 }).map((_, index) => (
           <Pulse className="h-36 rounded-2xl" key={index} />
         ))}
+      </div>
+    </section>
+  );
+}
+
+export function MediaPageSkeleton() {
+  return (
+    <section className="mx-auto flex min-h-[calc(100dvh-10rem)] w-full max-w-6xl flex-col gap-4 pb-6">
+      <div className="space-y-3 rounded-2xl border border-white/10 bg-[var(--surface-soft)] p-4">
+        <Pulse className="h-4 w-24" />
+        <Pulse className="h-8 w-64 max-w-full" />
+        <Pulse className="h-4 w-full max-w-2xl" />
+        <div className="grid gap-2 sm:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Pulse className="h-16 rounded-xl" key={index} />
+          ))}
+        </div>
+      </div>
+      <div className="inline-flex w-full max-w-sm gap-1 rounded-lg border border-white/10 bg-[#0a1017]/80 p-0.5">
+        <Pulse className="h-9 flex-1 rounded-md" />
+        <Pulse className="h-9 flex-1 rounded-md" />
+      </div>
+      <Pulse className="h-24 rounded-2xl" />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <Pulse className="h-48 rounded-2xl" key={index} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function RankingPageSkeleton() {
+  return (
+    <section className="page-stack space-y-5">
+      <div className="space-y-2">
+        <Pulse className="h-4 w-28" />
+        <Pulse className="h-8 w-64 max-w-full" />
+        <Pulse className="h-4 w-full max-w-2xl" />
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
+        {Array.from({ length: 10 }).map((_, index) => (
+          <Pulse className="h-12 rounded-xl" key={index} />
+        ))}
+      </div>
+      <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr]">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Pulse className="h-40 rounded-2xl" key={index} />
+        ))}
+      </div>
+      <div className="space-y-2">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <Pulse className="h-20 rounded-2xl" key={index} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function StoryDetailPageSkeleton() {
+  return (
+    <section className="space-y-5">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-[10rem_minmax(0,1fr)]">
+            <Pulse className="aspect-[3/4] w-full rounded-2xl" />
+            <div className="space-y-3">
+              <Pulse className="h-4 w-28" />
+              <Pulse className="h-9 w-full max-w-xl" />
+              <Pulse className="h-4 w-full max-w-2xl" />
+              <Pulse className="h-4 w-2/3" />
+              <div className="flex gap-2">
+                <Pulse className="h-11 w-32 rounded-full" />
+                <Pulse className="h-11 w-24 rounded-full" />
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2 overflow-hidden">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <Pulse className="h-10 w-28 shrink-0 rounded-full" key={index} />
+            ))}
+          </div>
+          <Pulse className="h-72 rounded-2xl" />
+        </div>
+        <div className="hidden space-y-3 lg:block">
+          <Pulse className="h-28 rounded-2xl" />
+          <Pulse className="h-56 rounded-2xl" />
+        </div>
       </div>
     </section>
   );

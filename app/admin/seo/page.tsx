@@ -1,29 +1,12 @@
-import { AdminSeoControlCenterPage } from "@/components/admin/seo/AdminSeoControlCenterPage";
+import { SeoCenterDashboard } from "@/components/admin/seo/SeoCenterDashboard";
 import { ErrorState } from "@/components/ui";
-import { loadSeoDashboardAction } from "@/lib/admin/seo-actions";
+import { countSeoOverrides } from "@/lib/seo/seo-admin-service";
 import { requireAnyPermission } from "@/lib/auth/require-permission";
-import { buildAdminSeoCapabilities, type SeoControlTabId } from "@/types/admin-seo";
+import { buildAdminSeoCapabilities } from "@/types/admin-seo";
 
 export const dynamic = "force-dynamic";
 
-const VALID_TABS: SeoControlTabId[] = [
-  "overview",
-  "taxonomy",
-  "rules",
-  "metadata",
-  "headings",
-  "sitemap",
-  "robots",
-  "audit",
-  "logs",
-  "urls"
-];
-
-type PageProps = {
-  searchParams: Promise<{ tab?: string }>;
-};
-
-export default async function AdminSeoDashboardRoute({ searchParams }: PageProps) {
+export default async function AdminSeoCenterDashboardPage() {
   const guard = await requireAnyPermission(
     ["seo.rule.view", "seo.audit.view", "admin.dashboard.view"],
     { returnTo: "/admin/seo" }
@@ -34,23 +17,12 @@ export default async function AdminSeoDashboardRoute({ searchParams }: PageProps
   }
 
   const capabilities = buildAdminSeoCapabilities(guard.context.permissions);
-  const data = await loadSeoDashboardAction();
 
   if (!capabilities.canViewRules && !capabilities.canViewAudit) {
-    return <ErrorState message="Bạn không có quyền xem SEO panel." title="Không có quyền" variant="danger" />;
+    return <ErrorState message="Bạn không có quyền xem SEO Center." title="Không có quyền" variant="danger" />;
   }
 
-  const params = await searchParams;
-  const tabParam = params.tab ?? "overview";
-  const initialTab = VALID_TABS.includes(tabParam as SeoControlTabId)
-    ? (tabParam as SeoControlTabId)
-    : "overview";
+  const overrideCount = await countSeoOverrides();
 
-  return (
-    <AdminSeoControlCenterPage
-      capabilities={capabilities}
-      initialData={data}
-      initialTab={initialTab}
-    />
-  );
+  return <SeoCenterDashboard overrideCount={overrideCount} />;
 }

@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useTransition,
+  type CSSProperties
+} from "react";
+import { createPortal } from "react-dom";
 
 type MenuItem =
   | {
@@ -23,18 +31,26 @@ type StudioRowActionMenuProps = {
   ariaLabel?: string;
   /** Trên mobile dùng bottom sheet thay vì dropdown. */
   mobileSheet?: boolean;
+  /** Ưu tiên mở menu lên trên nút. */
+  preferOpenUpward?: boolean;
 };
+
+const MENU_WIDTH = 192;
 
 export function StudioRowActionMenu({
   ariaLabel = "Tùy chọn",
   items,
-  mobileSheet = false
+  mobileSheet = false,
+  preferOpenUpward = false
 }: StudioRowActionMenuProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isMobile, setIsMobile] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!mobileSheet) {
@@ -52,6 +68,54 @@ export function StudioRowActionMenu({
 
     return () => media.removeEventListener("change", sync);
   }, [mobileSheet]);
+
+  const useSheet = mobileSheet && isMobile;
+
+  useLayoutEffect(() => {
+    if (!open || useSheet || !triggerRef.current) {
+      return;
+    }
+
+    function positionMenu() {
+      const trigger = triggerRef.current;
+      const menu = menuRef.current;
+
+      if (!trigger) {
+        return;
+      }
+
+      const rect = trigger.getBoundingClientRect();
+      const menuHeight = menu?.offsetHeight ?? Math.min(items.length * 40 + 8, 320);
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const openUp =
+        preferOpenUpward || (spaceBelow < menuHeight + 12 && spaceAbove > spaceBelow);
+
+      const left = Math.max(
+        8,
+        Math.min(rect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8)
+      );
+
+      setMenuStyle({
+        left,
+        maxHeight: "min(20rem, calc(100vh - 1rem))",
+        overflowY: "auto",
+        position: "fixed",
+        top: openUp ? Math.max(8, rect.top - menuHeight - 4) : rect.bottom + 4,
+        width: MENU_WIDTH,
+        zIndex: 60
+      });
+    }
+
+    positionMenu();
+    window.addEventListener("resize", positionMenu);
+    window.addEventListener("scroll", positionMenu, true);
+
+    return () => {
+      window.removeEventListener("resize", positionMenu);
+      window.removeEventListener("scroll", positionMenu, true);
+    };
+  }, [items.length, open, preferOpenUpward, useSheet]);
 
   async function runAction(item: Extract<MenuItem, { type: "action" }>) {
     if (item.confirmMessage && !window.confirm(item.confirmMessage)) {
@@ -72,8 +136,6 @@ export function StudioRowActionMenu({
       router.refresh();
     });
   }
-
-  const useSheet = mobileSheet && isMobile;
 
   function renderItems(className: string) {
     return items.map((item) =>
@@ -102,6 +164,26 @@ export function StudioRowActionMenu({
     );
   }
 
+  const dropdownMenu =
+    open && !useSheet ? (
+      <>
+        <button
+          aria-label="Đóng menu"
+          className="fixed inset-0 z-50 cursor-default bg-transparent"
+          onClick={() => setOpen(false)}
+          type="button"
+        />
+        <div
+          className="rounded-xl border border-white/10 bg-[#121820] p-1 shadow-xl"
+          ref={menuRef}
+          role="menu"
+          style={menuStyle}
+        >
+          {renderItems("block rounded-lg px-3 py-2 text-left text-sm hover:bg-white/5")}
+        </div>
+      </>
+    ) : null;
+
   return (
     <div className="relative shrink-0">
       <button
@@ -111,6 +193,7 @@ export function StudioRowActionMenu({
         className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-lg text-zinc-300 transition hover:bg-white/10 disabled:opacity-50"
         disabled={isPending}
         onClick={() => setOpen((value) => !value)}
+        ref={triggerRef}
         type="button"
       >
         ⋯
@@ -136,22 +219,9 @@ export function StudioRowActionMenu({
         </>
       ) : null}
 
-      {open && !useSheet ? (
-        <>
-          <button
-            aria-label="Đóng menu"
-            className="fixed inset-0 z-20 cursor-default"
-            onClick={() => setOpen(false)}
-            type="button"
-          />
-          <div
-            className="absolute right-0 top-full z-30 mt-1 min-w-[12rem] max-w-[16rem] rounded-xl border border-white/10 bg-[#121820] p-1 shadow-xl"
-            role="menu"
-          >
-            {renderItems("block rounded-lg px-3 py-2 text-left text-sm hover:bg-white/5")}
-          </div>
-        </>
-      ) : null}
+      {typeof document !== "undefined" && dropdownMenu
+        ? createPortal(dropdownMenu, document.body)
+        : null}
 
       {error ? (
         <p className="absolute right-0 top-full z-30 mt-12 max-w-[14rem] rounded-lg border border-rose-400/30 bg-rose-950/80 px-2 py-1 text-xs text-rose-200">

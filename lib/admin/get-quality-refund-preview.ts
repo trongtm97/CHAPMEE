@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type {
   QualityRefundPreview,
   QualityRefundPreviewItem,
@@ -67,10 +67,10 @@ export async function getQualityRefundPreview(input: {
   purchaseScope: QualityRefundPurchaseScope;
   reasonCode: QualityRefundReasonCode;
 }): Promise<{ data: QualityRefundPreview | null; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
   const scopeFrom = resolveDateFrom(input.refundScope, input.dateFrom);
 
-  let query = supabase
+  let query = db
     .from("chapter_unlocks")
     .select(
       "id, user_id, chapter_id, story_id, coin_amount, paid_coin_amount, bonus_coin_amount, transaction_id, refunded_coin_amount, refund_status, created_at"
@@ -100,7 +100,7 @@ export async function getQualityRefundPreview(input: {
 
   const refundedTxIds = new Set<string>();
   if (txIds.length) {
-    const { data: existingItems } = await supabase
+    const { data: existingItems } = await db
       .from("coin_refund_items")
       .select("original_transaction_id")
       .in("original_transaction_id", txIds)

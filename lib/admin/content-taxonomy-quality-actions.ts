@@ -10,8 +10,8 @@ import {
 } from "@/lib/content-taxonomy-quality/rule-engine";
 import { isPresentationModeSupportedByComposer } from "@/lib/taxonomy/presentation-bridge";
 import { setStoryTaxonomy } from "@/lib/taxonomy/story-taxonomy";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/data/server";
+import { createAdminClient } from "@/lib/data/admin";
 import type {
   TaxonomyQualityFlagStatus,
   TaxonomyQualityFlagType,
@@ -36,17 +36,17 @@ export async function runTaxonomyQualityCheckAction(options?: {
   );
   if (!guard.ok) return guard;
 
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   if (options?.storyId) {
-    const rules = await loadTaxonomyQualityRules(supabase);
+    const rules = await loadTaxonomyQualityRules(db);
     const result = await runTaxonomyQualityCheckForStory(
-      supabase,
+      db,
       options.storyId,
       rules
     );
     if (!result.ok) return { ok: false, error: result.error };
   } else {
-    const result = await runTaxonomyQualityBatchCheck(supabase, {
+    const result = await runTaxonomyQualityBatchCheck(db, {
       limit: options?.batchLimit ?? 200
     });
     if (!result.ok) return { ok: false, error: result.error };
@@ -73,10 +73,10 @@ export async function updateTaxonomyQualityFlagStatusAction(input: {
   );
   if (!guard.ok) return guard;
 
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
   if (!user) return { ok: false, error: "Chưa đăng nhập." };
 
   const patch: Record<string, unknown> = {
@@ -88,14 +88,16 @@ export async function updateTaxonomyQualityFlagStatusAction(input: {
     patch.resolved_at = new Date().toISOString();
   }
 
-  const { data: flag, error } = await supabase
+  const { data: flag, error } = await db
     .from("content_taxonomy_quality_flags")
     .update(patch)
     .eq("id", input.flagId)
     .select("story_id, flag_type")
     .single();
 
-  if (error) return { ok: false, error: error.message };
+  if (error || !flag) {
+    return { ok: false, error: error?.message ?? "Không cập nhật được cờ chất lượng." };
+  }
 
   await createAdminAuditLog({
     action:
@@ -151,10 +153,10 @@ export async function adminEditStoryTaxonomyAction(input: {
     return { ok: false, error: result.error };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   await createAdminAuditLog({
     action: "taxonomy_quality_admin_edit_taxonomy",
@@ -169,7 +171,7 @@ export async function adminEditStoryTaxonomyAction(input: {
   });
 
   if (input.resolveFlag && input.flagId) {
-    await supabase
+    await db
       .from("content_taxonomy_quality_flags")
       .update({
         status: "resolved",
@@ -202,13 +204,13 @@ export async function sendCreatorTaxonomyRevisionRequestAction(input: {
   );
   if (!guard.ok) return guard;
 
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
   if (!user) return { ok: false, error: "Chưa đăng nhập." };
 
-  const { data: request, error } = await supabase
+  const { data: request, error } = await db
     .from("creator_taxonomy_revision_requests")
     .insert({
       story_id: input.storyId,
@@ -222,9 +224,11 @@ export async function sendCreatorTaxonomyRevisionRequestAction(input: {
     .select("id")
     .single();
 
-  if (error) return { ok: false, error: error.message };
+  if (error || !request) {
+    return { ok: false, error: error?.message ?? "Không tạo được yêu cầu chỉnh taxonomy." };
+  }
 
-  const { data: story } = await supabase
+  const { data: story } = await db
     .from("stories")
     .select("title, creator_id")
     .eq("id", input.storyId)
@@ -244,7 +248,7 @@ export async function sendCreatorTaxonomyRevisionRequestAction(input: {
   }
 
   if (input.flagId) {
-    await supabase
+    await db
       .from("content_taxonomy_quality_flags")
       .update({ status: "sent_to_creator" })
       .eq("id", input.flagId);
@@ -277,20 +281,22 @@ export async function updateTaxonomyQualityRuleAction(input: {
   );
   if (!guard.ok) return guard;
 
-  const supabase = await createClient();
+  const db = await createClient();
   const patch: Record<string, unknown> = {};
   if (input.isEnabled != null) patch.is_enabled = input.isEnabled;
   if (input.severity) patch.severity = input.severity;
   if (input.config) patch.config_json = input.config;
 
-  const { data: rule, error } = await supabase
+  const { data: rule, error } = await db
     .from("taxonomy_quality_rules")
     .update(patch)
     .eq("id", input.ruleId)
     .select("rule_key, config_json, is_enabled")
     .single();
 
-  if (error) return { ok: false, error: error.message };
+  if (error || !rule) {
+    return { ok: false, error: error?.message ?? "Không cập nhật được rule." };
+  }
 
   await createAdminAuditLog({
     action: "taxonomy_quality_rule_updated",
@@ -317,12 +323,12 @@ export async function reviewCreatorTaxonomyRevisionAction(input: {
   );
   if (!guard.ok) return guard;
 
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
-  const { data: request, error } = await supabase
+  const { data: request, error } = await db
     .from("creator_taxonomy_revision_requests")
     .update({
       status: input.status,
@@ -333,9 +339,11 @@ export async function reviewCreatorTaxonomyRevisionAction(input: {
     .select("story_id, creator_id")
     .single();
 
-  if (error) return { ok: false, error: error.message };
+  if (error || !request) {
+    return { ok: false, error: error?.message ?? "Không cập nhật được yêu cầu." };
+  }
 
-  const { data: story } = await supabase
+  const { data: story } = await db
     .from("stories")
     .select("title")
     .eq("id", request.story_id)
@@ -378,13 +386,13 @@ export async function creatorSubmitTaxonomyRevisionAction(input: {
   requestId: string;
   note?: string;
 }) {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
   if (!user) return { ok: false, error: "Chưa đăng nhập." };
 
-  const { data: request, error } = await supabase
+  const { data: request, error } = await db
     .from("creator_taxonomy_revision_requests")
     .update({
       status: "creator_submitted",
@@ -397,7 +405,9 @@ export async function creatorSubmitTaxonomyRevisionAction(input: {
     .select("story_id")
     .single();
 
-  if (error) return { ok: false, error: error.message };
+  if (error || !request) {
+    return { ok: false, error: error?.message ?? "Không gửi được bản chỉnh." };
+  }
 
   const admin = createAdminClient();
   const rules = await loadTaxonomyQualityRules(admin);
@@ -427,7 +437,7 @@ export async function createManualTaxonomyQualityFlagAction(input: {
   const trimmed = input.storyIdOrSlug.trim();
   if (!trimmed) return { ok: false, error: "Nhập ID hoặc slug truyện." };
 
-  const supabase = await createClient();
+  const db = await createClient();
   const admin = createAdminClient();
 
   const { data: story } = await admin
@@ -442,9 +452,9 @@ export async function createManualTaxonomyQualityFlagAction(input: {
 
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
-  const { error } = await supabase.from("content_taxonomy_quality_flags").insert({
+  const { error } = await db.from("content_taxonomy_quality_flags").insert({
     story_id: story.id,
     flag_type: "admin_manual",
     severity: input.severity ?? "medium",

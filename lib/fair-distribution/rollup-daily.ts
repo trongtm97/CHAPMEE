@@ -1,5 +1,5 @@
-import { createAdminClient } from "@/lib/supabase/admin";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createAdminClient } from "@/lib/data/admin";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 
 function yesterdayDate() {
   const d = new Date();
@@ -8,11 +8,11 @@ function yesterdayDate() {
 }
 
 export async function rollupFairDistributionDaily(date = yesterdayDate()) {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   const since = `${date}T00:00:00.000Z`;
   const until = `${date}T23:59:59.999Z`;
 
-  const { data: exposures, error } = await supabase
+  const { data: exposures, error } = await db
     .from("exposure_events")
     .select("surface, author_user_id, story_id")
     .gte("created_at", since)
@@ -49,7 +49,7 @@ export async function rollupFairDistributionDaily(date = yesterdayDate()) {
   });
 
   if (authorRows.length > 0) {
-    await supabase.from("author_exposure_daily").upsert(authorRows, {
+    await db.from("author_exposure_daily").upsert(authorRows, {
       onConflict: "date,author_id,surface"
     });
   }
@@ -58,7 +58,7 @@ export async function rollupFairDistributionDaily(date = yesterdayDate()) {
     return { ok: true, authorRows: authorRows.length, taxonomyRows: 0 };
   }
 
-  const { data: links } = await supabase
+  const { data: links } = await db
     .from("story_taxonomy_terms")
     .select("story_id, term_id")
     .in("story_id", [...storyIds])
@@ -92,7 +92,7 @@ export async function rollupFairDistributionDaily(date = yesterdayDate()) {
   });
 
   if (taxonomyRows.length > 0) {
-    await supabase.from("taxonomy_exposure_daily").upsert(taxonomyRows, {
+    await db.from("taxonomy_exposure_daily").upsert(taxonomyRows, {
       onConflict: "date,term_id,surface"
     });
   }

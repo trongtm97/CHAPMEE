@@ -7,7 +7,7 @@ import {
   validateChapterImageFileMeta
 } from "@/lib/images/validate-chapter-image-upload";
 import { CHAPTER_IMAGE_MAX_BYTES } from "@/types/chapter-images";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = await createClient();
+    const db = await createClient();
     const inputBuffer = Buffer.from(await fileValue.arrayBuffer());
 
     const result = await uploadChapterImage({
@@ -66,8 +66,9 @@ export async function POST(request: Request) {
       draftId,
       episodeId,
       fileBuffer: inputBuffer,
+      originalFilename: fileValue.name,
       storyId,
-      supabase
+      db
     });
 
     return NextResponse.json(result);

@@ -1,6 +1,6 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { getAdRevenueEstimateSettings } from "@/lib/ads/ad-revenue-settings";
 import { getCreatorAdRevenuePolicy } from "@/lib/creator-ad-revenue/policy";
 import type { AdMonetizationOverview } from "@/types/admin-ad-monetization-settings";
@@ -14,29 +14,29 @@ function currentMonthKey() {
 
 export async function getAdMonetizationOverview(): Promise<AdMonetizationOverview> {
   const monthKey = currentMonthKey();
-  const supabase = createAdminClient();
+  const db = createAdminClient();
 
   const [policy, estimateSettings, placementsRes, monthStatsRes, lastReconRes, fraudRes, draftReconRes] =
     await Promise.all([
       getCreatorAdRevenuePolicy({ useAdmin: true }),
       getAdRevenueEstimateSettings({ useAdmin: true }),
-      supabase.from("ad_placements").select("id, is_enabled"),
-      supabase
+      db.from("ad_placements").select("id, is_enabled"),
+      db
         .from("ad_monthly_author_stats")
         .select("estimated_gross_revenue_vnd")
         .eq("month", monthKey),
-      supabase
+      db
         .from("ad_revenue_monthly_reconciliations")
         .select("revenue_month")
         .in("status", ["locked", "reconciled"])
         .order("revenue_month", { ascending: false })
         .limit(1)
         .maybeSingle(),
-      supabase
+      db
         .from("ad_fraud_signals")
         .select("id", { count: "exact", head: true })
         .in("status", ["open", "reviewing"]),
-      supabase
+      db
         .from("ad_revenue_monthly_reconciliations")
         .select("id", { count: "exact", head: true })
         .eq("status", "draft")

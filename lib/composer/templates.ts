@@ -157,7 +157,17 @@ export function getDefaultTemplateForMode(mode: ComposerMode): ComposerStructure
           content: "Bạn đứng trước ngã ba."
         }),
         createBlock("choice_option", { label: "Rẽ trái", target_node_id: "left" }),
-        createBlock("choice_option", { label: "Rẽ phải", target_node_id: "right" })
+        createBlock("choice_option", { label: "Rẽ phải", target_node_id: "right" }),
+        createBlock("choice_node", {
+          node_id: "left",
+          title: "Con đường bên trái",
+          content: "Lối mờ dẫn vào khu vườn yên ắng."
+        }),
+        createBlock("choice_node", {
+          node_id: "right",
+          title: "Con đường bên phải",
+          content: "Ánh đèn leo lét phía cuối hành lang."
+        })
       ]);
     case "mixed_media":
       return buildDocument(mode, [

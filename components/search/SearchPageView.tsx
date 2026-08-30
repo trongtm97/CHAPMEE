@@ -1,9 +1,13 @@
 import Link from "next/link";
+import { ChapMeeCover } from "@/components/common/ChapMeeCover";
 import { AppSearchBar } from "@/components/ui/AppSearchBar";
 import { SearchClickLink } from "@/components/search/SearchClickLink";
 import { ResponsivePageContainer } from "@/components/layout/ResponsivePageContainer";
 import { Card, ErrorState } from "@/components/ui";
 import { searchAll } from "@/lib/search/search-all";
+import { getAudioPolicySettings } from "@/lib/settings/audio-policy-settings";
+import { getStoryAudioCardSummaryMap } from "@/src/lib/audio/audio-summary";
+import { StoryAudioBadge } from "@/src/components/story/StoryAudioBadge";
 import type { SearchFilterType } from "@/types/search";
 
 const TABS: Array<{ id: SearchFilterType; label: string }> = [
@@ -14,10 +18,11 @@ const TABS: Array<{ id: SearchFilterType; label: string }> = [
   { id: "content_post", label: "Bài viết" }
 ];
 
-function buildSearchHref(query: string, type: string, page = 1) {
+function buildSearchHref(query: string, type: string, page = 1, origin = "all") {
   const params = new URLSearchParams();
   if (query) params.set("q", query);
   if (type && type !== "all") params.set("type", type);
+  if (origin && origin !== "all") params.set("origin", origin);
   if (page > 1) params.set("page", String(page));
   const qs = params.toString();
   return qs ? `/search?${qs}` : "/search";
@@ -45,6 +50,7 @@ function typeLabel(resultType: string) {
 type SearchPageViewProps = {
   query: string;
   type: string;
+  origin?: string;
   page: number;
   genre?: string;
 };
@@ -52,6 +58,7 @@ type SearchPageViewProps = {
 export async function SearchPageView({
   query,
   type,
+  origin = "all",
   page,
   genre
 }: SearchPageViewProps) {
@@ -59,8 +66,26 @@ export async function SearchPageView({
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
 
   const result = query
-    ? await searchAll(query, { type: filterType, page: safePage, pageSize: 20, genre })
+    ? await searchAll(query, {
+        type: filterType,
+        origin:
+          origin === "original" || origin === "translation" ? origin : "all",
+        page: safePage,
+        pageSize: 20,
+        genre
+      })
     : null;
+
+  const storyIds =
+    result?.items.filter((item) => item.resultType === "story").map((item) => item.id) ?? [];
+  const [audioMap, audioPolicy] = await Promise.all([
+    storyIds.length > 0 ? getStoryAudioCardSummaryMap(storyIds) : Promise.resolve(new Map()),
+    getAudioPolicySettings()
+  ]);
+  const audioBadgeDisplay = {
+    showAudioBadge: audioPolicy.show_audio_badge_on_story_cards,
+    showContinuousBadge: audioPolicy.show_continuous_playback_badge
+  };
 
   return (
     <ResponsivePageContainer className="py-6 md:py-8">
@@ -71,7 +96,8 @@ export async function SearchPageView({
         </header>
 
         {query ? (
-          <nav className="flex flex-wrap gap-2">
+          <div className="space-y-2">
+            <nav className="flex flex-wrap gap-2">
             {TABS.map((tab) => {
               const count =
                 tab.id === "all"
@@ -85,7 +111,7 @@ export async function SearchPageView({
                       ? "border-cyan-300/40 bg-cyan-300/15 text-cyan-100"
                       : "border-white/10 bg-[var(--surface)] text-zinc-300 hover:border-white/20"
                   }`}
-                  href={buildSearchHref(query, tab.id)}
+                  href={buildSearchHref(query, tab.id, 1, origin)}
                   key={tab.id}
                 >
                   {tab.label}
@@ -93,7 +119,37 @@ export async function SearchPageView({
                 </Link>
               );
             })}
-          </nav>
+            </nav>
+            <nav className="flex flex-wrap gap-2">
+              {[
+                { id: "all", label: "Tất cả" },
+                { id: "original", label: "Truyện sáng tác" },
+                { id: "translation", label: "Dịch" }
+              ].map((item) => {
+                const active = origin === item.id || (item.id === "all" && !origin);
+                const href = (() => {
+                  const params = new URLSearchParams();
+                  if (query) params.set("q", query);
+                  if (filterType !== "all") params.set("type", filterType);
+                  if (item.id !== "all") params.set("origin", item.id);
+                  return `/search?${params.toString()}`;
+                })();
+                return (
+                  <Link
+                    className={`tap-highlight rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                      active
+                        ? "border-cyan-300/40 bg-cyan-300/15 text-cyan-100"
+                        : "border-white/10 bg-[var(--surface)] text-zinc-300 hover:border-white/20"
+                    }`}
+                    href={href}
+                    key={item.id}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
         ) : null}
 
         {!query ? (
@@ -128,14 +184,22 @@ export async function SearchPageView({
                   resultType={item.resultType}
                 >
                   <div className="flex gap-3">
-                    {item.imageUrl ? (
+                    {item.imageUrl && (item.resultType === "story" || item.resultType === "chapter") ? (
+                      <ChapMeeCover
+                        alt={item.title}
+                        className="!w-[3.25rem] rounded-lg"
+                        size="sm"
+                        src={item.imageUrl}
+                        title={item.title}
+                      />
+                    ) : item.imageUrl ? (
                       <img
                         alt=""
                         className="size-14 shrink-0 rounded-lg object-cover"
                         src={item.imageUrl}
                       />
                     ) : (
-                      <div className="flex size-14 shrink-0 items-center justify-center rounded-lg bg-white/5 text-xs font-bold text-zinc-500">
+                      <div className="flex h-14 w-[2.625rem] shrink-0 items-center justify-center rounded-lg bg-white/5 text-xs font-bold text-zinc-500">
                         {typeLabel(item.resultType).slice(0, 2)}
                       </div>
                     )}
@@ -149,6 +213,15 @@ export async function SearchPageView({
                           <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
                             Khớp chính xác
                           </span>
+                        ) : null}
+                        {item.resultType === "story" ? (
+                          <StoryAudioBadge
+                            {...audioBadgeDisplay}
+                            hasContinuousPlayback={
+                              audioMap.get(item.id)?.hasContinuousPlayback ?? false
+                            }
+                            hasPublishedAudio={audioMap.get(item.id)?.hasPublishedAudio ?? false}
+                          />
                         ) : null}
                       </div>
                       {item.subtitle ? (
@@ -174,7 +247,7 @@ export async function SearchPageView({
               {result.page > 1 ? (
                 <Link
                   className="rounded-lg border border-white/10 px-3 py-1.5 font-semibold text-zinc-200"
-                  href={buildSearchHref(query, filterType, result.page - 1)}
+                  href={buildSearchHref(query, filterType, result.page - 1, origin)}
                 >
                   Trước
                 </Link>
@@ -182,7 +255,7 @@ export async function SearchPageView({
               {result.page < result.totalPages ? (
                 <Link
                   className="rounded-lg border border-white/10 px-3 py-1.5 font-semibold text-zinc-200"
-                  href={buildSearchHref(query, filterType, result.page + 1)}
+                  href={buildSearchHref(query, filterType, result.page + 1, origin)}
                 >
                   Sau
                 </Link>

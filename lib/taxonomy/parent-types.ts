@@ -13,9 +13,7 @@ export function filterTermsByParent<T extends { parent_id: string | null }>(
   parentId: string | null | undefined
 ): T[] {
   if (!parentId) {
-    return terms.filter((term) => !term.parent_id);
+    return [];
   }
-  return terms.filter(
-    (term) => !term.parent_id || term.parent_id === parentId
-  );
+  return terms.filter((term) => term.parent_id === parentId);
 }

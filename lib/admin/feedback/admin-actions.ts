@@ -25,9 +25,9 @@ async function insertFeedbackEvent(input: {
   newValue?: string | null;
   note?: string | null;
 }) {
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  await supabase.from("feedback_events").insert({
+  const { createClient } = await import("@/lib/data/server");
+  const db = await createClient();
+  await db.from("feedback_events").insert({
     feedback_id: input.feedbackId,
     admin_id: input.adminId,
     event_type: input.eventType,
@@ -59,9 +59,9 @@ async function logFeedbackAudit(
 }
 
 async function loadFeedback(feedbackId: string) {
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const { createClient } = await import("@/lib/data/server");
+  const db = await createClient();
+  const { data, error } = await db
     .from("feedback_messages")
     .select("*")
     .eq("id", feedbackId)
@@ -99,9 +99,9 @@ export async function updateFeedbackStatusAction(
   if (newStatus === "resolved") payload.resolved_at = now;
   if (newStatus === "closed") payload.closed_at = now;
 
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  const { error } = await supabase.from("feedback_messages").update(payload).eq("id", feedbackId);
+  const { createClient } = await import("@/lib/data/server");
+  const db = await createClient();
+  const { error } = await db.from("feedback_messages").update(payload).eq("id", feedbackId);
   if (error) return { ok: false, message: "Không thể cập nhật trạng thái." };
 
   await insertFeedbackEvent({
@@ -142,9 +142,9 @@ export async function saveFeedbackInternalNoteAction(
   const existing = await loadFeedback(feedbackId);
   if (!existing) return { ok: false, message: "Không tìm thấy feedback." };
 
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  const { error } = await supabase
+  const { createClient } = await import("@/lib/data/server");
+  const db = await createClient();
+  const { error } = await db
     .from("feedback_messages")
     .update({ internal_note: internalNote.slice(0, 4000) })
     .eq("id", feedbackId);
@@ -181,9 +181,9 @@ export async function sendFeedbackReplyAction(
       ? "replied"
       : oldStatus;
 
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  const { error } = await supabase
+  const { createClient } = await import("@/lib/data/server");
+  const db = await createClient();
+  const { error } = await db
     .from("feedback_messages")
     .update({
       admin_reply: reply.slice(0, 4000),
@@ -229,9 +229,9 @@ export async function assignFeedbackAction(
   const existing = await loadFeedback(feedbackId);
   if (!existing) return { ok: false, message: "Không tìm thấy feedback." };
 
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  const { error } = await supabase
+  const { createClient } = await import("@/lib/data/server");
+  const db = await createClient();
+  const { error } = await db
     .from("feedback_messages")
     .update({ assigned_admin_id: adminId })
     .eq("id", feedbackId);
@@ -268,9 +268,9 @@ export async function updateFeedbackPriorityAction(
   const existing = await loadFeedback(feedbackId);
   if (!existing) return { ok: false, message: "Không tìm thấy feedback." };
 
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  const { error } = await supabase
+  const { createClient } = await import("@/lib/data/server");
+  const db = await createClient();
+  const { error } = await db
     .from("feedback_messages")
     .update({ priority })
     .eq("id", feedbackId);
@@ -299,9 +299,9 @@ export async function updateFeedbackCategoryAction(
   const existing = await loadFeedback(feedbackId);
   if (!existing) return { ok: false, message: "Không tìm thấy feedback." };
 
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  const { error } = await supabase.from("feedback_messages").update({ category }).eq("id", feedbackId);
+  const { createClient } = await import("@/lib/data/server");
+  const db = await createClient();
+  const { error } = await db.from("feedback_messages").update({ category }).eq("id", feedbackId);
   if (error) return { ok: false, message: "Không thể đổi loại feedback." };
 
   await insertFeedbackEvent({

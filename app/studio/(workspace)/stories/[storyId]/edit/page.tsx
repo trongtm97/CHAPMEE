@@ -12,14 +12,20 @@ type EditStoryPageProps = {
   params: Promise<{
     storyId: string;
   }>;
+  searchParams: Promise<{
+    review_submitted?: string;
+  }>;
 };
 
 export const dynamic = "force-dynamic";
 
 export default async function StudioEditStoryPage({
-  params
+  params,
+  searchParams
 }: EditStoryPageProps) {
   const { storyId } = await params;
+  const query = await searchParams;
+  const reviewSubmitted = query.review_submitted === "1";
   const { creatorProfile, error } = await getStudioAccess(
     `/studio/stories/${storyId}/edit`
   );
@@ -58,6 +64,8 @@ export default async function StudioEditStoryPage({
             title={formData.story.title}
           />
           <StudioStoryForm
+            key={formData.story.id}
+            reviewSubmitted={reviewSubmitted}
             action={updateStoryAction}
             authorDisplayName={creatorProfile.display_name}
             basePath="/studio"

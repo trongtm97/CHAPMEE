@@ -18,7 +18,6 @@ const ISSUE_LABELS: Record<string, string> = {
   missing_cover: "Thiếu ảnh bìa",
   content_has_h1: "Nội dung chứa H1",
   missing_h2_long_content: "Bài dài nên có H2",
-  external_link: "Có link ngoài nền tảng",
   invalid_canonical: "Canonical không hợp lệ",
   index_without_seo: "Bật index nhưng thiếu SEO"
 };
@@ -36,7 +35,6 @@ export function ContentPostSeoChecklist(props: Props) {
       label: "SEO title/description nếu index"
     },
     { ok: !issues.includes("content_has_h1"), label: "Không có H1 trong content" },
-    { ok: !issues.includes("external_link"), label: "Chỉ link nội bộ" },
     {
       ok: !props.canonicalUrl.trim() || props.canonicalUrl.startsWith("/"),
       label: "Canonical nội bộ hợp lệ"

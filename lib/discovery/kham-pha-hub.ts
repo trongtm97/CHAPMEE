@@ -38,6 +38,12 @@ export const KHAM_PHA_HUB_SECTIONS: KhamPhaHubSection[] = [
 
 export const KHAM_PHA_QUICK_LINKS: KhamPhaHubSection[] = [
   {
+    href: "/tien-ich/boi-tinh-yeu",
+    kicker: "Tiện ích",
+    title: "Bói tình yêu",
+    description: "Xem mức độ hợp nhau theo tên và ngày sinh — miễn phí, dễ chia sẻ."
+  },
+  {
     href: "/discover",
     kicker: "Trang chủ",
     title: "Khám phá",

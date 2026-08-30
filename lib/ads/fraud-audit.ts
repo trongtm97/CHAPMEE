@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export async function logAdFraudAudit(input: {
   actorId: string | null;
@@ -9,8 +9,8 @@ export async function logAdFraudAudit(input: {
   after?: Record<string, unknown> | null;
 }) {
   try {
-    const supabase = createAdminClient();
-    const { error } = await supabase.from("ad_fraud_audit_logs").insert({
+    const db = createAdminClient();
+    const { error } = await db.from("ad_fraud_audit_logs").insert({
       actor_id: input.actorId,
       action: input.action,
       signal_id: input.signalId ?? null,

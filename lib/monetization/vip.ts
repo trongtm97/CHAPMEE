@@ -3,13 +3,13 @@
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { createTransaction } from "@/lib/supabase/transactions";
+import { createTransaction } from "@/lib/data/transactions";
 import {
   createUserSubscription,
   getLatestUserSubscription,
   getVipPlanById,
   listActiveVipPlans
-} from "@/lib/supabase/vip";
+} from "@/lib/data/vip";
 import { creditUserCoins } from "@/lib/wallets/user-wallet";
 import type { VipBenefitKey } from "@/types/vip";
 

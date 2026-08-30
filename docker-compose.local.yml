@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: chapmee-local-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: chapmee
+      POSTGRES_PASSWORD: chapmee_local_password
+      POSTGRES_DB: chapmee_local
+      # postgres:17 image defaults to UTF8; explicit for operators/docs
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - chapmee_local_postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: chapmee-local-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  minio:
+    image: minio/minio
+    container_name: chapmee-local-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: chapmee_minio
+      MINIO_ROOT_PASSWORD: chapmee_minio_password
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - chapmee_local_minio:/data
+
+  minio-init:
+    image: minio/mc
+    container_name: chapmee-local-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 chapmee_minio chapmee_minio_password; do sleep 1; done;
+      mc mb --ignore-existing local/chapmee-local-media;
+      mc anonymous set download local/chapmee-local-media;
+      echo MinIO bucket chapmee-local-media ready;
+      mc mb --ignore-existing local/chapmee-local-xacminh;
+      echo MinIO bucket chapmee-local-xacminh ready (private — no anonymous policy);
+      "
+
+  postgrest:
+    image: postgrest/postgrest:v12.2.8
+    container_name: chapmee-local-postgrest
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    env_file:
+      - .env.local
+    environment:
+      PGRST_DB_URI: postgresql://chapmee:chapmee_local_password@postgres:5432/chapmee_local
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_DB_EXTRA_SEARCH_PATH: public,auth
+      # Must match POSTGREST_JWT_SECRET in .env.local (use: npm run docker:local:up)
+      PGRST_JWT_SECRET: ${POSTGREST_JWT_SECRET:?set POSTGREST_JWT_SECRET in .env.local}
+      PGRST_OPENAPI_SERVER_PROXY_URI: http://127.0.0.1:54321
+    ports:
+      - "54321:3000"
+
+volumes:
+  chapmee_local_postgres:
+  chapmee_local_minio:

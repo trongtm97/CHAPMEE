@@ -1,7 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
-import { insertFinanceSecurityLog } from "@/lib/supabase/creator-finance";
+import { insertFinanceSecurityLog } from "@/lib/data/creator-finance";
 import type { FinanceSecurityEventType } from "@/types/finance";
 
 async function requestMeta() {

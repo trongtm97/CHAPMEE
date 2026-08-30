@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { StoryReadingProgress } from "@/types/chapter";
 
 type ProgressRow = {
@@ -22,8 +22,8 @@ export async function getStoryReadingProgress(
     return null;
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("reading_progress")
     .select("progress_percent, episode_id, episodes(id, episode_number, title, slug, public_code)")
     .eq("user_id", userId)

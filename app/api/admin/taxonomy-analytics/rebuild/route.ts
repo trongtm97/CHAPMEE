@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireTaxonomyAnalyticsRebuild } from "@/app/api/admin/taxonomy-analytics/_auth";
 import { aggregateTaxonomyDateRange } from "@/lib/taxonomy-analytics/aggregate-daily";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 type RebuildBody = {
   from?: string;
@@ -23,8 +23,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = createAdminClient();
-  const results = await aggregateTaxonomyDateRange(supabase, from, to);
+  const db = createAdminClient();
+  const results = await aggregateTaxonomyDateRange(db, from, to);
   const failed = results.find((row) => !row.ok);
   if (failed) {
     return NextResponse.json(

@@ -7,8 +7,10 @@ export async function POST(request: Request) {
   const body = (await request.json()) as {
     action?: "follow" | "like" | "save" | "share";
     creatorId?: string | null;
+    creatorUserId?: string | null;
     episodeId?: string;
     itemIndex?: number;
+    reelItemId?: string | null;
     storyId?: string;
   };
 
@@ -22,8 +24,10 @@ export async function POST(request: Request) {
   const result = await mutateReelsEngagement({
     action: body.action,
     creatorId: body.creatorId ?? null,
+    creatorUserId: body.creatorUserId ?? null,
     episodeId: body.episodeId,
     itemIndex: Number(body.itemIndex ?? 0),
+    reelItemId: body.reelItemId ?? null,
     storyId: body.storyId
   });
 

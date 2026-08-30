@@ -22,6 +22,7 @@ const PURPOSE_MAX_BYTES: Record<MediaUploadPurpose, number> = {
   chapter_image: 10 * 1024 * 1024,
   composer_image: 10 * 1024 * 1024,
   reel_background: 10 * 1024 * 1024,
+  seo_og: 8 * 1024 * 1024,
   temp: 20 * 1024 * 1024
 };
 
@@ -31,6 +32,7 @@ const PURPOSE_USAGE: Record<MediaUploadPurpose, string> = {
   chapter_image: "chapter_image",
   composer_image: "composer_block",
   reel_background: "reel_asset",
+  seo_og: "seo_og_image",
   temp: "temp_upload"
 };
 
@@ -40,6 +42,7 @@ const PURPOSE_LINKED_TYPE: Partial<Record<MediaUploadPurpose, string>> = {
   chapter_image: "chapter_image",
   composer_image: "composer_image",
   reel_background: "reel_background",
+  seo_og: "seo_settings",
   temp: "temp"
 };
 
@@ -162,4 +165,35 @@ export async function completeMediaAsset(input: {
   }
 
   return row;
+}
+
+/**
+ * Promote an asset referenced as the site's default OG image so it becomes a
+ * permanent, library-visible asset. Safe for assets uploaded as `temp` (clears
+ * the auto-delete window and relabels usage) and no-op for already-permanent
+ * assets (e.g. a story cover picked from the library).
+ */
+export async function promoteSeoOgImageAsset(assetId: string): Promise<void> {
+  const id = assetId?.trim();
+  if (!id) {
+    return;
+  }
+
+  await db.execute(sql`
+    update public.storage_assets
+    set
+      status = case
+        when status in (
+          'uploading', 'temp', 'replaced', 'quarantined',
+          'orphan_candidate', 'orphan_detected', 'pending_delete'
+        ) then 'active'
+        else status
+      end,
+      delete_after_at = null,
+      usage_type = case when usage_type = 'temp_upload' then 'seo_og_image' else usage_type end,
+      linked_entity_type = coalesce(linked_entity_type, 'seo_settings'),
+      updated_at = now(),
+      last_used_at = now()
+    where id = ${id}::uuid
+  `);
 }

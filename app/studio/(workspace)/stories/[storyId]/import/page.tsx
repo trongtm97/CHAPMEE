@@ -6,7 +6,7 @@ import { assertCreatorOwnsStory } from "@/lib/creator/assertCreatorOwnsStory";
 import { getStudioAccess } from "@/lib/creator/getStudioAccess";
 import { getExistingEpisodeNumbers } from "@/lib/import/import-chapters-as-drafts";
 import { studioPath } from "@/lib/studio/constants";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 type StoryImportPageProps = {
   params: Promise<{ storyId: string }>;
@@ -37,8 +37,8 @@ export default async function StoryBulkImportPage({ params }: StoryImportPagePro
     notFound();
   }
 
-  const supabase = await createClient();
-  const existingEpisodeNumbers = await getExistingEpisodeNumbers(supabase, storyId);
+  const db = await createClient();
+  const existingEpisodeNumbers = await getExistingEpisodeNumbers(db, storyId);
 
   return (
     <section className="space-y-6">

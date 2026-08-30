@@ -2,33 +2,26 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Button, Card, Input } from "@/components/ui";
-import { createClient } from "@/lib/supabase/client";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AuthRegisterConsentNotice } from "@/components/legal/ImplicitConsentNotice";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { Button, EmailDeliveryNotice, Input } from "@/components/ui";
+import { sanitizeAuthRedirect } from "@/lib/auth/safe-auth-redirect";
+import { createClient } from "@/lib/data/client";
 import { validateDisplayName as validateDisplayNameFormat } from "@/lib/profile/validateProfile";
 import { checkDisplayNamePolicyAction } from "@/lib/username/policy-actions";
 
-async function createProfile(
-  userId: string,
-  displayName: string,
-  email: string
-) {
-  const supabase = createClient();
-  const { error } = await supabase.from("profiles").insert({
-    id: userId,
-    display_name: displayName,
-    username: null,
-    bio: `Reader account for ${email}`,
-    role: "user"
-  });
+const inputClassName =
+  "min-h-10 rounded-xl border-white/10 bg-white/[0.03] px-3.5 text-sm";
 
-  if (error && error.code !== "23505") {
-    throw error;
-  }
-}
-
-export function RegisterForm() {
+export function RegisterForm({
+  googleEnabled = false
+}: {
+  googleEnabled?: boolean;
+}) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackPath = sanitizeAuthRedirect(searchParams.get("next"), "/me");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -57,8 +50,8 @@ export function RegisterForm() {
     }
 
     try {
-      const supabase = createClient();
-      const { data, error: registerError } = await supabase.auth.signUp({
+      const db = createClient();
+      const { data, error: registerError } = await db.auth.signUp({
         email,
         password,
         options: {
@@ -74,24 +67,18 @@ export function RegisterForm() {
       }
 
       if (data.user && data.session) {
-        await createProfile(
-          data.user.id,
-          displayName,
-          data.user.email ?? email
-        );
         router.refresh();
-        router.push("/me");
+        router.push(callbackPath);
         return;
       }
 
-      setMessage(
-        "Account created. Check your email to confirm your account, then log in."
-      );
+      setMessage("Đã tạo tài khoản. Vui lòng đăng nhập.");
     } catch (caughtError) {
+      const msg = caughtError instanceof Error ? caughtError.message : "";
       setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Could not create your account. Please try again."
+        msg === "Failed to fetch" || msg === "Load failed"
+          ? "Không kết nối được máy chủ đăng ký. Vui lòng tải lại trang hoặc thử lại sau."
+          : msg || "Không tạo được tài khoản. Vui lòng thử lại."
       );
     } finally {
       setLoading(false);
@@ -99,56 +86,102 @@ export function RegisterForm() {
   }
 
   return (
-    <Card className="space-y-5">
-      <form className="space-y-4" onSubmit={handleSubmit}>
+    <div className="space-y-4">
+      <div className="space-y-1">
+        <h2 className="text-xl font-bold tracking-[-0.02em] text-white sm:text-[1.375rem]">
+          Đăng ký
+        </h2>
+        <p className="text-sm text-slate-400">
+          Tiếp tục với Google hoặc tạo tài khoản bằng email.
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-amber-300/15 bg-amber-300/8 px-3 py-2.5">
+        <EmailDeliveryNotice className="text-xs text-amber-100/90" compact />
+      </div>
+
+      <div className="space-y-3">
+        <GoogleSignInButton
+          compact
+          enabled={googleEnabled}
+          fallbackPath={callbackPath}
+        />
+        {googleEnabled ? (
+          <AuthRegisterConsentNotice className="text-center text-[0.6875rem] leading-relaxed text-slate-500" />
+        ) : null}
+        {googleEnabled ? (
+          <div className="flex items-center gap-2.5 text-xs text-slate-500">
+            <span className="h-px flex-1 bg-white/10" />
+            <span>Hoặc tạo bằng email</span>
+            <span className="h-px flex-1 bg-white/10" />
+          </div>
+        ) : null}
+      </div>
+
+      <form className="space-y-3.5" onSubmit={handleSubmit}>
         <Input
           autoComplete="name"
-          label="Display name"
+          className={inputClassName}
+          label="Tên hiển thị"
           onChange={(event) => setDisplayName(event.target.value)}
-          placeholder="Your ChapMee name"
+          placeholder="Tên trên ChapMee"
           required
           type="text"
           value={displayName}
         />
         <Input
           autoComplete="email"
+          className={inputClassName}
           label="Email"
           onChange={(event) => setEmail(event.target.value)}
-          placeholder="you@example.com"
+          placeholder="ban@example.com"
           required
           type="email"
           value={email}
         />
         <Input
           autoComplete="new-password"
-          label="Password"
-          minLength={6}
+          className={inputClassName}
+          label="Mật khẩu"
+          minLength={8}
           onChange={(event) => setPassword(event.target.value)}
-          placeholder="At least 6 characters"
+          placeholder="Ít nhất 8 ký tự"
           required
           type="password"
           value={password}
         />
+        <p className="text-xs leading-relaxed text-slate-500">
+          Bằng việc đăng ký, bạn dùng cùng tài khoản cho thư viện, ví Xu, bình
+          luận và cộng đồng ChapMee.
+        </p>
         {error ? (
-          <p className="rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">
+          <p className="rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-sm text-red-200">
             {error}
           </p>
         ) : null}
         {message ? (
-          <p className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-200">
+          <p className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">
             {message}
           </p>
         ) : null}
-        <Button className="w-full" loading={loading} type="submit">
-          Register
+        <AuthRegisterConsentNotice className="text-center text-xs leading-relaxed text-slate-500" />
+        <Button
+          className="min-h-10 w-full rounded-lg bg-sky-400 text-sm font-semibold normal-case tracking-normal text-slate-950 hover:bg-sky-300"
+          loading={loading}
+          type="submit"
+        >
+          Đăng ký
         </Button>
-        <p className="text-center text-sm text-zinc-400">
-          Already have an account?{" "}
-          <Link className="font-semibold text-cyan-300" href="/login">
-            Login
+        <p className="text-center text-xs text-slate-400 sm:text-sm">
+          Đã có tài khoản?{" "}
+          <Link
+            className="font-semibold text-sky-300 hover:text-sky-200"
+            href="/login"
+          >
+            Đăng nhập
           </Link>
         </p>
       </form>
-    </Card>
+    </div>
   );
 }

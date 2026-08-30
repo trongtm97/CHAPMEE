@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { AnnouncementPreview } from "@/components/admin/announcements/AnnouncementPreview";
+import { SeoMediaAssetField } from "@/components/admin/seo/SeoMediaAssetField";
 import { ConfirmActionModal } from "@/components/admin/campaigns/ConfirmActionModal";
 import { ANNOUNCEMENT_AUDIENCE_LABELS, ANNOUNCEMENT_VISIBILITY_UI } from "@/lib/announcements/labels";
 import {
@@ -51,7 +52,9 @@ export function AnnouncementForm({ mode, announcement, capabilities }: Props) {
   );
   const [ogTitle, setOgTitle] = useState(announcement?.og_title ?? "");
   const [ogDescription, setOgDescription] = useState(announcement?.og_description ?? "");
-  const [ogImageUrl, setOgImageUrl] = useState(announcement?.og_image_url ?? "");
+  const [ogImageAssetId, setOgImageAssetId] = useState(
+    announcement?.og_image_media_asset_id ?? null
+  );
   const [slugError, setSlugError] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<"admin" | "public" | "in_app">("admin");
 
@@ -132,7 +135,7 @@ export function AnnouncementForm({ mode, announcement, capabilities }: Props) {
         canonical_path: canonicalPath,
         og_title: ogTitle,
         og_description: ogDescription,
-        og_image_url: ogImageUrl,
+        og_image_media_asset_id: ogImageAssetId ?? undefined,
         auto_slug: !slugManual,
         confirm_critical: confirmCritical
       });
@@ -417,15 +420,15 @@ export function AnnouncementForm({ mode, announcement, capabilities }: Props) {
               />
             </label>
 
-            <label className="block space-y-1 sm:col-span-2">
-              <span className="text-sm font-medium text-zinc-300">OG image URL</span>
-              <input
-                className={inputClassName}
-                onChange={(event) => setOgImageUrl(event.target.value)}
-                placeholder="https://..."
-                value={ogImageUrl}
+            <div className="sm:col-span-2">
+              <SeoMediaAssetField
+                hint="Ảnh OG lưu qua media system — không nhập URL MinIO/local."
+                label="OG image"
+                name="og_image_media_asset_id"
+                onChange={setOgImageAssetId}
+                value={ogImageAssetId}
               />
-            </label>
+            </div>
           </div>
         </section>
 

@@ -89,8 +89,6 @@ export const DEFAULT_TAXONOMY_SEED_TERMS: TaxonomySeedTerm[] = [
   ...fromNames("content_type", [
     "Truyện dài",
     "Truyện ngắn",
-    "Truyện nhiều chương",
-    "Truyện một chương",
     "Series truyện ngắn",
     "Tiểu thuyết web",
     "Đoạn văn",
@@ -101,12 +99,7 @@ export const DEFAULT_TAXONOMY_SEED_TERMS: TaxonomySeedTerm[] = [
     "Chat story",
     "Truyện dạng tin nhắn",
     "Truyện tương tác",
-    "Truyện lựa chọn nhánh",
-    "Reels truyện",
-    "Bài viết",
-    "Thông báo",
-    "Hướng dẫn viết truyện",
-    "Review / cảm nhận truyện"
+    "Truyện lựa chọn nhánh"
   ]),
   ...fromNames("main_genre", [
     "Ngôn tình",
@@ -166,7 +159,8 @@ export const DEFAULT_TAXONOMY_SEED_TERMS: TaxonomySeedTerm[] = [
     "Y khoa",
     "Pháp luật",
     "Ẩm thực",
-    "Du lịch"
+    "Du lịch",
+    "Thể loại khác"
   ]),
   ...fromSubgenreNames([
     "Ngọt sủng",

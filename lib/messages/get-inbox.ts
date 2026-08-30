@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { profileAvatarUrlFromRow } from "@/lib/profile/map-profile-row";
+import { createClient } from "@/lib/data/server";
 import type { InboxConversationItem } from "@/types/messages";
 
 type ParticipantRow = {
@@ -18,9 +19,9 @@ export async function getInboxConversations(
   userId: string,
   includeArchived = false
 ): Promise<InboxConversationItem[]> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: rows, error } = await supabase
+  const { data: rows, error } = await db
     .from("conversation_participants")
     .select(
       `conversation_id, is_muted, is_archived, last_read_at,
@@ -54,7 +55,7 @@ export async function getInboxConversations(
     return [];
   }
 
-  const { data: others } = await supabase
+  const { data: others } = await db
     .from("conversation_participants")
     .select(
       `conversation_id, user_id,
@@ -100,7 +101,7 @@ export async function getInboxConversations(
 
     let unreadCount = 0;
     if (conv.last_message_at) {
-      const { count } = await supabase
+      const { count } = await db
         .from("messages")
         .select("id", { count: "exact", head: true })
         .eq("conversation_id", conv.id)
@@ -117,7 +118,7 @@ export async function getInboxConversations(
         id: profile.id,
         displayName: profile.display_name ?? profile.username ?? "Người dùng",
         username: profile.username,
-        avatarUrl: profile.avatar_url
+        avatarUrl: profileAvatarUrlFromRow(profile)
       },
       lastMessagePreview: conv.last_message_preview,
       lastMessageAt: conv.last_message_at,

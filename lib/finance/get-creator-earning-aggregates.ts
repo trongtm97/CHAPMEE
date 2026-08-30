@@ -1,8 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export async function getCreatorEarningAggregates(creatorUserId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("creator_earning_transactions")
     .select(
       "gross_amount_vnd, platform_fee_vnd, payment_processing_fee_vnd, tax_or_adjustment_vnd, creator_net_amount_vnd"

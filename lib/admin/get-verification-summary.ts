@@ -1,7 +1,7 @@
 "use server";
 
 import { assertAnyPermission } from "@/lib/auth/require-permission";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { VerificationOperationsSummary } from "@/types/admin-verification";
 
 const BLUE_TICK_TYPES = new Set(["blue_tick", "identity_verified"]);
@@ -9,15 +9,15 @@ const BLUE_TICK_TYPES = new Set(["blue_tick", "identity_verified"]);
 export async function getVerificationSummary(): Promise<VerificationOperationsSummary> {
   await assertAnyPermission(["admin.user.update", "admin.user.view"]);
 
-  const supabase = await createClient();
+  const db = await createClient();
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
   const [rowsResult, profilesResult] = await Promise.all([
-    supabase
+    db
       .from("account_verifications")
       .select("status, verification_type, source, display_badge, created_at, reviewed_at")
       .limit(10000),
-    supabase
+    db
       .from("profiles")
       .select("id, is_verified, verification_type")
       .eq("is_verified", true)

@@ -5,8 +5,8 @@ import {
   mergeValidationSettings,
   type ComposerAdminSettingsBundle
 } from "@/lib/composer/composer-settings-defaults";
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 
 export type {
   ComposerAdminSettingsBundle,
@@ -27,8 +27,8 @@ export async function getComposerAdminSettings(): Promise<ComposerAdminSettingsB
   const defaults = getDefaultComposerAdminSettings();
 
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase.from("composer_settings").select("key, value");
+    const db = await createClient();
+    const { data, error } = await db.from("composer_settings").select("key, value");
 
     if (error) {
       if (isMissingSchemaError(error)) {

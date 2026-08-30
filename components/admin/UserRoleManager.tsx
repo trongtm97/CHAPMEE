@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { BanUserDialog } from "@/components/admin/BanUserDialog";
@@ -111,7 +111,7 @@ export function UserRoleManager({
           id: detail.user.id,
           username: detail.user.username,
           display_name: detail.user.display_name,
-          role: detail.user.role,
+          role: detail.user.role as AdminUserSearchResult["role"],
           status: detail.user.status,
           created_at: detail.user.created_at,
           roles: detail.user.roles
@@ -286,7 +286,7 @@ export function UserRoleManager({
                 </p>
                 <p className="text-xs text-zinc-500">ID: {selectedUser.id}</p>
                 <p className="text-xs text-zinc-500">
-                  Email: không lưu trên profile (tra cứu qua Supabase Auth nếu cần)
+                  Email: không lưu trên profile (tra cứu qua db Auth nếu cần)
                 </p>
                 <p className="text-xs text-zinc-500">
                   Tạo:{" "}
@@ -316,7 +316,7 @@ export function UserRoleManager({
                           </strong>
                           <span className="text-zinc-500"> ({role.code})</span>
                           {isElevatedRole(role.code as RoleCode) ? (
-                            <span className="ml-1 text-amber-400">⚠</span>
+                            <span className="ml-1 text-amber-400">?</span>
                           ) : null}
                         </span>
                         <span className="text-xs">
@@ -337,7 +337,7 @@ export function UserRoleManager({
                             type="button"
                             variant="ghost"
                           >
-                            Gỡ
+                            G?
                           </Button>
                         ) : null}
                       </li>
@@ -359,7 +359,7 @@ export function UserRoleManager({
                     {assignableRoles.map((code) => (
                       <option key={code} value={code}>
                         {formatAdminRoleLabel(code)} ({code})
-                        {isElevatedRole(code) ? " ⚠" : ""}
+                        {isElevatedRole(code) ? " ?" : ""}
                       </option>
                     ))}
                   </select>
@@ -429,7 +429,7 @@ export function UserRoleManager({
                 type="button"
                 variant="ghost"
               >
-                Huỷ
+                Hủy
               </Button>
               <Button disabled={isPending} onClick={handleRemove} type="button" variant="danger">
                 Xác nhận gỡ

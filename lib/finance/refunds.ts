@@ -6,15 +6,15 @@ import { checkStaffAnyPermission, checkStaffPermission } from "@/lib/auth/staff-
 import { reverseCreatorEarningForQualityRefund } from "@/lib/finance/create-creator-revenue-adjustment";
 import { createNotification } from "@/lib/notifications/create-notification";
 import { processRefundAction as legacyProcessRefund } from "@/lib/monetization/refunds";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   appendRefundInternalNote,
   createRefundRecord,
   findCompletedRefundByOriginalTransaction,
   getRefundById,
   updateRefundStatus
-} from "@/lib/supabase/refunds";
-import { getTransactionById } from "@/lib/supabase/transactions";
+} from "@/lib/data/refunds";
+import { getTransactionById } from "@/lib/data/transactions";
 import { buildTransactionCode } from "@/lib/transactions/ledger";
 import { creditUserCoins } from "@/lib/wallets/user-wallet";
 import { inferRefundTypeFromTransaction } from "@/lib/admin/refunds/refund-labels";
@@ -30,8 +30,8 @@ function toNumber(v: unknown) {
 }
 
 async function getWalletBalance(userId: string) {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("user_wallets")
     .select("paid_coin_balance, bonus_coin_balance")
     .eq("user_id", userId)
@@ -44,8 +44,8 @@ async function getWalletBalance(userId: string) {
 }
 
 async function estimateCreatorReversalVnd(originalTxId: string) {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("creator_earning_transactions")
     .select("creator_net_amount_vnd, status")
     .eq("source_type", "transaction")
@@ -223,8 +223,8 @@ async function creditBuyerForRefund(input: {
 
 async function revokeChapterUnlock(userId: string, chapterId: string | null) {
   if (!chapterId) return;
-  const supabase = await createClient();
-  await supabase
+  const db = await createClient();
+  await db
     .from("chapter_unlocks")
     .update({ refund_status: "fully_refunded" })
     .eq("user_id", userId)
@@ -308,8 +308,8 @@ export async function completeRefundRecord(refundId: string, options?: {
 
       const meta = refund.data.metadata ?? {};
       if (meta.reverse_creator_revenue !== false && refund.data.chapterId) {
-        const supabase = await createClient();
-        const { data: unlock } = await supabase
+        const db = await createClient();
+        const { data: unlock } = await db
           .from("chapter_unlocks")
           .select("id")
           .eq("user_id", refund.data.userId)

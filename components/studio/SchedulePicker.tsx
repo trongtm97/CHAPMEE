@@ -7,7 +7,6 @@ import {
   publishChecklistHasBlockingErrors,
   publishChecklistHasWarnings
 } from "@/components/studio/PublishChecklist";
-import { PublishConfirmDialog } from "@/components/studio/PublishConfirmDialog";
 import {
   getPublishChecklistAction,
   publishNowAction,
@@ -41,10 +40,6 @@ export function SchedulePicker({
   const [rules, setRules] = useState<PublishChecklistRule[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pendingAction, setPendingAction] = useState<"publish_now" | "schedule" | null>(
-    null
-  );
   const [isPending, startTransition] = useTransition();
 
   const hasBlocking = publishChecklistHasBlockingErrors(rules);
@@ -99,7 +94,6 @@ export function SchedulePicker({
       }
 
       setMessage("Đã đăng thành công.");
-      setConfirmOpen(false);
       onScheduled?.();
     });
   }
@@ -129,7 +123,6 @@ export function SchedulePicker({
       }
 
       setMessage("Đã lên lịch đăng.");
-      setConfirmOpen(false);
       onScheduled?.();
     });
   }
@@ -140,23 +133,9 @@ export function SchedulePicker({
       return;
     }
 
-    if (hasWarnings) {
-      setPendingAction(action);
-      setConfirmOpen(true);
-      return;
-    }
-
     if (action === "publish_now") {
       runPublishNow();
     } else {
-      runSchedule();
-    }
-  }
-
-  function handleConfirm() {
-    if (pendingAction === "publish_now") {
-      runPublishNow();
-    } else if (pendingAction === "schedule") {
       runSchedule();
     }
   }
@@ -287,16 +266,6 @@ export function SchedulePicker({
           </Button>
         ) : null}
       </Card>
-
-      <PublishConfirmDialog
-        onCancel={() => {
-          setConfirmOpen(false);
-          setPendingAction(null);
-        }}
-        onConfirm={handleConfirm}
-        open={confirmOpen}
-        pending={isPending}
-      />
     </>
   );
 }

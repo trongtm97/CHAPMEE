@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import {
   buildPaginatedResult,
   clampPage,
@@ -49,17 +49,17 @@ function mapRules(rows: Array<Record<string, unknown>>): TaxonomyQualityRuleRow[
 }
 
 async function loadFilterOptions(
-  supabase: ReturnType<typeof createAdminClient>
+  db: ReturnType<typeof createAdminClient>
 ): Promise<TaxonomyQualityFilterOptions> {
   const [{ data: genres }, { data: jobs }] = await Promise.all([
-    supabase
+    db
       .from("taxonomy_terms")
       .select("slug, name")
       .eq("type", "main_genre")
       .eq("is_active", true)
       .order("name")
       .limit(100),
-    supabase
+    db
       .from("studio_import_export_jobs")
       .select("id, file_name, created_at, job_type")
       .eq("job_type", "import_stories")
@@ -111,9 +111,9 @@ export async function getContentTaxonomyQualityPageData(
   const offset = (page - 1) * pageSize;
 
   try {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
 
-    const filterOptions = await loadFilterOptions(supabase);
+    const filterOptions = await loadFilterOptions(db);
 
     const [
       missingRequired,
@@ -124,39 +124,39 @@ export async function getContentTaxonomyQualityPageData(
       openRevisionRequests,
       rulesResult
     ] = await Promise.all([
-      supabase
+      db
         .from("content_taxonomy_quality_flags")
         .select("id", { count: "exact", head: true })
         .eq("flag_type", "missing_required")
         .in("status", ["open", "reviewing", "sent_to_creator"]),
-      supabase
+      db
         .from("content_taxonomy_quality_flags")
         .select("id", { count: "exact", head: true })
         .eq("flag_type", "conflicting_taxonomy")
         .in("status", ["open", "reviewing", "sent_to_creator"]),
-      supabase
+      db
         .from("content_taxonomy_quality_flags")
         .select("id", { count: "exact", head: true })
         .in("flag_type", ["hot_tag_abuse", "too_many_tags"])
         .in("status", ["open", "reviewing", "sent_to_creator"]),
-      supabase
+      db
         .from("content_taxonomy_quality_flags")
         .select("id", { count: "exact", head: true })
         .eq("flag_type", "missing_warning")
         .in("status", ["open", "reviewing", "sent_to_creator"]),
-      supabase
+      db
         .from("content_taxonomy_quality_flags")
         .select("id", { count: "exact", head: true })
         .eq("flag_type", "user_reported_wrong_tag")
         .in("status", ["open", "reviewing", "sent_to_creator"]),
-      supabase
+      db
         .from("creator_taxonomy_revision_requests")
         .select("id", { count: "exact", head: true })
         .in("status", ["open", "creator_submitted"]),
-      supabase.from("taxonomy_quality_rules").select("*").order("rule_key")
+      db.from("taxonomy_quality_rules").select("*").order("rule_key")
     ]);
 
-    const { data: featuredTerms } = await supabase
+    const { data: featuredTerms } = await db
       .from("taxonomy_terms")
       .select("id, name, slug, usage_count, is_featured")
       .eq("is_featured", true)
@@ -176,7 +176,7 @@ export async function getContentTaxonomyQualityPageData(
       openRevisionRequests: openRevisionRequests.count ?? 0
     };
 
-    let flagsQuery = supabase
+    let flagsQuery = db
       .from("content_taxonomy_quality_flags")
       .select(
         "id, story_id, flag_type, severity, status, reason, details_json, detected_by, created_at, updated_at, stories!inner(id, title, slug, creator_id, content_warnings_confirmed)",
@@ -216,7 +216,7 @@ export async function getContentTaxonomyQualityPageData(
 
     if (filters.author?.trim()) {
       const q = filters.author.trim();
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("id")
         .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
@@ -225,7 +225,7 @@ export async function getContentTaxonomyQualityPageData(
       if (creatorIds.length === 0) {
         scopedStoryIds = [];
       } else {
-        const { data: authorStories } = await supabase
+        const { data: authorStories } = await db
           .from("stories")
           .select("id")
           .in("creator_id", creatorIds);
@@ -234,7 +234,7 @@ export async function getContentTaxonomyQualityPageData(
     }
 
     if (filters.mainGenre?.trim()) {
-      const { data: genreTerm } = await supabase
+      const { data: genreTerm } = await db
         .from("taxonomy_terms")
         .select("id")
         .eq("type", "main_genre")
@@ -243,7 +243,7 @@ export async function getContentTaxonomyQualityPageData(
       if (!genreTerm?.id) {
         scopedStoryIds = [];
       } else {
-        const { data: genreLinks } = await supabase
+        const { data: genreLinks } = await db
           .from("story_taxonomy_terms")
           .select("story_id")
           .eq("term_id", genreTerm.id)
@@ -287,7 +287,7 @@ export async function getContentTaxonomyQualityPageData(
     ];
     const authorNames = new Map<string, string>();
     if (creatorIds.length > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("id, display_name, username")
         .in("id", creatorIds);
@@ -305,7 +305,7 @@ export async function getContentTaxonomyQualityPageData(
     >();
 
     if (storyIds.length > 0) {
-      const { data: links } = await supabase
+      const { data: links } = await db
         .from("story_taxonomy_terms")
         .select("story_id, type, taxonomy_terms(name, slug)")
         .in("story_id", storyIds);
@@ -335,7 +335,7 @@ export async function getContentTaxonomyQualityPageData(
 
     const reportCounts = new Map<string, number>();
     if (storyIds.length > 0) {
-      const { data: reports } = await supabase
+      const { data: reports } = await db
         .from("reports")
         .select("target_id")
         .eq("target_type", "story")
@@ -402,7 +402,7 @@ export async function getContentTaxonomyQualityPageData(
 
     const rules = mapRules(rulesResult.data ?? []);
 
-    const { data: revisionRows, count: revisionTotal } = await supabase
+    const { data: revisionRows, count: revisionTotal } = await db
       .from("creator_taxonomy_revision_requests")
       .select(
         "id, story_id, creator_id, reason, required_changes_json, status, due_at, creator_note, creator_submitted_at, created_at, stories!inner(title, slug)",
@@ -443,7 +443,7 @@ export async function getContentTaxonomyQualityPageData(
 
     const hotTagAbuse = await Promise.all(
       (featuredTerms ?? []).slice(0, 10).map(async (term) => {
-        const { count } = await supabase
+        const { count } = await db
           .from("reports")
           .select("id", { count: "exact", head: true })
           .contains("metadata", { reported_term_slug: term.slug });
@@ -504,8 +504,8 @@ export async function getAdminStoryTaxonomyEditBundle(storyId: string) {
   const { getStoryFormTaxonomyBundle } = await import(
     "@/lib/creator/get-story-form-taxonomy"
   );
-  const supabase = createAdminClient();
-  const { data: story } = await supabase
+  const db = createAdminClient();
+  const { data: story } = await db
     .from("stories")
     .select("id, title, slug, content_warnings_confirmed")
     .eq("id", storyId)

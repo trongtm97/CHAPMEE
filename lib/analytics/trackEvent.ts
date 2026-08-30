@@ -1,6 +1,6 @@
 import { getAnalyticsSessionId } from "@/lib/analytics/session";
 import { sanitizeAnalyticsMetadata } from "@/lib/analytics/sanitizeMetadata";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/data/client";
 import { inferEventCategory } from "@/lib/analytics/infer-event-category";
 import type { TrackEventInput } from "@/types/analytics";
 
@@ -35,7 +35,7 @@ function eventThrottleKey(eventName: string, targetId?: string | null) {
 }
 
 /**
- * Track a ChapMee engagement event in Supabase.
+ * Track a ChapMee engagement event in db.
  * Tracking failures are swallowed so analytics never blocks the user experience.
  */
 export async function trackEvent(input: TrackEventInput) {
@@ -57,10 +57,10 @@ export async function trackEvent(input: TrackEventInput) {
   lastEventAt.set(throttleKey, now);
 
   try {
-    const supabase = createClient();
+    const db = createClient();
     const {
       data: { user }
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
     const sessionId = input.sessionId ?? input.session_id ?? getAnalyticsSessionId();
     const pagePath = window.location.pathname;
     const referrer = document.referrer || null;
@@ -69,7 +69,7 @@ export async function trackEvent(input: TrackEventInput) {
       input.category ?? input.category_name ?? inferEventCategory(eventName);
     const payload = sanitizeAnalyticsMetadata(input.metadata ?? {});
 
-    const { error } = await supabase.from("analytics_events").insert({
+    const { error } = await db.from("analytics_events").insert({
       anonymous_id: sessionId,
       event_category: category,
       event_name: eventName,

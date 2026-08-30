@@ -4,13 +4,15 @@ import { revalidatePath } from "next/cache";
 import { createModerationCase } from "@/lib/admin/createModerationCase";
 import { assertAnyPermission } from "@/lib/auth/require-permission";
 import { requireAdminOrModerator } from "@/lib/auth/requireAdminOrModerator";
-import { awardMilestone } from "@/lib/supabase/milestones";
+import { awardMilestone } from "@/lib/data/milestones";
 import {
   createBulkNotifications,
   createNotification
 } from "@/lib/notifications/create-notification";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
+import { invalidateStoryCatalogCache } from "@/lib/stories/getPublicStoriesCatalogCached";
+import { ensureStoryPublicUrl } from "@/lib/stories/ensure-story-public-url";
 
 async function requireAdminAction() {
   const guard = await requireAdminOrModerator("/admin/content");
@@ -23,8 +25,8 @@ async function requireAdminAction() {
 }
 
 async function setPublishedAt(table: "stories" | "episodes", id: string) {
-  const supabase = await createClient();
-  const { data: current, error: currentError } = await supabase
+  const db = await createClient();
+  const { data: current, error: currentError } = await db
     .from(table)
     .select("published_at")
     .eq("id", id)
@@ -40,12 +42,17 @@ async function setPublishedAt(table: "stories" | "episodes", id: string) {
     return;
   }
 
-  const { error } = await supabase
+  const approvePatch: Record<string, unknown> = {
+    status: "approved",
+    published_at: current.published_at ?? new Date().toISOString()
+  };
+  if (table === "stories") {
+    approvePatch.visibility = "public";
+  }
+
+  const { error } = await db
     .from(table)
-    .update({
-      status: "approved",
-      published_at: current.published_at ?? new Date().toISOString()
-    })
+    .update(approvePatch)
     .eq("id", id)
     .eq("status", "pending");
 
@@ -54,13 +61,14 @@ async function setPublishedAt(table: "stories" | "episodes", id: string) {
   }
 
   if (table === "stories") {
-    const { data: storyRow } = await supabase
+    await ensureStoryPublicUrl(db, id);
+    const { data: storyRow } = await db
       .from("stories")
       .select("creator_id, title")
       .eq("id", id)
       .maybeSingle();
 
-    const { data: creatorProfile } = await supabase
+    const { data: creatorProfile } = await db
       .from("creator_profiles")
       .select("user_id")
       .eq("id", storyRow?.creator_id ?? "")
@@ -91,7 +99,7 @@ async function setPublishedAt(table: "stories" | "episodes", id: string) {
       });
     }
   } else if (table === "episodes") {
-    const { data: episodeRow } = await supabase
+    const { data: episodeRow } = await db
       .from("episodes")
       .select("id, title, episode_number, story_id, stories(title, slug, creator_id)")
       .eq("id", id)
@@ -102,7 +110,7 @@ async function setPublishedAt(table: "stories" | "episodes", id: string) {
       : episodeRow?.stories;
 
     if (episodeRow?.story_id && story?.creator_id) {
-      const { data: followerRows } = await supabase
+      const { data: followerRows } = await db
         .from("follows")
         .select("follower_id")
         .or(`story_id.eq.${episodeRow.story_id},creator_id.eq.${story.creator_id}`);
@@ -131,6 +139,12 @@ async function setPublishedAt(table: "stories" | "episodes", id: string) {
 
   revalidatePath("/admin/content");
   revalidatePath(`/admin/content/${table}/${id}`);
+  if (table === "stories") {
+    revalidatePath("/truyen");
+    revalidatePath("/truyen-dich");
+    revalidatePath("/truyen-sang-tac");
+    invalidateStoryCatalogCache();
+  }
 }
 
 export async function approveStoryAction(formData: FormData) {
@@ -151,8 +165,8 @@ export async function rejectStoryAction(formData: FormData) {
   await assertAnyPermission(["story.reject", "story.moderate"]);
   const storyId = String(formData.get("story_id") ?? "");
   const note = String(formData.get("moderation_note") ?? "").trim();
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("stories")
     .update({ status: "rejected" })
     .eq("id", storyId)
@@ -189,8 +203,8 @@ export async function rejectEpisodeAction(formData: FormData) {
   const profile = await requireAdminAction();
   const episodeId = String(formData.get("episode_id") ?? "");
   const note = String(formData.get("moderation_note") ?? "").trim();
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("episodes")
     .update({ status: "rejected" })
     .eq("id", episodeId)

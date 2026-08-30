@@ -3,6 +3,7 @@
 import { ChapterContentView } from "@/components/editor/ChapterContentView";
 import { useReaderPreferences } from "@/components/reader/ReaderPreferencesProvider";
 import type {
+  ReaderContentWidth,
   ReaderFontFamily,
   ReaderFontSize,
   ReaderLineHeight,
@@ -35,13 +36,21 @@ const fontFamilyClass: Record<ReaderFontFamily, string> = {
 const themeClass: Record<ReaderTheme, string> = {
   dark: "text-zinc-100/95",
   light: "text-zinc-900",
-  paper: "text-[#3d3428]"
+  paper: "text-[#3d3428]",
+  black: "text-zinc-100/95"
 };
 
 const themeSurfaceClass: Record<ReaderTheme, string> = {
   dark: "",
   light: "rounded-xl bg-zinc-50/95 px-1",
-  paper: "rounded-xl bg-[#f4ecd8] px-1"
+  paper: "rounded-xl bg-[#f4ecd8] px-1",
+  black: "rounded-xl bg-black px-1"
+};
+
+const contentWidthClass: Record<ReaderContentWidth, string> = {
+  narrow: "max-w-[36rem] lg:max-w-[40rem]",
+  default: "max-w-[42rem] lg:max-w-full",
+  wide: "max-w-[48rem] lg:max-w-full"
 };
 
 export function ReaderContent({ content }: ReaderContentProps) {
@@ -49,7 +58,7 @@ export function ReaderContent({ content }: ReaderContentProps) {
 
   return (
     <article
-      className={`reader-content mx-auto w-full max-w-[42rem] ${themeSurfaceClass[preferences.theme]} ${themeClass[preferences.theme]} ${fontSizeClass[preferences.fontSize]} ${lineHeightClass[preferences.lineHeight]} ${fontFamilyClass[preferences.fontFamily]}`}
+      className={`reader-content mx-auto w-full lg:mx-0 ${contentWidthClass[preferences.contentWidth]} ${themeSurfaceClass[preferences.theme]} ${themeClass[preferences.theme]} ${fontSizeClass[preferences.fontSize]} ${lineHeightClass[preferences.lineHeight]} ${fontFamilyClass[preferences.fontFamily]}`}
       data-reader-content="true"
     >
       <div className="break-words px-1 py-1 sm:px-2">

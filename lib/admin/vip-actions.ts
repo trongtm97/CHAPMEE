@@ -1,7 +1,7 @@
 "use server";
 
 import { checkStaffPermission } from "@/lib/auth/staff-guards";
-import { upsertVipPlan } from "@/lib/supabase/vip";
+import { upsertVipPlan } from "@/lib/data/vip";
 
 function parseBool(value: FormDataEntryValue | null) {
   return String(value ?? "") === "true";

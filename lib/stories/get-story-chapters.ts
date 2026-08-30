@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   buildChapterRanges,
   CHAPTER_PAGE_SIZE,
@@ -49,8 +49,8 @@ function mapRow(row: EpisodeRow): StoryChapterMeta {
 }
 
 export async function getStoryChapterCount(storyId: string): Promise<number> {
-  const supabase = await createClient();
-  const { count, error } = await supabase
+  const db = await createClient();
+  const { count, error } = await db
     .from("episodes")
     .select("id", { count: "exact", head: true })
     .eq("story_id", storyId)
@@ -68,7 +68,7 @@ export async function getStoryChapters(
 ): Promise<StoryChaptersResult> {
   const pageSize = input.pageSize ?? CHAPTER_PAGE_SIZE;
   const sort: ChapterSort = input.sort ?? "asc";
-  const supabase = await createClient();
+  const db = await createClient();
 
   const totalChapters = await getStoryChapterCount(input.storyId);
   const availableRanges = buildChapterRanges(totalChapters, pageSize);
@@ -86,7 +86,7 @@ export async function getStoryChapters(
 
   const search = input.search?.trim() ?? "";
 
-  let query = supabase
+  let query = db
     .from("episodes")
     .select("id, episode_number, title, slug, public_code, excerpt, published_at")
     .eq("story_id", input.storyId)

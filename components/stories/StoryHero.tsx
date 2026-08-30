@@ -1,3 +1,4 @@
+import { ChapMeeCover } from "@/components/common/ChapMeeCover";
 import { Card } from "@/components/ui";
 import { EarlyFanBadge } from "@/components/stories/EarlyFanBadge";
 import { StoryActions } from "@/components/stories/StoryActions";
@@ -17,23 +18,15 @@ export function StoryHero({ story, userState, showOriginalsBadge }: StoryHeroPro
   return (
     <section className="space-y-5">
       <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-[var(--surface)] shadow-[0_20px_40px_rgba(0,0,0,0.28)]">
-        <div className="grid gap-0 sm:grid-cols-[9rem_1fr] md:grid-cols-[11rem_1fr]">
-          <div className="aspect-[3/4] min-h-56 bg-zinc-900 sm:min-h-0">
-            {story.coverUrl ? (
-              <div
-                aria-label={story.title}
-                className="h-full w-full bg-cover bg-center"
-                role="img"
-                style={{ backgroundImage: `url(${story.coverUrl})` }}
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center bg-gradient-to-br from-cyan-300/24 via-sky-300/10 to-zinc-900 px-8 text-center">
-                <p className="text-4xl font-black tracking-normal text-white">
-                  {story.title.charAt(0).toUpperCase()}
-                </p>
-              </div>
-            )}
-          </div>
+        <div className="grid items-start gap-0 sm:grid-cols-[11rem_1fr] md:grid-cols-[12rem_1fr]">
+          <ChapMeeCover
+            alt={story.title}
+            className="mx-auto w-full max-w-[12rem] self-start sm:max-w-[11rem] md:max-w-[12rem]"
+            imgClassName="absolute inset-0 h-full w-full object-cover"
+            size="full"
+            src={story.coverUrl}
+            title={story.title}
+          />
 
           <div className="space-y-5 p-5 sm:p-6">
             <div>

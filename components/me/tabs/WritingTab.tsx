@@ -1,9 +1,5 @@
 import Link from "next/link";
 import { CreatorStudioCard } from "@/components/me/CreatorStudioCard";
-import { CombinedEmptyState } from "@/components/me/CombinedEmptyState";
-import { EarlyFanSection } from "@/components/profile/EarlyFanSection";
-import { ThankYouSection } from "@/components/thankyou";
-import { TopFansSection } from "@/components/fans";
 import { Card, SectionHeader } from "@/components/ui";
 import type { MePageData } from "@/types/me-page";
 
@@ -11,21 +7,42 @@ type WritingTabProps = {
   data: MePageData;
 };
 
+const statusLabels: Record<string, string> = {
+  draft: "Nháp",
+  pending: "Chờ duyệt",
+  published: "Đã đăng",
+  approved: "Đã duyệt",
+  rejected: "Từ chối",
+  archived: "Lưu trữ"
+};
+
 export function WritingTab({ data }: WritingTabProps) {
   const isCreator = Boolean(data.creatorProfile);
-  const hasFanContent =
-    data.readerProfile.topFanHighlights.length > 0 ||
-    data.readerProfile.earlyFanStories.length > 0 ||
-    data.thankYous.length > 0;
+  const recentStories = data.recentCreatorStories;
 
-  if (!isCreator && !hasFanContent) {
+  if (!isCreator) {
     return (
       <div className="space-y-4">
-        <CreatorStudioCard creatorProfile={null} stats={null} />
-        <CombinedEmptyState
-          description="Đăng truyện đầu tiên để mở Studio và theo dõi cộng đồng độc giả."
-          title="Bạn chưa bắt đầu hành trình sáng tác."
-        />
+        <Card className="space-y-3 p-4 text-center">
+          <h2 className="text-base font-bold text-white">Bắt đầu viết trên ChapMee</h2>
+          <p className="text-xs leading-5 text-zinc-500">
+            Tạo truyện đầu tiên, mở Studio và chia sẻ với độc giả.
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Link
+              className="inline-flex min-h-9 items-center justify-center rounded-full bg-cyan-300 px-4 text-xs font-bold text-zinc-950"
+              href="/studio"
+            >
+              Bắt đầu viết
+            </Link>
+            <Link
+              className="inline-flex min-h-9 items-center justify-center rounded-full border border-white/12 px-4 text-xs font-semibold text-zinc-200"
+              href="/studio/stories/new"
+            >
+              Tạo truyện đầu tiên
+            </Link>
+          </div>
+        </Card>
       </div>
     );
   }
@@ -37,66 +54,39 @@ export function WritingTab({ data }: WritingTabProps) {
         stats={data.creatorStats}
       />
 
-      {isCreator ? (
-        <>
-          {data.creatorStats ? (
-            <section className="space-y-2">
-              <SectionHeader title="Thống kê nhanh" />
-              <Card className="grid grid-cols-3 gap-2 p-3">
-                <Stat label="Truyện" value={data.creatorStats.stories} />
-                <Stat label="Lượt đọc" value={data.creatorStats.reads} />
-                <Stat label="Bình luận" value={data.creatorStats.comments} />
-              </Card>
-            </section>
-          ) : null}
-
-          <section className="space-y-2">
-            <SectionHeader title="Truyện của tôi" />
-            <Card className="flex flex-wrap gap-2 p-3">
-              <ActionLink href="/studio/stories" label="Quản lý truyện" />
-              <ActionLink href="/studio/stories/new" label="Đăng truyện" />
-              <ActionLink href="/studio" label="Mở Studio" />
-            </Card>
-          </section>
-        </>
+      {recentStories.length > 0 ? (
+        <section className="space-y-2">
+          <SectionHeader
+            action={
+              <Link className="text-xs font-semibold text-cyan-200" href="/studio/stories">
+                Xem tất cả
+              </Link>
+            }
+            title="Truyện gần đây"
+          />
+          <div className="space-y-2">
+            {recentStories.map((story) => (
+              <Link href={`/studio/stories/${story.id}/edit`} key={story.id}>
+                <Card className="flex items-center justify-between gap-3 p-3 transition hover:border-cyan-300/20">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-white">{story.title}</p>
+                    <p className="mt-0.5 text-[0.65rem] text-zinc-500">
+                      {statusLabels[story.status] ?? story.status}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-zinc-600">→</span>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </section>
       ) : null}
 
-      {data.thankYous.length > 0 ? (
-        <ThankYouSection
-          emptyDescription=""
-          emptyTitle=""
-          items={data.thankYous}
-          subtitle="Lời cảm ơn dành cho bạn hoặc nhóm độc giả."
-          title="Lời cảm ơn"
-        />
-      ) : null}
-
-      {data.readerProfile.topFanHighlights.length > 0 ? (
-        <TopFansSection
-          challengeTip=""
-          currentUserTip="Bạn đang là Top Fan #{rank}."
-          emptyDescription=""
-          emptyTitle=""
-          items={data.readerProfile.topFanHighlights}
-          subtitle="Danh hiệu Top Fan bạn đang giữ."
-          title="Top Fan"
-        />
-      ) : null}
-
-      {data.readerProfile.earlyFanStories.length > 0 ? (
-        <EarlyFanSection items={data.readerProfile.earlyFanStories} />
-      ) : null}
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-white/8 bg-white/[0.02] px-2 py-2 text-center">
-      <p className="text-sm font-black text-white">{value}</p>
-      <p className="mt-0.5 text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-zinc-600">
-        {label}
-      </p>
+      <Card className="flex flex-wrap gap-2 p-3">
+        <ActionLink href="/studio" label="Mở Studio" />
+        <ActionLink href="/studio/stories/new" label="Đăng truyện" />
+        <ActionLink href="/studio/drafts" label="Nháp" />
+      </Card>
     </div>
   );
 }

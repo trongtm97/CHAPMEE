@@ -12,14 +12,14 @@ import { loadTaxonomyExposureShare } from "@/lib/fair-distribution/load-taxonomy
 import { enforceFeedDiversity } from "@/lib/fairness/diversity";
 import { applyExposureCaps } from "@/lib/fairness/apply-exposure-caps";
 import { loadExposure7dContext } from "@/lib/fairness/load-exposure-7d";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import type {
   FairDistributionContext,
   ScoredFeedCandidate,
   SimulationResult
 } from "@/types/fair-distribution";
 import type { FeedCandidate, FeedSurface } from "@/types/feed-mixer";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { summarizeFeedDiversity } from "@/lib/fairness/diversity";
 
 function genreShareInFeed(items: FeedCandidate[]) {
@@ -81,17 +81,16 @@ export function applyAuthorCaps(
 }
 
 export async function rankCandidates(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   candidates: FeedCandidate[],
   context: FairDistributionContext
 ): Promise<ScoredFeedCandidate[]> {
   const config = await getFairDistributionConfig();
-  const { flags, qualityStatuses } = await loadQualityContextForCandidates(
-    supabase,
+  const { flags, qualityStatuses } = await loadQualityContextForCandidates(db,
     candidates
   );
   const filtered = applyQualityPenalties(candidates, config, flags, qualityStatuses);
-  const taxonomyShare = await loadTaxonomyExposureShare(supabase, context.surface, 7);
+  const taxonomyShare = await loadTaxonomyExposureShare(db, context.surface, 7);
 
   const placed: FeedCandidate[] = [];
   const scored: ScoredFeedCandidate[] = [];
@@ -120,7 +119,7 @@ export async function rankCandidates(
 }
 
 export async function runFairDistributionPipeline(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     surface: FeedSurface;
     items: FeedCandidate[];
@@ -129,8 +128,7 @@ export async function runFairDistributionPipeline(
   }
 ): Promise<FeedCandidate[]> {
   const config = await getFairDistributionConfig();
-  const { flags, qualityStatuses } = await loadQualityContextForCandidates(
-    supabase,
+  const { flags, qualityStatuses } = await loadQualityContextForCandidates(db,
     input.items
   );
 
@@ -140,15 +138,14 @@ export async function runFairDistributionPipeline(
   try {
     exposure = await loadExposure7dContext(createAdminClient(), input.surface);
   } catch {
-    exposure = await loadExposure7dContext(supabase, input.surface);
+    exposure = await loadExposure7dContext(db, input.surface);
   }
 
-  items = await applyExposureCaps(items, input.surface, exposure, {
-    supabase,
+  items = await applyExposureCaps(items, input.surface, exposure, { db,
     requestId: input.requestId
   });
 
-  const taxonomyShare = await loadTaxonomyExposureShare(supabase, input.surface, 7);
+  const taxonomyShare = await loadTaxonomyExposureShare(db, input.surface, 7);
   items = applyTaxonomyFairness(items, taxonomyShare, config);
   items = applyAuthorCaps(items, config.caps.maxItemsPerAuthorPerPage);
 
@@ -160,21 +157,21 @@ export async function runFairDistributionPipeline(
 }
 
 export async function simulateRanking(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   context: FairDistributionContext & { limit?: number }
 ): Promise<SimulationResult> {
   const surface = context.surface as SimulationResult["surface"];
   const limit = context.limit ?? 30;
 
   const { getCandidatesForSurface } = await import("@/lib/feed/pools");
-  const mixed = await getCandidatesForSurface(supabase, context.surface, context.userId, {
+  const mixed = await getCandidatesForSurface(db, context.surface, context.userId, {
     limit: limit * 3,
     requestId: `sim-${Date.now()}`,
     excludeKeys: context.recentlySeenKeys,
     recentlySeenKeys: context.recentlySeenKeys
   });
 
-  const ranked = await rankCandidates(supabase, mixed.candidates, {
+  const ranked = await rankCandidates(db, mixed.candidates, {
     ...context,
     simulation: true,
     limit

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   buildFeedItemsFromPosts,
   computeHotScore,
@@ -14,6 +14,10 @@ import {
   mapCommunityPostRows,
   previewCommunityContent
 } from "@/lib/community/map-community-posts";
+import {
+  resolveProfileAvatarUrl,
+  resolveProfileAvatarUrlForUser
+} from "@/lib/profile/resolve-profile-avatar";
 import type {
   AuthorCommunityGroup,
   CommunityFeedItem,
@@ -43,9 +47,20 @@ type CommentRow = {
   created_at: string;
   story_id: string | null;
   episode_id: string | null;
+  user_id: string;
   profiles:
-    | { display_name: string | null; username: string | null }
-    | { display_name: string | null; username: string | null }[]
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+        default_avatar_id: number | null;
+      }
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+        default_avatar_id: number | null;
+      }[]
     | null;
   stories:
     | { title: string | null; slug: string | null }
@@ -111,11 +126,11 @@ async function fetchPostBatch(
   cursor: { createdAt: string; id: string } | null,
   search: string | undefined
 ) {
-  const supabase = await createClient();
-  let query = supabase
+  const db = await createClient();
+  let query = db
     .from("community_posts")
     .select(
-      "id, type, title, content, created_at, story_id, profiles!community_posts_user_id_fkey(display_name, username), stories(title, slug, creator_id, creator_profiles(id, pen_name))"
+      "id, type, title, content, created_at, story_id, user_id, profiles!community_posts_user_id_fkey(display_name, username, avatar_url, default_avatar_id), stories(title, slug, public_code, creator_id, creator_profiles(id, user_id, pen_name, profiles!creator_profiles_user_id_fkey(display_name, username)))"
     )
     .eq("status", "approved")
     .in("type", ["discussion", "review", "poll_placeholder", "challenge"]);
@@ -171,6 +186,8 @@ function commentToFeedItem(row: CommentRow): CommunityFeedItem {
     kind: "story_comment_highlight",
     authorName,
     authorUsername: author?.username?.trim().toLowerCase() ?? null,
+    authorAvatarUrl: resolveProfileAvatarUrlForUser(row.user_id, author),
+    authorUserId: row.user_id ?? null,
     authorRole: "reader",
     createdAt: row.created_at,
     title: null,
@@ -199,11 +216,11 @@ async function fetchCommentBatch(
   cursor: { createdAt: string; id: string } | null,
   search: string | undefined
 ) {
-  const supabase = await createClient();
-  let query = supabase
+  const db = await createClient();
+  let query = db
     .from("comments")
     .select(
-      "id, content, created_at, story_id, episode_id, profiles(display_name, username), stories(title, slug), episodes(episode_number)"
+      "id, content, created_at, story_id, episode_id, user_id, profiles(display_name, username, avatar_url, default_avatar_id), stories(title, slug), episodes(episode_number)"
     )
     .eq("status", "visible")
     .not("story_id", "is", null);
@@ -358,23 +375,59 @@ export async function getCommunityFeedPage(
   }
 }
 
-export async function getCommunitySession(): Promise<{
+export type CommunitySession = {
   isLoggedIn: boolean;
   userId: string | null;
-}> {
+  displayName: string | null;
+  avatarUrl: string | null;
+};
+
+export async function getCommunitySession(): Promise<CommunitySession> {
+  const guest: CommunitySession = {
+    isLoggedIn: false,
+    userId: null,
+    displayName: null,
+    avatarUrl: null
+  };
+
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const {
       data: { user },
       error
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
     if (error && !error.message.toLowerCase().includes("auth session missing")) {
       throw error;
     }
 
-    return { isLoggedIn: Boolean(user), userId: user?.id ?? null };
+    if (!user) {
+      return guest;
+    }
+
+    const { data: profile } = await db
+      .from("profiles")
+      .select("display_name, avatar_url, default_avatar_id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const profileRow = profile as {
+      display_name: string | null;
+      avatar_url: string | null;
+      default_avatar_id: number | null;
+    } | null;
+
+    return {
+      isLoggedIn: true,
+      userId: user.id,
+      displayName: profileRow?.display_name?.trim() || null,
+      avatarUrl: resolveProfileAvatarUrl({
+        id: user.id,
+        avatar_url: profileRow?.avatar_url,
+        default_avatar_id: profileRow?.default_avatar_id
+      })
+    };
   } catch {
-    return { isLoggedIn: false, userId: null };
+    return guest;
   }
 }

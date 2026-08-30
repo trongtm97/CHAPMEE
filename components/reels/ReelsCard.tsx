@@ -1,4 +1,4 @@
-﻿import { VerifiedName } from "@/components/profile/VerifiedBadge";
+﻿import { AuthorNameLink } from "@/components/profile/AuthorNameLink";
 import type { ReelsItem } from "@/lib/reels/getReelsItems";
 
 type ReelsCardProps = {
@@ -51,11 +51,32 @@ export function ReelsCard({ index, item, total }: ReelsCardProps) {
             {genreLabel}
           </p>
           <p className="mt-2 text-sm font-semibold text-zinc-200/90">{item.storyTitle}</p>
-          <h1 className="mt-2 text-[2rem] font-black leading-[1.02] tracking-normal text-white sm:text-[2.45rem]">
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {item.contentOrigin === "translation" ? (
+              <>
+                <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold text-amber-100">
+                  Dịch
+                </span>
+                <span className="rounded-full bg-cyan-300/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-100">
+                  Miễn phí
+                </span>
+              </>
+            ) : (
+              <span className="rounded-full bg-cyan-300/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-100">
+                Truyện sáng tác
+              </span>
+            )}
+          </div>
+          <h2 className="mt-2 text-[2rem] font-black leading-[1.02] tracking-normal text-white sm:text-[2.45rem]">
             {item.episodeTitle}
-          </h1>
+          </h2>
           <p className="mt-2 flex flex-wrap items-center gap-1 text-xs font-medium text-zinc-400">
-            <VerifiedName badge={item.creatorVerification} name={creatorLabel} />
+            <AuthorNameLink
+              badge={item.creatorVerification}
+              name={creatorLabel}
+              userId={item.creatorUserId}
+              username={item.creatorHandle}
+            />
             <span>
               · Chap {index + 1}/{total} · {item.episodeNumber}
             </span>

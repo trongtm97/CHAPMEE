@@ -1,5 +1,5 @@
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export type ReadingProgressInput = {
   storyId: string;
@@ -8,11 +8,11 @@ export type ReadingProgressInput = {
 };
 
 export async function persistReadingProgress(input: ReadingProgressInput) {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user },
     error: userError
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (userError || !user) {
     return;
@@ -28,7 +28,7 @@ export async function persistReadingProgress(input: ReadingProgressInput) {
   }
 
   const nextProgress = Math.max(0, Math.min(100, input.progressPercent));
-  const { data: existing } = await supabase
+  const { data: existing } = await db
     .from("reading_progress")
     .select("progress_percent")
     .eq("user_id", user.id)
@@ -36,7 +36,7 @@ export async function persistReadingProgress(input: ReadingProgressInput) {
     .maybeSingle();
   const existingProgress = Number(existing?.progress_percent ?? 0);
 
-  await supabase.from("reading_progress").upsert(
+  await db.from("reading_progress").upsert(
     {
       user_id: user.id,
       story_id: input.storyId,
@@ -45,4 +45,24 @@ export async function persistReadingProgress(input: ReadingProgressInput) {
     },
     { onConflict: "user_id,story_id" }
   );
+
+  const { maybeAwardTicketsForReadingProgress } = await import(
+    "@/lib/recommendations/award-from-reading"
+  );
+  const progressPercent = Math.max(existingProgress, nextProgress);
+  await maybeAwardTicketsForReadingProgress({
+    userId: user.id,
+    storyId: input.storyId,
+    chapterId: input.episodeId,
+    progressPercent
+  }).catch((error) => {
+    console.error("[recommendation-tickets] reading award failed", error);
+  });
+
+  const { maybeAwardDailyActivityTickets } = await import(
+    "@/lib/recommendations/award-daily-activity"
+  );
+  await maybeAwardDailyActivityTickets(user.id).catch((error) => {
+    console.error("[recommendation-tickets] daily activity award failed", error);
+  });
 }

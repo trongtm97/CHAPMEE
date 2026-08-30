@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { analyticsEvents } from "@/lib/analytics/events";
 
 export type AdminAnalyticsRange = "7d" | "30d" | "all";
@@ -117,7 +117,7 @@ export async function getAdminAnalytics(
   const fallback = emptyData(activeRange);
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const rangeStart = getRangeStart(activeRange);
 
     const [
@@ -143,81 +143,81 @@ export async function getAdminAnalytics(
       feedReadMore
     ] = await Promise.all([
       applyDateFilter(
-        supabase.from("profiles").select("id", { count: "exact", head: true }),
+        db.from("profiles").select("id", { count: "exact", head: true }),
         rangeStart
       ),
       applyDateFilter(
-        supabase
+        db
           .from("creator_profiles")
           .select("id", { count: "exact", head: true }),
         rangeStart
       ),
       applyDateFilter(
-        supabase.from("stories").select("id", { count: "exact", head: true }),
+        db.from("stories").select("id", { count: "exact", head: true }),
         rangeStart
       ),
       applyDateFilter(
-        supabase.from("episodes").select("id", { count: "exact", head: true }),
+        db.from("episodes").select("id", { count: "exact", head: true }),
         rangeStart
       ),
       applyDateFilter(
-        supabase
+        db
           .from("stories")
           .select("id", { count: "exact", head: true })
           .eq("status", "pending"),
         rangeStart
       ),
       applyDateFilter(
-        supabase
+        db
           .from("episodes")
           .select("id", { count: "exact", head: true })
           .eq("status", "pending"),
         rangeStart
       ),
       applyDateFilter(
-        supabase
+        db
           .from("stories")
           .select("id", { count: "exact", head: true })
           .in("status", ["approved", "published"]),
         rangeStart
       ),
       applyDateFilter(
-        supabase.from("comments").select("id", { count: "exact", head: true }),
+        db.from("comments").select("id", { count: "exact", head: true }),
         rangeStart
       ),
       applyDateFilter(
-        supabase.from("reports").select("id", { count: "exact", head: true }),
+        db.from("reports").select("id", { count: "exact", head: true }),
         rangeStart
       ),
       applyDateFilter(
-        supabase
+        db
           .from("community_posts")
           .select("id", { count: "exact", head: true }),
         rangeStart
       ),
       applyDateFilter(
-        supabase
+        db
           .from("comments")
           .select("id", { count: "exact", head: true })
           .in("status", ["hidden", "deleted"]),
         rangeStart
       ),
       applyDateFilter(
-        supabase
+        db
           .from("stories")
           .select("id", { count: "exact", head: true })
           .eq("status", "rejected"),
         rangeStart
       ),
       applyDateFilter(
-        supabase
+        db
           .from("episodes")
           .select("id", { count: "exact", head: true })
           .eq("status", "rejected"),
         rangeStart
       ),
       applyDateFilter(
-        supabase
+        db
           .from("community_posts")
           .select("id", { count: "exact", head: true })
           .eq("status", "pending"),
@@ -233,7 +233,7 @@ export async function getAdminAnalytics(
 
     function eventCount(eventName: string) {
       return applyDateFilter(
-        supabase
+        db
           .from("analytics_events")
           .select("id", { count: "exact", head: true })
           .eq("event_name", eventName),

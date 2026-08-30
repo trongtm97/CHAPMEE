@@ -1,37 +1,37 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { TransactionKpiSummary } from "@/types/admin-transaction";
 
 export async function getTransactionKpis(options?: {
   startDate?: string;
   endDate?: string;
 }): Promise<{ data: TransactionKpiSummary; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  let countQuery = supabase.from("transactions").select("id", { count: "exact", head: true });
-  let depositQuery = supabase
+  let countQuery = db.from("transactions").select("id", { count: "exact", head: true });
+  let depositQuery = db
     .from("transactions")
     .select("coin_amount")
     .eq("type", "coin_purchase")
     .eq("status", "completed")
     .limit(10000);
-  let spendQuery = supabase
+  let spendQuery = db
     .from("transactions")
     .select("coin_amount")
     .eq("direction", "debit")
     .eq("status", "completed")
     .limit(10000);
-  let reviewCountQuery = supabase
+  let reviewCountQuery = db
     .from("risk_events")
     .select("id", { count: "exact", head: true })
     .in("status", ["open", "reviewing"])
     .not("transaction_id", "is", null);
-  let adminAdjustQuery = supabase
+  let adminAdjustQuery = db
     .from("transactions")
     .select("id", { count: "exact", head: true })
     .eq("type", "admin_coin_adjustment");
-  let failedQuery = supabase
+  let failedQuery = db
     .from("transactions")
     .select("id", { count: "exact", head: true })
     .eq("status", "failed");

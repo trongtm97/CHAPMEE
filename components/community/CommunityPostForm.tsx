@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
-import { Button, Card, Input, Textarea } from "@/components/ui";
+import { Button, Card, Textarea } from "@/components/ui";
 import {
   createCommunityPostAction,
   type CommunityPostFormState
@@ -79,15 +79,6 @@ export function CommunityPostForm({ defaultType, stories }: CommunityPostFormPro
           </select>
         </label>
 
-        <Input
-          disabled={pending}
-          label="Tiêu đề"
-          maxLength={160}
-          name="title"
-          placeholder="Một chủ đề ngắn gọn, rõ ý"
-          required
-        />
-
         <Textarea
           disabled={pending}
           label="Nội dung"
@@ -129,7 +120,7 @@ export function CommunityPostForm({ defaultType, stories }: CommunityPostFormPro
         {state.success ? (
           <div className="space-y-3 rounded-lg border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-100">
             <p>{state.success}</p>
-            <p>Bạn sẽ được chuyển về Cộng đồng trong giây lát.</p>
+            <p>Bài đã hiển thị trên bảng tin cộng đồng.</p>
             <Link className="font-semibold text-emerald-50" href="/community">
               Quay về Cộng đồng
             </Link>
@@ -137,7 +128,7 @@ export function CommunityPostForm({ defaultType, stories }: CommunityPostFormPro
         ) : null}
 
         <Button className="w-full" loading={pending} type="submit">
-          Gửi chờ duyệt
+          Đăng bài
         </Button>
       </form>
     </Card>

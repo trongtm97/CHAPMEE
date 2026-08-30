@@ -4,7 +4,7 @@ import {
   loadTaxonomyPageSeoMetrics
 } from "@/lib/taxonomy-analytics/load-seo-metrics";
 import { resolveTaxonomyCanonicalPath } from "@/lib/seo/taxonomy-seo";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import type {
   TaxonomyAnalyticsFilters,
   TaxonomyAnalyticsPageData,
@@ -192,7 +192,7 @@ export function parseTaxonomyAnalyticsFilters(
 }
 
 async function resolveFilteredTermIds(filters: TaxonomyAnalyticsFilters) {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   const termIds = new Set<string>();
 
   if (filters.termId) {
@@ -201,7 +201,7 @@ async function resolveFilteredTermIds(filters: TaxonomyAnalyticsFilters) {
   }
 
   if (filters.mainGenreId) {
-    const { data: storyLinks } = await supabase
+    const { data: storyLinks } = await db
       .from("story_taxonomy_terms")
       .select("story_id")
       .eq("term_id", filters.mainGenreId)
@@ -212,7 +212,7 @@ async function resolveFilteredTermIds(filters: TaxonomyAnalyticsFilters) {
       return termIds;
     }
 
-    const { data: relatedTerms } = await supabase
+    const { data: relatedTerms } = await db
       .from("story_taxonomy_terms")
       .select("term_id")
       .in("story_id", storyIds.slice(0, 500));
@@ -225,12 +225,12 @@ async function resolveFilteredTermIds(filters: TaxonomyAnalyticsFilters) {
   }
 
   if (filters.monetizationType) {
-    const { data: monetizationTerms } = await supabase
+    const { data: monetizationTerms } = await db
       .from("story_taxonomy_terms")
       .select("story_id, term_id")
       .eq("type", "monetization_access");
 
-    const { data: monetizationLabels } = await supabase
+    const { data: monetizationLabels } = await db
       .from("taxonomy_terms")
       .select("id, slug")
       .eq("type", "monetization_access")
@@ -252,7 +252,7 @@ export async function getTaxonomyAnalyticsPageData(
   rawFilters: Record<string, string | string[] | undefined>
 ): Promise<TaxonomyAnalyticsPageData> {
   const filters = parseTaxonomyAnalyticsFilters(rawFilters);
-  const supabase = createAdminClient();
+  const db = createAdminClient();
 
   const empty: TaxonomyAnalyticsPageData = {
     filters,
@@ -331,7 +331,7 @@ export async function getTaxonomyAnalyticsPageData(
   try {
     const filteredTermIds = await resolveFilteredTermIds(filters);
 
-    let dailyQuery = supabase
+    let dailyQuery = db
       .from("taxonomy_daily_metrics")
       .select("*")
       .gte("date", filters.from)
@@ -353,7 +353,7 @@ export async function getTaxonomyAnalyticsPageData(
       return { ...empty, error: dailyError.message };
     }
 
-    const { data: termRows } = await supabase
+    const { data: termRows } = await db
       .from("taxonomy_terms")
       .select("*")
       .order("name");
@@ -402,7 +402,7 @@ export async function getTaxonomyAnalyticsPageData(
       .sort((a, b) => (b.reportsWrongTag + b.reportsMissingWarning) - (a.reportsWrongTag + a.reportsMissingWarning))
       .slice(0, 50);
 
-    let surfaceQuery = supabase
+    let surfaceQuery = db
       .from("taxonomy_daily_metrics")
       .select("surface, impressions, clicks, story_starts")
       .gte("date", filters.from)
@@ -521,7 +521,7 @@ export async function getTaxonomyAnalyticsPageData(
       }
     }
 
-    let creatorQuery = supabase
+    let creatorQuery = db
       .from("taxonomy_creator_metrics")
       .select("*")
       .gte("date", filters.from)
@@ -571,7 +571,7 @@ export async function getTaxonomyAnalyticsPageData(
 
     const creatorIds = [...creatorGrouped.keys()];
     if (creatorIds.length > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("id, display_name, username")
         .in("id", creatorIds.slice(0, 200));
@@ -615,7 +615,7 @@ export async function getTaxonomyAnalyticsPageData(
     const prevFrom = new Date(prevTo);
     prevFrom.setUTCDate(prevFrom.getUTCDate() - Math.max(1, Math.floor(periodDays)) + 1);
 
-    let prevQuery = supabase
+    let prevQuery = db
       .from("taxonomy_daily_metrics")
       .select(
         "term_id, impressions, clicks, story_starts, chapter_completes, saves, purchases, revenue_coin, reports_wrong_tag, reports_missing_warning"
@@ -754,7 +754,7 @@ export async function getTaxonomyAnalyticsPageData(
       .map((row) => ({ slug: row.slug, name: row.name }))
       .slice(0, 50);
 
-    const { data: creatorMetricCreators } = await supabase
+    const { data: creatorMetricCreators } = await db
       .from("taxonomy_creator_metrics")
       .select("creator_id")
       .gte("date", filters.from)
@@ -766,7 +766,7 @@ export async function getTaxonomyAnalyticsPageData(
     );
     let creatorOptions: TaxonomyAnalyticsPageData["creatorOptions"] = [];
     if (creatorIdSet.length > 0) {
-      const { data: creatorProfiles } = await supabase
+      const { data: creatorProfiles } = await db
         .from("profiles")
         .select("id, display_name, username")
         .in("id", creatorIdSet);
@@ -894,7 +894,7 @@ export async function getTaxonomyAnalyticsPageData(
           id: base.id,
           severity: "info",
           actionLabel: "Chỉnh SEO",
-          actionHref: "/admin/seo?tab=metadata"
+          actionHref: "/admin/seo/control?tab=metadata"
         });
       } else if (insight.kind === "monetization_opportunity") {
         recommendedActions.push({

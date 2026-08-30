@@ -28,11 +28,11 @@ import {
 
 import { loadTaxonomyExposureShare } from "@/lib/fair-distribution/load-taxonomy-context";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 import type { CandidatePools, FeedCandidate, FeedSurface } from "@/types/feed-mixer";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 import type { RerankRules } from "@/lib/feed/rerank";
 
@@ -40,7 +40,7 @@ import type { RerankRules } from "@/lib/feed/rerank";
 
 async function resolveExposureContext(
 
-  supabase: SupabaseClient,
+  db: DatabaseClient,
 
   surface: FeedSurface
 
@@ -56,7 +56,7 @@ async function resolveExposureContext(
 
     try {
 
-      return await loadExposure7dContext(supabase, surface);
+      return await loadExposure7dContext(db, surface);
 
     } catch {
 
@@ -72,7 +72,7 @@ async function resolveExposureContext(
 
 export async function applyFairnessGuardPipeline(
 
-  supabase: SupabaseClient,
+  db: DatabaseClient,
 
   input: {
 
@@ -94,11 +94,11 @@ export async function applyFairnessGuardPipeline(
 
   const [exposure, fdsConfig, taxonomyShare] = await Promise.all([
 
-    resolveExposureContext(supabase, input.surface),
+    resolveExposureContext(db, input.surface),
 
     getFairDistributionConfig(),
 
-    loadTaxonomyExposureShare(supabase, input.surface, 7)
+    loadTaxonomyExposureShare(db, input.surface, 7)
 
   ]);
 
@@ -112,7 +112,7 @@ export async function applyFairnessGuardPipeline(
 
     } catch {
 
-      return supabase;
+      return db;
 
     }
 
@@ -122,7 +122,7 @@ export async function applyFairnessGuardPipeline(
 
   const { flags, qualityStatuses } = await loadQualityContextForCandidates(
 
-    supabase,
+    db,
 
     input.items
 
@@ -160,7 +160,7 @@ export async function applyFairnessGuardPipeline(
 
   const capped = await applyExposureCaps(withQuota, input.surface, exposure, {
 
-    supabase: logClient,
+    db: logClient,
 
     requestId: input.requestId
 

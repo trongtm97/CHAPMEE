@@ -67,6 +67,18 @@ export function getTextS3Bucket() {
   );
 }
 
+/**
+ * Xác minh (KYC) bucket — private. No public read, no ACL public-read.
+ * Only accessed through short-lived signed URLs via authenticated API.
+ */
+export function getXacminhS3Bucket() {
+  return process.env.S3_XACMINH_BUCKET ?? requiredEnv("S3_XACMINH_BUCKET", undefined);
+}
+
+export function isXacminhBucket(logicalBucket: string): boolean {
+  return logicalBucket === "creator-verification-documents";
+}
+
 function getPublicMediaBaseUrl() {
   return (
     process.env.S3_MEDIA_PUBLIC_BASE_URL ??

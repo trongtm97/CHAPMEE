@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { syncProfileVerificationCache } from "@/lib/verification/sync-profile-cache";
 import {
   areVerificationRequestsEnabled,
@@ -61,10 +61,10 @@ export async function requestVerificationAction(input: {
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date().toISOString();
 
-  const { error } = await supabase.from("account_verifications").insert({
+  const { error } = await db.from("account_verifications").insert({
     user_id: ctx.userId,
     verification_type: input.verificationType,
     status: "pending",

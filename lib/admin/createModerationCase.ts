@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 type CreateModerationCaseInput = {
   reportId?: string | null;
@@ -17,8 +17,8 @@ export async function createModerationCase({
   targetId,
   targetType
 }: CreateModerationCaseInput) {
-  const supabase = await createClient();
-  const { error } = await supabase.from("moderation_cases").insert({
+  const db = await createClient();
+  const { error } = await db.from("moderation_cases").insert({
     report_id: reportId ?? null,
     target_type: targetType,
     target_id: targetId,

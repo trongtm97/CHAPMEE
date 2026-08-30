@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { taxonomyParentTypeFor } from "@/lib/taxonomy/parent-types";
 import {
   TAXONOMY_EXPORT_COLUMNS,
@@ -8,9 +8,9 @@ import type { TaxonomyExportFilters } from "@/types/taxonomy-import-export";
 import type { TaxonomyTermRow } from "@/types/taxonomy";
 
 export async function exportTaxonomyTermsAdvanced(filters: TaxonomyExportFilters = {}) {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  let query = supabase
+  let query = db
     .from("taxonomy_terms")
     .select("*")
     .order("type", { ascending: true })
@@ -45,7 +45,7 @@ export async function exportTaxonomyTermsAdvanced(filters: TaxonomyExportFilters
   const parentMap = new Map<string, { slug: string; type: string }>();
 
   if (parentIds.length > 0) {
-    const { data: parents } = await supabase
+    const { data: parents } = await db
       .from("taxonomy_terms")
       .select("id, slug, type")
       .in("id", parentIds);
@@ -99,12 +99,12 @@ export async function exportTaxonomyTermsAdvanced(filters: TaxonomyExportFilters
     lines.push(rowToCsvLine(values));
   }
 
-  return { csv: lines.join("\n"), rowCount: terms.length, terms, error: null };
+  return { csv: `\uFEFF${lines.join("\n")}`, rowCount: terms.length, terms, error: null };
 }
 
 export async function loadExistingTermsSnapshot() {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("taxonomy_terms")
     .select("id, type, slug, usage_count, aliases")
     .limit(10000);

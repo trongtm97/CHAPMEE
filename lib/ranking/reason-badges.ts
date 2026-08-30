@@ -19,6 +19,8 @@ export function reasonBadgeFromBoard(
       return "long_tail";
     case "completed_stories":
       return "completed";
+    case "boosted_stories":
+      return "boosted";
     case "chapter_next_rate":
       return breakdown.next_chapter_rate >= 0.45 ? "high_next_chapter" : null;
     default:
@@ -37,5 +39,6 @@ export const REASON_BADGE_LABELS: Record<RankingReasonBadge, string> = {
   most_saved: "Lưu nhiều",
   reels_pull: "Reels kéo đọc",
   long_tail: "Giữ chân tốt",
-  completed: "Hoàn thành"
+  completed: "Hoàn thành",
+  boosted: "Được đề cử"
 };

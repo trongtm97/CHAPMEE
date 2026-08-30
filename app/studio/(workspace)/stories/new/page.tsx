@@ -24,9 +24,6 @@ export default async function StudioNewStoryPage() {
 
   const { profile } = await getCurrentUser();
   const formData = await getStoryFormData(creatorProfile);
-  const savedDraft = profile?.id
-    ? await getStudioDraftForEditor(profile.id, "story", null, null)
-    : null;
 
   return (
     <section className="space-y-4 pb-8">
@@ -54,7 +51,7 @@ export default async function StudioNewStoryPage() {
           authorUsername={profile?.username ?? null}
           basePath="/studio"
           profileId={profile?.id ?? ""}
-          savedDraft={savedDraft}
+          savedDraft={null}
           taxonomy={formData.taxonomy}
         />
       )}

@@ -2,7 +2,7 @@ import { AlgorithmItemAuditPanel } from "@/components/admin/algorithm/AlgorithmI
 import { ErrorState } from "@/components/ui";
 import { loadStoryAlgorithmAudit } from "@/lib/explainability/load-item-audit";
 import { requireFinanceSettingsView } from "@/lib/auth/require-permission";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +18,8 @@ export default async function AdminStoriesAlgorithmPage({ params }: PageProps) {
   }
 
   const { id } = await params;
-  const supabase = createAdminClient();
-  const data = await loadStoryAlgorithmAudit(supabase, id);
+  const db = createAdminClient();
+  const data = await loadStoryAlgorithmAudit(db, id);
 
   return (
     <AlgorithmItemAuditPanel

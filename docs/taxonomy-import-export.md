@@ -11,7 +11,7 @@ Route: `/admin/taxonomy/import-export`
 | `lib/taxonomy/import-export/` | Parse, validate, export, execute, jobs |
 | `lib/admin/taxonomy-import-export-actions.ts` | Server actions |
 | `components/admin/taxonomy/TaxonomyImportExportPage.tsx` | UI 4 tabs |
-| `supabase/migrations/183_taxonomy_import_export_jobs.sql` | Job history table |
+| `db/migrations/legacy/183_taxonomy_import_export_jobs.sql` | Job history table |
 
 ## Permissions
 

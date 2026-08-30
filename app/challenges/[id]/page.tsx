@@ -7,8 +7,8 @@ import { EmptyState } from "@/components/ui";
 import { isSponsoredContentEnabled } from "@/lib/campaigns/feature";
 import { sponsoredBannerProps } from "@/lib/campaigns/load-public-campaigns";
 import { buildCanonicalUrl } from "@/lib/seo/metadata";
-import { getChallengeById, createChallengeEntry } from "@/lib/supabase/challenges";
-import { getChallengeCampaignMap } from "@/lib/supabase/campaigns";
+import { getChallengeById, createChallengeEntry } from "@/lib/data/challenges";
+import { getChallengeCampaignMap } from "@/lib/data/campaigns";
 
 type ChallengePageProps = {
   params: Promise<{ id: string }>;

@@ -63,6 +63,12 @@ export const COMMUNITY_AUDIT_ACTIONS = [
   "community_poll_closed",
   "community_challenge_closed",
   "community_spam_rule_updated",
+  "community_sync_setting_updated",
+  "community_sync_settings_saved",
+  "community_sync_backfill_dry_run",
+  "community_sync_backfill_apply",
+  "community_sync_rebuild_projection_dry_run",
+  "community_sync_rebuild_projection_apply",
   "community_post_approve"
 ] as const;
 
@@ -84,7 +90,13 @@ export function communityAuditActionLabel(action: string) {
     community_group_hidden_from_recommendation: "Ẩn nhóm khỏi đề xuất",
     community_poll_closed: "Đóng poll",
     community_challenge_closed: "Kết thúc challenge",
-    community_spam_rule_updated: "Cập nhật cấu hình spam"
+    community_spam_rule_updated: "Cập nhật cấu hình spam",
+    community_sync_setting_updated: "Cập nhật setting đồng bộ nhóm truyện",
+    community_sync_settings_saved: "Lưu cấu hình đồng bộ nhóm truyện",
+    community_sync_backfill_dry_run: "Dry-run backfill nhóm truyện",
+    community_sync_backfill_apply: "Backfill nhóm truyện",
+    community_sync_rebuild_projection_dry_run: "Dry-run rebuild feed projection",
+    community_sync_rebuild_projection_apply: "Rebuild feed projection"
   };
   return map[action] ?? action;
 }

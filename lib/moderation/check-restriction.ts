@@ -1,17 +1,17 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { RestrictionType } from "@/types/moderation";
 
 export async function hasActiveRestriction(
   userId: string,
   restrictionType: RestrictionType
 ): Promise<boolean> {
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date().toISOString();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("account_restrictions")
     .select("id")
     .eq("user_id", userId)

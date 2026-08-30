@@ -2,11 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { getStoryImageForUsage } from "@/lib/images/get-story-image";
-import {
-  STORY_IMAGE_PLACEHOLDER_GRADIENT_CLASS,
-  getStoryPlaceholderInitial
-} from "@/lib/images/placeholders";
+import { ChapMeeStoryCover } from "@/components/common/ChapMeeCover";
 import { EmptyState } from "@/components/ui";
 import { getStoryCardMeta } from "@/lib/stories/story-structure";
 import { getStoryChapterHref, getStoryDetailHref } from "@/lib/stories/story-routes";
@@ -19,45 +15,6 @@ type CreatorStoriesGridProps = {
   featuredEpisodes: PublicCreatorFeaturedEpisode[];
   stories: PublicCreatorStory[];
 };
-
-function StoryCover({
-  coverUrl,
-  title
-}: {
-  coverUrl: string | null;
-  title: string;
-}) {
-  const cover = getStoryImageForUsage({ title, coverUrl }, "libraryCard");
-
-  return (
-    <div className="relative aspect-[2/3] overflow-hidden rounded-[1.2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(125,211,252,0.18),rgba(8,11,16,0.18)),linear-gradient(135deg,#162031,#0b1016)]">
-      {cover.src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          alt={cover.alt}
-          className="absolute inset-0 h-full w-full object-cover"
-          src={cover.src}
-          style={{ objectPosition: cover.objectPosition }}
-        />
-      ) : (
-        <span
-          className={`absolute inset-0 flex items-center justify-center text-lg font-black text-white/85 ${STORY_IMAGE_PLACEHOLDER_GRADIENT_CLASS}`}
-        >
-          {getStoryPlaceholderInitial(title)}
-        </span>
-      )}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),transparent_34%),linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.64)_100%)]" />
-      <div className="absolute inset-x-0 bottom-0 p-4">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-cyan-200">
-          TEXT STORY
-        </p>
-        <h3 className="mt-2 line-clamp-2 text-lg font-black leading-6 text-white">
-          {title}
-        </h3>
-      </div>
-    </div>
-  );
-}
 
 export function CreatorStoriesGrid({
   featuredEpisodes,
@@ -124,8 +81,13 @@ export function CreatorStoriesGrid({
               })}
               key={story.id}
             >
-              <div className="grid grid-cols-[6.5rem,1fr] gap-3">
-                <StoryCover coverUrl={story.coverUrl} title={story.title} />
+              <div className="flex gap-3">
+                <ChapMeeStoryCover
+                  className="rounded-[1.2rem]"
+                  size="md"
+                  story={{ title: story.title, coverUrl: story.coverUrl }}
+                  usage="libraryCard"
+                />
                 <div className="min-w-0 py-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="chap-pill px-2.5 py-1 text-[0.64rem] font-bold uppercase tracking-[0.18em] text-cyan-200">

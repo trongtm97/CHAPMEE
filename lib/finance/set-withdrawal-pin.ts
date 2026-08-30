@@ -5,7 +5,7 @@ import { consumeVerifiedFinanceEmailCode, sendFinanceEmailCode } from "@/lib/fin
 import {
   getCreatorWithdrawalSecurity,
   upsertCreatorWithdrawalSecurity
-} from "@/lib/supabase/creator-finance";
+} from "@/lib/data/creator-finance";
 import { logFinanceSecurityEvent } from "@/lib/finance/log-finance-security";
 import { verifyWithdrawalPin } from "@/lib/finance/verify-withdrawal-pin";
 import {

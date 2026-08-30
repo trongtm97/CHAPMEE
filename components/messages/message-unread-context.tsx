@@ -12,7 +12,7 @@ import {
 import { usePathname } from "next/navigation";
 import { STORAGE_KEYS } from "@/lib/brand/storage";
 import { readSessionCache, writeSessionCache } from "@/lib/client/session-cache";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/data/client";
 
 export const MESSAGE_UNREAD_REFRESH_EVENT = STORAGE_KEYS.messageUnreadRefreshEvent;
 
@@ -115,15 +115,15 @@ export function MessageUnreadProvider({ children }: { children: React.ReactNode 
     let removeChannel: (() => void) | undefined;
 
     void (async () => {
-      const supabase = createClient();
+      const db = createClient();
       const {
         data: { user }
-      } = await supabase.auth.getUser();
+      } = await db.auth.getUser();
       if (!user || cancelled) {
         return;
       }
 
-      const channel = supabase
+      const channel = db
         .channel(`message-unread:${user.id}`)
         .on(
           "postgres_changes",
@@ -171,12 +171,12 @@ export function MessageUnreadProvider({ children }: { children: React.ReactNode 
         .subscribe();
 
       if (cancelled) {
-        void supabase.removeChannel(channel);
+        void db.removeChannel(channel);
         return;
       }
 
       removeChannel = () => {
-        void supabase.removeChannel(channel);
+        void db.removeChannel(channel);
       };
     })();
 

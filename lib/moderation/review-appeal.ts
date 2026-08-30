@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { createNotification } from "@/lib/notifications/create-notification";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export async function reviewAppealAction(formData: FormData) {
   const guard = await requirePermission("moderation.appeal.review", {
@@ -22,8 +22,8 @@ export async function reviewAppealAction(formData: FormData) {
     throw new Error("Thiếu thông tin xử lý khiếu nại.");
   }
 
-  const supabase = await createClient();
-  const { data: appeal } = await supabase
+  const db = await createClient();
+  const { data: appeal } = await db
     .from("moderation_appeals")
     .select("id, user_id, violation_id")
     .eq("id", appealId)
@@ -33,7 +33,7 @@ export async function reviewAppealAction(formData: FormData) {
     throw new Error("Không tìm thấy khiếu nại.");
   }
 
-  await supabase
+  await db
     .from("moderation_appeals")
     .update({
       status: decision,
@@ -43,24 +43,24 @@ export async function reviewAppealAction(formData: FormData) {
     .eq("id", appealId);
 
   if (decision === "accepted") {
-    const { data: violation } = await supabase
+    const { data: violation } = await db
       .from("violations")
       .select("id, user_id")
       .eq("id", appeal.violation_id)
       .maybeSingle();
 
     if (violation) {
-      await supabase
+      await db
         .from("account_strikes")
         .update({ is_active: false })
         .eq("violation_id", violation.id);
 
-      await supabase
+      await db
         .from("account_restrictions")
         .update({ is_active: false })
         .eq("violation_id", violation.id);
 
-      await supabase
+      await db
         .from("profiles")
         .update({ status: "active" })
         .eq("id", violation.user_id)

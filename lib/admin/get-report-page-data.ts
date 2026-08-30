@@ -8,8 +8,8 @@ import {
   RESOLVED_STATUSES,
   REVIEWING_STATUSES
 } from "@/lib/admin/report-labels";
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type {
   RecentlyHandledReportItem,
   ReportCaseQueueItem,
@@ -77,27 +77,27 @@ function aggregateStatus(statuses: string[]) {
 }
 
 async function getTargetTitle(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   targetType: string,
   targetId: string
 ) {
   const type = normalizeTargetType(targetType);
 
   if (type === "story") {
-    const { data } = await supabase.from("stories").select("title").eq("id", targetId).maybeSingle();
+    const { data } = await db.from("stories").select("title").eq("id", targetId).maybeSingle();
     return (data?.title as string) ?? targetId.slice(0, 8);
   }
   if (type === "chapter") {
-    const { data } = await supabase.from("episodes").select("title").eq("id", targetId).maybeSingle();
+    const { data } = await db.from("episodes").select("title").eq("id", targetId).maybeSingle();
     return (data?.title as string) ?? `Chương ${targetId.slice(0, 8)}`;
   }
   if (type === "comment") {
-    const { data } = await supabase.from("comments").select("content").eq("id", targetId).maybeSingle();
+    const { data } = await db.from("comments").select("content").eq("id", targetId).maybeSingle();
     const body = (data?.content as string) ?? "";
     return body.slice(0, 80) || "Bình luận";
   }
   if (type === "community_post") {
-    const { data } = await supabase
+    const { data } = await db
       .from("community_posts")
       .select("title, content")
       .eq("id", targetId)
@@ -105,7 +105,7 @@ async function getTargetTitle(
     return ((data?.title as string) ?? (data?.content as string)?.slice(0, 80)) || "Bài cộng đồng";
   }
   if (type === "user" || type === "author_profile") {
-    const { data } = await supabase
+    const { data } = await db
       .from("profiles")
       .select("display_name, username")
       .eq("id", targetId)
@@ -116,18 +116,18 @@ async function getTargetTitle(
 }
 
 async function resolveReportedUserId(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   targetType: string,
   targetId: string
 ) {
   const type = normalizeTargetType(targetType);
   if (type === "user" || type === "author_profile") return targetId;
   if (type === "comment") {
-    const { data } = await supabase.from("comments").select("user_id").eq("id", targetId).maybeSingle();
+    const { data } = await db.from("comments").select("user_id").eq("id", targetId).maybeSingle();
     return (data?.user_id as string) ?? null;
   }
   if (type === "community_post") {
-    const { data } = await supabase
+    const { data } = await db
       .from("community_posts")
       .select("user_id")
       .eq("id", targetId)
@@ -135,7 +135,7 @@ async function resolveReportedUserId(
     return (data?.user_id as string) ?? null;
   }
   if (type === "story") {
-    const { data } = await supabase
+    const { data } = await db
       .from("stories")
       .select("creator_profiles(user_id)")
       .eq("id", targetId)
@@ -144,7 +144,7 @@ async function resolveReportedUserId(
     return cp?.user_id ?? null;
   }
   if (type === "chapter") {
-    const { data } = await supabase
+    const { data } = await db
       .from("episodes")
       .select("stories(creator_profiles(user_id))")
       .eq("id", targetId)
@@ -230,11 +230,11 @@ export async function getReportPageData(): Promise<ReportPageData> {
   };
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const todayStart = startOfTodayIso();
 
-    const { data: perm } = await supabase.rpc("user_has_permission", {
-      input_user_id: (await supabase.auth.getUser()).data.user?.id,
+    const { data: perm } = await db.rpc("user_has_permission", {
+      input_user_id: (await db.auth.getUser()).data.user?.id,
       permission_code: "report.review"
     });
     const canModerate = Boolean(perm);
@@ -242,7 +242,7 @@ export async function getReportPageData(): Promise<ReportPageData> {
     const selectCols =
       "id, target_type, target_id, reason, reason_code, reason_detail, details, status, priority, assigned_to, moderation_case_id, reported_user_id, reporter_id, created_at, updated_at, profiles:reporter_id(display_name, username)";
 
-    const { data: reportRows, error: reportsError } = await supabase
+    const { data: reportRows, error: reportsError } = await db
       .from("reports")
       .select(selectCols)
       .order("created_at", { ascending: false })
@@ -250,7 +250,7 @@ export async function getReportPageData(): Promise<ReportPageData> {
 
     if (reportsError) {
       if (isMissingSchemaError(reportsError)) {
-        const fallback = await supabase
+        const fallback = await db
           .from("reports")
           .select(
             "id, target_type, target_id, reason, details, status, reporter_id, created_at, updated_at, profiles:reporter_id(display_name, username)"
@@ -271,7 +271,7 @@ export async function getReportPageData(): Promise<ReportPageData> {
 
         const cases = buildCases(rows, new Map());
         for (const c of cases) {
-          c.title = await getTargetTitle(supabase, c.targetType, c.targetId);
+          c.title = await getTargetTitle(db, c.targetType, c.targetId);
         }
 
         return {
@@ -288,7 +288,7 @@ export async function getReportPageData(): Promise<ReportPageData> {
 
     let messageReports = 0;
     try {
-      const { count } = await supabase
+      const { count } = await db
         .from("message_reports")
         .select("id", { count: "exact", head: true })
         .in("status", ["pending", "open", "reviewing"]);
@@ -305,7 +305,7 @@ export async function getReportPageData(): Promise<ReportPageData> {
 
     const profileNames = new Map<string, string>();
     if (profileIds.size) {
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("id, display_name, username")
         .in("id", [...profileIds]);
@@ -319,12 +319,12 @@ export async function getReportPageData(): Promise<ReportPageData> {
 
     const cases = buildCases(rows, profileNames);
     for (const c of cases) {
-      c.title = await getTargetTitle(supabase, c.targetType, c.targetId);
+      c.title = await getTargetTitle(db, c.targetType, c.targetId);
       if (!c.reportedUserName) {
-        const uid = await resolveReportedUserId(supabase, c.targetType, c.targetId);
+        const uid = await resolveReportedUserId(db, c.targetType, c.targetId);
         if (uid) {
           if (!profileNames.has(uid)) {
-            const { data } = await supabase
+            const { data } = await db
               .from("profiles")
               .select("display_name, username")
               .eq("id", uid)
@@ -339,13 +339,13 @@ export async function getReportPageData(): Promise<ReportPageData> {
       }
     }
 
-    const { data: auditToday } = await supabase
+    const { data: auditToday } = await db
       .from("admin_audit_logs")
       .select("id")
       .gte("created_at", todayStart)
       .in("action", REPORT_AUDIT_ACTIONS);
 
-    const { data: recentAudit } = await supabase
+    const { data: recentAudit } = await db
       .from("admin_audit_logs")
       .select("id, action, target_type, target_id, metadata, created_at, actor_id")
       .in("action", REPORT_AUDIT_ACTIONS)
@@ -357,7 +357,7 @@ export async function getReportPageData(): Promise<ReportPageData> {
     ];
     const actorNames = new Map<string, string>();
     if (actorIds.length) {
-      const { data: actors } = await supabase
+      const { data: actors } = await db
         .from("profiles")
         .select("id, display_name, username")
         .in("id", actorIds);
@@ -376,7 +376,7 @@ export async function getReportPageData(): Promise<ReportPageData> {
         const targetId = (row.target_id as string) ?? "";
         let title = targetId.slice(0, 8);
         if (targetId) {
-          title = await getTargetTitle(supabase, targetType, targetId);
+          title = await getTargetTitle(db, targetType, targetId);
         }
 
         const action = row.action as string;

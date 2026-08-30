@@ -225,7 +225,7 @@ lib/moderation/message-safety.ts
 lib/notifications/create-message-notification.ts
 types/messages.ts
 
-supabase/migrations/
+db/migrations/legacy/
   061_messages_system.sql
   062_message_reports_requests.sql
   063_messages_participant_rls_fix.sql

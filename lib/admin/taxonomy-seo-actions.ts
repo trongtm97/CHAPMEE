@@ -11,7 +11,7 @@ import {
   rebuildTaxonomyCanonicalPath
 } from "@/lib/seo/taxonomy-seo";
 import { updateTaxonomyTermAdmin } from "@/lib/taxonomy/admin-data";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { mapTaxonomyTermRow } from "@/lib/taxonomy/map-row";
 import type { TaxonomyTermRow } from "@/types/taxonomy";
 
@@ -61,8 +61,8 @@ export async function generateMissingTaxonomySeoFallbacksAction() {
   const guard = await requireTaxonomySeoAdmin();
   if (!guard.ok) return { updated: 0, error: guard.error };
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("taxonomy_terms")
     .select("*")
     .eq("use_for_seo", true)
@@ -104,8 +104,8 @@ export async function rebuildTaxonomyCanonicalPathsAction() {
   const guard = await requireTaxonomySeoAdmin();
   if (!guard.ok) return { updated: 0, error: guard.error };
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("taxonomy_terms")
     .select("*")
     .eq("is_active", true)

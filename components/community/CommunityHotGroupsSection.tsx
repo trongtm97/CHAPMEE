@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { StoryGroupCard } from "@/components/community/StoryGroupCard";
+import { getCommunityAuthorHref } from "@/lib/community/community-author-url";
 import { AvatarFallback } from "@/components/ui";
 import type { AuthorCommunityGroup, StoryCommunityGroup } from "@/types/community";
 
@@ -41,27 +43,11 @@ export function CommunityHotGroupsSection({
         <div className="flex min-w-max gap-2 pb-0.5">
           {cards.map((card) =>
             card.kind === "story" ? (
-              <Link
-                className="flex w-[8.5rem] shrink-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]"
-                href={`/community/story/${card.group.slug}`}
-                key={card.group.id}
-              >
-                <div className="flex h-12 items-center justify-center bg-gradient-to-br from-cyan-500/15 to-indigo-600/20 text-sm font-black text-white/80">
-                  {card.group.name.slice(0, 1)}
-                </div>
-                <div className="space-y-0.5 p-2">
-                  <p className="line-clamp-2 text-xs font-bold leading-4 text-zinc-100">
-                    {card.group.name}
-                  </p>
-                  <p className="line-clamp-1 text-[0.65rem] text-zinc-500">
-                    {card.group.statusLine}
-                  </p>
-                </div>
-              </Link>
+              <StoryGroupCard group={card.group} key={card.group.id} layout="compact" />
             ) : (
               <Link
                 className="flex w-[8.5rem] shrink-0 flex-col items-center rounded-xl border border-white/10 bg-white/[0.03] p-2 text-center"
-                href={`/community/author/${card.group.authorId}`}
+                href={getCommunityAuthorHref(card.group)}
                 key={card.group.id}
               >
                 <AvatarFallback name={card.group.name} size="sm" src={card.group.avatarUrl} />

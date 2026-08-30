@@ -10,7 +10,7 @@ import {
   getLatestRewardedAdSessionForUser,
   getRewardedAdSessionById,
   updateRewardedAdSessionStatus
-} from "@/lib/supabase/rewarded-ads";
+} from "@/lib/data/rewarded-ads";
 import { creditUserCoins } from "@/lib/wallets/user-wallet";
 import type { RewardedAdsAvailability } from "@/types/rewarded-ad";
 import { addRiskEvent } from "@/lib/risk/risk-engine";

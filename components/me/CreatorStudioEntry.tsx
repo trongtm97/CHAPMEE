@@ -46,7 +46,7 @@ export function CreatorStudioEntry({
             </div>
             <Link
               className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-cyan-300 px-4 py-2 text-sm font-bold uppercase tracking-[0.12em] text-zinc-950 transition hover:bg-cyan-200"
-              href={studioPath("/setup")}
+              href={studioPath()}
             >
               Bắt đầu viết
             </Link>

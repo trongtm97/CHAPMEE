@@ -4,12 +4,13 @@ import { revalidatePath } from "next/cache";
 import { assertCreatorOwnsStory } from "@/lib/creator/assertCreatorOwnsStory";
 import { getCurrentCreatorProfile } from "@/lib/creator/getCurrentCreatorProfile";
 import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
-import { upsertChapterMonetizationSetting } from "@/lib/supabase/chapter-monetization";
-import { createClient } from "@/lib/supabase/server";
+import { upsertChapterMonetizationSetting } from "@/lib/data/chapter-monetization";
+import { createClient } from "@/lib/data/server";
 import { buildStudioMonetizationConfigView } from "@/lib/studio/monetization-config";
 import { studioPath } from "@/lib/studio/constants";
 import { isStoryMonetizationAllowedByQuality } from "@/lib/content-quality/public-visibility";
 import { validateChapterCoinPrice } from "@/lib/studio/validate-chapter-coin-price";
+import { loadStoryOriginPolicy } from "@/lib/content-origin/load-story-origin-policy";
 
 export type UpdateStoryMonetizationInput = {
   storyId: string;
@@ -48,8 +49,13 @@ export async function updateStoryMonetization(
     return { ok: false, error: "Bạn không có quyền cấu hình truyện này." };
   }
 
-  const supabase = await createClient();
-  const { data: storyQuality } = await supabase
+  const originPolicy = await loadStoryOriginPolicy(input.storyId);
+  if (!originPolicy.canSellChapters || !originPolicy.canUseCoinUnlock) {
+    return { ok: false, error: "Story nay khong duoc phep ban chuong hoac coin unlock." };
+  }
+
+  const db = await createClient();
+  const { data: storyQuality } = await db
     .from("stories")
     .select("quality_status, monetization_disabled_by_quality")
     .eq("id", input.storyId)
@@ -79,7 +85,7 @@ export async function updateStoryMonetization(
     Math.max(0, Math.floor(input.freeChaptersCount))
   );
 
-  const { data: storyStructure } = await supabase
+  const { data: storyStructure } = await db
     .from("stories")
     .select("structure_type")
     .eq("id", input.storyId)
@@ -92,7 +98,7 @@ export async function updateStoryMonetization(
     };
   }
 
-  const { data: episodes, error: episodesError } = await supabase
+  const { data: episodes, error: episodesError } = await db
     .from("episodes")
     .select("id, episode_number, status")
     .eq("story_id", input.storyId)

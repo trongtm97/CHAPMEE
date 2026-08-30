@@ -1,6 +1,7 @@
-import { createPublicClient } from "@/lib/supabase/public-client";
+import { createPublicClient } from "@/lib/data/public-client";
 import { getCachedDiscoverTaxonomyTerms } from "@/lib/taxonomy/cache";
-import { getPublicMainGenresWithStoryCounts } from "@/lib/taxonomy/public-genres";import type { CatalogFilterFacet, CatalogFilterOptions } from "@/lib/discovery/types";
+import { getPublicMainGenresWithStoryCounts } from "@/lib/taxonomy/public-genres";
+import type { CatalogFilterFacet, CatalogFilterOptions } from "@/lib/discovery/types";
 import type { TaxonomyType } from "@/types/taxonomy";
 
 function toFacets(
@@ -18,8 +19,8 @@ async function loadFacetType(type: TaxonomyType, limit = 40) {
   return toFacets(terms);
 }
 export async function getCatalogFilterOptions(): Promise<CatalogFilterOptions> {
-  const supabase = createPublicClient();
-  const genreRows = await getPublicMainGenresWithStoryCounts(supabase);
+  const db = createPublicClient();
+  const genreRows = await getPublicMainGenresWithStoryCounts(db);
   const genres: CatalogFilterFacet[] = genreRows.map((row) => ({
     slug: row.slug,
     name: row.name,

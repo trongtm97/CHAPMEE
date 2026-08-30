@@ -1,4 +1,4 @@
-import { createPublicClient } from "@/lib/supabase/public-client";
+import { createPublicClient } from "@/lib/data/public-client";
 import {
   getStoryRankingStart,
   type RankedStoryScore,
@@ -15,8 +15,8 @@ export async function getStoryRankingScores(
   limit = 50
 ): Promise<Map<string, number>> {
   try {
-    const supabase = createPublicClient();
-    const { data, error } = await supabase.rpc("get_public_story_rankings", {
+    const db = createPublicClient();
+    const { data, error } = await db.rpc("get_public_story_rankings", {
       ranking_limit: limit,
       window_start: getStoryRankingStart(window)
     });

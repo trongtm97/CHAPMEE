@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 let extendedSchemaCache: boolean | null = null;
 let auditTableCache: boolean | null = null;
@@ -15,13 +15,13 @@ export function isMissingTableError(message: string | undefined) {
 
 /** Probe once whether migration 140 columns exist on notification_campaigns. */
 export async function hasExtendedNotificationCampaignSchema(
-  supabase: SupabaseClient
+  db: DatabaseClient
 ): Promise<boolean> {
   if (extendedSchemaCache !== null) {
     return extendedSchemaCache;
   }
 
-  const { error } = await supabase.from("notification_campaigns").select("name").limit(1);
+  const { error } = await db.from("notification_campaigns").select("name").limit(1);
 
   if (error && isMissingColumnError(error.message)) {
     extendedSchemaCache = false;
@@ -33,13 +33,13 @@ export async function hasExtendedNotificationCampaignSchema(
 }
 
 export async function hasNotificationCampaignAuditTable(
-  supabase: SupabaseClient
+  db: DatabaseClient
 ): Promise<boolean> {
   if (auditTableCache !== null) {
     return auditTableCache;
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("notification_campaign_audit_logs")
     .select("id")
     .limit(1);

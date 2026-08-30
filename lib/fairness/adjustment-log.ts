@@ -1,8 +1,8 @@
 import type { FairnessAdjustmentLogInput } from "@/types/fairness";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export async function logFairnessAdjustments(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   logs: FairnessAdjustmentLogInput[]
 ) {
   if (logs.length === 0) return;
@@ -21,7 +21,7 @@ export async function logFairnessAdjustments(
   }));
 
   try {
-    await supabase.from("fairness_adjustment_logs").insert(rows);
+    await db.from("fairness_adjustment_logs").insert(rows);
   } catch {
     // Audit logging must not break feed.
   }

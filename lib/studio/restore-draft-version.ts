@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { saveStudioDraft } from "@/lib/studio/save-draft";
 import type { StudioDraftRecord } from "@/types/drafts";
 
@@ -8,9 +8,9 @@ export async function restoreStudioDraftVersion(
   versionId: string
 ): Promise<{ ok: boolean; draft?: StudioDraftRecord; error?: string }> {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
 
-    const { data: draft, error: draftError } = await supabase
+    const { data: draft, error: draftError } = await db
       .from("creator_drafts")
       .select(
         "id, owner_id, story_id, chapter_id, draft_type, title, content, plain_text"
@@ -27,7 +27,7 @@ export async function restoreStudioDraftVersion(
       return { error: "Không tìm thấy nháp.", ok: false };
     }
 
-    const { data: version, error: versionError } = await supabase
+    const { data: version, error: versionError } = await db
       .from("creator_draft_versions")
       .select("id, title, content, plain_text, word_count")
       .eq("id", versionId)
@@ -75,7 +75,7 @@ export async function restoreStudioDraftVersion(
       return { error: saveResult.error, ok: false };
     }
 
-    const { data: updated, error: reloadError } = await supabase
+    const { data: updated, error: reloadError } = await db
       .from("creator_drafts")
       .select(
         "id, owner_id, story_id, chapter_id, draft_type, title, content, plain_text, status, last_saved_at, created_at, updated_at"
@@ -83,8 +83,8 @@ export async function restoreStudioDraftVersion(
       .eq("id", draftId)
       .single();
 
-    if (reloadError) {
-      throw new Error(reloadError.message);
+    if (reloadError || !updated) {
+      throw new Error(reloadError?.message ?? "Không tải lại được bản nháp.");
     }
 
     return {

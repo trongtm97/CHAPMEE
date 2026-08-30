@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import type {
   ContentQualityConfig,
   ContentQualityReasonCode,
@@ -44,12 +44,12 @@ function repetitiveContentScore(content: string) {
 }
 
 async function fetchReportSignals(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   targetType: "story" | "chapter",
   targetId: string,
   minReports: number
 ) {
-  const { data: reports } = await supabase
+  const { data: reports } = await db
     .from("reports")
     .select("id, reporter_id, status, reason")
     .eq("target_type", targetType)
@@ -62,7 +62,7 @@ async function fetchReportSignals(
   let trustedReportCount = 0;
 
   if (reporterIds.length > 0) {
-    const { data: qualities } = await supabase
+    const { data: qualities } = await db
       .from("reporter_quality")
       .select("user_id, trust_score, spam_suspected")
       .in("user_id", reporterIds);
@@ -82,8 +82,8 @@ async function fetchReportSignals(
   return { thresholdsMet, trustedReportCount, validReportCount };
 }
 
-async function fetchReadingSignals(supabase: SupabaseClient, storyId: string) {
-  const { data: episodes } = await supabase
+async function fetchReadingSignals(db: DatabaseClient, storyId: string) {
+  const { data: episodes } = await db
     .from("episodes")
     .select("id, episode_number")
     .eq("story_id", storyId)
@@ -101,7 +101,7 @@ async function fetchReadingSignals(supabase: SupabaseClient, storyId: string) {
 
   const firstEpisodeId = episodeRows[0].id;
 
-  const { data: progressRows } = await supabase
+  const { data: progressRows } = await db
     .from("reading_progress")
     .select("user_id, episode_id, progress_percent")
     .eq("story_id", storyId);
@@ -212,7 +212,7 @@ function completenessForChapter(episode: EpisodeRow, config: ContentQualityConfi
 }
 
 export async function calculateQualitySignals(input: {
-  supabase: SupabaseClient;
+  db: DatabaseClient;
   targetType: "story" | "chapter";
   targetId: string;
   storyId: string;
@@ -226,24 +226,24 @@ export async function calculateQualitySignals(input: {
     (await getQualityConfig().catch(() => parseQualityConfigDb(null)));
 
   const reportSignals = await fetchReportSignals(
-    input.supabase,
+    input.db,
     input.targetType,
     input.targetId,
     config.minReportsForReview
   );
 
-  const readingSignals = await fetchReadingSignals(input.supabase, input.storyId);
+  const readingSignals = await fetchReadingSignals(input.db, input.storyId);
 
   let completenessIssues: string[] = [];
 
   if (input.targetType === "story") {
     const [{ data: story }, { count: mainGenreCount }] = await Promise.all([
-      input.supabase
+      input.db
         .from("stories")
         .select("id, title, hook, short_description, long_description")
         .eq("id", input.storyId)
         .maybeSingle(),
-      input.supabase
+      input.db
         .from("story_taxonomy_terms")
         .select("id", { count: "exact", head: true })
         .eq("story_id", input.storyId)
@@ -258,7 +258,7 @@ export async function calculateQualitySignals(input: {
       );
     }
   } else {
-    const { data: episode } = await input.supabase
+    const { data: episode } = await input.db
       .from("episodes")
       .select("id, title, content, word_count, episode_number")
       .eq("id", input.targetId)

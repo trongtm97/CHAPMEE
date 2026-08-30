@@ -7,7 +7,7 @@ import {
 import {
   mapTypeFilterToDbTypes
 } from "@/lib/admin/transactions/parse-transaction-filters";
-import { getTransactionsForAdminPaginated } from "@/lib/supabase/transactions";
+import { getTransactionsForAdminPaginated } from "@/lib/data/transactions";
 import type { AdminTransactionListRow, TransactionDashboardFilters } from "@/types/admin-transaction";
 
 export async function listAdminTransactions(filters: TransactionDashboardFilters): Promise<{

@@ -8,18 +8,18 @@ import {
 import { logSlowQuery } from "@/lib/dev/slow-query-log";
 import type { StoryCatalogAccessFilter, StoryCatalogFilterParams } from "@/lib/discovery/types";
 import type { TaxonomyType } from "@/types/taxonomy";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 const PUBLIC_STATUSES = [...publicContentStatuses];
 
 type SlugFilter = { type: TaxonomyType; slug: string };
 
 async function getActiveTermId(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   type: TaxonomyType,
   slug: string
 ) {
-  const { data } = await supabase
+  const { data } = await db
     .from("taxonomy_terms")
     .select("id")
     .eq("type", type)
@@ -33,12 +33,12 @@ async function getActiveTermId(
 }
 
 async function storyIdsForTerm(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   termId: string,
   type: TaxonomyType,
   limit = 5000
 ) {
-  const { data } = await supabase
+  const { data } = await db
     .from("story_taxonomy_terms")
     .select("story_id, stories!inner(id)")
     .eq("term_id", termId)
@@ -46,18 +46,19 @@ async function storyIdsForTerm(
     .eq("stories.visibility", "public")
     .in("stories.status", PUBLIC_STATUSES)
     .neq("stories.quality_status", PERMANENTLY_HIDDEN_QUALITY_STATUS)
+    .is("stories.deleted_at", null)
     .limit(limit);
 
   return [...new Set((data ?? []).map((row) => String(row.story_id)))];
 }
 
 async function filterByPresentationMode(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   ids: Set<string>,
   modeSlug: string
 ) {
   if (ids.size === 0) return ids;
-  const { data } = await supabase
+  const { data } = await db
     .from("story_presentation_settings")
     .select("story_id")
     .in("story_id", [...ids])
@@ -68,20 +69,20 @@ async function filterByPresentationMode(
 }
 
 async function filterByAccess(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   ids: Set<string>,
   access: StoryCatalogAccessFilter
 ) {
   if (ids.size === 0) return ids;
 
-  const { data: monetization } = await supabase
+  const { data: monetization } = await db
     .from("story_monetization_settings")
     .select(
       "story_id, full_access_enabled, free_first_chapters_count, auto_pricing_enabled"
     )
     .in("story_id", [...ids]);
 
-  const { data: paidChapters } = await supabase
+  const { data: paidChapters } = await db
     .from("chapter_monetization_settings")
     .select("chapter_id, episodes!inner(story_id), is_paid, coin_price")
     .in("episodes.story_id", [...ids])
@@ -151,7 +152,7 @@ function collectSlugFilters(params: StoryCatalogFilterParams): SlugFilter[] {
  * Returns [] when filters match no stories.
  */
 export async function resolvePublicCatalogStoryIds(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   params: StoryCatalogFilterParams
 ): Promise<string[] | null> {
   const slugFilters = collectSlugFilters(params);
@@ -159,13 +160,20 @@ export async function resolvePublicCatalogStoryIds(
   const hasAccess = Boolean(params.access);
   const hasWarning = params.hasWarning === "yes" || params.hasWarning === "no";
   const hasNewChapter = params.hasNewChapter === "yes" || params.hasNewChapter === "no";
+  const hasAudio = params.hasAudio === "yes" || params.hasAudio === "no";
+  const hasVideo = params.hasVideo === "yes" || params.hasVideo === "no";
+  const hasContentOrigin =
+    params.contentOrigin === "original" || params.contentOrigin === "translation";
 
   if (
     slugFilters.length === 0 &&
     !hasPresentation &&
     !hasAccess &&
     !hasWarning &&
-    !hasNewChapter
+    !hasNewChapter &&
+    !hasAudio &&
+    !hasVideo &&
+    !hasContentOrigin
   ) {
     return null;
   }
@@ -175,7 +183,7 @@ export async function resolvePublicCatalogStoryIds(
   const filterGroups = buildTaxonomyFilterGroups(params);
   if (filterGroups.length > 0) {
     const startedAt = Date.now();
-    const ids = await filterPublicStoryIdsByTaxonomyGroups(supabase, filterGroups);
+    const ids = await filterPublicStoryIdsByTaxonomyGroups(db, filterGroups);
     logSlowQuery("filter_public_story_ids_by_taxonomy_groups", startedAt, {
       groups: filterGroups.length,
       results: ids.length
@@ -188,7 +196,7 @@ export async function resolvePublicCatalogStoryIds(
 
   if (hasPresentation && params.presentation) {
     if (!matching) {
-      const { data } = await supabase
+      const { data } = await db
         .from("story_presentation_settings")
         .select("story_id, stories!inner(id)")
         .eq("mode", params.presentation.trim())
@@ -198,7 +206,7 @@ export async function resolvePublicCatalogStoryIds(
       matching = new Set((data ?? []).map((row) => String(row.story_id)));
     } else {
       matching = await filterByPresentationMode(
-        supabase,
+        db,
         matching,
         params.presentation
       );
@@ -207,7 +215,7 @@ export async function resolvePublicCatalogStoryIds(
   }
 
   if (hasWarning) {
-    const { data: warningLinks } = await supabase
+    const { data: warningLinks } = await db
       .from("story_taxonomy_terms")
       .select("story_id")
       .eq("type", "content_warning")
@@ -216,7 +224,7 @@ export async function resolvePublicCatalogStoryIds(
       (warningLinks ?? []).map((row) => String(row.story_id))
     );
     if (!matching) {
-      const { data: allPublic } = await supabase
+      const { data: allPublic } = await db
         .from("stories")
         .select("id")
         .eq("visibility", "public")
@@ -233,7 +241,7 @@ export async function resolvePublicCatalogStoryIds(
 
   if (hasNewChapter) {
     const recentIds = await getStoryIdsWithRecentEpisodes(
-      supabase,
+      db,
       14,
       matching ? [...matching] : null
     );
@@ -251,7 +259,7 @@ export async function resolvePublicCatalogStoryIds(
 
   if (hasAccess && params.access) {
     if (!matching) {
-      const { data: allPublic } = await supabase
+      const { data: allPublic } = await db
         .from("stories")
         .select("id")
         .eq("visibility", "public")
@@ -259,7 +267,54 @@ export async function resolvePublicCatalogStoryIds(
         .limit(5000);
       matching = new Set((allPublic ?? []).map((row) => String(row.id)));
     }
-    matching = await filterByAccess(supabase, matching, params.access);
+    matching = await filterByAccess(db, matching, params.access);
+    if (matching.size === 0) return [];
+  }
+
+  if (hasContentOrigin) {
+    if (!matching) {
+      const { data: allPublic } = await db
+        .from("stories")
+        .select("id")
+        .eq("visibility", "public")
+        .in("status", PUBLIC_STATUSES)
+        .eq("content_origin", params.contentOrigin)
+        .limit(5000);
+      matching = new Set((allPublic ?? []).map((row) => String(row.id)));
+    } else {
+      const { data: matchedRows } = await db
+        .from("stories")
+        .select("id")
+        .in("id", [...matching])
+        .eq("content_origin", params.contentOrigin);
+      matching = new Set((matchedRows ?? []).map((row) => String(row.id)));
+    }
+    if (matching.size === 0) return [];
+  }
+
+  if (hasAudio) {
+    const { getStoryIdsWithPublishedAudio } = await import("@/src/lib/audio/audio-summary");
+    const withAudio = new Set(await getStoryIdsWithPublishedAudio());
+    if (!matching) {
+      matching = withAudio;
+    } else if (params.hasAudio === "yes") {
+      matching = new Set([...matching].filter((id) => withAudio.has(id)));
+    } else {
+      matching = new Set([...matching].filter((id) => !withAudio.has(id)));
+    }
+    if (matching.size === 0) return [];
+  }
+
+  if (hasVideo) {
+    const { getStoryIdsWithPublishedFilm } = await import("@/src/lib/film-adaptations/film-card-summary");
+    const withVideo = new Set(await getStoryIdsWithPublishedFilm());
+    if (!matching) {
+      matching = withVideo;
+    } else if (params.hasVideo === "yes") {
+      matching = new Set([...matching].filter((id) => withVideo.has(id)));
+    } else {
+      matching = new Set([...matching].filter((id) => !withVideo.has(id)));
+    }
     if (matching.size === 0) return [];
   }
 
@@ -267,15 +322,15 @@ export async function resolvePublicCatalogStoryIds(
 }
 
 export async function getPublicStoryIdsForTaxonomyTerm(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   type: TaxonomyType,
   slug: string,
   limit = 5000
 ) {
-  const termId = await getActiveTermId(supabase, type, slug);
+  const termId = await getActiveTermId(db, type, slug);
   if (!termId) return [];
   if (type === "presentation_mode") {
-    const { data } = await supabase
+    const { data } = await db
       .from("story_presentation_settings")
       .select("story_id, stories!inner(id)")
       .eq("mode", slug.trim())
@@ -284,5 +339,5 @@ export async function getPublicStoryIdsForTaxonomyTerm(
       .limit(limit);
     return [...new Set((data ?? []).map((row) => String(row.story_id)))];
   }
-  return storyIdsForTerm(supabase, termId, type, limit);
+  return storyIdsForTerm(db, termId, type, limit);
 }

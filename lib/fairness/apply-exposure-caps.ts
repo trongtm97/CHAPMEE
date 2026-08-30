@@ -4,7 +4,7 @@ import type { FairnessAdjustmentLogInput } from "@/types/fairness";
 import { buildScoringConfig } from "@/lib/scoring/config";
 import { getAlgorithmConfig } from "@/lib/algorithm/settings";
 import type { FeedCandidate } from "@/types/feed-mixer";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 function isUnderExposedPool(pool: string) {
   return pool === "under_exposed";
@@ -23,7 +23,7 @@ export async function applyExposureCaps(
   surface: string,
   exposure: Exposure7dContext,
   options?: {
-    supabase?: SupabaseClient;
+    db?: DatabaseClient;
     requestId?: string;
   }
 ): Promise<FeedCandidate[]> {
@@ -148,8 +148,8 @@ export async function applyExposureCaps(
     (log) => Math.abs(log.newScore - log.oldScore) > 0.015
   );
 
-  if (options?.supabase && meaningfulLogs.length > 0) {
-    void logFairnessAdjustments(options.supabase, meaningfulLogs);
+  if (options?.db && meaningfulLogs.length > 0) {
+    void logFairnessAdjustments(options.db, meaningfulLogs);
   }
 
   return adjusted.sort((a, b) => b.mixerScore - a.mixerScore);

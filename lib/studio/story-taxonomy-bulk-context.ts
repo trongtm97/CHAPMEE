@@ -1,19 +1,19 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import type { PersistStoryTaxonomyInput } from "@/lib/creator/persist-story-taxonomy";
 import type { StoryAgeRating } from "@/types/moderation";
 
 export async function loadStoryTaxonomyBulkPersistInput(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string
 ): Promise<PersistStoryTaxonomyInput> {
   const [linksResult, presentationResult, storyResult] = await Promise.all([
-    supabase.from("story_taxonomy_terms").select("term_id").eq("story_id", storyId),
-    supabase
+    db.from("story_taxonomy_terms").select("term_id").eq("story_id", storyId),
+    db
       .from("story_presentation_settings")
       .select("mode")
       .eq("story_id", storyId)
       .maybeSingle(),
-    supabase
+    db
       .from("stories")
       .select("age_rating, content_warnings_confirmed")
       .eq("id", storyId)

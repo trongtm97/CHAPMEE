@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Button, EmptyState } from "@/components/ui";
 import { FileStructureCard } from "@/components/studio/import/FileStructureCard";
 import { StoryQuickPicker } from "@/components/studio/import/StoryQuickPicker";
+import { StorySearchCheckboxList } from "@/components/studio/import/StorySearchCheckboxList";
 import {
   fetchChaptersExportV2Action,
   fetchExportRowsAction,
@@ -12,6 +13,10 @@ import {
   fetchStoriesExportV2ByScopeAction
 } from "@/lib/studio/import-export-actions";
 import { downloadTextFile, exportRowsToCsv, formatExportFileName } from "@/lib/studio/csv";
+import {
+  buildChaptersTemplateCsv,
+  buildStoriesTemplateCsv
+} from "@/lib/studio/import-export-templates";
 import { getEmptyTemplateRows, getHeadersForDataType } from "@/lib/studio/import-export";
 import type {
   ExportScopeInput,
@@ -47,19 +52,25 @@ const STATUS_OPTIONS: Array<{ value: StudioDisplayStatus | "all"; label: string 
 ];
 
 type ExportPanelProps = ImportExportPageData & {
+  initialStoryId?: string;
   onExported?: (fileName: string, rowCount: number, fileContent: string) => void;
 };
 
 export function ExportPanel({
   genres,
   hasExportableData,
+  initialStoryId,
   onExported,
   stories,
   totalStories
 }: ExportPanelProps) {
   const [dataType, setDataType] = useState<ImportExportDataType>("chapters");
-  const [scopeMode, setScopeMode] = useState<ExportScopeInput["mode"]>("all_stories");
-  const [selectedStoryIds, setSelectedStoryIds] = useState<string[]>([]);
+  const [scopeMode, setScopeMode] = useState<ExportScopeInput["mode"]>(
+    initialStoryId ? "selected_stories" : "all_stories"
+  );
+  const [selectedStoryIds, setSelectedStoryIds] = useState<string[]>(
+    initialStoryId ? [initialStoryId] : []
+  );
   const [statusFilter, setStatusFilter] = useState<StudioDisplayStatus | "all">("all");
   const [genreId, setGenreId] = useState("");
   const [updatedAfter, setUpdatedAfter] = useState("");
@@ -81,15 +92,33 @@ export function ExportPanel({
   }
 
   function handleDownloadTemplate() {
-    const headers = getHeadersForDataType(dataType);
-    const templateRows = getEmptyTemplateRows(dataType);
-    const csv = exportRowsToCsv(
-      headers,
-      templateRows.map((row) => Object.fromEntries(headers.map((header) => [header, row[header] ?? ""])))
-    );
-    const fileName = formatExportFileName(`${dataType}_template`, "csv");
+    let csv: string;
+    let fileName: string;
+    let rowCount: number;
+
+    if (dataType === "stories") {
+      csv = buildStoriesTemplateCsv("create");
+      fileName = formatExportFileName("stories_v2_template", "csv");
+      rowCount = 1;
+    } else if (dataType === "chapters") {
+      csv = buildChaptersTemplateCsv();
+      fileName = formatExportFileName("chapters_v2_template", "csv");
+      rowCount = 1;
+    } else {
+      const headers = getHeadersForDataType(dataType);
+      const templateRows = getEmptyTemplateRows(dataType);
+      csv = exportRowsToCsv(
+        headers,
+        templateRows.map((row) =>
+          Object.fromEntries(headers.map((header) => [header, row[header] ?? ""]))
+        )
+      );
+      fileName = formatExportFileName(`${dataType}_template`, "csv");
+      rowCount = templateRows.length;
+    }
+
     downloadTextFile(csv, fileName);
-    onExported?.(fileName, templateRows.length, csv);
+    onExported?.(fileName, rowCount, csv);
   }
 
   function downloadXlsxBase64(fileName: string, xlsxBase64: string) {
@@ -261,6 +290,17 @@ export function ExportPanel({
 
   return (
     <div className="space-y-5">
+      <StoryQuickPicker initialStories={stories} totalStories={totalStories} />
+
+      <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4 text-sm text-cyan-100">
+        <p className="font-semibold">Xuất để lấy mã import</p>
+        <p className="mt-1 text-xs text-cyan-200/80">
+          File xuất có cột <code className="rounded bg-black/30 px-1">story_code</code> và{" "}
+          <code className="rounded bg-black/30 px-1">chapter_code</code> — dùng khi cập nhật truyện/chương đã có.
+          Chỉ thêm chương mới thì chỉ cần <code className="rounded bg-black/30 px-1">story_code</code>.
+        </p>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-2">
         <label className="block space-y-2 text-sm">
           <span className="font-semibold text-zinc-200">Loại dữ liệu</span>
@@ -296,17 +336,13 @@ export function ExportPanel({
       {scopeMode === "selected_stories" ? (
         <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
           <p className="text-sm font-semibold text-zinc-200">Chọn truyện</p>
-          <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
-            {stories.map((story) => (
-              <label className="flex items-center gap-2 text-sm text-zinc-300" key={story.id}>
-                <input
-                  checked={selectedStoryIds.includes(story.id)}
-                  onChange={() => toggleStorySelection(story.id)}
-                  type="checkbox"
-                />
-                {story.title}
-              </label>
-            ))}
+          <div className="mt-3">
+            <StorySearchCheckboxList
+              initialStories={stories}
+              onToggle={toggleStorySelection}
+              selectedIds={selectedStoryIds}
+              totalStories={totalStories}
+            />
           </div>
         </div>
       ) : null}
@@ -417,8 +453,6 @@ export function ExportPanel({
       {error ? <p className="text-sm text-rose-300">{error}</p> : null}
 
       {showStructure ? <FileStructureCard /> : null}
-
-      <StoryQuickPicker initialStories={stories} totalStories={totalStories} />
     </div>
   );
 }

@@ -6,16 +6,16 @@ import {
 import { getStoryTaxonomy } from "@/lib/taxonomy/story-taxonomy";
 import { getStoryPresentationSettings } from "@/lib/taxonomy/presentation";
 import type { PublishChecklistRule } from "@/types/publish-checklist";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export async function getStoryTaxonomyPublishRules(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string
 ): Promise<PublishChecklistRule[]> {
   const [{ data: taxonomy }, presentation, storyRow] = await Promise.all([
     getStoryTaxonomy(storyId),
     getStoryPresentationSettings(storyId),
-    supabase
+    db
       .from("stories")
       .select("content_warnings_confirmed")
       .eq("id", storyId)

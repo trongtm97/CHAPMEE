@@ -30,7 +30,7 @@ export function LifecycleNudge({ nudge, onShown, onDismiss }: LifecycleNudgeProp
   return (
     <div className="relative rounded-2xl border border-cyan-300/25 bg-cyan-300/10 p-4">
       <button
-        aria-label="Dong goi y"
+        aria-label="Đóng gợi ý"
         className="absolute right-2 top-2 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-sm text-zinc-200 transition hover:bg-white/20 disabled:opacity-60"
         disabled={isPending}
         onClick={() => {

@@ -1,5 +1,5 @@
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/data/admin";
+import { createClient } from "@/lib/data/server";
 import type {
   AdRevenueEstimateSettings,
   AdRevenueEstimateSettingsInput
@@ -39,8 +39,8 @@ export async function getAdRevenueEstimateSettings(options?: {
   useAdmin?: boolean;
 }): Promise<AdRevenueEstimateSettings> {
   try {
-    const supabase = options?.useAdmin ? createAdminClient() : await createClient();
-    const { data, error } = await supabase
+    const db = options?.useAdmin ? createAdminClient() : await createClient();
+    const { data, error } = await db
       .from("ad_revenue_estimate_settings")
       .select("*")
       .eq("id", AD_REVENUE_SETTINGS_ID)
@@ -59,7 +59,7 @@ export async function updateAdRevenueEstimateSettings(
   input: AdRevenueEstimateSettingsInput
 ): Promise<{ settings: AdRevenueEstimateSettings | null; error: string | null }> {
   try {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
     const patch: Record<string, unknown> = {};
     if (input.default_rpm_vnd !== undefined) patch.default_rpm_vnd = input.default_rpm_vnd;
     if (input.creator_pool_percent !== undefined) patch.creator_pool_percent = input.creator_pool_percent;
@@ -74,7 +74,7 @@ export async function updateAdRevenueEstimateSettings(
     }
     if (input.notes !== undefined) patch.notes = input.notes;
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("ad_revenue_estimate_settings")
       .update(patch)
       .eq("id", AD_REVENUE_SETTINGS_ID)

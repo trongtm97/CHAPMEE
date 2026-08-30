@@ -1,6 +1,6 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export type AdminAdFraudSignalRow = {
   id: string;
@@ -19,8 +19,8 @@ export async function listAdFraudSignalsForPolicyAdmin(options?: {
   status?: string;
 }): Promise<{ signals: AdminAdFraudSignalRow[]; error: string | null }> {
   try {
-    const supabase = createAdminClient();
-    let query = supabase
+    const db = createAdminClient();
+    let query = db
       .from("ad_fraud_signals")
       .select(
         `

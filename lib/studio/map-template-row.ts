@@ -1,3 +1,4 @@
+import type { PostgrestRow } from "@/lib/db/postgrest-row";
 import { parseTemplateContent } from "@/lib/studio/template-content";
 import type { StudioTemplateRecord, StudioTemplateType } from "@/types/templates";
 
@@ -15,7 +16,7 @@ type TemplateRow = {
   updated_at: string;
 };
 
-export function mapTemplateRow(row: TemplateRow): StudioTemplateRecord {
+export function mapTemplateRow(row: TemplateRow | PostgrestRow): StudioTemplateRecord {
   return {
     content: parseTemplateContent(row.content),
     createdAt: row.created_at,

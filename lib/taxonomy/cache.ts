@@ -25,9 +25,12 @@ async function loadCachedTerms(
 ) {
   const loader = unstable_cache(
     async () => {
-      const result = await getTaxonomyTerms(type, options);
+      const result = await getTaxonomyTerms(type, {
+        ...options,
+        usePublicClient: true
+      });
       if (result.error) {
-        throw new Error(result.error);
+        return [] as TaxonomyTerm[];
       }
       return options.includeInternalNote
         ? result.data
@@ -43,7 +46,10 @@ async function loadCachedTerms(
   try {
     return await loader();
   } catch {
-    const fallback = await getTaxonomyTerms(type, options);
+    const fallback = await getTaxonomyTerms(type, {
+      ...options,
+      usePublicClient: true
+    });
     return fallback.data;
   }
 }

@@ -127,7 +127,7 @@ export async function saveAdminSeoRuleAction(input: SaveSeoRuleInput): Promise<S
     return { ok: false, message: result.error };
   }
 
-  const { createClient } = await import("@/lib/supabase/server");
+  const { createClient } = await import("@/lib/data/server");
   await appendSeoChangeLog(await createClient(), {
     entityType: "seo_rule",
     entityId: input.id,

@@ -7,6 +7,7 @@ import type {
   CaseFileStructuredContent,
   ChatStoryStructuredContent,
   DiaryStructuredContent,
+  MixedMediaStructuredContent,
   PresentationMode,
   ScriptStructuredContent,
   SocialFeedStructuredContent,
@@ -178,6 +179,32 @@ export function migrateLegacyStructuredToComposer(
               action: line.text
             })
           );
+        }
+      }
+      break;
+    }
+    case "mixed_media": {
+      const data = parsed.data as MixedMediaStructuredContent;
+      for (const block of data.blocks) {
+        if (block.type === "prose") {
+          blocks.push(createBlock("prose", { text: block.content }));
+        } else if (block.type === "notice") {
+          blocks.push(
+            createBlock("system_notice", {
+              title: block.title ?? "",
+              content: block.content,
+              tone: "neutral"
+            })
+          );
+        } else if (block.type === "quote") {
+          blocks.push(
+            createBlock("quote", {
+              text: block.content,
+              source: block.attribution ?? ""
+            })
+          );
+        } else if (block.type === "divider") {
+          blocks.push(createBlock("divider"));
         }
       }
       break;

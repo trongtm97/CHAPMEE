@@ -4,8 +4,8 @@
  */
 console.log(
   [
-    "Chạy migration SQL trên Supabase:",
-    "  supabase/migrations/162_taxonomy_backfill_legacy.sql",
+    "Chạy migration SQL trên db:",
+    "  db/migrations/legacy/162_taxonomy_backfill_legacy.sql",
     "",
     "Migration sẽ:",
     "  - Gắn main_genre từ stories.genre_id",

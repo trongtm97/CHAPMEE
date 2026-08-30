@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export type CreatorFeeOverrideStats = {
   customRateCreators: number;
@@ -9,26 +9,26 @@ export type CreatorFeeOverrideStats = {
 };
 
 export async function getCreatorFeeOverrideStats(): Promise<CreatorFeeOverrideStats> {
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date();
   const reviewBefore = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const [customRes, activePoliciesRes, expiringRes, scheduledRes] = await Promise.all([
-    supabase
+    db
       .from("creator_monetization_profiles")
       .select("id", { count: "exact", head: true })
       .not("custom_revenue_share", "is", null),
-    supabase
+    db
       .from("creator_fee_policies")
       .select("id", { count: "exact", head: true })
       .eq("status", "active"),
-    supabase
+    db
       .from("creator_fee_policies")
       .select("id", { count: "exact", head: true })
       .eq("status", "active")
       .not("ends_at", "is", null)
       .lte("ends_at", reviewBefore),
-    supabase
+    db
       .from("creator_fee_policies")
       .select("id", { count: "exact", head: true })
       .eq("status", "scheduled")

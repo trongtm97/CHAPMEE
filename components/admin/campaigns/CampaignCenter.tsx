@@ -20,7 +20,7 @@ import type {
   CampaignWithSponsor,
   SponsorWithStats
 } from "@/types/campaign";
-import type { ChallengeListItem } from "@/lib/supabase/challenges";
+import type { ChallengeListItem } from "@/lib/data/challenges";
 
 type CampaignCenterProps = {
   sponsors: SponsorWithStats[];

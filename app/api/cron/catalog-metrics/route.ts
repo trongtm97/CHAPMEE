@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { refreshStoryCatalogMetrics } from "@/lib/stories/catalog-metrics-view";
 import { invalidateStoryCatalogCache } from "@/lib/stories/getPublicStoriesCatalogCached";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
@@ -23,8 +23,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = createAdminClient();
-    const result = await refreshStoryCatalogMetrics(supabase);
+    const db = createAdminClient();
+    const result = await refreshStoryCatalogMetrics(db);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 500 });
     }

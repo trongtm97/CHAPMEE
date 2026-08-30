@@ -1,45 +1,13 @@
-import { notFound } from "next/navigation";
-import { PolicyForm } from "@/components/admin/policies/PolicyForm";
-import { ErrorState } from "@/components/ui";
-import { getPolicyPageById } from "@/lib/policies/policy-pages";
-import { requireAnyPermission } from "@/lib/auth/require-permission";
-import { buildAdminPolicyCapabilities } from "@/types/policy-pages";
-
-export const dynamic = "force-dynamic";
+import { redirect } from "next/navigation";
 
 type PageProps = {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ tab?: string }>;
 };
 
-export default async function AdminPolicyEditRoute({ params, searchParams }: PageProps) {
-  const guard = await requireAnyPermission(["policies.edit", "policies.view", "content.post.update"], {
-    returnTo: "/admin/policies"
-  });
-
-  if (!guard.ok) {
-    return <ErrorState message={guard.error} title="Không có quyền truy cập" variant="danger" />;
-  }
-
+export default async function AdminPoliciesEditRedirect({ params, searchParams }: PageProps) {
   const { id } = await params;
   const query = await searchParams;
-  const { item, error } = await getPolicyPageById(id);
-  if (error) {
-    return <ErrorState message={error} title="Lỗi tải chính sách" />;
-  }
-  if (!item) {
-    notFound();
-  }
-
-  const capabilities = buildAdminPolicyCapabilities(guard.context.permissions);
-
-  return (
-    <section>
-      <PolicyForm
-        capabilities={capabilities}
-        initialTab={query.tab === "versions" ? "versions" : "edit"}
-        item={item}
-      />
-    </section>
-  );
+  const suffix = query.tab ? `?tab=${encodeURIComponent(query.tab)}` : "";
+  redirect(`/admin/pages/${id}/edit${suffix}`);
 }

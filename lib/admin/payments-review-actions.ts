@@ -3,8 +3,8 @@
 import { requireWalletAdjustAccess } from "@/lib/auth/finance-guards";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { completeCheckoutPayment } from "@/lib/payments/complete-payment";
-import { getCheckoutSessionById, updateCheckoutSessionStatus } from "@/lib/supabase/checkout-sessions";
-import { updatePaymentWebhookEvent } from "@/lib/supabase/payment-webhook-events";
+import { getCheckoutSessionById, updateCheckoutSessionStatus } from "@/lib/data/checkout-sessions";
+import { updatePaymentWebhookEvent } from "@/lib/data/payment-webhook-events";
 
 async function assertPaymentsReviewStaff() {
   return requireWalletAdjustAccess();

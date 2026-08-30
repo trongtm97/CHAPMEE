@@ -10,8 +10,8 @@ import {
   DEFAULT_COMMUNITY_SPAM_SETTINGS
 } from "@/lib/admin/community-admin-labels";
 import { AUTO_DECISION_LABELS } from "@/lib/community/auto-moderation-labels";
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type {
   CommunityAdminPageData,
   CommunityAdminPermissions,
@@ -83,14 +83,14 @@ function parseSpamSettings(value: unknown): CommunitySpamSettings {
 }
 
 async function countReportsByTarget(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   targetType: string,
   targetIds: string[]
 ) {
   const map = new Map<string, number>();
   if (!targetIds.length) return map;
 
-  const { data } = await supabase
+  const { data } = await db
     .from("reports")
     .select("target_id")
     .eq("target_type", targetType)
@@ -131,7 +131,7 @@ export async function getCommunityAdminPageData(
   };
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const todayStart = startOfTodayIso();
 
     const postSelectFull =
@@ -155,71 +155,71 @@ export async function getCommunityAdminPageData(
       creatorsRes,
       groupSettingsRes
     ] = await Promise.all([
-      supabase
+      db
         .from("community_posts")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending"),
-      supabase
+      db
         .from("community_posts")
         .select(postSelectFull)
         .in("status", ["pending", "approved", "hidden", "rejected"])
         .order("created_at", { ascending: false })
         .limit(80),
-      supabase
+      db
         .from("reports")
         .select("id", { count: "exact", head: true })
         .eq("target_type", "comment")
         .in("status", ["open", "reviewing", "pending"]),
-      supabase
+      db
         .from("community_posts")
         .select("id", { count: "exact", head: true })
         .eq("type", "poll_placeholder")
         .eq("status", "approved"),
-      supabase
+      db
         .from("community_posts")
         .select("id", { count: "exact", head: true })
         .eq("type", "challenge")
         .in("status", ["pending", "approved"]),
-      supabase
+      db
         .from("polls")
         .select("id, question, status, created_at, stories(title)")
         .eq("status", "active")
         .order("created_at", { ascending: false })
         .limit(20),
-      supabase
+      db
         .from("creator_challenges")
         .select("id, title, status, created_at")
         .in("status", ["active", "draft"])
         .order("created_at", { ascending: false })
         .limit(20),
-      supabase
+      db
         .from("community_posts")
         .select("id", { count: "exact", head: true })
         .eq("status", "hidden")
         .gte("hidden_at", todayStart),
-      supabase
+      db
         .from("admin_audit_logs")
         .select("id")
         .gte("created_at", todayStart)
         .in("action", [...COMMUNITY_AUDIT_ACTIONS]),
-      supabase
+      db
         .from("admin_audit_logs")
         .select("id, action, target_type, target_id, metadata, created_at, actor_id")
         .in("action", [...COMMUNITY_AUDIT_ACTIONS])
         .order("created_at", { ascending: false })
         .limit(10),
-      supabase
+      db
         .from("app_settings")
         .select("value")
         .eq("key", "community_spam_settings")
         .maybeSingle(),
-      supabase
+      db
         .from("stories")
         .select(`id, title, slug, ${ADMIN_CREATOR_JOIN}`)
         .eq("status", "published")
         .order("published_at", { ascending: false })
         .limit(30),
-      supabase
+      db
         .from("creator_profiles")
         .select(
           "id, user_id, profiles!creator_profiles_user_id_fkey(display_name, username, is_verified)"
@@ -227,7 +227,7 @@ export async function getCommunityAdminPageData(
         .eq("status", "active")
         .order("created_at", { ascending: false })
         .limit(30),
-      supabase.from("community_group_settings").select("*").limit(100)
+      db.from("community_group_settings").select("*").limit(100)
     ]);
 
     const schemaSoftFail = (err: { message?: string; code?: string } | null) =>
@@ -239,7 +239,7 @@ export async function getCommunityAdminPageData(
       if (!schemaSoftFail(queueRes.error)) {
         throw new Error(queueRes.error.message);
       }
-      const fallback = await supabase
+      const fallback = await db
         .from("community_posts")
         .select(postSelectMinimal)
         .in("status", ["pending", "approved", "hidden", "rejected"])
@@ -253,7 +253,7 @@ export async function getCommunityAdminPageData(
     const commentCounts = new Map<string, number>();
 
     if (postIds.length) {
-      const { data: commentRows } = await supabase
+      const { data: commentRows } = await db
         .from("comments")
         .select("community_post_id")
         .in("community_post_id", postIds);
@@ -265,7 +265,7 @@ export async function getCommunityAdminPageData(
     }
 
     const postReportCounts = await countReportsByTarget(
-      supabase,
+      db,
       "community_post",
       postIds
     );
@@ -279,7 +279,7 @@ export async function getCommunityAdminPageData(
     >();
 
     if (postIds.length) {
-      const { data: decisions } = await supabase
+      const { data: decisions } = await db
         .from("community_moderation_decisions")
         .select("post_id, trust_score, matched_rules")
         .in("post_id", postIds)
@@ -360,7 +360,7 @@ export async function getCommunityAdminPageData(
       };
     });
 
-    const { data: commentRows } = await supabase
+    const { data: commentRows } = await db
       .from("comments")
       .select(
         "id, content, created_at, status, community_post_id, profiles(display_name, username), community_posts(title, stories(title))"
@@ -370,7 +370,7 @@ export async function getCommunityAdminPageData(
       .limit(40);
 
     const commentIds = (commentRows ?? []).map((c) => c.id as string);
-    const commentReports = await countReportsByTarget(supabase, "comment", commentIds);
+    const commentReports = await countReportsByTarget(db, "comment", commentIds);
 
     const comments: CommunityCommentItem[] = (commentRows ?? []).map((row) => {
       const profile = firstRelation<{
@@ -449,7 +449,7 @@ export async function getCommunityAdminPageData(
     const posts24h = new Map<string, number>();
     if (storyIds.length) {
       const since = new Date(Date.now() - 86_400_000).toISOString();
-      const { data: recentPosts } = await supabase
+      const { data: recentPosts } = await db
         .from("community_posts")
         .select("story_id")
         .in("story_id", storyIds)
@@ -553,7 +553,7 @@ export async function getCommunityAdminPageData(
 
     const actorNameById = new Map<string, string>();
     if (actorIds.length) {
-      const { data: actors } = await supabase
+      const { data: actors } = await db
         .from("profiles")
         .select("id, display_name, username")
         .in("id", actorIds);

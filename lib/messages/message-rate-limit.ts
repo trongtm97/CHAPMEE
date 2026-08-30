@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { normalizeMessageText } from "@/lib/moderation/normalize-message-text";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
@@ -39,10 +39,10 @@ export async function checkConversationMessageRateLimit(
   userId: string,
   conversationId: string
 ): Promise<{ allowed: boolean; error?: string }> {
-  const supabase = await createClient();
+  const db = await createClient();
   const windowStart = new Date(Date.now() - 60_000).toISOString();
 
-  const { count, error } = await supabase
+  const { count, error } = await db
     .from("messages")
     .select("id", { count: "exact", head: true })
     .eq("sender_id", userId)
@@ -64,13 +64,13 @@ export async function checkGlobalMessageRateLimit(
   userId: string,
   accountAgeHours: number
 ): Promise<{ allowed: boolean; error?: string }> {
-  const supabase = await createClient();
+  const db = await createClient();
   const isNewAccount = accountAgeHours < 24;
   const windowMs = 10 * 60 * 1000;
   const maxCount = isNewAccount ? 10 : 60;
   const windowStart = new Date(Date.now() - windowMs).toISOString();
 
-  const { count, error } = await supabase
+  const { count, error } = await db
     .from("messages")
     .select("id", { count: "exact", head: true })
     .eq("sender_id", userId)
@@ -101,10 +101,10 @@ export async function checkDuplicateMessage(
     return { allowed: true };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const windowStart = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString();
 
-  const { data: inConversation, error: convError } = await supabase
+  const { data: inConversation, error: convError } = await db
     .from("messages")
     .select("body")
     .eq("sender_id", userId)
@@ -123,7 +123,7 @@ export async function checkDuplicateMessage(
     }
   }
 
-  const { data: globalMessages, error: globalError } = await supabase
+  const { data: globalMessages, error: globalError } = await db
     .from("messages")
     .select("body")
     .eq("sender_id", userId)
@@ -141,7 +141,7 @@ export async function checkDuplicateMessage(
     }
   }
 
-  const { data: recentRequests, error: reqError } = await supabase
+  const { data: recentRequests, error: reqError } = await db
     .from("message_requests")
     .select("first_message")
     .eq("requester_id", userId)
@@ -171,17 +171,17 @@ export async function checkDuplicateRequestMessage(
     return { allowed: true };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const windowStart = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString();
 
   const [{ data: recentRequests }, { data: globalMessages }] = await Promise.all([
-    supabase
+    db
       .from("message_requests")
       .select("first_message")
       .eq("requester_id", userId)
       .gte("created_at", windowStart)
       .limit(15),
-    supabase
+    db
       .from("messages")
       .select("body")
       .eq("sender_id", userId)
@@ -212,10 +212,10 @@ export async function checkRequestCooldown(
   requesterId: string,
   recipientId: string
 ): Promise<{ allowed: boolean; error?: string }> {
-  const supabase = await createClient();
+  const db = await createClient();
   const cooldownStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data } = await supabase
+  const { data } = await db
     .from("message_requests")
     .select("id, status, created_at")
     .eq("requester_id", requesterId)

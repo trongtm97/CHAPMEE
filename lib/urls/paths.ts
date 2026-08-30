@@ -1,9 +1,13 @@
-import { ENTITY_CODE_PREFIX, type PublicEntityType } from "@/lib/urls/constants";
+import {
+  ENTITY_CODE_PREFIX,
+  NUMERIC_PUBLIC_CODE_REGEX,
+  type PublicEntityType
+} from "@/lib/urls/constants";
 import { getProfileUrl } from "@/lib/profile/profile-url";
 
 export type StoryUrlFields = {
   slug: string;
-  public_code: string;
+  public_code?: string | null;
 };
 
 export type ChapterUrlFields = {
@@ -67,7 +71,17 @@ export function buildPolicySegment(slug: string, publicCode: string): string {
 export { getProfileUrl };
 
 export function getStoryUrl(story: StoryUrlFields): string {
-  return `/truyen/${buildStorySegment(story.slug, story.public_code)}`;
+  const slug = story.slug?.trim();
+  if (!slug) {
+    return "/truyen";
+  }
+
+  const publicCode = story.public_code?.trim();
+  if (publicCode && NUMERIC_PUBLIC_CODE_REGEX.test(publicCode)) {
+    return `/truyen/${buildStorySegment(slug, publicCode)}`;
+  }
+
+  return getLegacyStoryPath(slug);
 }
 
 export function getChapterUrl(

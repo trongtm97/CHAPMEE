@@ -20,6 +20,7 @@ import {
   validateContentPostSlug
 } from "@/lib/platform-content/slug";
 import type { AnnouncementListFilters } from "@/lib/platform-content/parse-announcement-filters";
+import { normalizeMediaFieldForStorage } from "@/lib/media/media-resolver";
 import type { AnnouncementActionResult } from "@/types/admin-announcements";
 import type {
   AnnouncementAudienceType,
@@ -76,9 +77,29 @@ export type SaveAnnouncementInput = {
   og_title?: string;
   og_description?: string;
   og_image_url?: string;
+  og_image_media_asset_id?: string;
   auto_slug?: boolean;
   confirm_critical?: boolean;
 };
+
+function legacyObjectKeyFromInput(
+  mediaAssetId: string | undefined,
+  legacyUrl: string | undefined,
+  context: string
+): string | null {
+  if (mediaAssetId?.trim()) {
+    return null;
+  }
+  const raw = legacyUrl?.trim();
+  if (!raw) {
+    return null;
+  }
+  const normalized = normalizeMediaFieldForStorage(raw, context);
+  if (normalized.kind === "rejected") {
+    throw new Error(normalized.reason);
+  }
+  return normalized.kind === "object_key" ? normalized.objectKey : null;
+}
 
 export async function getAnnouncementStatsAction() {
   const { checkStaffPermission } = await import("@/lib/auth/staff-guards");
@@ -154,6 +175,22 @@ export async function saveAdminAnnouncementAction(
     // Allow save but warn — client shows warning; publish still allowed with fallback title
   }
 
+  let ogLegacyKey: string | null = null;
+  try {
+    ogLegacyKey = legacyObjectKeyFromInput(
+      input.og_image_media_asset_id,
+      input.og_image_url,
+      "og_image_url"
+    );
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "OG image không hợp lệ."
+    };
+  }
+
+  const ogMediaAssetId = input.og_image_media_asset_id?.trim() || null;
+
   const payload = {
     title,
     slug,
@@ -173,7 +210,8 @@ export async function saveAdminAnnouncementAction(
     canonical_path: sanitizeInternalPath(input.canonical_path),
     og_title: input.og_title?.trim() || null,
     og_description: input.og_description?.trim() || null,
-    og_image_url: input.og_image_url?.trim() || null,
+    og_image_media_asset_id: ogMediaAssetId,
+    og_image_url: ogLegacyKey,
     updated_by: staff.ok ? staff.userId : null
   };
 

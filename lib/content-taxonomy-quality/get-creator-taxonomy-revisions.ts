@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { studioPath } from "@/lib/studio/constants";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 
@@ -18,8 +18,8 @@ export type CreatorTaxonomyRevisionItem = {
 export async function getCreatorTaxonomyRevisionRequests(
   creatorProfile: CreatorProfile
 ): Promise<{ items: CreatorTaxonomyRevisionItem[]; openCount: number }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("creator_taxonomy_revision_requests")
     .select(
       "id, story_id, reason, required_changes_json, status, due_at, created_at, stories!inner(title, slug)"

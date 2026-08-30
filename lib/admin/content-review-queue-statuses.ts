@@ -11,7 +11,7 @@ export function isContentStatusEnumError(message: string | undefined | null) {
   );
 }
 
-type SupabaseQueryResult<T> = {
+type PostgrestQueryResult<T> = {
   data: T | null;
   error: { message: string } | null;
 };
@@ -20,8 +20,8 @@ type SupabaseQueryResult<T> = {
  * Truy vấn theo status hàng đợi; tự fallback về chỉ `pending` nếu DB chưa có enum changes_requested.
  */
 export async function queryWithReviewQueueStatuses<T>(
-  run: (statuses: readonly string[]) => Promise<SupabaseQueryResult<T>>
-): Promise<SupabaseQueryResult<T>> {
+  run: (statuses: readonly string[]) => Promise<PostgrestQueryResult<T>>
+): Promise<PostgrestQueryResult<T>> {
   let result = await run(CONTENT_REVIEW_QUEUE_STATUSES);
   if (result.error && isContentStatusEnumError(result.error.message)) {
     result = await run(CONTENT_REVIEW_QUEUE_STATUSES_FALLBACK);

@@ -8,6 +8,8 @@ import {
   FinanceSection,
   financeInputClass
 } from "@/components/studio/finance/finance-ui";
+import { EmailDeliveryNotice } from "@/components/ui";
+import { withEmailSentSuccessHint } from "@/lib/email/email-delivery-copy";
 import {
   studioChangeWithdrawalPinAction,
   studioRequestFinanceEmailCodeAction,
@@ -93,13 +95,14 @@ export function FinancePinSection({
         )}
       </div>
 
-      <div className="mb-3">
+      <div className="mb-3 space-y-2">
+        <EmailDeliveryNotice compact />
         <FinanceButton
           disabled={pending}
           onClick={() =>
             run(
               () => studioRequestFinanceEmailCodeAction(emailPurpose),
-              "Mã xác nhận đã được gửi đến email của bạn."
+              withEmailSentSuccessHint("Mã xác nhận đã được gửi đến email của bạn.")
             )
           }
           tone="amber"

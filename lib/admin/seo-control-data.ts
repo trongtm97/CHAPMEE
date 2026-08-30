@@ -19,6 +19,7 @@ import {
 } from "@/lib/seo/rules";
 import { listSeoChangeLogs } from "@/lib/seo/change-logs";
 import { buildPublicSitemapEntries } from "@/lib/seo/sitemap";
+import { listSitemapChildDescriptors } from "@/lib/seo/sitemap-children";
 import { buildSitemapSegmentEntries } from "@/lib/seo/sitemap-builders";
 import {
   childSitemapPaths,
@@ -64,7 +65,7 @@ export async function loadSeoControlCenterData(): Promise<SeoControlCenterData> 
       runSeoAuditMvp(),
       listSeoMetadataTemplates(),
       (async () => {
-        const { createClient } = await import("@/lib/supabase/server");
+        const { createClient } = await import("@/lib/data/server");
         return listSeoChangeLogs(await createClient(), 100);
       })(),
       buildPublicSitemapEntries().catch(() => []),
@@ -88,10 +89,18 @@ export async function loadSeoControlCenterData(): Promise<SeoControlCenterData> 
   );
 
   const sitemapBreakdown = countSitemapBreakdown(sitemapEntries);
-  const childSitemaps = childSitemapPaths().map((child) => {
-    const match = segmentCounts.find((row) => row.id === child.id);
-    return { id: child.id, path: child.path, urlCount: match?.count ?? 0 };
-  });
+  const childDescriptors = await listSitemapChildDescriptors().catch(() => []);
+  const childSitemaps =
+    childDescriptors.length > 0
+      ? childDescriptors.map((child) => ({
+          id: child.id,
+          path: child.path,
+          urlCount: child.estimatedUrlCount
+        }))
+      : childSitemapPaths().map((child) => {
+          const match = segmentCounts.find((row) => row.id === child.id);
+          return { id: child.id, path: child.path, urlCount: match?.count ?? 0 };
+        });
 
   return {
     stats: {
@@ -290,7 +299,7 @@ export async function bulkUpdateSeoRulesAction(input: {
   const result = await bulkUpdateSeoRulesInDb(input.ids, input.patch);
   if (result.error) return { ok: false, message: result.error };
 
-  const { createClient } = await import("@/lib/supabase/server");
+  const { createClient } = await import("@/lib/data/server");
   await appendSeoChangeLog(await createClient(), {
     entityType: "seo_rule",
     action: "bulk_update_rules",
@@ -325,7 +334,7 @@ export async function saveSeoMetadataTemplateAction(input: {
   const result = await updateSeoMetadataTemplate(input.page_type, input, staff.userId);
   if (result.error) return { ok: false, message: result.error };
 
-  const { createClient } = await import("@/lib/supabase/server");
+  const { createClient } = await import("@/lib/data/server");
   await appendSeoChangeLog(await createClient(), {
     entityType: "metadata_template",
     entityId: input.page_type,

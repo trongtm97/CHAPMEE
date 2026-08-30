@@ -2,13 +2,13 @@
 
 import { trackServerEvent } from "@/lib/analytics/trackServerEvent";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { createRiskEventRecord, getOrCreateUserRiskProfile, listOpenHighRiskEventsByCreator, updateUserRiskProfileRecord } from "@/lib/supabase/risk";
-import { createClient } from "@/lib/supabase/server";
-import { getTransactionsForAdmin } from "@/lib/supabase/transactions";
+import { createRiskEventRecord, getOrCreateUserRiskProfile, listOpenHighRiskEventsByCreator, updateUserRiskProfileRecord } from "@/lib/data/risk";
+import { createClient } from "@/lib/data/server";
+import { getTransactionsForAdmin } from "@/lib/data/transactions";
 import { getRiskRule } from "@/lib/risk/risk-rules";
 import type { RiskSeverity, UserRiskProfile } from "@/types/risk";
 import { checkStaffPermission } from "@/lib/auth/staff-guards";
-import { updateRiskEventStatus } from "@/lib/supabase/risk";
+import { updateRiskEventStatus } from "@/lib/data/risk";
 
 function clampScore(score: number) {
   return Math.max(0, Math.min(100, Number(score.toFixed(2))));
@@ -127,8 +127,8 @@ export async function updateUserRiskProfile(userId: string) {
 }
 
 async function listUserRiskEvents(userId: string, limit = 50) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("risk_events")
     .select("*")
     .or(`user_id.eq.${userId},creator_user_id.eq.${userId}`)

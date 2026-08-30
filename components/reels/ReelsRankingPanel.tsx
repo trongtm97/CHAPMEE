@@ -21,7 +21,7 @@ export function ReelsRankingPanel() {
       </ul>
       <Link
         className="mt-3 inline-flex rounded-full border border-white/15 px-3 py-2 text-xs font-semibold text-zinc-100"
-        href="/rankings"
+        href="/bang-xep-hang"
       >
         Xem bảng xếp hạng
       </Link>

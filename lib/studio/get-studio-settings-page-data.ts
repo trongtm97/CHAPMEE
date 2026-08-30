@@ -1,6 +1,7 @@
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 import { ensureProfilePrivacySettings } from "@/lib/profile/get-profile-privacy";
-import { createClient } from "@/lib/supabase/server";
+import { profileAvatarUrlFromRow } from "@/lib/profile/map-profile-row";
+import { createClient } from "@/lib/data/server";
 import { getUserVerificationSummary } from "@/lib/verification/get-user-verification";
 import { getProfileUrlOrFallback } from "@/lib/profile/profile-url";
 import type { StudioSettingsFormValues, StudioSettingsPageData } from "@/types/studio-settings";
@@ -8,24 +9,24 @@ import type { StudioSettingsFormValues, StudioSettingsPageData } from "@/types/s
 export async function getStudioSettingsPageData(
   creatorProfile: CreatorProfile
 ): Promise<StudioSettingsPageData> {
-  const supabase = await createClient();
+  const db = await createClient();
 
   const [profileResult, privacy, verification, storiesCountResult, followerCountResult] =
     await Promise.all([
-      supabase
+      db
         .from("profiles")
         .select("username, display_name, avatar_url, bio, created_at")
         .eq("id", creatorProfile.user_id)
         .maybeSingle(),
       ensureProfilePrivacySettings(creatorProfile.user_id),
       getUserVerificationSummary(creatorProfile.user_id),
-      supabase
+      db
         .from("stories")
         .select("id", { count: "exact", head: true })
         .eq("creator_id", creatorProfile.id)
         .eq("visibility", "public")
         .in("status", ["published", "approved"]),
-      supabase
+      db
         .from("follows")
         .select("id", { count: "exact", head: true })
         .eq("creator_id", creatorProfile.id)
@@ -35,7 +36,7 @@ export async function getStudioSettingsPageData(
   const username = profile?.username ?? "";
 
   const initialValues: StudioSettingsFormValues = {
-    avatarUrl: profile?.avatar_url ?? "",
+    avatarUrl: profileAvatarUrlFromRow(profile) ?? "",
     bio: profile?.bio ?? creatorProfile.bio ?? "",
     displayName: profile?.display_name?.trim() || creatorProfile.display_name,
     privacy: {

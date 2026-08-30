@@ -1,6 +1,6 @@
 import { sanitizeReasonCode, sanitizeTrackingMetadata } from "@/lib/tracking/sanitize-metadata";
 import { mapReportTargetToTrackingItemType } from "@/lib/tracking/resolve-reels-context";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type {
   TrackExposureInput,
   TrackUserActionInput,
@@ -18,8 +18,8 @@ async function insertUserAction(
   input: Omit<TrackUserActionInput, "userId" | "anonymousId">
 ) {
   try {
-    const supabase = await createClient();
-    const { error } = await supabase.from("user_action_events").insert({
+    const db = await createClient();
+    const { error } = await db.from("user_action_events").insert({
       user_id: userId,
       anonymous_id: null,
       surface: input.surface,
@@ -56,8 +56,8 @@ export async function trackServerExposure(
   input: Omit<TrackExposureInput, "userId" | "anonymousId" | "deviceType">
 ) {
   try {
-    const supabase = await createClient();
-    const { error } = await supabase.from("exposure_events").insert({
+    const db = await createClient();
+    const { error } = await db.from("exposure_events").insert({
       user_id: userId,
       anonymous_id: null,
       surface: input.surface,

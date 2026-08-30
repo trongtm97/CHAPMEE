@@ -1,13 +1,20 @@
+import { containsForbiddenLocalMediaUrl, resolveStoredMediaUrl } from "@/lib/media/media-url";
 import type { ChapterImageBlock } from "@/types/chapter-images";
 
 const IMAGE_BLOCK_REGEX = /\[\[chapmee-image\s+(\{[\s\S]*?\})\s*\]\]/g;
 
+function normalizeAlign(value: unknown): "left" | "center" | "right" {
+  return value === "left" || value === "right" ? value : "center";
+}
+
 export function buildChapterImageBlockToken(block: ChapterImageBlock) {
   return `[[chapmee-image ${JSON.stringify({
+    align: normalizeAlign(block.align),
     alt: block.alt,
     caption: block.caption,
     height: block.height,
     id: block.id,
+    mediaAssetId: block.mediaAssetId ?? block.id,
     src: block.src,
     thumbSrc: block.thumbSrc,
     width: block.width
@@ -36,17 +43,26 @@ export function parseChapterImageBlockToken(
       return null;
     }
 
+    if (
+      containsForbiddenLocalMediaUrl(parsed.src) ||
+      containsForbiddenLocalMediaUrl(parsed.thumbSrc)
+    ) {
+      return null;
+    }
+
     if (!isAllowedChapterImageSrc(parsed.src) || !isAllowedChapterImageSrc(parsed.thumbSrc)) {
       return null;
     }
 
     return {
+      align: normalizeAlign(parsed.align),
       alt: typeof parsed.alt === "string" ? parsed.alt : "",
       caption: typeof parsed.caption === "string" ? parsed.caption : "",
       height: parsed.height,
       id: parsed.id,
-      src: parsed.src,
-      thumbSrc: parsed.thumbSrc,
+      mediaAssetId: parsed.mediaAssetId ?? parsed.id,
+      src: resolveStoredMediaUrl(parsed.src) ?? parsed.src,
+      thumbSrc: resolveStoredMediaUrl(parsed.thumbSrc) ?? parsed.thumbSrc,
       width: parsed.width
     };
   } catch {
@@ -55,14 +71,27 @@ export function parseChapterImageBlockToken(
 }
 
 export function isAllowedChapterImageSrc(src: string) {
-  if (!src.startsWith("http://") && !src.startsWith("https://")) {
+  if (containsForbiddenLocalMediaUrl(src)) {
     return false;
+  }
+
+  if (!src.startsWith("http://") && !src.startsWith("https://")) {
+    return src.includes("/");
   }
 
   try {
     const url = new URL(src);
-
-    return url.pathname.includes("/storage/v1/object/public/chapter-images/");
+    const allowedMarkers = [
+      "/chapter-media/",
+      "/chapter-images/",
+      "/content-posts/",
+      "/composer-images/",
+      "/story-images/",
+      "/avatars/",
+      "/temp/",
+      "/storage/v1/object/public/"
+    ];
+    return allowedMarkers.some((marker) => url.pathname.includes(marker));
   } catch {
     return false;
   }
@@ -77,7 +106,9 @@ export type ChapterContentSegment =
   | { type: "text"; lines: string[] };
 
 export function splitChapterContent(content: string): ChapterContentSegment[] {
-  const normalized = content.replace(/\r\n/g, "\n");
+  const normalized = content
+    .replace(/\r\n/g, "\n")
+    .replace(/\n[ \t]*\n/g, "\n\n");
   const parts = normalized.split(/\n{2,}/);
   const segments: ChapterContentSegment[] = [];
 

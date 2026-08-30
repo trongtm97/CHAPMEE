@@ -1,7 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getChapterUrl, getStoryUrl } from "@/lib/urls/paths";
 
 export type ReportStatus = "pending" | "reviewing" | "resolved" | "rejected";
+
+/** Báo cáo chưa xử lý xong (`open` đã rename thành `pending` trong DB). */
+export const OPEN_QUEUE_REPORT_STATUSES: ReportStatus[] = ["pending", "reviewing"];
 
 /** @deprecated legacy alias */
 export type LegacyReportStatus = "open" | ReportStatus;
@@ -54,10 +57,10 @@ export function getReportStatusFilter(status?: string): ReportStatus {
 }
 
 async function getTargetHref(targetType: string, targetId: string) {
-  const supabase = await createClient();
+  const db = await createClient();
 
   if (targetType === "story") {
-    const { data } = await supabase
+    const { data } = await db
       .from("stories")
       .select("slug, public_code")
       .eq("id", targetId)
@@ -69,7 +72,7 @@ async function getTargetHref(targetType: string, targetId: string) {
   }
 
   if (targetType === "episode") {
-    const { data } = await supabase
+    const { data } = await db
       .from("episodes")
       .select("slug, public_code, episode_number, stories(slug, public_code)")
       .eq("id", targetId)
@@ -85,7 +88,7 @@ async function getTargetHref(targetType: string, targetId: string) {
   }
 
   if (targetType === "comment") {
-    const { data } = await supabase
+    const { data } = await db
       .from("comments")
       .select(
         "story_id, episode_id, stories(slug, public_code), episodes(slug, public_code, episode_number, stories(slug, public_code))"
@@ -120,8 +123,8 @@ export async function getReports(status?: string): Promise<AdminReportsData> {
   const activeStatus = getReportStatusFilter(status);
 
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("reports")
       .select(
         "id, target_type, target_id, reason, details, status, created_at, updated_at, profiles(display_name, username)"

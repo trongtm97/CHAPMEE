@@ -1,4 +1,5 @@
 import type { CommunityPost } from "@/lib/community/getCommunityFeed";
+import { getDefaultAvatarUrl, getStableDefaultAvatarId } from "@/lib/profile/default-avatar";
 import type {
   AuthorCommunityGroup,
   CommunityFeedItem,
@@ -99,6 +100,8 @@ function baseItemFromPost(post: CommunityPost): Omit<CommunityFeedItem, "id" | "
   return {
     authorName: post.authorName ?? "Độc giả ChapMee",
     authorUsername: post.authorUsername ?? null,
+    authorAvatarUrl: post.authorAvatarUrl,
+    authorUserId: post.authorUserId ?? null,
     authorRole,
     createdAt: post.createdAt,
     title: post.title,
@@ -191,6 +194,7 @@ export function buildFeedItemsFromPosts(
         kind: "author_reply",
         authorName,
         authorUsername: post.creatorUsername ?? null,
+        authorUserId: post.creatorUserId ?? null,
         authorRole: "creator",
         title: null,
         body:
@@ -216,6 +220,10 @@ export function buildFeedItemsFromPosts(
       kind: "story_comment_highlight",
       authorName: "Độc giả ChapMee",
       authorUsername: null,
+      authorAvatarUrl: getDefaultAvatarUrl(
+        getStableDefaultAvatarId(`highlight-fallback-${group.storyId}`)
+      ),
+      authorUserId: null,
       authorRole: "reader",
       createdAt: new Date().toISOString(),
       title: null,
@@ -263,11 +271,12 @@ export function sortFeedItemsByTab(
 export function buildUnifiedFeed(
   posts: CommunityPost[],
   storyGroups: StoryCommunityGroup[],
-  authorGroups: AuthorCommunityGroup[]
+  authorGroups: AuthorCommunityGroup[],
+  options?: { includeFallbackHighlight?: boolean }
 ): CommunityFeedItem[] {
   return sortFeedItemsByTab(
     buildFeedItemsFromPosts(posts, storyGroups, authorGroups, {
-      includeFallbackHighlight: true
+      includeFallbackHighlight: options?.includeFallbackHighlight ?? false
     }),
     "for_you"
   );
@@ -335,6 +344,8 @@ export function enrichCommunityPosts(
       contentPreview: post.contentPreview,
       authorName: base.authorName,
       authorUsername: post.authorUsername ?? null,
+      authorAvatarUrl: post.authorAvatarUrl,
+      authorUserId: post.authorUserId ?? null,
       creatorUsername: post.creatorUsername ?? null,
       authorRole: base.authorRole,
       relatedStoryTitle: post.relatedStoryTitle,

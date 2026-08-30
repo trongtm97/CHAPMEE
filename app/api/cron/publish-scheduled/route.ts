@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { publishScheduledItems } from "@/lib/studio/scheduling/publish-scheduled-items";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +22,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = createAdminClient();
-    const result = await publishScheduledItems(supabase);
+    const db = createAdminClient();
+    const result = await publishScheduledItems(db);
 
     return NextResponse.json({
       failed: result.failed,

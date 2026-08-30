@@ -1,5 +1,5 @@
 import { ADMIN_CREATOR_JOIN, resolveAdminCreatorName } from "@/lib/admin/creator-display";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 
 export type PendingStory = {
@@ -76,9 +76,9 @@ function firstRelation<T>(relation: T | T[] | null | undefined) {
 
 export async function getPendingContent(): Promise<PendingContentData> {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const [storiesResult, episodesResult] = await Promise.all([
-      supabase
+      db
         .from("stories")
         .select(
           `id, creator_id, title, slug, hook, short_description, created_at, status, ${ADMIN_CREATOR_JOIN}`
@@ -86,7 +86,7 @@ export async function getPendingContent(): Promise<PendingContentData> {
         .eq("status", "pending")
         .order("created_at", { ascending: true })
         .limit(50),
-      supabase
+      db
         .from("episodes")
         .select(
           `id, story_id, episode_number, title, excerpt, word_count, created_at, status, stories(title, slug, ${ADMIN_CREATOR_JOIN})`
@@ -106,7 +106,7 @@ export async function getPendingContent(): Promise<PendingContentData> {
 
     const storyRows = (storiesResult.data ?? []) as unknown as StoryRow[];
     const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(
-      supabase,
+      db,
       storyRows.map((story) => story.id)
     );
 

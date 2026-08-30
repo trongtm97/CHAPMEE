@@ -1,10 +1,10 @@
 import { resolveTransactionKind } from "@/lib/studio/monetization-display-utils";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 import { getCreatorAccessStatus } from "@/lib/creator-access";
 import { calculateCreatorEligibility } from "@/lib/monetization/eligibility";
-import { getOrCreateCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
-import { listCreatorPayoutAccounts, listPayoutRequestsForCreator } from "@/lib/supabase/payouts";
+import { getOrCreateCreatorMonetizationProfile } from "@/lib/data/creator-monetization";
+import { listCreatorPayoutAccounts, listPayoutRequestsForCreator } from "@/lib/data/payouts";
 import {
   buildStudioMonetizationConfigView,
   isStudioMonetizationModuleEnabled
@@ -216,7 +216,7 @@ export async function getStudioMonetizationSummary(
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
   let tipsReceivedVnd = 0;
   let paidUnlockCount = 0;
@@ -234,7 +234,7 @@ export async function getStudioMonetizationSummary(
   const iso30d = periodStartIso(30);
 
   if (canConfigure) {
-    const { data: txRows } = await supabase
+    const { data: txRows } = await db
       .from("transactions")
       .select(
         "id, story_id, chapter_id, type, source, net_amount_vnd, creator_gross_vnd, platform_fee_vnd, status, created_at, coin_amount"
@@ -252,10 +252,10 @@ export async function getStudioMonetizationSummary(
 
     const [{ data: stories }, { data: chapters }] = await Promise.all([
       storyIds.length > 0
-        ? supabase.from("stories").select("id, title").in("id", storyIds)
+        ? db.from("stories").select("id, title").in("id", storyIds)
         : Promise.resolve({ data: [] }),
       chapterIds.length > 0
-        ? supabase.from("episodes").select("id, title, episode_number").in("id", chapterIds)
+        ? db.from("episodes").select("id, title, episode_number").in("id", chapterIds)
         : Promise.resolve({ data: [] })
     ]);
 

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { PERMANENTLY_HIDDEN_QUALITY_STATUS } from "@/lib/content-quality/public-visibility";
 import { hydrateRankingSnapshots } from "@/lib/ranking/hydrate-items";
 import { getPublicStoryIdsForMainGenreSlug } from "@/lib/taxonomy/public-genres";
@@ -49,7 +49,7 @@ function buildFallbackSnapshots(
 
 /** Live board when ranking snapshots have no taxonomy_term_id for this slug. */
 export async function getGenreStoriesBoardFromTaxonomy(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   params: {
     genreSlug: string;
     timeWindow: RankingTimeWindow;
@@ -58,7 +58,7 @@ export async function getGenreStoriesBoardFromTaxonomy(
   }
 ): Promise<RankingBoardResult | null> {
   const storyIds = await getPublicStoryIdsForMainGenreSlug(
-    supabase,
+    db,
     params.genreSlug,
     500
   );
@@ -67,7 +67,7 @@ export async function getGenreStoriesBoardFromTaxonomy(
     return null;
   }
 
-  const { data: stories } = await supabase
+  const { data: stories } = await db
     .from("stories")
     .select("id, published_at")
     .in("id", storyIds)
@@ -88,7 +88,7 @@ export async function getGenreStoriesBoardFromTaxonomy(
     params.timeWindow,
     from
   );
-  const items = await hydrateRankingSnapshots(supabase, rows, "genre_stories");
+  const items = await hydrateRankingSnapshots(db, rows, "genre_stories");
 
   return {
     boardType: "genre_stories",

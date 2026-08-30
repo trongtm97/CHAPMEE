@@ -18,6 +18,7 @@ import {
   bulkHideStoriesAction,
   bulkMarkCompletedAction,
   bulkMoveToDraftAction,
+  bulkSubmitForReviewStoriesAction,
   bulkUnhideStoriesAction,
   exportStoriesTaxonomyV2Action
 } from "@/lib/studio/stories-bulk-actions";
@@ -30,6 +31,7 @@ type PendingAction =
   | "delete"
   | "complete"
   | "draft"
+  | "submit_review"
   | "genre"
   | "taxonomy"
   | "taxonomy_remove"
@@ -96,10 +98,16 @@ export function StudioStoriesBulkBar({
       successCount: number;
       failedCount: number;
       error?: string;
+      errors?: string[];
     }
   ) {
     if (result.error && result.successCount === 0) {
       setToast({ message: result.error, variant: "error" });
+      return;
+    }
+
+    if (result.successCount === 0 && result.errors && result.errors.length > 0) {
+      setToast({ message: result.errors[0], variant: "error" });
       return;
     }
 
@@ -140,6 +148,10 @@ export function StudioStoriesBulkBar({
         case "draft":
           result = await bulkMoveToDraftAction(selectedIds);
           showResult("Đã chuyển về nháp", result);
+          break;
+        case "submit_review":
+          result = await bulkSubmitForReviewStoriesAction(selectedIds);
+          showResult("Đã đăng công khai", result);
           break;
         case "genre":
           result = await bulkAddGenreAction(selectedIds, genreId);
@@ -203,6 +215,11 @@ export function StudioStoriesBulkBar({
       confirmLabel: "Chuyển về nháp",
       description: `Chuyển ${count} truyện về trạng thái nháp?`,
       title: "Chuyển về nháp hàng loạt"
+    },
+    submit_review: {
+      confirmLabel: "Đăng",
+      description: `Đăng công khai ${count} truyện? Hệ thống sẽ bật hiển thị public, tạo URL công khai và gợi ý SEO nếu còn thiếu. Truyện đang ẩn cần «Hiện lại» trước.`,
+      title: "Đăng hàng loạt"
     },
     genre: {
       confirmLabel: "Gắn thể loại",
@@ -270,6 +287,14 @@ export function StudioStoriesBulkBar({
               type="button"
             >
               Hiện lại
+            </button>
+            <button
+              className={storiesBtnCompactSecondary}
+              disabled={isPending}
+              onClick={() => setPendingAction("submit_review")}
+              type="button"
+            >
+              Đăng
             </button>
             <button
               className={storiesBtnCompactSecondary}

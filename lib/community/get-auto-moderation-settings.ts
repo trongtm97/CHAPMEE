@@ -1,5 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type {
   CommunityAutoModerationSettings,
   CommunityRateLimits,
@@ -91,8 +91,8 @@ function mapSettingsRow(row: Record<string, unknown>): CommunityAutoModerationSe
 }
 
 export async function getAutoModerationSettings(): Promise<CommunityAutoModerationSettings> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("community_auto_moderation_settings")
     .select("*")
     .limit(1)
@@ -107,8 +107,8 @@ export async function getAutoModerationSettings(): Promise<CommunityAutoModerati
 }
 
 export async function getActiveKeywordRules(): Promise<ModerationKeywordRule[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("moderation_keyword_rules")
     .select("*")
     .eq("is_active", true)

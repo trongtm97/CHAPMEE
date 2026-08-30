@@ -1,11 +1,11 @@
-import { createAdminClient } from "@/lib/supabase/admin";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createAdminClient } from "@/lib/data/admin";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { RecommendationExposureLogInput } from "@/types/fair-distribution";
 import type { ScoredFeedCandidate } from "@/types/fair-distribution";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export async function logRecommendationExposure(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   items: Array<ScoredFeedCandidate | RecommendationExposureLogInput>,
   context: { surface: string; requestId?: string; userId?: string | null; simulation?: boolean }
 ) {
@@ -45,7 +45,7 @@ export async function logRecommendationExposure(
 
   if (rows.length === 0) return;
 
-  let client = supabase;
+  let client = db;
   try {
     client = createAdminClient();
   } catch {
@@ -59,12 +59,11 @@ export async function logRecommendationExposure(
 }
 
 export async function logRecommendationExposureBatch(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   candidates: ScoredFeedCandidate[],
   context: { surface: string; requestId?: string; userId?: string | null; rankPositionStart?: number }
 ) {
-  await logRecommendationExposure(
-    supabase,
+  await logRecommendationExposure(db,
     candidates.map((c, i) => ({
       userId: context.userId,
       storyId: c.storyId,

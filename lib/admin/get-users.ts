@@ -1,7 +1,7 @@
 "use server";
 
 import { assertPermission } from "@/lib/auth/require-permission";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { ProfileRole } from "@/lib/auth/getCurrentProfile";
 import type { AdminUserListRow, UserDashboardFilters } from "@/types/admin-user";
 
@@ -32,7 +32,7 @@ export type AdminUserSearchResponse = {
 };
 
 export async function mapRoleRowsWithAssigners(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   roleRows: Array<{
     assigned_at: string;
     assigned_by: string | null;
@@ -48,7 +48,7 @@ export async function mapRoleRowsWithAssigners(
 
   const assignerLabels = new Map<string, string>();
   if (assignerIds.length) {
-    const { data: assigners } = await supabase
+    const { data: assigners } = await db
       .from("profiles")
       .select("id, username, display_name")
       .in("id", assignerIds);
@@ -84,14 +84,14 @@ export async function searchAdminUsers(input: {
   pageSize?: number;
 }): Promise<AdminUserSearchResponse> {
   await assertPermission("admin.user.view");
-  const supabase = await createClient();
+  const db = await createClient();
   const trimmed = (input.query ?? "").trim();
   const page = Math.max(1, input.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, input.pageSize ?? 25));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let builder = supabase
+  let builder = db
     .from("profiles")
     .select(
       "id, username, display_name, avatar_url, role, status, created_at, updated_at, is_verified",
@@ -121,7 +121,7 @@ export async function searchAdminUsers(input: {
   const enriched: AdminUserSearchResult[] = [];
 
   for (const user of users) {
-    const { data: roleRows } = await supabase
+    const { data: roleRows } = await db
       .from("user_roles")
       .select("assigned_at, assigned_by, roles(code, name)")
       .eq("user_id", user.id);
@@ -129,7 +129,7 @@ export async function searchAdminUsers(input: {
     enriched.push({
       ...user,
       status: user.status ?? "active",
-      roles: await mapRoleRowsWithAssigners(supabase, roleRows ?? [])
+      roles: await mapRoleRowsWithAssigners(db, roleRows ?? [])
     });
   }
 
@@ -144,9 +144,9 @@ export async function searchAdminUsers(input: {
 
 export async function getAdminUserDetail(userId: string) {
   await assertPermission("admin.user.view");
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: profile, error } = await supabase
+  const { data: profile, error } = await db
     .from("profiles")
     .select("id, username, display_name, role, status, created_at")
     .eq("id", userId)
@@ -156,12 +156,12 @@ export async function getAdminUserDetail(userId: string) {
     return { user: null, error: error?.message ?? "Không tìm thấy người dùng." };
   }
 
-  const { data: roleRows } = await supabase
+  const { data: roleRows } = await db
     .from("user_roles")
     .select("assigned_at, assigned_by, roles(code, name)")
     .eq("user_id", userId);
 
-  const { data: activeBan } = await supabase
+  const { data: activeBan } = await db
     .from("user_bans")
     .select("id, reason, ends_at, created_at, is_active")
     .eq("user_id", userId)
@@ -172,9 +172,13 @@ export async function getAdminUserDetail(userId: string) {
 
   return {
     user: {
-      ...profile,
-      status: profile.status ?? "active",
-      roles: await mapRoleRowsWithAssigners(supabase, roleRows ?? []),
+      id: String(profile.id),
+      username: (profile.username as string | null) ?? null,
+      display_name: (profile.display_name as string | null) ?? null,
+      role: (profile.role as string | null) ?? null,
+      status: (profile.status as string | null) ?? "active",
+      created_at: String(profile.created_at),
+      roles: await mapRoleRowsWithAssigners(db, roleRows ?? []),
       activeBan: activeBan ?? null
     },
     error: null
@@ -204,7 +208,7 @@ export async function listAdminUsers(filters: UserDashboardFilters): Promise<{
   error: string | null;
 }> {
   await assertPermission("admin.user.view");
-  const supabase = await createClient();
+  const db = await createClient();
   const trimmed = filters.query.trim();
   const page = Math.max(1, filters.page);
   const pageSize = Math.min(100, Math.max(1, filters.pageSize));
@@ -212,7 +216,7 @@ export async function listAdminUsers(filters: UserDashboardFilters): Promise<{
   const to = from + pageSize - 1;
   const since = timeRangeSince(filters.timeRange);
 
-  let builder = supabase
+  let builder = db
     .from("profiles")
     .select(
       "id, username, display_name, avatar_url, role, status, created_at, updated_at, is_verified",
@@ -248,13 +252,13 @@ export async function listAdminUsers(filters: UserDashboardFilters): Promise<{
   } else if (filters.role === "verified_creator") {
     builder = builder.eq("is_verified", true);
   } else if (filters.role !== "all") {
-    const { data: roleRow } = await supabase
+    const { data: roleRow } = await db
       .from("roles")
       .select("id")
       .eq("code", filters.role)
       .maybeSingle();
     if (roleRow) {
-      const { data: userIds } = await supabase
+      const { data: userIds } = await db
         .from("user_roles")
         .select("user_id")
         .eq("role_id", roleRow.id);
@@ -275,7 +279,7 @@ export async function listAdminUsers(filters: UserDashboardFilters): Promise<{
   } else if (filters.status === "verified") {
     builder = builder.eq("is_verified", true);
   } else if (filters.status === "pending_verification") {
-    const { data: pending } = await supabase
+    const { data: pending } = await db
       .from("account_verifications")
       .select("user_id")
       .eq("status", "pending");
@@ -287,7 +291,7 @@ export async function listAdminUsers(filters: UserDashboardFilters): Promise<{
   }
 
   if (filters.accountType === "has_studio") {
-    const { data: creators } = await supabase.from("creator_profiles").select("user_id");
+    const { data: creators } = await db.from("creator_profiles").select("user_id");
     const ids = (creators ?? []).map((r) => r.user_id as string);
     if (!ids.length) {
       return { users: [], total: 0, page, pageSize, error: null };
@@ -311,28 +315,28 @@ export async function listAdminUsers(filters: UserDashboardFilters): Promise<{
     const userId = user.id as string;
     const [{ data: roleRows }, coinBalance, reportsReceived, strikes, accountRest, msgRest] =
       await Promise.all([
-        supabase
+        db
           .from("user_roles")
           .select("assigned_at, assigned_by, roles(code, name)")
           .eq("user_id", userId),
         import("@/lib/coins/get-user-coin-balance").then((m) =>
           m.getUserCoinBalance(userId)
         ),
-        supabase
+        db
           .from("reports")
           .select("id", { count: "exact", head: true })
           .eq("reported_user_id", userId),
-        supabase
+        db
           .from("violations")
           .select("id", { count: "exact", head: true })
           .eq("user_id", userId),
-        supabase
+        db
           .from("account_restrictions")
           .select("restriction_type")
           .eq("user_id", userId)
           .eq("is_active", true)
           .limit(3),
-        supabase
+        db
           .from("messaging_restrictions")
           .select("restriction_type")
           .eq("user_id", userId)
@@ -355,7 +359,7 @@ export async function listAdminUsers(filters: UserDashboardFilters): Promise<{
       status: (user.status as string) ?? "active",
       isVerified: Boolean(user.is_verified),
       createdAt: user.created_at as string,
-      roles: await mapRoleRowsWithAssigners(supabase, roleRows ?? []),
+      roles: await mapRoleRowsWithAssigners(db, roleRows ?? []),
       coinTotal: coinBalance.data?.balance ?? 0,
       paidCoin: coinBalance.data?.walletPaid ?? 0,
       bonusCoin: coinBalance.data?.walletBonus ?? 0,
@@ -384,8 +388,8 @@ export async function listAdminUsers(filters: UserDashboardFilters): Promise<{
 }
 
 export async function countUsersWithRole(roleCode: string, excludeUserId?: string) {
-  const supabase = await createClient();
-  const { data: roleRow } = await supabase
+  const db = await createClient();
+  const { data: roleRow } = await db
     .from("roles")
     .select("id")
     .eq("code", roleCode)
@@ -393,7 +397,7 @@ export async function countUsersWithRole(roleCode: string, excludeUserId?: strin
 
   if (!roleRow) return 0;
 
-  let query = supabase
+  let query = db
     .from("user_roles")
     .select("user_id", { count: "exact", head: true })
     .eq("role_id", roleRow.id);

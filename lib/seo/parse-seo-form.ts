@@ -18,8 +18,22 @@ export function parseSeoKeywordsField(formData: FormData) {
   return parseKeywordsInput(raw);
 }
 
+function isPrivateAppCanonical(path: string) {
+  const norm = path.startsWith("/") ? path : `/${path}`;
+  return (
+    norm.startsWith("/studio") ||
+    norm.startsWith("/admin") ||
+    norm.startsWith("/creator") ||
+    norm.startsWith("/me")
+  );
+}
+
 export function parseCanonicalUrlField(formData: FormData) {
   const value = String(formData.get("canonical_url") ?? "").trim();
 
-  return value || null;
+  if (!value || isPrivateAppCanonical(value)) {
+    return null;
+  }
+
+  return value;
 }

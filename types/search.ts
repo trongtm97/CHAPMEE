@@ -13,6 +13,7 @@ export type SearchFilterType = "all" | SearchResultType;
 
 export type SearchFilters = {
   type?: SearchFilterType;
+  origin?: "all" | "original" | "translation";
   genre?: string;
   page?: number;
   pageSize?: number;
@@ -33,6 +34,7 @@ export type SearchResultItem = {
   authorUsername: string | null;
   authorDisplayName: string | null;
   episodeNumber: number | null;
+  contentOrigin?: "original" | "translation";
   searchScore: number;
   textRelevance: number;
   exactMatchScore: number;

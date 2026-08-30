@@ -11,8 +11,8 @@ import {
   createStoryFullAccessUnlock,
   getStoryFullAccessUnlock,
   getStoryMonetizationSettings
-} from "@/lib/supabase/story-monetization";
-import { createClient } from "@/lib/supabase/server";
+} from "@/lib/data/story-monetization";
+import { createClient } from "@/lib/data/server";
 import { recordCreatorNetEarning } from "@/lib/finance/record-creator-net-earning";
 import { resolveFullStoryPurchaseRevenue } from "@/lib/monetization/story-completion-escrow";
 import { calculateWalletBalance, debitUserCoins } from "@/lib/wallets/user-wallet";
@@ -23,6 +23,7 @@ import {
   shouldHoldCreatorRevenue
 } from "@/lib/risk/risk-engine";
 import type { CoinLotAllocation } from "@/types/coin-lot";
+import { loadStoryOriginPolicy } from "@/lib/content-origin/load-story-origin-policy";
 
 function toNumber(value: unknown, fallback = 0) {
   const parsed = typeof value === "number" ? value : Number(value);
@@ -33,6 +34,11 @@ export async function unlockStoryFullAccessAction(input: {
   storyId: string;
   requestId?: string;
 }) {
+  const originPolicy = await loadStoryOriginPolicy(input.storyId);
+  if (!originPolicy.canSellStoryBundle || !originPolicy.canUseCoinUnlock) {
+    return { ok: false, error: "Story nay khong ho tro mua tron bo." };
+  }
+
   const { user } = await getCurrentUser();
   if (!user) {
     return { ok: false, error: "Bạn cần đăng nhập để mua trọn bộ." };
@@ -64,8 +70,8 @@ export async function unlockStoryFullAccessAction(input: {
     return { ok: true, alreadyUnlocked: true, error: null };
   }
 
-  const supabase = await createClient();
-  const { data: story } = await supabase
+  const db = await createClient();
+  const { data: story } = await db
     .from("stories")
     .select("id, status, visibility, creator_profiles(user_id)")
     .eq("id", input.storyId)
@@ -153,7 +159,7 @@ export async function unlockStoryFullAccessAction(input: {
     moduleType: "paid_chapter",
     creatorUserId,
     coinSpent: storyPrice,
-    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1000),
+    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1),
     paidCoinAmount: debit.data.paid_coin_amount ?? 0,
     bonusCoinAmount: debit.data.bonus_coin_amount ?? 0,
     coinLotAllocations:
@@ -192,7 +198,7 @@ export async function unlockStoryFullAccessAction(input: {
     sourceId: unlockRecord.data.id as string,
     storyId: input.storyId,
     coinAmount: storyPrice,
-    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1000),
+    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1),
     revenue,
     revenueStatus: creditStatus,
     releaseStatus: escrow.releaseStatus,

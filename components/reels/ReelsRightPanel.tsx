@@ -12,7 +12,7 @@ type ReelsRightPanelProps = {
   context: ReelsAnalyticsContext | null;
   isFollowBusy: boolean;
   onClose: () => void;
-  onOpenComments: () => void;
+  onCommentCreated: () => void;
   onToggleFollow: () => void;
 };
 
@@ -28,17 +28,19 @@ export function ReelsRightPanel({
   context,
   isFollowBusy,
   onClose,
-  onOpenComments,
+  onCommentCreated,
   onToggleFollow
 }: ReelsRightPanelProps) {
   if (!activeTab || !context) {
     return null;
   }
 
+  const isCommentsTab = activeTab === "comments";
+
   return (
     <aside className="relative hidden min-h-[640px] w-[340px] max-w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-[#0d131d]/95 lg:flex">
       <div className="flex min-h-0 w-full flex-col">
-        <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <header className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
           <h3 className="text-sm font-bold uppercase tracking-[0.15em] text-zinc-200">
             {tabLabels[activeTab]}
           </h3>
@@ -50,29 +52,36 @@ export function ReelsRightPanel({
             Đóng
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          {activeTab === "comments" ? (
-            <ReelsCommentPanel context={context} onOpenComments={onOpenComments} />
-          ) : null}
-          {activeTab === "story" ? <ReelsStoryPanel item={context.item} /> : null}
-          {activeTab === "author" ? (
-            <ReelsAuthorPanel
-              isFollowBusy={isFollowBusy}
-              item={context.item}
-              onToggleFollow={onToggleFollow}
+        {isCommentsTab ? (
+          <div className="flex min-h-0 flex-1 flex-col p-3">
+            <ReelsCommentPanel
+              active
+              context={context}
+              onCommentCreated={onCommentCreated}
             />
-          ) : null}
-          {activeTab === "chapters" ? (
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-200/90">
-                Danh sách chương
-              </p>
-              <p className="mt-3 text-sm leading-6 text-zinc-300">
-                Danh sách chương và gợi ý liên quan sẽ được hiển thị tại đây.
-              </p>
-            </section>
-          ) : null}
-        </div>
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            {activeTab === "story" ? <ReelsStoryPanel item={context.item} /> : null}
+            {activeTab === "author" ? (
+              <ReelsAuthorPanel
+                isFollowBusy={isFollowBusy}
+                item={context.item}
+                onToggleFollow={onToggleFollow}
+              />
+            ) : null}
+            {activeTab === "chapters" ? (
+              <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-200/90">
+                  Danh sách chương
+                </p>
+                <p className="mt-3 text-sm leading-6 text-zinc-300">
+                  Danh sách chương và gợi ý liên quan sẽ được hiển thị tại đây.
+                </p>
+              </section>
+            ) : null}
+          </div>
+        )}
       </div>
     </aside>
   );

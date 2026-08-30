@@ -8,9 +8,9 @@ import type {
   AuthorRankingItem,
   FanRankingItem
 } from "@/types/ranking";
-import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/postgrest-selects";
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/data/client";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 
 export type RankingData = {
@@ -154,11 +154,11 @@ function toStoryRankingItem(
 }
 
 async function fetchHotStories(
-  supabase: ReturnType<typeof createClient>,
+  db: ReturnType<typeof createClient>,
   windowStart: string | null,
   limit: number
 ): Promise<StoryRankingItem[]> {
-  const { data: scoresData } = await supabase.rpc("get_public_story_rankings", {
+  const { data: scoresData } = await db.rpc("get_public_story_rankings", {
     window_start: windowStart,
     ranking_limit: limit
   });
@@ -168,7 +168,7 @@ async function fetchHotStories(
   );
 
   if (scoreRows.length === 0) {
-    const { data: recentData } = await supabase
+    const { data: recentData } = await db
       .from("stories")
       .select(
         `id, title, slug, public_code, hook, short_description, published_at, ${CREATOR_PROFILE_STORY_JOIN}`
@@ -180,7 +180,7 @@ async function fetchHotStories(
 
     const recentRows = (recentData ?? []) as unknown as StoryRow[];
     const recentTaxonomy = await getStoryTaxonomyLabelsByStoryIds(
-      supabase,
+      db,
       recentRows.map((row) => row.id)
     );
 
@@ -195,7 +195,7 @@ async function fetchHotStories(
   }
 
   const storyIds = scoreRows.map((row) => row.story_id);
-  const { data } = await supabase
+  const { data } = await db
     .from("stories")
     .select(
       `id, title, slug, public_code, hook, short_description, published_at, ${CREATOR_PROFILE_STORY_JOIN}`
@@ -207,7 +207,7 @@ async function fetchHotStories(
   const rowsMap = new Map(
     ((data ?? []) as unknown as StoryRow[]).map((row) => [row.id, row])
   );
-  const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
+  const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, storyIds);
 
   return scoreRows
     .map((scoreRow, index) => {
@@ -225,7 +225,7 @@ async function fetchHotStories(
 }
 
 async function fetchRisingStories(
-  supabase: ReturnType<typeof createClient>,
+  db: ReturnType<typeof createClient>,
   windowStart: string | null,
   limit: number
 ): Promise<StoryRankingItem[]> {
@@ -233,7 +233,7 @@ async function fetchRisingStories(
     Date.now() - 30 * 24 * 60 * 60 * 1000
   ).toISOString();
 
-  const { data: scoresData } = await supabase.rpc("get_public_story_rankings", {
+  const { data: scoresData } = await db.rpc("get_public_story_rankings", {
     window_start: windowStart ?? thirtyDaysAgo,
     ranking_limit: limit * 2
   });
@@ -245,7 +245,7 @@ async function fetchRisingStories(
   if (scoreRows.length === 0) return [];
 
   const storyIds = scoreRows.map((row) => row.story_id);
-  const { data } = await supabase
+  const { data } = await db
     .from("stories")
     .select(
       `id, title, slug, public_code, hook, short_description, published_at, ${CREATOR_PROFILE_STORY_JOIN}`
@@ -258,7 +258,7 @@ async function fetchRisingStories(
   const rowsMap = new Map(
     ((data ?? []) as unknown as StoryRow[]).map((row) => [row.id, row])
   );
-  const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
+  const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, storyIds);
 
   return scoreRows
     .map((scoreRow, index) => {
@@ -277,11 +277,11 @@ async function fetchRisingStories(
 }
 
 async function fetchTopAuthors(
-  supabase: ReturnType<typeof createClient>,
+  db: ReturnType<typeof createClient>,
   windowStart: string | null,
   limit: number
 ): Promise<AuthorRankingItem[]> {
-  const { data, error } = await supabase.rpc("get_top_authors", {
+  const { data, error } = await db.rpc("get_top_authors", {
     window_start: windowStart,
     ranking_limit: limit
   });
@@ -303,10 +303,10 @@ async function fetchTopAuthors(
 }
 
 async function fetchTopFans(
-  supabase: ReturnType<typeof createClient>,
+  db: ReturnType<typeof createClient>,
   limit: number
 ): Promise<FanRankingItem[]> {
-  const { data, error } = await supabase.rpc("get_app_top_fans", {
+  const { data, error } = await db.rpc("get_app_top_fans", {
     ranking_limit: limit,
     input_user_id: null
   });
@@ -349,30 +349,30 @@ export function useRankings(
         dispatch({ type: "loading" });
       }
 
-      const supabase = createClient();
+      const db = createClient();
 
       try {
         const windowStart = getTimePeriodStart(period);
         const results: RankingData = { ...emptyData };
 
         if (category === "hot_stories") {
-          results.hotStories = await fetchHotStories(supabase, windowStart, 20);
+          results.hotStories = await fetchHotStories(db, windowStart, 20);
         }
 
         if (category === "rising_stories") {
           results.risingStories = await fetchRisingStories(
-            supabase,
+            db,
             windowStart,
             20
           );
         }
 
         if (category === "top_authors") {
-          results.topAuthors = await fetchTopAuthors(supabase, windowStart, 20);
+          results.topAuthors = await fetchTopAuthors(db, windowStart, 20);
         }
 
         if (category === "top_fans") {
-          results.topFans = await fetchTopFans(supabase, 20);
+          results.topFans = await fetchTopFans(db, 20);
         }
 
         rankingCache.set(cacheKey, { data: results, fetchedAt: Date.now() });

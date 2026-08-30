@@ -1,8 +1,8 @@
 import { ALGORITHM_WEIGHT_GROUPS } from "@/lib/algorithm/weight-groups";
 import { buildAlgorithmHealthChecks, deriveOverviewKpis } from "@/lib/algorithm/health";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createAdminClient } from "@/lib/data/admin";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type {
   AlgorithmConfig,
   AlgorithmControlCenterData,
@@ -14,6 +14,88 @@ import type {
 } from "@/types/algorithm-settings";
 
 const SUM_TOLERANCE = 0.02;
+const CONTENT_ORIGIN_MIX_DEFAULTS: Array<{
+  key: string;
+  value: number | boolean;
+  value_type: AlgorithmValueType;
+  label: string;
+  description: string;
+  min_value: number | null;
+  max_value: number | null;
+}> = [
+  {
+    key: "content_origin.original_min_exposure_percent",
+    value: 60,
+    value_type: "percentage",
+    label: "Original tối thiểu (%)",
+    description: "Tỉ lệ exposure tối thiểu cho Truyện Sáng Tác.",
+    min_value: 0,
+    max_value: 100
+  },
+  {
+    key: "content_origin.translation_max_exposure_percent",
+    value: 40,
+    value_type: "percentage",
+    label: "Translation tối đa (%)",
+    description: "Tỉ lệ exposure tối đa cho Truyện Dịch.",
+    min_value: 0,
+    max_value: 100
+  },
+  {
+    key: "content_origin.reels_original_min_percent",
+    value: 60,
+    value_type: "percentage",
+    label: "Reels original tối thiểu (%)",
+    description: "Tỉ lệ tối thiểu original trong Reels feed.",
+    min_value: 0,
+    max_value: 100
+  },
+  {
+    key: "content_origin.reels_translation_max_percent",
+    value: 40,
+    value_type: "percentage",
+    label: "Reels translation tối đa (%)",
+    description: "Tỉ lệ tối đa translation trong Reels feed.",
+    min_value: 0,
+    max_value: 100
+  },
+  {
+    key: "content_origin.discover_original_featured_min_percent",
+    value: 60,
+    value_type: "percentage",
+    label: "Discover original nổi bật tối thiểu (%)",
+    description: "Tỉ lệ tối thiểu original ở Discover sections.",
+    min_value: 0,
+    max_value: 100
+  },
+  {
+    key: "content_origin.translation_requires_rights_for_promotion",
+    value: false,
+    value_type: "boolean",
+    label: "Translation cần verified rights để được promote",
+    description: "Bật để chỉ promote truyện dịch đã verified quyền.",
+    min_value: null,
+    max_value: null
+  },
+  {
+    key: "content_origin.separate_rankings_enabled",
+    value: true,
+    value_type: "boolean",
+    label: "Bật BXH riêng theo content origin",
+    description: "Hiển thị BXH riêng original/translation/free.",
+    min_value: null,
+    max_value: null
+  },
+  {
+    key: "content_origin.content_origin_fairness_enabled",
+    value: true,
+    value_type: "boolean",
+    label: "Bật fairness content origin",
+    description: "Bật caps/quota ngăn translation monopoly.",
+    min_value: null,
+    max_value: null
+  }
+];
 
 type DbSettingRow = {
   id: string;
@@ -105,8 +187,8 @@ export function validateAlgorithmValueBounds(
 }
 
 export async function getAlgorithmSetting(key: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("algorithm_settings")
     .select("*")
     .eq("key", key)
@@ -126,8 +208,8 @@ export async function getAlgorithmSetting(key: string) {
 }
 
 export async function getAlgorithmSettingsByCategory(category: AlgorithmSettingCategory) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("algorithm_settings")
     .select("*")
     .eq("category", category)
@@ -146,8 +228,8 @@ export async function getAlgorithmSettingsByCategory(category: AlgorithmSettingC
 }
 
 export async function getAllAlgorithmSettings() {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("algorithm_settings")
     .select("*")
     .order("category", { ascending: true })
@@ -175,6 +257,38 @@ export async function getAlgorithmConfig(): Promise<AlgorithmConfig> {
   }
 
   return config;
+}
+
+async function ensureContentOriginMixSettings() {
+  try {
+    const admin = createAdminClient();
+    const { data: existing } = await admin
+      .from("algorithm_settings")
+      .select("key")
+      .in(
+        "key",
+        CONTENT_ORIGIN_MIX_DEFAULTS.map((item) => item.key)
+      );
+    const existingKeys = new Set((existing ?? []).map((row) => row.key));
+    const missing = CONTENT_ORIGIN_MIX_DEFAULTS.filter((item) => !existingKeys.has(item.key));
+    if (missing.length === 0) return;
+    await admin.from("algorithm_settings").insert(
+      missing.map((item) => ({
+        key: item.key,
+        value: item.value,
+        value_type: item.value_type,
+        category: "fairness",
+        label: item.label,
+        description: item.description,
+        min_value: item.min_value,
+        max_value: item.max_value,
+        default_value: item.value,
+        is_active: true
+      }))
+    );
+  } catch {
+    // No-op: do not block settings page when table permissions differ.
+  }
 }
 
 export function validateAlgorithmWeights(
@@ -245,8 +359,8 @@ async function writeAlgorithmAuditLog(input: {
   changedBy: string | null;
   reason: string | null;
 }) {
-  const supabase = await createClient();
-  await supabase.from("algorithm_setting_audit_logs").insert({
+  const db = await createClient();
+  await db.from("algorithm_setting_audit_logs").insert({
     setting_key: input.settingKey,
     old_value: input.oldValue,
     new_value: input.newValue,
@@ -261,8 +375,8 @@ export async function updateAlgorithmSetting(
   changedBy: string | null,
   reason?: string | null
 ) {
-  const supabase = await createClient();
-  const { data: existing, error: fetchError } = await supabase
+  const db = await createClient();
+  const { data: existing, error: fetchError } = await db
     .from("algorithm_settings")
     .select("*")
     .eq("key", key)
@@ -289,12 +403,15 @@ export async function updateAlgorithmSetting(
     };
   }
 
-  const boundsError = validateAlgorithmValueBounds(existing, serialized);
+  const boundsError = validateAlgorithmValueBounds(
+    existing as Parameters<typeof validateAlgorithmValueBounds>[0],
+    serialized
+  );
   if (boundsError) {
     return { success: false as const, error: boundsError };
   }
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await db
     .from("algorithm_settings")
     .update({
       value: serialized,
@@ -322,8 +439,8 @@ export async function resetAlgorithmSettingToDefault(
   changedBy: string | null,
   reason?: string | null
 ) {
-  const supabase = await createClient();
-  const { data: existing, error: fetchError } = await supabase
+  const db = await createClient();
+  const { data: existing, error: fetchError } = await db
     .from("algorithm_settings")
     .select("*")
     .eq("key", key)
@@ -341,8 +458,8 @@ export async function resetAlgorithmSettingToDefault(
 }
 
 export async function getAlgorithmAuditLogs(limit = 50) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("algorithm_setting_audit_logs")
     .select("id, setting_key, old_value, new_value, changed_by, reason, created_at")
     .order("created_at", { ascending: false })
@@ -360,7 +477,7 @@ export async function getAlgorithmAuditLogs(limit = 50) {
 
   const profileMap = new Map<string, { username: string | null; display_name: string | null }>();
   if (actorIds.length > 0) {
-    const { data: profiles } = await supabase
+    const { data: profiles } = await db
       .from("profiles")
       .select("id, username, display_name")
       .in("id", actorIds);
@@ -385,10 +502,10 @@ export async function getAlgorithmAuditLogs(limit = 50) {
 }
 
 async function getExposureConcentration() {
-  const supabase = await createClient();
+  const db = await createClient();
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("exposure_events")
     .select("author_user_id, story_id")
     .gte("created_at", since)
@@ -467,8 +584,8 @@ async function loadColdStartSummaryForOverview(): Promise<
   import("@/types/algorithm-settings").AlgorithmColdStartSummary | null
 > {
   try {
-    const supabase = createAdminClient();
-    const { count: activeCount, error: activeError } = await supabase
+    const db = createAdminClient();
+    const { count: activeCount, error: activeError } = await db
       .from("cold_start_tests")
       .select("id", { count: "exact", head: true })
       .eq("status", "active");
@@ -481,11 +598,11 @@ async function loadColdStartSummaryForOverview(): Promise<
     }
 
     const [{ count: qualifiedCount }, { count: failedCount }] = await Promise.all([
-      supabase
+      db
         .from("cold_start_tests")
         .select("id", { count: "exact", head: true })
         .eq("status", "qualified"),
-      supabase
+      db
         .from("cold_start_tests")
         .select("id", { count: "exact", head: true })
         .eq("status", "failed")
@@ -505,6 +622,7 @@ export async function loadAlgorithmControlCenterData(options?: {
   canUpdate: boolean;
 }): Promise<AlgorithmControlCenterData> {
   try {
+    await ensureContentOriginMixSettings();
     const settings = await getAllAlgorithmSettings();
     const weightValidations = validateAlgorithmWeights(settings);
     const activeCount = settings.filter((s) => s.is_active).length;

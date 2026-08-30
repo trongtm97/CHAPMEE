@@ -5,7 +5,7 @@ import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { notifyMessageReportResolved } from "@/lib/notifications/create-message-notification";
 import { notifyMessageRestriction } from "@/lib/notifications/create-message-notification";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { RestrictionType } from "@/types/moderation";
 
 export type MessageModerationAction =
@@ -50,9 +50,9 @@ export async function applyMessageReportAction(input: {
     return { ok: false, error: guard.error };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: report } = await supabase
+  const { data: report } = await db
     .from("message_reports")
     .select("id, reporter_id, reported_user_id, message_id, status")
     .eq("id", input.reportId)
@@ -65,7 +65,7 @@ export async function applyMessageReportAction(input: {
   const targetMessageId = input.messageId ?? (report.message_id as string | null);
 
   if (input.action === "warn_user") {
-    await supabase.from("violations").insert({
+    await db.from("violations").insert({
       user_id: report.reported_user_id as string,
       target_type: "message",
       target_id: targetMessageId ?? input.reportId,
@@ -80,7 +80,7 @@ export async function applyMessageReportAction(input: {
   }
 
   if (input.action === "delete_message" && targetMessageId) {
-    await supabase
+    await db
       .from("messages")
       .update({
         deleted_at: new Date().toISOString(),
@@ -96,7 +96,7 @@ export async function applyMessageReportAction(input: {
       ? new Date(Date.now() + restriction.hours * 60 * 60 * 1000).toISOString()
       : null;
 
-    await supabase.from("account_restrictions").insert({
+    await db.from("account_restrictions").insert({
       user_id: report.reported_user_id as string,
       restriction_type: restriction.type,
       reason: input.note ?? "Vi phạm tin nhắn",
@@ -130,7 +130,7 @@ export async function applyMessageReportAction(input: {
     reporter_abuse: "Báo cáo sai"
   };
 
-  await supabase
+  await db
     .from("message_reports")
     .update({
       status,

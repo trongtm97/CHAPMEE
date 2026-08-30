@@ -12,7 +12,7 @@ export function CommunityChallengeCard({
 }: CommunityChallengeCardProps) {
   const detailHref = challenge.postId
     ? `/community/${challenge.postId}`
-    : "/community/new?type=challenge";
+    : "/community";
 
   return (
     <article className={`chap-card space-y-3 ${compact ? "p-3.5" : "p-4"}`}>
@@ -30,7 +30,7 @@ export function CommunityChallengeCard({
       <div className="flex flex-wrap gap-2">
         <Link
           className="tap-highlight inline-flex min-h-10 items-center justify-center rounded-full bg-cyan-300 px-4 text-xs font-black uppercase tracking-[0.1em] text-zinc-950"
-          href="/community/new?type=challenge"
+          href="/community"
         >
           Viết bài dự thi
         </Link>

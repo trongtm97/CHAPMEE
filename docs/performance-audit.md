@@ -134,7 +134,7 @@ Problem:
 - Several large-list and aggregate paths rely on status/date/target/surface filters that benefit from composite indexes.
 
 Files:
-- `supabase/migrations/196_performance_support_indexes.sql`
+- `db/migrations/legacy/196_performance_support_indexes.sql`
 
 Fix:
 - Added targeted indexes for stories, episodes, profiles, taxonomy terms/relations, moderation queues, analytics events, ad placements, ad render events, and ad revenue aggregates.

@@ -14,7 +14,7 @@ import {
   PLACEMENT_DEFINITIONS
 } from "@/lib/campaigns/constants";
 import type { CampaignFormInput, CampaignStaffPermissions, CampaignWithSponsor, SponsorRecord } from "@/types/campaign";
-import type { ChallengeListItem } from "@/lib/supabase/challenges";
+import type { ChallengeListItem } from "@/lib/data/challenges";
 
 type CampaignFormPanelProps = {
   open: boolean;

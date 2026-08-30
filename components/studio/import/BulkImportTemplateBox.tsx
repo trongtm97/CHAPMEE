@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui";
 import {
   BULK_IMPORT_EXAMPLE,
+  BULK_IMPORT_OPTIONAL_FIELDS,
+  BULK_IMPORT_REQUIRED_FIELDS,
   BULK_IMPORT_TEMPLATE_DOWNLOAD_PATH,
   BULK_IMPORT_TEMPLATE_SAMPLE
 } from "@/lib/import/bulk-import-template";
@@ -29,11 +31,38 @@ export function BulkImportTemplateBox({ onCopyApplied }: BulkImportTemplateBoxPr
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-zinc-400">
           <li>Copy mẫu bên dưới.</li>
           <li>Thay số chương, tiêu đề và nội dung bằng truyện của bạn.</li>
-          <li>Mỗi chương bắt đầu bằng dòng === CHƯƠNG SỐ ===.</li>
-          <li>Không xóa dòng “Tiêu đề:” và “Nội dung:”.</li>
-          <li>Bấm “Xem trước” để kiểm tra trước khi nhập.</li>
-          <li>Sau khi nhập, các chương sẽ nằm ở trạng thái nháp.</li>
+          <li>Bấm “Xem trước” — chỉ chương lỗi nặng (trùng số) mới bị bỏ qua.</li>
+          <li>Sau khi nhập, các chương sẽ nằm ở trạng thái nháp để bạn bổ sung.</li>
         </ol>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-emerald-200">
+              Bắt buộc
+            </p>
+            <ul className="mt-2 space-y-2 text-sm text-zinc-300">
+              {BULK_IMPORT_REQUIRED_FIELDS.map((item) => (
+                <li key={item.field}>
+                  <span className="font-mono text-emerald-100">{item.field}</span>
+                  <span className="mt-0.5 block text-xs text-zinc-400">{item.note}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-xl border border-zinc-600/40 bg-white/[0.02] p-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-zinc-400">
+              Không bắt buộc
+            </p>
+            <ul className="mt-2 space-y-2 text-sm text-zinc-300">
+              {BULK_IMPORT_OPTIONAL_FIELDS.map((item) => (
+                <li key={item.field}>
+                  <span className="font-mono text-zinc-200">{item.field}</span>
+                  <span className="mt-0.5 block text-xs text-zinc-500">{item.note}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">

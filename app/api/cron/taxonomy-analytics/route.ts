@@ -4,7 +4,7 @@ import {
   aggregateTaxonomyDateRange,
   defaultAggregationDate
 } from "@/lib/taxonomy-analytics/aggregate-daily";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -28,13 +28,13 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
     const from = url.searchParams.get("from");
     const to = url.searchParams.get("to");
     const date = url.searchParams.get("date") ?? defaultAggregationDate();
 
     if (from && to) {
-      const results = await aggregateTaxonomyDateRange(supabase, from, to);
+      const results = await aggregateTaxonomyDateRange(db, from, to);
       const failed = results.find((row) => !row.ok);
       if (failed) {
         return NextResponse.json({ error: failed.error }, { status: 500 });
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const result = await aggregateTaxonomyDailyMetrics(supabase, date);
+    const result = await aggregateTaxonomyDailyMetrics(db, date);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 500 });
     }

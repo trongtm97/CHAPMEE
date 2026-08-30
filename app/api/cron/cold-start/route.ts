@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { updateColdStartProgress } from "@/lib/cold-start/evaluate";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -23,8 +23,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = createAdminClient();
-    const result = await updateColdStartProgress(supabase);
+    const db = createAdminClient();
+    const result = await updateColdStartProgress(db);
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(

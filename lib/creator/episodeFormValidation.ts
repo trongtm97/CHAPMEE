@@ -1,3 +1,4 @@
+import { validatePlainChapterContent } from "@/lib/media/content-media-validator";
 import { parseEpisodePresentationFields } from "@/lib/creator/parse-episode-presentation";
 import { modeUsesStructuredContent } from "@/lib/presentation/constants";
 import { runComposerImportValidation } from "@/lib/composer/publish-validation";
@@ -18,7 +19,7 @@ export type EpisodeFormValues = {
   content: string;
   excerpt: string;
   wordCount: number;
-  status: "draft" | "pending";
+  status: "draft" | "published";
   poll: {
     question: string;
     status: "active" | "closed";
@@ -52,7 +53,7 @@ export type EpisodeValidationResult =
 
 export function parseEpisodeFormData(formData: FormData): EpisodeValidationResult {
   const episodeNumber = Number(formData.get("episode_number"));
-  const title = String(formData.get("title") ?? "").trim();
+  const titleInput = String(formData.get("title") ?? "").trim();
   const content = String(formData.get("content") ?? "").trim();
   const excerptInput = String(formData.get("excerpt") ?? "").trim();
   const intent = String(formData.get("intent") ?? "draft");
@@ -85,9 +86,7 @@ export function parseEpisodeFormData(formData: FormData): EpisodeValidationResul
     return { ok: false, error: "Vui lòng nhập số chap hợp lệ." };
   }
 
-  if (!title) {
-    return { ok: false, error: "Vui lòng nhập tiêu đề chap." };
-  }
+  const title = titleInput || `Chương ${episodeNumber}`;
 
   const storyPresentationMode = String(
     formData.get("story_presentation_mode") ?? "standard_prose"
@@ -118,6 +117,13 @@ export function parseEpisodeFormData(formData: FormData): EpisodeValidationResul
     };
   }
 
+  if (content) {
+    const localUrlCheck = validatePlainChapterContent(content);
+    if (!localUrlCheck.ok) {
+      return { ok: false, error: localUrlCheck.error };
+    }
+  }
+
   if (usesStructured && content.length > 0 && content.length < 20) {
     return {
       ok: false,
@@ -138,14 +144,6 @@ export function parseEpisodeFormData(formData: FormData): EpisodeValidationResul
     if (!composerCheck.ok) {
       return { ok: false, error: composerCheck.error };
     }
-  }
-
-  if (intent === "review" && formData.get("guidelines_ack") !== "on") {
-    return {
-      ok: false,
-      error:
-        "Vui lòng xác nhận tuân thủ Quy định cộng đồng trước khi gửi chương duyệt."
-    };
   }
 
   const hasPollInput = Boolean(pollQuestion || pollOptions.some(Boolean));
@@ -193,7 +191,7 @@ export function parseEpisodeFormData(formData: FormData): EpisodeValidationResul
       wordCount: usesStructured
         ? Math.max(1, countWords(JSON.stringify(presentationParsed.values.structuredContent)))
         : countWords(content),
-      status: intent === "review" ? "pending" : "draft",
+      status: intent === "review" ? "published" : "draft",
       poll: hasPollInput
         ? {
             optionTexts: pollOptions,

@@ -18,7 +18,7 @@ export function RevenueMetricCard({
   tag
 }: RevenueMetricCardProps) {
   return (
-    <div className="relative">
+    <div className="relative h-full">
       {tag ? (
         <span className="absolute right-3 top-3 z-10 rounded-full border border-amber-400/30 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
           {tag}

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { PERMANENTLY_HIDDEN_QUALITY_STATUS } from "@/lib/content-quality/public-visibility";
 import { publicContentStatuses } from "@/lib/visibility/contentVisibility";
 
@@ -10,8 +10,8 @@ export type PublicGenreFacet = {
 
 const PUBLIC_STATUSES = [...publicContentStatuses];
 
-export async function hasTaxonomyMainGenres(supabase: SupabaseClient) {
-  const { count } = await supabase
+export async function hasTaxonomyMainGenres(db: DatabaseClient) {
+  const { count } = await db
     .from("taxonomy_terms")
     .select("id", { count: "exact", head: true })
     .eq("type", "main_genre")
@@ -21,9 +21,9 @@ export async function hasTaxonomyMainGenres(supabase: SupabaseClient) {
 }
 
 export async function getPublicMainGenresWithStoryCounts(
-  supabase: SupabaseClient
+  db: DatabaseClient
 ): Promise<PublicGenreFacet[]> {
-  const { data: rpcRows, error: rpcError } = await supabase.rpc(
+  const { data: rpcRows, error: rpcError } = await db.rpc(
     "get_public_main_genres_with_story_counts"
   );
 
@@ -35,7 +35,7 @@ export async function getPublicMainGenresWithStoryCounts(
     }));
   }
 
-  const { data: terms, error } = await supabase
+  const { data: terms, error } = await db
     .from("taxonomy_terms")
     .select("id, slug, name")
     .eq("type", "main_genre")
@@ -49,7 +49,7 @@ export async function getPublicMainGenresWithStoryCounts(
   }
 
   const termIds = terms.map((row) => String(row.id));
-  const { data: links } = await supabase
+  const { data: links } = await db
     .from("story_taxonomy_terms")
     .select("term_id, stories!inner(id, visibility, status)")
     .in("term_id", termIds)
@@ -71,19 +71,19 @@ export async function getPublicMainGenresWithStoryCounts(
   }));
 }
 
-export async function getPublicMainGenreSlugs(supabase: SupabaseClient) {
-  const genres = await getPublicMainGenresWithStoryCounts(supabase);
+export async function getPublicMainGenreSlugs(db: DatabaseClient) {
+  const genres = await getPublicMainGenresWithStoryCounts(db);
   return genres.filter((g) => g.story_count > 0).map((g) => g.slug);
 }
 
 /** @deprecated Use taxonomy term id via ranking-bridge. Returns main_genre term id for slug. */
 export async function resolveMainGenreSlugToGenreId(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   genreSlug: string | null | undefined
 ): Promise<string | null> {
   if (!genreSlug) return null;
 
-  const { data: term } = await supabase
+  const { data: term } = await db
     .from("taxonomy_terms")
     .select("id")
     .eq("type", "main_genre")
@@ -95,11 +95,11 @@ export async function resolveMainGenreSlugToGenreId(
 }
 
 export async function getPublicStoryIdsForMainGenreSlug(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   genreSlug: string,
   limit = 120
 ): Promise<string[] | null> {
-  const { data: term } = await supabase
+  const { data: term } = await db
     .from("taxonomy_terms")
     .select("id")
     .eq("type", "main_genre")
@@ -111,7 +111,7 @@ export async function getPublicStoryIdsForMainGenreSlug(
     return null;
   }
 
-  const { data } = await supabase
+  const { data } = await db
     .from("story_taxonomy_terms")
     .select("story_id, stories!inner(id)")
     .eq("term_id", term.id)
@@ -134,18 +134,18 @@ export type PublicGenreStoryRow = {
 };
 
 export async function loadPublicStoriesForGenreSlug(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   genreSlug: string,
   limit = 20
 ): Promise<PublicGenreStoryRow[]> {
   const taxonomyIds = await getPublicStoryIdsForMainGenreSlug(
-    supabase,
+    db,
     genreSlug,
     limit
   );
 
   if (taxonomyIds && taxonomyIds.length > 0) {
-    const { data } = await supabase
+    const { data } = await db
       .from("stories")
       .select("id, title, slug, public_code, hook, published_at")
       .in("id", taxonomyIds)

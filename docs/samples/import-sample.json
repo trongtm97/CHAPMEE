@@ -1,0 +1,21 @@
+{
+  "title": "Truyện mẫu import",
+  "author": "Partner Test",
+  "chapters": [
+    {
+      "number": 1,
+      "title": "Mở đầu",
+      "content": "Đây là nội dung chương 1 cho kiểm thử import pipeline. Nội dung đủ dài để qua ngưỡng dedupe."
+    },
+    {
+      "number": 2,
+      "title": "Tiếp theo",
+      "content": "Chương hai với nội dung khác để kiểm tra hash và publish lên MinIO story-content."
+    },
+    {
+      "number": 3,
+      "title": "Kết",
+      "content": "Chương cuối của file mẫu — chỉ dùng trong môi trường dev."
+    }
+  ]
+}

@@ -2,6 +2,7 @@ import { useId, type TextareaHTMLAttributes } from "react";
 
 type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
   label?: string;
+  labelRequired?: boolean;
   error?: string;
 };
 
@@ -10,6 +11,7 @@ export function Textarea({
   error,
   id,
   label,
+  labelRequired = false,
   rows = 4,
   ...props
 }: TextareaProps) {
@@ -25,6 +27,7 @@ export function Textarea({
           htmlFor={textareaId}
         >
           {label}
+          {labelRequired ? <span className="text-red-300"> *</span> : null}
         </label>
       ) : null}
       <textarea

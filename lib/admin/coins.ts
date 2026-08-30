@@ -1,9 +1,9 @@
 import { assertAnyPermission, assertPermission } from "@/lib/auth/require-permission";
-import { createClient } from "@/lib/supabase/server";
-import { fetchWalletTotalsSnapshot } from "@/lib/supabase/admin-finance";
+import { createClient } from "@/lib/data/server";
+import { fetchWalletTotalsSnapshot } from "@/lib/data/admin-finance";
 import { getUserCoinBalance } from "@/lib/coins/get-user-coin-balance";
 import { getUserCoinLedger } from "@/lib/coins/get-user-coin-ledger";
-import { getOrCreateUserWalletRecord } from "@/lib/supabase/wallets";
+import { getOrCreateUserWalletRecord } from "@/lib/data/wallets";
 import {
   ADMIN_COIN_BATCH_MAX_TOTAL,
   ADMIN_COIN_BATCH_MAX_USERS,
@@ -53,7 +53,7 @@ async function fetchEmailsForUsers(userIds: string[]) {
   const map = new Map<string, string>();
   if (!userIds.length) return map;
   try {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const { createAdminClient } = await import("@/lib/data/admin");
     const admin = createAdminClient();
     await Promise.all(
       userIds.slice(0, 50).map(async (id) => {
@@ -73,7 +73,7 @@ export async function getAdminCoinDashboardMetrics(): Promise<{
 }> {
   await assertAnyPermission([...COIN_VIEW_PERMISSIONS]);
 
-  const supabase = await createClient();
+  const db = await createClient();
   const todayStart = todayStartIso();
 
   const walletSnapshot = await fetchWalletTotalsSnapshot();
@@ -92,37 +92,37 @@ export async function getAdminCoinDashboardMetrics(): Promise<{
     adminAdjustRes,
     riskRes
   ] = await Promise.all([
-    supabase
+    db
       .from("transactions")
       .select("coin_amount")
       .eq("type", "coin_purchase")
       .eq("status", "completed")
       .gte("created_at", todayStart),
-    supabase
+    db
       .from("transactions")
       .select("coin_amount")
       .eq("direction", "debit")
       .eq("status", "completed")
       .gt("coin_amount", 0)
       .gte("created_at", todayStart),
-    supabase
+    db
       .from("transactions")
       .select("bonus_coin_amount, coin_amount")
       .in("type", ["bonus_coin_grant", "admin_coin_adjustment"])
       .eq("direction", "credit")
       .eq("status", "completed")
       .gte("created_at", todayStart),
-    supabase
+    db
       .from("transactions")
       .select("id", { count: "exact", head: true })
       .gt("coin_amount", 0)
       .gte("created_at", todayStart),
-    supabase
+    db
       .from("transactions")
       .select("id", { count: "exact", head: true })
       .eq("type", "admin_coin_adjustment")
       .gte("created_at", todayStart),
-    supabase
+    db
       .from("risk_events")
       .select("id", { count: "exact", head: true })
       .in("status", ["open", "reviewing"])
@@ -169,7 +169,7 @@ export async function searchUsersForCoinAdmin(input: {
 }): Promise<{ users: CoinAdminUserRow[]; error: string | null }> {
   await assertAnyPermission([...COIN_VIEW_PERMISSIONS]);
 
-  const supabase = await createClient();
+  const db = await createClient();
   const trimmed = (input.query ?? "").trim();
   if (!trimmed) {
     return { users: [], error: null };
@@ -178,7 +178,7 @@ export async function searchUsersForCoinAdmin(input: {
   const from = ((input.page ?? 1) - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let builder = supabase
+  let builder = db
     .from("profiles")
     .select("id, username, display_name, avatar_url, status", { count: "exact" })
     .order("created_at", { ascending: false })
@@ -212,7 +212,7 @@ export async function searchUsersForCoinAdmin(input: {
   const userIds = profiles.map((p) => p.id);
   const [walletsRes, emailMap] = await Promise.all([
     userIds.length
-      ? supabase
+      ? db
           .from("user_wallets")
           .select("user_id, paid_coin_balance, bonus_coin_balance")
           .in("user_id", userIds)
@@ -247,7 +247,7 @@ export async function searchUsersForCoinAdmin(input: {
 async function resolveUserIdByEmail(email: string) {
   const map = new Map<string, string>();
   try {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const { createAdminClient } = await import("@/lib/data/admin");
     const admin = createAdminClient();
     const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
     for (const user of data.users ?? []) {
@@ -318,7 +318,7 @@ export async function resolveUserByUsernameOrEmail(
     return { userId: null, label: null, error: "Thiếu username hoặc email." };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
   if (trimmed.includes("@")) {
     const emailMap = await resolveUserIdByEmail(trimmed);
@@ -326,7 +326,7 @@ export async function resolveUserByUsernameOrEmail(
     if (!userId) {
       return { userId: null, label: null, error: "Không tìm thấy user theo email." };
     }
-    const { data } = await supabase
+    const { data } = await db
       .from("profiles")
       .select("id, username, display_name")
       .eq("id", userId)
@@ -338,7 +338,7 @@ export async function resolveUserByUsernameOrEmail(
     };
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("profiles")
     .select("id, username, display_name, status")
     .eq("username", trimmed)
@@ -581,7 +581,7 @@ export async function getAdminCoinAdjustmentHistory(
 }> {
   await assertAnyPermission([...COIN_VIEW_PERMISSIONS]);
 
-  const supabase = await createClient();
+  const db = await createClient();
   const page = Math.max(1, filters.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, filters.pageSize ?? 25));
 
@@ -593,7 +593,7 @@ export async function getAdminCoinAdjustmentHistory(
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase
+  let query = db
     .from("transactions")
     .select("*", { count: "exact" })
     .gt("coin_amount", 0)
@@ -651,7 +651,7 @@ export async function getAdminCoinAdjustmentHistory(
   const lookupIds = [...new Set([...userIds, ...adminIds])];
 
   if (lookupIds.length) {
-    const { data: profiles } = await supabase
+    const { data: profiles } = await db
       .from("profiles")
       .select("id, username, display_name")
       .in("id", lookupIds);

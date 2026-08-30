@@ -15,9 +15,9 @@ import { createCreatorPayoutAccountAction } from "@/lib/monetization/payouts";
 import {
   getCreatorPayoutProfile,
   upsertCreatorPayoutProfile
-} from "@/lib/supabase/payout-profile";
-import { listCreatorPayoutAccounts } from "@/lib/supabase/payouts";
-import { createClient } from "@/lib/supabase/server";
+} from "@/lib/data/payout-profile";
+import { listCreatorPayoutAccounts } from "@/lib/data/payouts";
+import { createClient } from "@/lib/data/server";
 import type { PayoutMethod } from "@/types/payout";
 
 async function requestMeta() {
@@ -129,14 +129,14 @@ export async function savePayoutBankProfile(input: {
     return { ok: false, error: created.error ?? "Không thể lưu thông tin nhận tiền." };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   if (branch) {
-    await supabase
+    await db
       .from("creator_payout_accounts")
       .update({ bank_branch: branch, verification_status: bankChanged ? "pending" : "unverified" })
       .eq("id", created.data.id);
   } else if (bankChanged || !previousDefault) {
-    await supabase
+    await db
       .from("creator_payout_accounts")
       .update({ verification_status: "pending" })
       .eq("id", created.data.id);
@@ -270,9 +270,9 @@ export async function confirmPayoutVerification(input: {
   }
 
   const existing = await getCreatorPayoutProfile(profile.id);
-  const supabase = await createClient();
+  const db = await createClient();
   if (existing.data?.defaultPayoutAccountId) {
-    await supabase
+    await db
       .from("creator_payout_accounts")
       .update({ verification_status: "verified" })
       .eq("id", existing.data.defaultPayoutAccountId);
@@ -318,9 +318,9 @@ export async function confirmBankChangeVerification(input: {
   }
 
   const existing = await getCreatorPayoutProfile(profile.id);
-  const supabase = await createClient();
+  const db = await createClient();
   if (existing.data?.defaultPayoutAccountId) {
-    await supabase
+    await db
       .from("creator_payout_accounts")
       .update({ verification_status: "verified" })
       .eq("id", existing.data.defaultPayoutAccountId);

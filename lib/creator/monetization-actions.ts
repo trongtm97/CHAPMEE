@@ -7,7 +7,7 @@ import { calculateCreatorEligibility } from "@/lib/monetization/eligibility";
 import {
   getOrCreateCreatorMonetizationProfile,
   updateCreatorMonetizationProfile
-} from "@/lib/supabase/creator-monetization";
+} from "@/lib/data/creator-monetization";
 
 function resolveFormData(
   first: FormData | { ok: boolean; error: string | null },
@@ -31,11 +31,6 @@ export async function applyForCreatorMonetizationAction(
       return { ok: false, error: error.message };
     }
     throw error;
-  }
-
-  const accepted = String(formData.get("accept_terms") ?? "") === "true";
-  if (!accepted) {
-    return { ok: false, error: "Bạn cần chấp nhận Creator Terms." };
   }
 
   const [config, eligibility, profileResult] = await Promise.all([

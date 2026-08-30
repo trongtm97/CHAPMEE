@@ -159,7 +159,14 @@ export type PermissionCode =
   | "content_taxonomy_quality.review"
   | "content_taxonomy_quality.edit_story_taxonomy"
   | "content_taxonomy_quality.request_creator_revision"
-  | "content_taxonomy_quality.manage_rules";
+  | "content_taxonomy_quality.manage_rules"
+  | "admin.snippets.view"
+  | "admin.snippets.create"
+  | "admin.snippets.update"
+  | "admin.snippets.activate"
+  | "admin.snippets.delete"
+  | "admin.snippets.rollback"
+  | "admin.snippets.import_export";
 
 export type RoleCode =
   | "guest"

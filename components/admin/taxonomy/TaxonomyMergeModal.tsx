@@ -90,7 +90,7 @@ export function TaxonomyMergeModal({
 
       <ConfirmActionModal
         confirmLabel="Gộp"
-        description={`Gộp "${source.name}" vào nhãn đích? ${source.usage_count} liên kết truyện sẽ chuyển sang nhãn đích; nhãn nguồn sẽ bị tắt.`}
+        description={`Gộp "${source.name}" vào nhãn đích. ${source.usage_count} liên kết truyện sẽ chuyển sang nhãn đích; nhãn nguồn sẽ bị tắt.`}
         onClose={() => setConfirmMerge(false)}
         onConfirm={() => {
           setConfirmMerge(false);

@@ -1,7 +1,7 @@
 import { resolveTaxonomySurface } from "@/lib/taxonomy-analytics/surface-map";
 import { mapFilterSourcePage } from "@/lib/taxonomy-analytics/map-source-surface";
 import type { TaxonomyAnalyticsSurface } from "@/types/taxonomy-analytics";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 type StoryTaxonomyLink = {
   story_id: string;
@@ -168,7 +168,7 @@ export type AggregateTaxonomyDailyResult = {
 };
 
 export async function aggregateTaxonomyDailyMetrics(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   date: string
 ): Promise<AggregateTaxonomyDailyResult> {
   const { start, end } = dayBounds(date);
@@ -176,14 +176,14 @@ export async function aggregateTaxonomyDailyMetrics(
   try {
     const [links, stories, termRows] = await Promise.all([
       paginateQuery<StoryTaxonomyLink>((from, to) =>
-        supabase
+        db
           .from("story_taxonomy_terms")
           .select("story_id, term_id, type")
           .range(from, to)
           .then(({ data, error }) => ({ data, error: error as Error | null }))
       ),
       paginateQuery<StoryAuthor>((from, to) =>
-        supabase
+        db
           .from("stories")
           .select("id, author_id, status")
           .eq("status", "published")
@@ -191,7 +191,7 @@ export async function aggregateTaxonomyDailyMetrics(
           .then(({ data, error }) => ({ data, error: error as Error | null }))
       ),
       paginateQuery<{ id: string; type: string; slug: string }>((from, to) =>
-        supabase
+        db
           .from("taxonomy_terms")
           .select("id, type, slug")
           .range(from, to)
@@ -295,7 +295,7 @@ export async function aggregateTaxonomyDailyMetrics(
       surface: string;
       metadata: Record<string, unknown> | null;
     }>((from, to) =>
-      supabase
+      db
         .from("exposure_events")
         .select("story_id, surface, metadata")
         .gte("created_at", start)
@@ -327,7 +327,7 @@ export async function aggregateTaxonomyDailyMetrics(
       metadata: Record<string, unknown> | null;
       value_numeric: number | null;
     }>((from, to) =>
-      supabase
+      db
         .from("user_action_events")
         .select("story_id, surface, action_type, user_id, metadata, value_numeric")
         .gte("created_at", start)
@@ -373,7 +373,7 @@ export async function aggregateTaxonomyDailyMetrics(
       user_id: string | null;
       properties: Record<string, unknown> | null;
     }>((from, to) =>
-      supabase
+      db
         .from("analytics_events")
         .select("event_name, user_id, properties")
         .gte("created_at", start)
@@ -540,7 +540,7 @@ export async function aggregateTaxonomyDailyMetrics(
       target_id: string;
       reason: string;
     }>((from, to) =>
-      supabase
+      db
         .from("reports")
         .select("target_id, reason")
         .gte("created_at", start)
@@ -594,7 +594,7 @@ export async function aggregateTaxonomyDailyMetrics(
     }
 
     if (dailyUpserts.length > 0) {
-      const { error } = await supabase
+      const { error } = await db
         .from("taxonomy_daily_metrics")
         .upsert(dailyUpserts, { onConflict: "date,term_id,surface" });
       if (error) {
@@ -622,7 +622,7 @@ export async function aggregateTaxonomyDailyMetrics(
     }
 
     if (storyUpserts.length > 0) {
-      const { error } = await supabase
+      const { error } = await db
         .from("taxonomy_story_metrics")
         .upsert(storyUpserts, { onConflict: "date,term_id,story_id" });
       if (error) {
@@ -650,7 +650,7 @@ export async function aggregateTaxonomyDailyMetrics(
     }
 
     if (creatorUpserts.length > 0) {
-      const { error } = await supabase
+      const { error } = await db
         .from("taxonomy_creator_metrics")
         .upsert(creatorUpserts, { onConflict: "date,term_id,creator_id" });
       if (error) {
@@ -680,7 +680,7 @@ export function defaultAggregationDate() {
 }
 
 export async function aggregateTaxonomyDateRange(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   from: string,
   to: string
 ) {
@@ -690,7 +690,7 @@ export async function aggregateTaxonomyDateRange(
 
   while (cursor <= end) {
     const date = cursor.toISOString().slice(0, 10);
-    results.push(await aggregateTaxonomyDailyMetrics(supabase, date));
+    results.push(await aggregateTaxonomyDailyMetrics(db, date));
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 

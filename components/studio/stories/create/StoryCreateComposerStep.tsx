@@ -4,9 +4,16 @@ import { Input, Textarea } from "@/components/ui";
 import { StudioStandaloneComposerField } from "@/components/studio/stories/StudioStandaloneComposerField";
 import { presentationModeDescription } from "@/lib/taxonomy/presentation-labels";
 import { isPresentationMode } from "@/lib/presentation/constants";
-import type { StoryComposerPath } from "@/lib/studio/story-create-validation";
 import type { PresentationMode } from "@/types/presentation";
 import type { StoryStructureType } from "@/types/story-structure";
+
+type StoryComposerPath =
+  | "story_only"
+  | "first_chapter_composer"
+  | "first_chapter_plain"
+  | "standalone_composer"
+  | "standalone_plain"
+  | "standalone_draft_only";
 
 type PathOption = {
   value: StoryComposerPath;

@@ -2,7 +2,7 @@
 
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
 import { assertAnyPermission } from "@/lib/auth/require-permission";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { summaryCardToFilterPatch } from "@/lib/admin/parse-creator-dashboard-filters";
 import type {
   AdminCreatorListRow,
@@ -20,7 +20,7 @@ async function fetchEmailsForUsers(userIds: string[]): Promise<Map<string, strin
   const map = new Map<string, string>();
   if (!userIds.length) return map;
   try {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const { createAdminClient } = await import("@/lib/data/admin");
     const admin = createAdminClient();
     await Promise.all(
       userIds.slice(0, 50).map(async (id) => {
@@ -47,7 +47,7 @@ export async function listAdminCreators(filters: CreatorDashboardFilters): Promi
     ? { ...filters, ...summaryCardToFilterPatch(filters.summaryCard) }
     : filters;
 
-  const supabase = await createClient();
+  const db = await createClient();
   const trimmed = effectiveFilters.query.trim();
   const page = Math.max(1, effectiveFilters.page);
   const pageSize = Math.min(100, Math.max(1, effectiveFilters.pageSize));
@@ -70,7 +70,7 @@ export async function listAdminCreators(filters: CreatorDashboardFilters): Promi
   }
 
   if (effectiveFilters.monetization !== "all") {
-    const { data } = await supabase
+    const { data } = await db
       .from("creator_monetization_profiles")
       .select("user_id")
       .eq("status", effectiveFilters.monetization);
@@ -78,32 +78,32 @@ export async function listAdminCreators(filters: CreatorDashboardFilters): Promi
   }
 
   if (effectiveFilters.verification === "pending") {
-    const { data } = await supabase
+    const { data } = await db
       .from("account_verifications")
       .select("user_id")
       .eq("status", "pending");
     await intersectIds((data ?? []).map((r) => r.user_id as string));
   } else if (effectiveFilters.verification === "verified") {
-    const { data } = await supabase
+    const { data } = await db
       .from("profiles")
       .select("id")
       .eq("is_verified", true);
     await intersectIds((data ?? []).map((r) => r.id as string));
   } else if (effectiveFilters.verification === "blue_tick") {
-    const { data } = await supabase
+    const { data } = await db
       .from("profiles")
       .select("id")
       .eq("is_verified", true)
       .not("verification_type", "is", null);
     await intersectIds((data ?? []).map((r) => r.id as string));
   } else if (effectiveFilters.verification === "unverified") {
-    const { data } = await supabase
+    const { data } = await db
       .from("profiles")
       .select("id")
       .eq("is_verified", false);
     await intersectIds((data ?? []).map((r) => r.id as string));
   } else if (effectiveFilters.verification === "rejected") {
-    const { data } = await supabase
+    const { data } = await db
       .from("account_verifications")
       .select("user_id")
       .eq("status", "rejected");
@@ -111,7 +111,7 @@ export async function listAdminCreators(filters: CreatorDashboardFilters): Promi
   }
 
   if (effectiveFilters.finance === "pending_payout") {
-    const { data } = await supabase
+    const { data } = await db
       .from("payout_requests")
       .select("creator_user_id")
       .in("status", ["requested", "under_review"]);
@@ -119,19 +119,19 @@ export async function listAdminCreators(filters: CreatorDashboardFilters): Promi
       ...new Set((data ?? []).map((r) => r.creator_user_id as string))
     ]);
   } else if (effectiveFilters.finance === "payout_disabled") {
-    const { data } = await supabase
+    const { data } = await db
       .from("creator_monetization_profiles")
       .select("user_id")
       .eq("payout_enabled", false);
     await intersectIds((data ?? []).map((r) => r.user_id as string));
   } else if (effectiveFilters.finance === "has_balance") {
-    const { data } = await supabase
+    const { data } = await db
       .from("creator_wallets")
       .select("user_id")
       .gt("available_revenue_vnd", 0);
     await intersectIds((data ?? []).map((r) => r.user_id as string));
   } else if (effectiveFilters.finance === "has_revenue") {
-    const { data } = await supabase
+    const { data } = await db
       .from("creator_wallets")
       .select("user_id")
       .gt("total_earned_vnd", 0);
@@ -142,7 +142,7 @@ export async function listAdminCreators(filters: CreatorDashboardFilters): Promi
     return { creators: [], total: 0, page, pageSize, error: null };
   }
 
-  let builder = supabase
+  let builder = db
     .from("creator_profiles")
     .select(
       "id, user_id, pen_name, status, created_at, profiles!inner(id, username, display_name, avatar_url, is_verified, verification_label, verification_type, created_at)",
@@ -165,7 +165,7 @@ export async function listAdminCreators(filters: CreatorDashboardFilters): Promi
     if (uuidPattern.test(trimmed)) {
       builder = builder.eq("user_id", trimmed);
     } else {
-      const { data: profileMatches } = await supabase
+      const { data: profileMatches } = await db
         .from("profiles")
         .select("id")
         .or(`username.ilike.%${trimmed}%,display_name.ilike.%${trimmed}%`);
@@ -211,39 +211,39 @@ export async function listAdminCreators(filters: CreatorDashboardFilters): Promi
     emailMap
   ] = await Promise.all([
     userIds.length
-      ? supabase
+      ? db
           .from("creator_monetization_profiles")
           .select("id, user_id, status, monetization_enabled, payout_enabled, custom_revenue_share")
           .in("user_id", userIds)
       : Promise.resolve({ data: [] }),
     userIds.length
-      ? supabase
+      ? db
           .from("creator_wallets")
           .select("user_id, available_revenue_vnd, total_earned_vnd, pending_revenue_vnd")
           .in("user_id", userIds)
       : Promise.resolve({ data: [] }),
     creatorIds.length
-      ? supabase.from("stories").select("creator_id, read_count").in("creator_id", creatorIds)
+      ? db.from("stories").select("creator_id, read_count").in("creator_id", creatorIds)
       : Promise.resolve({ data: [] }),
     creatorIds.length
-      ? supabase.from("stories").select("creator_id, episodes(count)").in("creator_id", creatorIds)
+      ? db.from("stories").select("creator_id, episodes(count)").in("creator_id", creatorIds)
       : Promise.resolve({ data: [] }),
     creatorIds.length
-      ? supabase
+      ? db
           .from("stories")
           .select("creator_id, quality_status")
           .in("creator_id", creatorIds)
           .neq("quality_status", "good")
       : Promise.resolve({ data: [] }),
     userIds.length
-      ? supabase
+      ? db
           .from("account_strikes")
           .select("user_id")
           .in("user_id", userIds)
           .eq("is_active", true)
       : Promise.resolve({ data: [] }),
     userIds.length
-      ? supabase
+      ? db
           .from("payout_requests")
           .select("creator_user_id")
           .in("creator_user_id", userIds)

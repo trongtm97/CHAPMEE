@@ -1,6 +1,6 @@
-﻿import { analyticsEvents } from "@/lib/analytics/events";
+import { analyticsEvents } from "@/lib/analytics/events";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import { studioPath } from "@/lib/studio/constants";
 import {
@@ -72,6 +72,12 @@ const REELS_VIEW_EVENTS = new Set<string>([
 const REELS_CTA_EVENTS = new Set<string>([
   analyticsEvents.reelsReadMoreClicked,
   analyticsEvents.feedReadMore
+]);
+
+const REELS_SHARE_EVENTS = new Set<string>([
+  analyticsEvents.reelsShareClicked,
+  analyticsEvents.feedShare,
+  analyticsEvents.shareClicked
 ]);
 
 const MS_STALE_DRAFT = 30 * 24 * 60 * 60 * 1000;
@@ -172,9 +178,9 @@ export async function getStudioAnalytics(
   const rangeStart = bounds.currentStart;
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
 
-    const { data: storyRows, error: storiesError } = await supabase
+    const { data: storyRows, error: storiesError } = await db
       .from("stories")
       .select(
         "id, title, slug, status, visibility, is_completed, updated_at, cover_url, hook, short_description"
@@ -210,7 +216,7 @@ export async function getStudioAnalytics(
       };
     }
 
-    const { data: episodeRows, error: episodesError } = await supabase
+    const { data: episodeRows, error: episodesError } = await db
       .from("episodes")
       .select("id, story_id, episode_number, title, status, published_at, updated_at")
       .in("story_id", storyIds)
@@ -231,7 +237,7 @@ export async function getStudioAnalytics(
       episodesByStory.set(episode.story_id, list);
     }
 
-    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, storyIds);
 
     const storyMetrics = new Map(
       stories.map((story) => {
@@ -298,14 +304,14 @@ export async function getStudioAnalytics(
       bounds.previousStart ?? bounds.currentStart ?? undefined;
 
     let eventsQuery = trackedTargetIds.length
-      ? supabase
+      ? db
           .from("analytics_events")
           .select("event_name, target_id, user_id, created_at")
           .in("target_id", trackedTargetIds)
       : null;
 
     let reelsEventsQuery = trackedTargetIds.length
-      ? supabase
+      ? db
           .from("analytics_events")
           .select("event_name, target_id, created_at")
           .in("target_id", trackedTargetIds)
@@ -336,59 +342,59 @@ export async function getStudioAnalytics(
     ] = await Promise.all([
       eventsQuery ?? Promise.resolve({ data: [], error: null }),
       rangeStart
-        ? supabase
+        ? db
             .from("bookshelf_items")
             .select("story_id, created_at")
             .eq("status", "saved")
             .in("story_id", storyIds)
             .gte("created_at", eventFetchStart ?? rangeStart)
-        : supabase
+        : db
             .from("bookshelf_items")
             .select("story_id, created_at")
             .eq("status", "saved")
             .in("story_id", storyIds),
       rangeStart
-        ? supabase
+        ? db
             .from("follows")
             .select("id, created_at")
             .eq("creator_id", creatorProfile.id)
             .gte("created_at", eventFetchStart ?? rangeStart)
-        : supabase
+        : db
             .from("follows")
             .select("id, created_at")
             .eq("creator_id", creatorProfile.id),
       rangeStart
-        ? supabase
+        ? db
             .from("comments")
             .select("id, story_id, episode_id, created_at, user_id")
             .eq("status", "visible")
             .in("story_id", storyIds)
             .is("parent_id", null)
             .gte("created_at", eventFetchStart ?? rangeStart)
-        : supabase
+        : db
             .from("comments")
             .select("id, story_id, episode_id, created_at, user_id")
             .eq("status", "visible")
             .in("story_id", storyIds)
             .is("parent_id", null),
-      supabase
+      db
         .from("creator_wallets")
         .select("total_earned_vnd, available_revenue_vnd, pending_revenue_vnd")
         .eq("user_id", profileUserId)
         .maybeSingle(),
       rangeStart
-        ? supabase
+        ? db
             .from("transactions")
             .select("net_amount_vnd, creator_gross_vnd, story_id, created_at")
             .eq("creator_user_id", profileUserId)
             .eq("status", "completed")
             .gte("created_at", rangeStart)
-        : supabase
+        : db
             .from("transactions")
             .select("net_amount_vnd, creator_gross_vnd, story_id, created_at")
             .eq("creator_user_id", profileUserId)
             .eq("status", "completed"),
-      supabase
+      db
         .from("reels_items")
         .select(
           "id, hook, story_id, chapter_id, view_count, cta_click_count, status, updated_at, published_at, stories(title, slug), episodes(episode_number, title)"
@@ -396,7 +402,7 @@ export async function getStudioAnalytics(
         .eq("owner_id", profileUserId)
         .order("updated_at", { ascending: false }),
       reelsEventsQuery ?? Promise.resolve({ data: [], error: null }),
-      supabase
+      db
         .from("reports")
         .select("target_id")
         .eq("target_type", "comment")
@@ -589,7 +595,7 @@ export async function getStudioAnalytics(
     let unreplied = parentCommentIds.length;
 
     if (parentCommentIds.length > 0) {
-      const { data: authorReplies } = await supabase
+      const { data: authorReplies } = await db
         .from("comments")
         .select("parent_id")
         .in("parent_id", parentCommentIds)
@@ -680,6 +686,73 @@ export async function getStudioAnalytics(
     }
 
     const reelsRows = reelsRowsResult.data ?? [];
+    const reelChapterIds = [
+      ...new Set(
+        reelsRows
+          .map((row) => row.chapter_id as string | null)
+          .filter((value): value is string => Boolean(value))
+      )
+    ];
+    const reelStoryIds = [
+      ...new Set(
+        reelsRows
+          .map((row) => row.story_id as string | null)
+          .filter((value): value is string => Boolean(value))
+      )
+    ];
+
+    const likeCountByChapter = new Map<string, number>();
+    const commentCountByChapter = new Map<string, number>();
+    const shareCountByStory = new Map<string, number>();
+
+    if (reelChapterIds.length > 0) {
+      const [reelReactionRows, reelCommentRows] = await Promise.all([
+        db
+          .from("reactions")
+          .select("target_id")
+          .eq("target_type", "episode")
+          .eq("reaction_type", "like")
+          .in("target_id", reelChapterIds),
+        db
+          .from("comments")
+          .select("episode_id")
+          .eq("status", "visible")
+          .in("episode_id", reelChapterIds)
+      ]);
+
+      for (const row of reelReactionRows.data ?? []) {
+        const chapterId = row.target_id as string | null;
+        if (chapterId) {
+          likeCountByChapter.set(chapterId, (likeCountByChapter.get(chapterId) ?? 0) + 1);
+        }
+      }
+
+      for (const row of reelCommentRows.data ?? []) {
+        const chapterId = row.episode_id as string | null;
+        if (chapterId) {
+          commentCountByChapter.set(
+            chapterId,
+            (commentCountByChapter.get(chapterId) ?? 0) + 1
+          );
+        }
+      }
+    }
+
+    if (reelStoryIds.length > 0) {
+      const { data: shareEventRows } = await db
+        .from("analytics_events")
+        .select("target_id")
+        .in("target_id", reelStoryIds)
+        .in("event_name", [...REELS_SHARE_EVENTS]);
+
+      for (const row of shareEventRows ?? []) {
+        const storyId = row.target_id as string | null;
+        if (storyId) {
+          shareCountByStory.set(storyId, (shareCountByStory.get(storyId) ?? 0) + 1);
+        }
+      }
+    }
+
     const reelsByStory = new Set(
       reelsRows.map((row) => row.story_id as string).filter(Boolean)
     );
@@ -713,11 +786,19 @@ export async function getStudioAnalytics(
         chapterLabel: episode
           ? `Ch.${episode.episode_number}: ${episode.title}`
           : story?.title ?? "Truyện",
+        commentCount: row.chapter_id
+          ? (commentCountByChapter.get(String(row.chapter_id)) ?? 0)
+          : 0,
         ctaClicks,
         ctaRate: views > 0 ? Math.round((ctaClicks / views) * 100) : null,
         editHref: studioPath(`/reels/${row.id}/edit`),
         hook: (row.hook as string) || "—",
         id: row.id as string,
+        likeCount: row.chapter_id
+          ? (likeCountByChapter.get(String(row.chapter_id)) ?? 0)
+          : 0,
+        saveCount: storyMetrics.get(String(row.story_id))?.saves ?? 0,
+        shareCount: shareCountByStory.get(String(row.story_id)) ?? 0,
         status: row.status as string,
         storyTitle: story?.title ?? "—",
         views

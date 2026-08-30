@@ -4,7 +4,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { loadChaptersForReelsStoryAction } from "@/lib/reels/reels-actions";
-import { ReelsBackgroundPicker } from "@/components/studio/reels/ReelsBackgroundPicker";
+import {
+  ReelsBackgroundPicker,
+  type BackgroundOption
+} from "@/components/studio/reels/ReelsBackgroundPicker";
+import { resolvePublicMediaUrlClient } from "@/lib/media/public-media-client";
 import { ReelsPreview } from "@/components/studio/reels/ReelsPreview";
 import { ReelsSuggestionTools } from "@/components/studio/reels/ReelsSuggestionTools";
 import { Button, Input, Textarea } from "@/components/ui";
@@ -16,6 +20,10 @@ import {
 import { ReelsPublishChecklistPanel } from "@/components/studio/reels/ReelsPublishChecklistPanel";
 import { validateReelsBeforePublish } from "@/lib/publish/validate-reels-before-publish";
 import { autoTrimReelsBody } from "@/lib/reels/validate-reels-item";
+import {
+  STORY_REELS_LONG_DESC_AUTHOR_NOTE,
+  suggestStoryReelsDraft
+} from "@/lib/reels/resolve-story-reels-text";
 import { studioPath } from "@/lib/studio/constants";
 import {
   REELS_BODY_MAX,
@@ -33,6 +41,7 @@ type StoryOption = {
   cover_url: string | null;
   hook: string | null;
   short_description: string | null;
+  long_description?: string | null;
 };
 
 type ChapterOption = {
@@ -68,6 +77,9 @@ export function ReelsEditor({
   const [error, setError] = useState<string | null>(null);
   const [storyId, setStoryId] = useState(initial?.storyId ?? "");
   const [chapterId, setChapterId] = useState(initial?.chapterId ?? "");
+  const [contentSource, setContentSource] = useState<"story" | "chapter">(
+    initial?.chapterId ? "chapter" : "story"
+  );
   const [hook, setHook] = useState(initial?.hook ?? "");
   const [body, setBody] = useState(initial?.body ?? "");
   const [cta, setCta] = useState(initial?.cta ?? "");
@@ -111,18 +123,46 @@ export function ReelsEditor({
   }, [storyId]);
 
   const selectedStory = stories.find((story) => story.id === storyId) ?? null;
+
+  useEffect(() => {
+    if (mode !== "create" || contentSource !== "story" || !selectedStory) {
+      return;
+    }
+
+    const draft = suggestStoryReelsDraft({
+      title: selectedStory.title,
+      hook: selectedStory.hook,
+      shortDescription: selectedStory.short_description,
+      longDescription: selectedStory.long_description
+    });
+
+    if (!draft) {
+      return;
+    }
+
+    setHook((current) => current || draft.hook);
+    setBody((current) => current || draft.body);
+    setSourceType("story_description");
+  }, [contentSource, mode, selectedStory?.id]);
+
   const selectedChapter = chapters.find((chapter) => chapter.id === chapterId) ?? null;
 
-  const backgroundOptions = useMemo(() => {
-    const options = [
-      { id: "gradient", label: "Nền gradient mặc định", url: null as string | null }
+  useEffect(() => {
+    if (contentSource === "story" && chapterId) {
+      setChapterId("");
+    }
+  }, [chapterId, contentSource]);
+
+  const backgroundOptions = useMemo((): BackgroundOption[] => {
+    const options: BackgroundOption[] = [
+      { id: "gradient", label: "Nền gradient mặc định", storageValue: null }
     ];
 
     if (selectedStory?.cover_url) {
       options.push({
         id: "story_cover",
         label: "Ảnh bìa truyện",
-        url: selectedStory.cover_url
+        storageValue: selectedStory.cover_url
       });
     }
 
@@ -130,12 +170,15 @@ export function ReelsEditor({
       options.push({
         id: "chapter_bg",
         label: "Ảnh nền chương",
-        url: selectedChapter.background_image_url
+        storageValue: selectedChapter.background_image_url
       });
     }
 
     return options;
   }, [selectedChapter?.background_image_url, selectedStory?.cover_url]);
+
+  const previewBackgroundUrl =
+    resolvePublicMediaUrlClient(backgroundImageUrl) ?? backgroundImageUrl;
 
   function applySuggestion(result: ReelsSuggestionResult) {
     setHook(result.hook);
@@ -151,6 +194,22 @@ export function ReelsEditor({
 
     if (preset && presetId !== "custom") {
       setCta(preset.label);
+    }
+  }
+
+  function applySourceMode(nextSource: "story" | "chapter") {
+    setContentSource(nextSource);
+
+    if (nextSource === "story") {
+      setChapterId("");
+      if (ctaType === "read_chapter" || !cta.trim()) {
+        handleCtaPresetChange("view_story");
+      }
+      return;
+    }
+
+    if (ctaType === "view_story" || !cta.trim()) {
+      handleCtaPresetChange("read_chapter");
     }
   }
 
@@ -180,7 +239,7 @@ export function ReelsEditor({
     const formData = new FormData();
     formData.set("intent", intent);
     formData.set("story_id", storyId);
-    formData.set("chapter_id", chapterId);
+    formData.set("chapter_id", contentSource === "chapter" ? chapterId : "");
     formData.set("hook", hook);
     formData.set("body", body);
     formData.set("cta", cta);
@@ -263,6 +322,39 @@ export function ReelsEditor({
       <form className="space-y-6" onSubmit={(event) => event.preventDefault()}>
         <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
           <h2 className="text-lg font-semibold text-white">Liên kết truyện</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                contentSource === "story"
+                  ? "border-cyan-300/40 bg-cyan-300/10 text-white"
+                  : "border-white/10 bg-zinc-950 text-zinc-300"
+              }`}
+              onClick={() => applySourceMode("story")}
+              type="button"
+            >
+              <p className="font-semibold">Nguồn từ truyện</p>
+              <p className="mt-1 text-xs text-zinc-400">
+                Chỉ cần chọn truyện, không bắt buộc chương. Truyện có mô tả dài cũng tự lên feed Reels.
+              </p>
+            </button>
+            <button
+              className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                contentSource === "chapter"
+                  ? "border-cyan-300/40 bg-cyan-300/10 text-white"
+                  : "border-white/10 bg-zinc-950 text-zinc-300"
+              }`}
+              onClick={() => applySourceMode("chapter")}
+              type="button"
+            >
+              <p className="font-semibold">Nguồn từ chương</p>
+              <p className="mt-1 text-xs text-zinc-400">Chọn truyện trước, rồi chọn chương liên kết.</p>
+            </button>
+          </div>
+
+          {contentSource === "story" ? (
+            <p className="text-xs leading-5 text-zinc-500">{STORY_REELS_LONG_DESC_AUTHOR_NOTE}</p>
+          ) : null}
+
           <label className="block space-y-1 text-sm">
             <span className="text-zinc-400">Chọn truyện</span>
             <select
@@ -284,14 +376,18 @@ export function ReelsEditor({
           </label>
 
           <label className="block space-y-1 text-sm">
-            <span className="text-zinc-400">Chọn chương (tuỳ chọn)</span>
+            <span className="text-zinc-400">
+              {contentSource === "chapter" ? "Chọn chương" : "Chọn chương (không bắt buộc)"}
+            </span>
             <select
               className="w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2.5 text-zinc-100"
-              disabled={!storyId || chapters.length === 0}
+              disabled={contentSource !== "chapter" || !storyId || chapters.length === 0}
               onChange={(event) => setChapterId(event.target.value)}
               value={chapterId}
             >
-              <option value="">— Mở trang truyện —</option>
+              <option value="">
+                {contentSource === "chapter" ? "— Chọn chương —" : "— Mở trang truyện —"}
+              </option>
               {chapters.map((chapter) => (
                 <option key={chapter.id} value={chapter.id}>
                   Chương {chapter.episode_number}: {chapter.title}
@@ -305,10 +401,13 @@ export function ReelsEditor({
           <h2 className="text-lg font-semibold text-white">Nội dung Reels</h2>
 
           <ReelsSuggestionTools
-            chapterContent={selectedChapter?.content}
-            chapterTitle={selectedChapter?.title}
+            chapterContent={contentSource === "chapter" ? selectedChapter?.content : undefined}
+            chapterTitle={contentSource === "chapter" ? selectedChapter?.title : undefined}
             onApply={applySuggestion}
-            storyDescription={selectedStory?.short_description}
+            storyDescription={
+              selectedStory?.long_description?.trim() ||
+              selectedStory?.short_description
+            }
             storyTitle={selectedStory?.title}
           />
 
@@ -449,12 +548,13 @@ export function ReelsEditor({
 
       <aside className="xl:sticky xl:top-6 xl:self-start">
         <ReelsPreview
-          backgroundImageUrl={backgroundImageUrl}
+          backgroundImageUrl={previewBackgroundUrl}
           body={body}
+          contentSource={contentSource}
           creatorName={authorName}
           cta={cta}
-          episodeNumber={selectedChapter?.episode_number ?? null}
-          episodeTitle={selectedChapter?.title ?? ""}
+          episodeNumber={contentSource === "chapter" ? selectedChapter?.episode_number ?? null : null}
+          episodeTitle={contentSource === "chapter" ? selectedChapter?.title ?? "" : ""}
           genreName={null}
           hook={hook}
           storySlug={selectedStory?.slug ?? ""}

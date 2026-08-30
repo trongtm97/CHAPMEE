@@ -6,7 +6,7 @@ import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
 import {
   getCreatorMonetizationProfile,
   updateCreatorMonetizationProfile
-} from "@/lib/supabase/creator-monetization";
+} from "@/lib/data/creator-monetization";
 import { buildStudioMonetizationConfigView } from "@/lib/studio/monetization-config";
 import { studioPath } from "@/lib/studio/constants";
 import { validateTipThankYouMessage } from "@/lib/studio/validate-chapter-coin-price";
@@ -63,7 +63,7 @@ export async function updateCreatorTipSettings(input: {
     if (missingColumn) {
       return {
         ok: false,
-        error: "Cài đặt tip chưa sẵn sàng. Chạy migration 081 trên Supabase."
+        error: "Cài đặt tip chưa sẵn sàng. Chạy migration 081 trên db."
       };
     }
 

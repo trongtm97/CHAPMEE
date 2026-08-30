@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { sinceForRange } from "@/lib/admin/messaging-date-range";
 import {
   computeMessagingRiskScore,
@@ -32,7 +32,7 @@ export async function getRiskyMessageUsers(input: {
   role: MessagingRoleFilter;
   accountAge: MessagingAccountAgeFilter;
 }): Promise<RiskyMessageUser[]> {
-  const supabase = await createClient();
+  const db = await createClient();
   const since = sinceForRange(input.range);
   const since24h = sinceForRange("24h");
   const now = Date.now();
@@ -46,26 +46,26 @@ export async function getRiskyMessageUsers(input: {
     restrictionsRes,
     messagingRestrictionsRes
   ] = await Promise.all([
-    supabase
+    db
       .from("message_reports")
       .select("reported_user_id")
       .in("status", ["open", "reviewing"]),
-    supabase
+    db
       .from("message_reports")
       .select("reported_user_id")
       .gte("created_at", sinceForRange("7d")),
-    supabase
+    db
       .from("message_safety_logs")
       .select("user_id, status, reasons, created_at")
       .gte("created_at", since),
-    supabase
+    db
       .from("message_requests")
       .select("requester_id")
       .gte("created_at", since24h),
-    supabase
+    db
       .from("message_blocks")
       .select("blocked_id"),
-    supabase
+    db
       .from("account_restrictions")
       .select("user_id, restriction_type, ends_at, is_active")
       .eq("is_active", true)
@@ -76,7 +76,7 @@ export async function getRiskyMessageUsers(input: {
         "message_banned",
         "account_suspended"
       ]),
-    supabase
+    db
       .from("messaging_restrictions")
       .select("user_id, restriction_type")
       .eq("is_active", true)
@@ -142,7 +142,7 @@ export async function getRiskyMessageUsers(input: {
     return [];
   }
 
-  const { data: profiles } = await supabase
+  const { data: profiles } = await db
     .from("profiles")
     .select("id, display_name, username, avatar_url, role, created_at")
     .in("id", Array.from(userIds));

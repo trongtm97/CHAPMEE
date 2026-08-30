@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { createNotification } from "@/lib/notifications/create-notification";
 
 const PREVIEW_MAX = 120;
@@ -31,8 +31,8 @@ function safeMessageBody(preview: string, bodySafetyStatus: string) {
 }
 
 async function isBlockedBetween(userA: string, userB: string): Promise<boolean> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("is_message_blocked", {
+  const db = await createClient();
+  const { data, error } = await db.rpc("is_message_blocked", {
     p_user_a: userA,
     p_user_b: userB
   });
@@ -48,8 +48,8 @@ async function isConversationMuted(
   userId: string,
   conversationId: string
 ): Promise<boolean> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("conversation_participants")
     .select("is_muted")
     .eq("conversation_id", conversationId)
@@ -63,12 +63,12 @@ async function hasRecentMessageNotification(
   recipientId: string,
   conversationId: string
 ): Promise<boolean> {
-  const supabase = await createClient();
+  const db = await createClient();
   const sinceIso = new Date(
     Date.now() - MERGE_WINDOW_MINUTES * 60_000
   ).toISOString();
 
-  const { data } = await supabase
+  const { data } = await db
     .from("notifications")
     .select("id")
     .eq("user_id", recipientId)

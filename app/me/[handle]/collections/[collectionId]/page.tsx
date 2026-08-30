@@ -13,7 +13,7 @@ import {
   getProfileUrlOrFallback
 } from "@/lib/profile/profile-url";
 import { getShareUrl } from "@/lib/share/getShareUrl";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export const dynamic = "force-dynamic";
 
@@ -54,11 +54,11 @@ export default async function PublicProfileCollectionPage({ params }: Collection
 
   const { profile: currentProfile } = await getCurrentUser();
   const privacy = await getProfilePrivacySettings(result.owner.id);
-  const supabase = await createClient();
+  const db = await createClient();
 
   let isFollowing = false;
   if (currentProfile?.id && currentProfile.id !== result.owner.id) {
-    const { data } = await supabase
+    const { data } = await db
       .from("user_follows")
       .select("id")
       .eq("follower_id", currentProfile.id)

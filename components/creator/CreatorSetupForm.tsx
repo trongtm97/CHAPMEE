@@ -27,7 +27,12 @@ export function CreatorSetupForm({ defaultDisplayName }: CreatorSetupFormProps) 
     <Card>
       <form action={formAction} className="space-y-5">
         <p className="text-sm text-zinc-400">
-          Bật quyền viết truyện trên cùng tài khoản ChapMee của bạn. Không cần tạo hồ sơ riêng.
+          Bật quyền viết truyện trên cùng tài khoản ChapMee của bạn. Không cần tạo hồ sơ
+          riêng — một tài khoản, một tên hiển thị và một giới thiệu.
+        </p>
+        <p className="text-xs text-zinc-500">
+          Username công khai dạng <span className="font-mono text-zinc-400">@ten</span> sẽ được
+          tạo tự động khi bạn chưa có. Bạn có thể đổi sau trong cài đặt hồ sơ.
         </p>
         <Input
           autoComplete="nickname"

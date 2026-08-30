@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import { maskMessageExcerpt } from "@/lib/messaging/mask-message-excerpt";
 import type {
   MessageSafetyDecisionType,
@@ -24,12 +24,12 @@ export async function logMessageSafetyDecision(input: {
   }
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const excerpt = input.rawText
       ? maskMessageExcerpt(input.rawText)
       : null;
 
-    const { error } = await supabase.from("message_safety_decisions").insert({
+    const { error } = await db.from("message_safety_decisions").insert({
       sender_id: input.senderId,
       recipient_id: input.recipientId ?? null,
       conversation_id: input.conversationId ?? null,

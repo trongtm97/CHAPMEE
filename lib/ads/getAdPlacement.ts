@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { mapPlacementRow, toPlacementPublic } from "@/lib/ads/map-placement-row";
 import type { AdPlacementPublic } from "@/types/ads";
 
@@ -6,8 +6,8 @@ export async function getAdPlacementByKey(
   placementKey: string
 ): Promise<{ placement: AdPlacementPublic | null; error: string | null }> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("ad_placements")
       .select("*")
       .eq("placement_key", placementKey)
@@ -32,8 +32,8 @@ export async function listEnabledAdPlacements(): Promise<{
   error: string | null;
 }> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("ad_placements")
       .select("*")
       .eq("is_enabled", true)

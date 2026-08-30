@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { archiveConversation } from "@/lib/messages/archive-conversation";
 
 export async function blockUser(
@@ -13,9 +13,9 @@ export async function blockUser(
     return { ok: false, error: "Không thể chặn chính mình." };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { error } = await supabase.from("message_blocks").upsert(
+  const { error } = await db.from("message_blocks").upsert(
     {
       blocker_id: blockerId,
       blocked_id: blockedId,
@@ -28,14 +28,14 @@ export async function blockUser(
     return { ok: false, error: "Không chặn được người dùng." };
   }
 
-  const { data: sharedConvs } = await supabase
+  const { data: sharedConvs } = await db
     .from("conversation_participants")
     .select("conversation_id")
     .eq("user_id", blockerId);
 
   const convIds = (sharedConvs ?? []).map((r) => r.conversation_id as string);
   if (convIds.length) {
-    const { data: targetConvs } = await supabase
+    const { data: targetConvs } = await db
       .from("conversation_participants")
       .select("conversation_id")
       .eq("user_id", blockedId)

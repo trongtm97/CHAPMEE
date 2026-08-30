@@ -6,6 +6,16 @@ function normalizePath(path: string): string {
   return value.replace(/\/+$/, "") || "/";
 }
 
+function isPrivateAppPath(path: string): boolean {
+  const norm = normalizePath(path);
+  return (
+    norm.startsWith("/studio") ||
+    norm.startsWith("/admin") ||
+    norm.startsWith("/creator") ||
+    norm.startsWith("/me")
+  );
+}
+
 /**
  * Prefer computed public-code URLs for redirects when stored canonical is legacy slug-only.
  */
@@ -17,6 +27,10 @@ export function pickPublicRedirectPath(
   const computedNorm = normalizePath(computed);
   const storedTrimmed = stored?.trim();
   if (!storedTrimmed) {
+    return computedNorm;
+  }
+
+  if (isPrivateAppPath(storedTrimmed)) {
     return computedNorm;
   }
 

@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { decryptServerSecret, maskSecret } from "@/lib/security/encryption";
 
 export type SePayConfig = {
@@ -81,8 +81,8 @@ function parsePrivateConfig(encrypted: string | null) {
 export async function getSePayRuntimeConfig() {
   const env = getSePayConfig();
   try {
-    const supabase = createAdminClient();
-    const { data } = await supabase
+    const db = createAdminClient();
+    const { data } = await db
       .from("payment_provider_settings")
       .select("enabled, test_mode, public_config, private_config_reference")
       .eq("provider_key", "sepay")

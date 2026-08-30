@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { formatFeedbackCode } from "@/lib/feedback/constants";
 import type { FeedbackDashboardFilters } from "@/types/admin-feedback";
 import type {
@@ -13,9 +13,9 @@ import type {
 
 async function countUserFeedback24h(userId: string | null): Promise<number> {
   if (!userId) return 0;
-  const supabase = await createClient();
+  const db = await createClient();
   const since = new Date(Date.now() - 86400000).toISOString();
-  const { count } = await supabase
+  const { count } = await db
     .from("feedback_messages")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
@@ -89,8 +89,8 @@ export async function listAdminFeedback(filters: FeedbackDashboardFilters = getD
   const fromIdx = (page - 1) * pageSize;
   const toIdx = fromIdx + pageSize - 1;
 
-  const supabase = await createClient();
-  let query = supabase
+  const db = await createClient();
+  let query = db
     .from("feedback_messages")
     .select(
       `
@@ -144,7 +144,7 @@ export async function listAdminFeedback(filters: FeedbackDashboardFilters = getD
         display_name: string | null;
         username: string | null;
       } | null;
-      const { count: attCount } = await supabase
+      const { count: attCount } = await db
         .from("feedback_attachments")
         .select("id", { count: "exact", head: true })
         .eq("feedback_id", row.id as string);
@@ -210,8 +210,8 @@ export async function getAdminFeedbackDetail(
     return { detail: null, error: auth.error };
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("feedback_messages")
     .select(
       `
@@ -228,12 +228,12 @@ export async function getAdminFeedbackDetail(
   }
 
   const [{ data: events }, { data: attachments }] = await Promise.all([
-    supabase
+    db
       .from("feedback_events")
       .select("*")
       .eq("feedback_id", feedbackId)
       .order("created_at", { ascending: false }),
-    supabase.from("feedback_attachments").select("*").eq("feedback_id", feedbackId)
+    db.from("feedback_attachments").select("*").eq("feedback_id", feedbackId)
   ]);
 
   const adminIds = Array.from(
@@ -241,7 +241,7 @@ export async function getAdminFeedbackDetail(
   );
   const adminLabels = new Map<string, string>();
   if (adminIds.length) {
-    const { data: admins } = await supabase
+    const { data: admins } = await db
       .from("profiles")
       .select("id, display_name, username")
       .in("id", adminIds);

@@ -13,7 +13,7 @@ import {
 import { getScheduledPublicationsPage } from "@/lib/studio/scheduling/get-scheduled-publications";
 import { CALENDAR_PAGE_SIZE_DEFAULT } from "@/types/scheduling";
 import { studioPath } from "@/lib/studio/constants";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { StudioCalendarHeader } from "@/components/studio/calendar/StudioCalendarHeader";
 
 type StudioCalendarRouteProps = {
@@ -63,8 +63,8 @@ export default async function StudioCalendarRoute({
     );
   }
 
-  const supabase = await createClient();
-  const data = await getScheduledPublicationsPage(supabase, profile.id, {
+  const db = await createClient();
+  const data = await getScheduledPublicationsPage(db, profile.id, {
     page: params.page,
     pageSize: params.size,
     search,

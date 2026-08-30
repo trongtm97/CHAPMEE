@@ -18,6 +18,15 @@ type StoryFilterSheetProps = {
   status: StoryCatalogStatus;
   sort: StoryCatalogSort;
   filters: StoryCatalogFilterParams;
+  hideMonetizationFilters?: boolean;
+  hideAccessFilters?: boolean;
+  /** Hide audio/video toggles (used on /media where tab already selects media type). */
+  variant?: "story" | "media";
+  resolveApplyHref?: (
+    draft: StoryCatalogFilterParams,
+    ctx: { query: string; sort: StoryCatalogSort; status: StoryCatalogStatus; genre: string }
+  ) => string;
+  resolveClearHref?: (ctx: { query: string }) => string;
 };
 
 export function StoryFilterSheet(props: StoryFilterSheetProps) {
@@ -52,10 +61,15 @@ function StoryFilterSheetPanel({
   filters,
   genre,
   genres,
+  hideAccessFilters = false,
+  hideMonetizationFilters = false,
   onClose,
   query,
+  resolveApplyHref,
+  resolveClearHref,
   sort,
-  status
+  status,
+  variant = "story"
 }: StoryFilterSheetProps) {
   const router = useRouter();
   const [genreSearch, setGenreSearch] = useState("");
@@ -79,18 +93,20 @@ function StoryFilterSheetPanel({
   }
 
   function applyFilters() {
-    router.push(
-      buildCatalogHref({
-        ...draft,
-        q: query || draft.q,
-        page: 1
-      })
-    );
+    const href = resolveApplyHref
+      ? resolveApplyHref(draft, { query, sort, status, genre })
+      : buildCatalogHref({
+          ...draft,
+          q: query || draft.q,
+          page: 1
+        });
+    router.push(href);
     onClose();
   }
 
   function clearFilters() {
-    router.push(buildCatalogHref({ q: query }));
+    const href = resolveClearHref ? resolveClearHref({ query }) : buildCatalogHref({ q: query });
+    router.push(href);
     onClose();
   }
 
@@ -110,7 +126,7 @@ function StoryFilterSheetPanel({
       >
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-base font-black text-zinc-50" id="story-filter-sheet-title">
-            Bộ lọc truyện
+            Bộ lọc nâng cao
           </h2>
           <button className="text-xs font-semibold text-zinc-400" onClick={onClose} type="button">
             Đóng
@@ -197,12 +213,14 @@ function StoryFilterSheetPanel({
             value={draft.ageRating ?? ""}
           />
 
-          <FacetChips
-            label="Gói truy cập (taxonomy)"
-            onChange={(value) => patch({ monetization: value || undefined })}
-            options={filterOptions.monetizationAccess}
-            value={draft.monetization ?? ""}
-          />
+          {hideMonetizationFilters ? null : (
+            <FacetChips
+              label="Gói truy cập (taxonomy)"
+              onChange={(value) => patch({ monetization: value || undefined })}
+              options={filterOptions.monetizationAccess}
+              value={draft.monetization ?? ""}
+            />
+          )}
 
           <FacetChips
             label="Cảnh báo nội dung"
@@ -219,6 +237,27 @@ function StoryFilterSheetPanel({
           />
 
           <section className="space-y-2">
+            <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">Loại truyện</p>
+            <div className="flex flex-wrap gap-2">
+              <FilterOption
+                active={!draft.contentOrigin}
+                label="Tất cả"
+                onSelect={() => patch({ contentOrigin: undefined })}
+              />
+              <FilterOption
+                active={draft.contentOrigin === "original"}
+                label="Truyện sáng tác"
+                onSelect={() => patch({ contentOrigin: "original" })}
+              />
+              <FilterOption
+                active={draft.contentOrigin === "translation"}
+                label="Truyện dịch"
+                onSelect={() => patch({ contentOrigin: "translation" })}
+              />
+            </div>
+          </section>
+
+          <section className="space-y-2">
             <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">Trạng thái</p>
             <div className="flex flex-wrap gap-2">
               <FilterOption active={draft.status === "all"} label="Tất cả" onSelect={() => patch({ status: "all" })} />
@@ -227,30 +266,56 @@ function StoryFilterSheetPanel({
             </div>
           </section>
 
-          <section className="space-y-2">
-            <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">Truy cập</p>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { value: "", label: "Tất cả" },
-                { value: "free", label: "Miễn phí" },
-                { value: "paid", label: "Trả phí" },
-                { value: "free_chapters", label: "Có chương miễn phí" },
-                { value: "full_access", label: "Bán trọn bộ" }
-              ].map((option) => (
-                <FilterOption
-                  active={(draft.access ?? "") === option.value}
-                  key={option.label}
-                  label={option.label}
-                  onSelect={() =>
-                    patch({
-                      access: (option.value || undefined) as StoryCatalogFilterParams["access"]
-                    })
-                  }
-                />
-              ))}
-            </div>
-          </section>
+          {hideAccessFilters ? null : (
+            <section className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">Truy cập</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: "", label: "Tất cả" },
+                  { value: "free", label: "Miễn phí" },
+                  { value: "paid", label: "Trả phí" },
+                  { value: "free_chapters", label: "Có chương miễn phí" },
+                  { value: "full_access", label: "Bán trọn bộ" }
+                ].map((option) => (
+                  <FilterOption
+                    active={(draft.access ?? "") === option.value}
+                    key={option.label}
+                    label={option.label}
+                    onSelect={() =>
+                      patch({
+                        access: (option.value || undefined) as StoryCatalogFilterParams["access"]
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            </section>
+          )}
 
+          {variant === "story" ? (
+            <section className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">Media</p>
+              <div className="flex flex-wrap gap-2">
+                <FilterOption
+                  active={!draft.hasAudio}
+                  label="Audio: tất cả"
+                  onSelect={() => patch({ hasAudio: undefined })}
+                />
+                <FilterOption
+                  active={draft.hasAudio === "yes"}
+                  label="Có audio"
+                  onSelect={() => patch({ hasAudio: "yes" })}
+                />
+                <FilterOption
+                  active={draft.hasVideo === "yes"}
+                  label="Có video"
+                  onSelect={() => patch({ hasVideo: draft.hasVideo === "yes" ? undefined : "yes" })}
+                />
+              </div>
+            </section>
+          ) : null}
+
+          {variant === "story" ? (
           <section className="space-y-2">
             <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">Chương mới</p>
             <div className="flex flex-wrap gap-2">
@@ -271,7 +336,9 @@ function StoryFilterSheetPanel({
               />
             </div>
           </section>
+          ) : null}
 
+          {variant === "story" ? (
           <section className="space-y-2">
             <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">Cảnh báo nội dung</p>
             <div className="flex flex-wrap gap-2">
@@ -280,6 +347,7 @@ function StoryFilterSheetPanel({
               <FilterOption active={draft.hasWarning === "no"} label="Không cảnh báo" onSelect={() => patch({ hasWarning: "no" })} />
             </div>
           </section>
+          ) : null}
         </div>
 
         <div className="mt-5 flex gap-2">

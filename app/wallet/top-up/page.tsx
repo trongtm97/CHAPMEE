@@ -13,10 +13,10 @@ export default async function WalletTopUpPage() {
 
   return (
     <section className="space-y-4">
-      <SectionHeader title="Nap coin" />
+      <SectionHeader title="Nạp Xu" />
       <Card>
         <p className="text-sm text-zinc-300">
-          Nen tang hien tai khong ho tro nap coin bang web payment tren build nay.
+          Nền tảng hiện tại không hỗ trợ nạp Xu bằng web payment trên build này.
         </p>
       </Card>
     </section>

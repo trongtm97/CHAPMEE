@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { logCreatorAdPolicyAudit } from "@/lib/creator-ad-revenue/audit";
 import { syncCreatorAdProfileCompliance } from "@/lib/creator-ad-revenue/sync-compliance";
 import type {
@@ -35,8 +35,8 @@ export async function getCreatorAdMonetizationProfile(
     await syncCreatorAdProfileCompliance(userId);
   }
 
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const db = createAdminClient();
+  const { data, error } = await db
     .from("creator_ad_monetization_profiles")
     .select("*")
     .eq("user_id", userId)
@@ -52,8 +52,8 @@ export async function ensureCreatorAdMonetizationProfile(
   const existing = await getCreatorAdMonetizationProfile(userId);
   if (existing) return existing;
 
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const db = createAdminClient();
+  const { data, error } = await db
     .from("creator_ad_monetization_profiles")
     .insert({ user_id: userId })
     .select("*")
@@ -89,7 +89,7 @@ export async function listCreatorAdMonetizationProfiles(filters: {
   error: string | null;
 }> {
   try {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
     const monthKey = `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, "0")}`;
     const limit = filters.limit ?? 50;
     const offset = filters.offset ?? 0;
@@ -97,7 +97,7 @@ export async function listCreatorAdMonetizationProfiles(filters: {
     let userIdFilter: string[] | null = null;
     const search = filters.search?.trim();
     if (search) {
-      const { data: matched } = await supabase
+      const { data: matched } = await db
         .from("profiles")
         .select("id")
         .or(`username.ilike.%${search}%,display_name.ilike.%${search}%`)
@@ -123,14 +123,14 @@ export async function listCreatorAdMonetizationProfiles(filters: {
     };
 
     const countQuery = applyFilters(
-      supabase
+      db
         .from("creator_ad_monetization_profiles")
         .select("user_id", { count: "exact", head: true })
     );
     const { count } = await countQuery;
 
     let query = applyFilters(
-      supabase
+      db
         .from("creator_ad_monetization_profiles")
         .select(
           `
@@ -162,12 +162,12 @@ export async function listCreatorAdMonetizationProfiles(filters: {
     const userIds = profiles.map((p: CreatorAdMonetizationProfileListItem) => p.user_id);
     if (userIds.length > 0) {
       const [statsRes, fraudRes] = await Promise.all([
-        supabase
+        db
           .from("ad_monthly_author_stats")
           .select("author_id, estimated_gross_revenue_vnd")
           .eq("month", monthKey)
           .in("author_id", userIds),
-        supabase
+        db
           .from("ad_fraud_signals")
           .select("author_id")
           .in("author_id", userIds)
@@ -262,8 +262,8 @@ export async function applyCreatorAdProfileAdminAction(input: {
       return { profile: null, error: "Hành động không hợp lệ." };
   }
 
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const db = createAdminClient();
+  const { data, error } = await db
     .from("creator_ad_monetization_profiles")
     .update({
       status,
@@ -300,8 +300,8 @@ export async function updateCreatorAdProfileInternalNote(input: {
   actorId: string;
 }): Promise<{ error: string | null }> {
   const profile = await ensureCreatorAdMonetizationProfile(input.userId);
-  const supabase = createAdminClient();
-  const { error } = await supabase
+  const db = createAdminClient();
+  const { error } = await db
     .from("creator_ad_monetization_profiles")
     .update({ internal_note: input.note })
     .eq("user_id", input.userId);

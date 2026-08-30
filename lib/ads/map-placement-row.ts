@@ -59,7 +59,7 @@ export function mapPlacementRow(row: Record<string, unknown>): AdPlacementRow {
 function inferPosition(key: string): AdPlacementRow["position"] {
   if (key.includes("top")) return "top";
   if (key.includes("mid")) return "mid_content";
-  if (key.includes("sidebar")) return "sidebar";
+  if (key.includes("sidebar") || key.includes("_rail")) return "sidebar";
   if (key.includes("between")) return "between_items";
   if (key.includes("discover") || key.includes("ranking")) return "after_section";
   return "bottom";

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   mapFormatTemplateRow,
   mapPresentationSettingsRow
@@ -27,8 +27,8 @@ export async function getPresentationTemplates(mode: string): Promise<{
   data: StoryFormatTemplateRow[];
   error: string | null;
 }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("story_format_templates")
     .select("*")
     .eq("mode", mode)
@@ -52,8 +52,8 @@ export async function getStoryPresentationSettings(storyId: string): Promise<{
   data: StoryPresentationSettingsRow | null;
   error: string | null;
 }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("story_presentation_settings")
     .select("*")
     .eq("story_id", storyId)

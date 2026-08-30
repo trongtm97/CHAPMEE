@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 import type { CreatorStoryStatus } from "@/lib/creator/getCreatorStories";
 
@@ -32,8 +32,8 @@ export async function getCreatorStoryEpisodes(
   storyId: string
 ): Promise<CreatorStoryEpisodesData> {
   try {
-    const supabase = await createClient();
-    const { data: story, error: storyError } = await supabase
+    const db = await createClient();
+    const { data: story, error: storyError } = await db
       .from("stories")
       .select("id, title, slug, public_code, status")
       .eq("id", storyId)
@@ -48,7 +48,7 @@ export async function getCreatorStoryEpisodes(
       return { story: null, episodes: [], error: null };
     }
 
-    const { data: episodes, error: episodesError } = await supabase
+    const { data: episodes, error: episodesError } = await db
       .from("episodes")
       .select(
         "id, slug, public_code, episode_number, title, excerpt, status, word_count, updated_at, content_format"

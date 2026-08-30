@@ -162,7 +162,7 @@ export function MonetizationKpiCard({
 }) {
   return (
     <article
-      className={`rounded-2xl border p-4 ${TONE_STYLES[tone].card}`}
+      className={`flex h-full min-h-[7.5rem] flex-col rounded-2xl border p-4 ${TONE_STYLES[tone].card}`}
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">{label}</p>
@@ -176,7 +176,11 @@ export function MonetizationKpiCard({
       >
         {value}
       </p>
-      {hint ? <p className="mt-1 text-xs leading-relaxed text-zinc-500">{hint}</p> : null}
+      {hint ? (
+        <p className="mt-auto pt-2 text-xs leading-relaxed text-zinc-500">{hint}</p>
+      ) : (
+        <span className="mt-auto block min-h-[1.25rem]" />
+      )}
     </article>
   );
 }

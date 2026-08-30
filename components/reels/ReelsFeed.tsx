@@ -5,10 +5,11 @@ import { ReelsDesktopMain } from "@/components/reels/ReelsDesktopMain";
 import { ReelsActionRail } from "@/components/reels/ReelsActionRail";
 import { ReelsBottomOverlay } from "@/components/reels/ReelsBottomOverlay";
 import { ReelsCommentSheet } from "@/components/reels/ReelsCommentSheet";
+import { HomepageLegalBar } from "@/components/layout/HomepageLegalBar";
 import { ReelsFeedEntryRenderer } from "@/components/reels/ReelsFeedEntryRenderer";
 import { MobileReelsLayout } from "@/components/reels/MobileReelsLayout";
 import type { ReelsRightPanelTab } from "@/components/reels/ReelsRightPanel";
-import { ShareModal } from "@/components/share/ShareModal";
+import { useReelShare } from "@/hooks/useReelShare";
 import { Card } from "@/components/ui";
 import { analyticsEvents } from "@/lib/analytics/events";
 import { trackEvent } from "@/lib/analytics/trackEvent";
@@ -18,10 +19,10 @@ import {
   trackFeedImpression,
   trackFeedLike,
   trackFeedSave,
+  trackFeedShare,
   type ReelsAnalyticsContext
 } from "@/lib/analytics/trackReelsEvents";
 import type { ReelsItem } from "@/lib/reels/getReelsItems";
-import { REELS_SHARE_CTA_LABEL } from "@/lib/routes/reels-paths";
 import { fetchPlacementConfig } from "@/lib/ads/fetch-placement-config";
 import {
   buildReelsFeedEntries,
@@ -30,7 +31,6 @@ import {
 import { injectReelsAdSlots } from "@/lib/reels/inject-reels-ad-slots";
 import type { CampaignWithSponsor } from "@/types/campaign";
 import type { ProductConfig } from "@/types/product-config";
-import type { ShareCardPayload } from "@/types/share";
 import { useAbortableAsync } from "@/hooks/useAbortableAsync";
 import { isAbortError, useLatestRequestGuard } from "@/hooks/useLatestRequestGuard";
 
@@ -114,7 +114,8 @@ export function ReelsFeed({
   const [cycle, setCycle] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isCommentSheetOpen, setIsCommentSheetOpen] = useState(false);
-  const [sharePayload, setSharePayload] = useState<ShareCardPayload | null>(null);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const { shareReel, toast: shareToast } = useReelShare();
   const [isDesktop, setIsDesktop] = useState(false);
   const [isDesktopRightPanelOpen, setIsDesktopRightPanelOpen] = useState(false);
   const [activeDesktopPanelTab, setActiveDesktopPanelTab] = useState<ReelsRightPanelTab | null>(
@@ -195,11 +196,10 @@ export function ReelsFeed({
         return;
       }
 
+      setCurrentIndex(nextIndex);
       const target = itemRefs.current[nextIndex];
       if (target) {
         target.scrollIntoView({ behavior, block: "start" });
-      } else {
-        setCurrentIndex(nextIndex);
       }
     },
     [entries]
@@ -228,6 +228,7 @@ export function ReelsFeed({
     }
 
     setIsLoadingMore(true);
+    setLoadMoreError(null);
     const requestId = requestGuard.nextRequestId();
     const controller = createAbortController();
 
@@ -271,6 +272,7 @@ export function ReelsFeed({
     } catch (error) {
       if (!isAbortError(error) && requestGuard.onlyLatest(requestId)) {
         console.warn("[reels] load more failed", error);
+        setLoadMoreError("Không tải thêm được. Thử lại.");
       }
     } finally {
       if (requestGuard.onlyLatest(requestId)) {
@@ -349,6 +351,16 @@ export function ReelsFeed({
         targetId: currentEntry.item.id,
         targetType: "episode"
       });
+      void fetch("/api/reels/view", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reelItemId: currentEntry.item.reelItemId ?? null,
+          storyId: currentEntry.item.storyId,
+          chapterId: currentEntry.item.chapterId ?? null
+        }),
+        keepalive: true
+      }).catch(() => undefined);
       seenImpressions.current.add(currentEntry.instanceId);
     }, IMPRESSION_DELAY_MS);
 
@@ -403,7 +415,7 @@ export function ReelsFeed({
     return () => {
       observer.disconnect();
     };
-  }, [entries.length]);
+  }, [entries.length, isDesktop]);
 
   useEffect(() => {
     if (currentIndex >= entries.length - 3) {
@@ -473,8 +485,10 @@ export function ReelsFeed({
         body: JSON.stringify({
           action,
           creatorId: activeContext.item.creatorId,
-          episodeId: activeContext.item.id,
+          creatorUserId: activeContext.item.creatorUserId,
+          episodeId: activeContext.item.chapterId ?? activeContext.item.id,
           itemIndex: activeContext.itemIndex,
+          reelItemId: activeContext.item.reelItemId,
           storyId: activeContext.item.storyId
         })
       });
@@ -608,35 +622,31 @@ export function ReelsFeed({
     setBusy((previous) => ({ ...previous, follow: false }));
   }, [busy.follow, currentIndex, currentItem, patchEntries, postEngagement]);
 
-  const handleShare = useCallback(() => {
-    if (!currentItem) {
+  const handleShare = useCallback(async () => {
+    if (!currentItem || busy.share) {
       return;
     }
 
-    void trackEvent({
-      eventName: analyticsEvents.reelsShareClicked,
-      metadata: { item_index: currentIndex, source: "reels", story_id: currentItem.storyId },
-      targetId: currentItem.storyId,
-      targetType: "story"
-    });
+    trackFeedShare({ item: currentItem, itemIndex: currentIndex });
 
-    setSharePayload({
-      authorName: currentItem.creatorName,
-      backgroundUrl:
-        currentItem.backgroundImageUrl ?? currentItem.creatorAvatarUrl ?? null,
-      ctaLabel: REELS_SHARE_CTA_LABEL,
-      excerpt: currentItem.excerpt,
-      genreName: currentItem.genreName,
-      hook: currentItem.hookTitle,
-      kind: "reel",
-      slug: `${currentItem.storySlug}-${currentItem.episodeNumber}`,
-      targetId: currentItem.id,
-      targetType: "episode",
-      text: currentItem.excerpt,
-      title: `${currentItem.episodeTitle} - ${currentItem.storyTitle}`,
-      url: `${window.location.origin}${currentItem.reelHref ?? currentItem.readMoreHref}`
-    });
-  }, [currentIndex, currentItem]);
+    setBusy((previous) => ({ ...previous, share: true }));
+    const shared = await shareReel(currentItem);
+    if (shared) {
+      try {
+        await postEngagement("share");
+        patchEntries(
+          (item) => item.storyId === currentItem.storyId,
+          (item) => ({
+            ...item,
+            shareCount: item.shareCount + 1
+          })
+        );
+      } catch {
+        // Share analytics should never block the share flow.
+      }
+    }
+    setBusy((previous) => ({ ...previous, share: false }));
+  }, [busy.share, currentIndex, currentItem, patchEntries, postEngagement, shareReel]);
 
   const handleCommentCreated = useCallback(() => {
     if (!currentItem) {
@@ -676,6 +686,10 @@ export function ReelsFeed({
     );
   }
 
+  const hideLegalBar =
+    (isCommentSheetOpen && !isDesktop) ||
+    (isDesktop && isDesktopRightPanelOpen && activeDesktopPanelTab === "comments");
+
   return (
     <>
       {isDesktop ? (
@@ -688,7 +702,7 @@ export function ReelsFeed({
           isWideRightPanelEnabled={desktopConfig.desktopShowRightPanel && isUltraWideDesktop}
           itemRefs={itemRefs}
           onClosePanel={closeDesktopPanel}
-          onOpenComments={() => setIsCommentSheetOpen(true)}
+          onCommentCreated={handleCommentCreated}
           onOpenPanel={openDesktopPanel}
           onShare={() => void handleShare()}
           onToggleFollow={() => void handleToggleFollow()}
@@ -697,45 +711,77 @@ export function ReelsFeed({
         />
       ) : (
         <MobileReelsLayout>
-          <div
-            ref={containerRef}
-            className={`h-full min-h-0 overflow-y-auto overscroll-contain scroll-smooth snap-y snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-              isCommentSheetOpen ? "pointer-events-none" : ""
-            }`}
-          >
-            {entries.map((entry, index) => (
-              <section
-                className="relative h-full min-h-full snap-start snap-always overflow-hidden"
-                data-index={index}
-                key={entry.instanceId}
-                ref={(node) => {
-                  itemRefs.current[index] = node;
-                }}
-              >
-                <ReelsFeedEntryRenderer entry={entry} />
-              </section>
-            ))}
+          <div className="relative h-full min-h-0">
+            <div
+              ref={containerRef}
+              className={`absolute inset-0 h-full overflow-y-auto overscroll-contain scroll-smooth snap-y snap-mandatory [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden ${
+                isCommentSheetOpen ? "pointer-events-none" : ""
+              }`}
+            >
+              {entries.map((entry, index) => (
+                <section
+                  className="relative h-full w-full shrink-0 snap-start snap-always overflow-hidden"
+                  data-index={index}
+                  key={entry.instanceId}
+                  ref={(node) => {
+                    itemRefs.current[index] = node;
+                  }}
+                >
+                  <ReelsFeedEntryRenderer entry={entry} />
+                </section>
+              ))}
+              {!hasMore && !isLoadingMore ? (
+                <section
+                  aria-live="polite"
+                  className="relative flex h-full w-full shrink-0 snap-start snap-always items-center justify-center overflow-hidden px-8"
+                >
+                  <p className="max-w-xs text-center text-sm leading-6 text-zinc-500">
+                    Bạn đã xem hết nội dung hiện có.
+                  </p>
+                </section>
+              ) : null}
+            </div>
+            {activeContext ? (
+              <div className="pointer-events-none absolute inset-0 z-30">
+                <ReelsActionRail
+                  context={activeContext}
+                  isBusy={busy}
+                  onOpenComments={() => setIsCommentSheetOpen(true)}
+                  onShare={() => void handleShare()}
+                  onToggleFollow={() => void handleToggleFollow()}
+                  onToggleLike={() => void handleToggleLike()}
+                  onToggleSave={() => void handleToggleSave()}
+                />
+                <ReelsBottomOverlay context={activeContext} />
+              </div>
+            ) : null}
           </div>
-          {activeContext ? (
-            <>
-              <ReelsActionRail
-                context={activeContext}
-                isBusy={busy}
-                onOpenComments={() => setIsCommentSheetOpen(true)}
-                onShare={() => void handleShare()}
-                onToggleFollow={() => void handleToggleFollow()}
-                onToggleLike={() => void handleToggleLike()}
-                onToggleSave={() => void handleToggleSave()}
-              />
-              <ReelsBottomOverlay context={activeContext} />
-            </>
-          ) : null}
         </MobileReelsLayout>
       )}
 
       {isLoadingMore ? (
-        <div className="pointer-events-none absolute left-4 top-4 z-20 rounded-full bg-black/35 px-3 py-1.5 text-[0.72rem] font-medium text-zinc-300">
+        <div className="pointer-events-none absolute left-4 top-4 z-20 rounded-full bg-black/45 px-3 py-1.5 text-[0.72rem] font-medium text-zinc-300 lg:left-6">
           Đang tải thêm...
+        </div>
+      ) : null}
+      {loadMoreError ? (
+        <div className="absolute bottom-24 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-black/70 px-3 py-2 text-xs text-zinc-200">
+          <span>{loadMoreError}</span>
+          <button
+            className="tap-highlight rounded-full bg-white/10 px-2.5 py-1 font-semibold text-cyan-200"
+            onClick={() => void loadMore()}
+            type="button"
+          >
+            Thử lại
+          </button>
+        </div>
+      ) : null}
+      {shareToast ? (
+        <div
+          className="pointer-events-none absolute left-1/2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 -translate-x-1/2 rounded-full bg-black/75 px-4 py-2 text-xs font-medium text-zinc-100"
+          role="status"
+        >
+          {shareToast}
         </div>
       ) : null}
 
@@ -743,22 +789,10 @@ export function ReelsFeed({
         context={activeContext}
         onClose={() => setIsCommentSheetOpen(false)}
         onCommentCreated={handleCommentCreated}
-        open={isCommentSheetOpen}
+        open={isCommentSheetOpen && !isDesktop}
       />
-      {sharePayload ? (
-        <ShareModal
-          onClose={() => setSharePayload(null)}
-          onCompleted={async () => {
-            try {
-              await postEngagement("share");
-            } catch {
-              // Share analytics should never block the share flow.
-            }
-          }}
-          open={Boolean(sharePayload)}
-          payload={sharePayload}
-        />
-      ) : null}
+
+      {hideLegalBar ? null : <HomepageLegalBar />}
     </>
   );
 }

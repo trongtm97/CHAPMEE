@@ -5,11 +5,11 @@ import { getProfileTabUrl } from "@/lib/profile/profile-url";
 import type { PublicProfileTab } from "@/types/public-profile";
 
 const tabLabels: Record<PublicProfileTab, string> = {
-  collections: "Tủ truyện",
-  activity: "Hoạt động",
-  comments: "Bình luận",
-  badges: "Thành tích",
-  works: "Tác phẩm"
+  stories: "Truyện",
+  reels: "Reels",
+  community: "Cộng đồng",
+  achievements: "Thành tích",
+  about: "Giới thiệu"
 };
 
 type PublicProfileTabsProps = {

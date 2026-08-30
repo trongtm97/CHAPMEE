@@ -5,6 +5,7 @@ import { ErrorState } from "@/components/ui";
 import { buildAdminContentPostCapabilities } from "@/types/admin-content-posts";
 
 import { requireAnyPermission } from "@/lib/auth/require-permission";
+import { listContentPostCategories } from "@/lib/platform-content/content-post-categories";
 
 
 
@@ -34,6 +35,8 @@ export default async function AdminContentPostCreateRoute() {
 
   const capabilities = buildAdminContentPostCapabilities(guard.context.permissions);
 
+  const { items: categories } = await listContentPostCategories({ includeHidden: true });
+
 
 
   return (
@@ -42,7 +45,7 @@ export default async function AdminContentPostCreateRoute() {
 
       <h1 className="sr-only">Tạo bài viết</h1>
 
-      <ContentPostForm capabilities={capabilities} mode="create" />
+      <ContentPostForm capabilities={capabilities} categories={categories} mode="create" />
 
     </section>
 

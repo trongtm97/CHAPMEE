@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export type CommunityStoryOption = {
   id: string;
@@ -12,8 +12,8 @@ export type CommunityStoryOptionsResult = {
 
 export async function getStoriesForCommunityPost(): Promise<CommunityStoryOptionsResult> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("stories")
       .select("id, title")
       .eq("visibility", "public")

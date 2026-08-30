@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { CommentForm } from "@/components/comments/CommentForm";
 import { CommentItem } from "@/components/comments/CommentItem";
+import { CommunityGroupLink } from "@/components/community/CommunityGroupLink";
 import { ReaderSheet } from "@/components/reader/ReaderSheet";
 import type { CommentView } from "@/lib/comments/getComments";
 
@@ -12,19 +13,25 @@ type StoryCommentsTabProps = {
   currentUserId: string | null;
   returnTo: string;
   storyId: string;
+  storySlug: string;
 };
 
 export function StoryCommentsTab({
   comments,
   currentUserId,
   returnTo,
-  storyId
+  storyId,
+  storySlug
 }: StoryCommentsTabProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const preview = comments.slice(0, 3);
 
   return (
     <div className="space-y-3">
+      <CommunityGroupLink
+        label="Xem thảo luận trong group"
+        storySlug={storySlug}
+      />
       <button
         className="tap-highlight w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm text-zinc-500"
         onClick={() => setSheetOpen(true)}

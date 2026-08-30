@@ -1,16 +1,16 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import type { TaxonomyType } from "@/types/taxonomy";
 
 /** Discover/search prep: stories linked to a taxonomy term (by slug). */
 export async function listPublishedStoryIdsByTaxonomySlug(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   type: TaxonomyType,
   slug: string,
   options?: { limit?: number }
 ) {
   const limit = options?.limit ?? 48;
 
-  const { data: term } = await supabase
+  const { data: term } = await db
     .from("taxonomy_terms")
     .select("id")
     .eq("type", type)
@@ -22,7 +22,7 @@ export async function listPublishedStoryIdsByTaxonomySlug(
     return { storyIds: [] as string[], error: null };
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("story_taxonomy_terms")
     .select("story_id, stories!inner(id, status, visibility)")
     .eq("term_id", term.id)

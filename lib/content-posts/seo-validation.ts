@@ -12,7 +12,6 @@ export type ContentPostSeoIssue =
   | "missing_cover"
   | "content_has_h1"
   | "missing_h2_long_content"
-  | "external_link"
   | "invalid_canonical"
   | "index_without_seo";
 
@@ -29,7 +28,6 @@ export type ContentPostSeoCheckInput = {
   indexable: boolean;
 };
 
-const EXTERNAL_LINK_REGEX = /https?:\/\//i;
 const H1_MARKDOWN_REGEX = /^#\s+[^#]/m;
 const H1_HTML_REGEX = /<h1[\s>]/i;
 const H2_MARKDOWN_REGEX = /^##\s+/m;
@@ -40,14 +38,6 @@ export function validateHeadingStructure(content: string): string[] {
   const issues: string[] = [];
   if (H1_MARKDOWN_REGEX.test(content) || H1_HTML_REGEX.test(content)) {
     issues.push("Nội dung không được chứa H1. Chỉ dùng H2/H3/H4.");
-  }
-  return issues;
-}
-
-export function validateInternalLinksOnly(content: string): string[] {
-  const issues: string[] = [];
-  if (EXTERNAL_LINK_REGEX.test(content)) {
-    issues.push("Nội dung không được chứa link ngoài nền tảng.");
   }
   return issues;
 }
@@ -116,10 +106,6 @@ export function getContentPostSeoIssues(input: ContentPostSeoCheckInput): Conten
     issues.push("missing_h2_long_content");
   }
 
-  if (EXTERNAL_LINK_REGEX.test(input.content)) {
-    issues.push("external_link");
-  }
-
   const canonical = input.canonicalUrl.trim();
   if (canonical && !canonical.startsWith("/")) {
     issues.push("invalid_canonical");
@@ -130,7 +116,7 @@ export function getContentPostSeoIssues(input: ContentPostSeoCheckInput): Conten
 
 export function getContentPostSeoScore(input: ContentPostSeoCheckInput): number {
   const issues = getContentPostSeoIssues(input);
-  const critical = ["content_has_h1", "external_link", "invalid_slug", "index_without_seo"];
+  const critical = ["content_has_h1", "invalid_slug", "index_without_seo"];
   const warnings = ["missing_seo_title", "missing_seo_description", "missing_excerpt", "missing_cover", "missing_h2_long_content"];
 
   let score = 100;
@@ -163,6 +149,6 @@ export function getRobotsByStatus(input: {
 export function hasCriticalPublishBlockers(input: ContentPostSeoCheckInput) {
   const issues = getContentPostSeoIssues(input);
   return issues.some((issue) =>
-    ["content_has_h1", "external_link", "invalid_slug"].includes(issue)
+    ["content_has_h1", "invalid_slug"].includes(issue)
   );
 }

@@ -1,15 +1,15 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { AdminFinanceOverview } from "@/types/admin";
 
 export async function getFinanceAdminOverview(): Promise<{
   data: AdminFinanceOverview;
   error: string | null;
 }> {
-  const supabase = await createClient();
+  const db = await createClient();
 
   const [{ data: payouts }, { data: wallets }] = await Promise.all([
-    supabase.from("payout_requests").select("amount_vnd, status"),
-    supabase
+    db.from("payout_requests").select("amount_vnd, status"),
+    db
       .from("creator_wallets")
       .select("user_id, total_earned_vnd, available_revenue_vnd")
   ]);

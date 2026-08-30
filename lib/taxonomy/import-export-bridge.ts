@@ -1,6 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getSelectableTaxonomyTermsForCreator } from "@/lib/taxonomy/queries";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type MainGenreImportExportOption = {
   id: string;
@@ -25,13 +25,13 @@ export async function loadMainGenreOptionsForImportExport(): Promise<{
 
 /** Resolve import/export `story_genre` value (slug or display name) to taxonomy term id. */
 export async function resolveMainGenreTermFromImportValue(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   raw: string
 ): Promise<string | null> {
   const value = raw.trim();
   if (!value) return null;
 
-  const { data: bySlug } = await supabase
+  const { data: bySlug } = await db
     .from("taxonomy_terms")
     .select("id")
     .eq("type", "main_genre")
@@ -41,7 +41,7 @@ export async function resolveMainGenreTermFromImportValue(
 
   if (bySlug?.id) return String(bySlug.id);
 
-  const { data: byName } = await supabase
+  const { data: byName } = await db
     .from("taxonomy_terms")
     .select("id")
     .eq("type", "main_genre")
@@ -53,13 +53,13 @@ export async function resolveMainGenreTermFromImportValue(
 }
 
 export async function getMainGenreSlugsByStoryIds(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyIds: string[]
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   if (storyIds.length === 0) return map;
 
-  const { data } = await supabase
+  const { data } = await db
     .from("story_taxonomy_terms")
     .select("story_id, taxonomy_terms(slug)")
     .in("story_id", storyIds)
@@ -77,11 +77,11 @@ export async function getMainGenreSlugsByStoryIds(
 }
 
 export async function getStoryIdsForMainGenreTermId(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   termId: string,
   creatorId: string
 ): Promise<string[]> {
-  const { data: links } = await supabase
+  const { data: links } = await db
     .from("story_taxonomy_terms")
     .select("story_id, stories!inner(id, creator_id)")
     .eq("term_id", termId)
@@ -93,11 +93,11 @@ export async function getStoryIdsForMainGenreTermId(
 
 /** Set main_genre taxonomy link without wiping other taxonomy types. */
 export async function applyMainGenreTermToStory(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   termId: string
 ): Promise<{ ok: boolean; error: string | null }> {
-  const { error: deleteError } = await supabase
+  const { error: deleteError } = await db
     .from("story_taxonomy_terms")
     .delete()
     .eq("story_id", storyId)
@@ -107,7 +107,7 @@ export async function applyMainGenreTermToStory(
     return { ok: false, error: deleteError.message };
   }
 
-  const { error: insertError } = await supabase.from("story_taxonomy_terms").insert({
+  const { error: insertError } = await db.from("story_taxonomy_terms").insert({
     story_id: storyId,
     term_id: termId,
     type: "main_genre"
@@ -122,6 +122,6 @@ export async function applyMainGenreTermToStory(
 
 /** Server helper when createClient is not passed. */
 export async function resolveMainGenreTermFromImportValueServer(raw: string) {
-  const supabase = await createClient();
-  return resolveMainGenreTermFromImportValue(supabase, raw);
+  const db = await createClient();
+  return resolveMainGenreTermFromImportValue(db, raw);
 }

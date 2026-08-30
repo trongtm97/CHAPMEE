@@ -4,8 +4,13 @@ import { revalidatePath } from "next/cache";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { checkStaffPermission } from "@/lib/auth/staff-guards";
 import {
+  SITE_PAGE_REGISTRY,
+  getSitePageRegistryEntry
+} from "@/lib/site-pages/registry";
+import {
   archivePolicyPage,
   createPolicyPage,
+  getPolicyPageByCanonicalPath,
   publishPolicyPage,
   updatePolicyPage
 } from "@/lib/policies/policy-pages";
@@ -35,10 +40,103 @@ export async function listPoliciesForAdminAction(filters: PolicyListFilters) {
   return listPolicyPages({
     status: filters.status,
     policyType: filters.policyType,
+    siteGroup: filters.siteGroup,
     search: filters.search,
     page: filters.page,
     pageSize: filters.pageSize
   });
+}
+
+function revalidateSitePagePaths(canonicalPath?: string | null) {
+  revalidatePath("/admin/pages");
+  revalidatePath("/chinh-sach");
+  revalidatePath("/legal");
+  revalidatePath("/about");
+  revalidatePath("/contact");
+  if (canonicalPath) {
+    revalidatePath(canonicalPath);
+  }
+}
+
+export async function createSitePageDraftFromRegistryAction(publicPath: string) {
+  const actor = await requirePolicyActor("policies.create");
+  if (!actor.ok) return { item: null, error: actor.error };
+
+  const entry = getSitePageRegistryEntry(publicPath);
+  if (!entry) {
+    return { item: null, error: "Không tìm thấy trang trong danh mục hệ thống." };
+  }
+
+  const existing = await getPolicyPageByCanonicalPath(publicPath);
+  if (existing.item) {
+    return { item: existing.item, error: null, alreadyExists: true as const };
+  }
+
+  const result = await createPolicyPage({
+    title: entry.title,
+    slug: entry.slug,
+    summary: entry.description,
+    content: entry.defaultContent,
+    policy_type: entry.policyType,
+    status: "draft",
+    visibility: "public",
+    canonical_path: entry.publicPath,
+    seo_title: `${entry.title} | ChapMee`,
+    seo_description: entry.description,
+    seo_indexable: true,
+    created_by: actor.actorId,
+    updated_by: actor.actorId
+  });
+
+  if (result.item) {
+    await logAdminAction({
+      actorId: actor.actorId,
+      action: "policy_create",
+      targetType: "policy_page",
+      targetId: result.item.id,
+      metadata: { slug: result.item.slug, title: result.item.title, publicPath }
+    });
+    revalidateSitePagePaths(result.item.canonical_path);
+  }
+
+  return result;
+}
+
+export async function syncMissingSitePagesAction() {
+  const actor = await requirePolicyActor("policies.create");
+  if (!actor.ok) return { created: 0, skipped: 0, error: actor.error };
+
+  let created = 0;
+  let skipped = 0;
+
+  for (const entry of SITE_PAGE_REGISTRY) {
+    const existing = await getPolicyPageByCanonicalPath(entry.publicPath);
+    if (existing.item) {
+      skipped += 1;
+      continue;
+    }
+    const result = await createPolicyPage({
+      title: entry.title,
+      slug: entry.slug,
+      summary: entry.description,
+      content: entry.defaultContent,
+      policy_type: entry.policyType,
+      status: "draft",
+      visibility: "public",
+      canonical_path: entry.publicPath,
+      seo_title: `${entry.title} | ChapMee`,
+      seo_description: entry.description,
+      seo_indexable: true,
+      created_by: actor.actorId,
+      updated_by: actor.actorId
+    });
+    if (result.item) {
+      created += 1;
+    }
+  }
+
+  revalidateSitePagePaths();
+  return { created, skipped, error: null };
 }
 
 export async function getPolicyStatsForAdminAction() {
@@ -75,8 +173,7 @@ export async function savePolicyPageAction(input: {
       targetId: result.item.id,
       metadata: { slug: result.item.slug, title: result.item.title }
     });
-    revalidatePath("/admin/policies");
-    revalidatePath("/chinh-sach");
+    revalidateSitePagePaths(result.item.canonical_path);
   }
 
   return result;
@@ -95,9 +192,7 @@ export async function publishPolicyPageAction(id: string, changeNote?: string | 
       targetId: result.item.id,
       metadata: { version: result.item.version, slug: result.item.slug }
     });
-    revalidatePath("/admin/policies");
-    revalidatePath("/chinh-sach");
-    revalidatePath(result.item.canonical_path ?? `/chinh-sach/${result.item.slug}`);
+    revalidateSitePagePaths(result.item.canonical_path);
   }
   return result;
 }
@@ -115,8 +210,7 @@ export async function archivePolicyPageAction(id: string) {
       targetId: result.item.id,
       metadata: { slug: result.item.slug }
     });
-    revalidatePath("/admin/policies");
-    revalidatePath("/chinh-sach");
+    revalidateSitePagePaths(result.item.canonical_path);
   }
   return result;
 }

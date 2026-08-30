@@ -1,16 +1,7 @@
 "use client";
 
-import {
-  useActionState,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import {
-  useGuidelinesSubmitGuard
-} from "@/components/creator/GuidelinesSubmitAcknowledgement";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { EditorCanvasHandle } from "@/components/editor/EditorCanvas";
 import { EditorPresentationPreview } from "@/components/editor/EditorPresentationPreview";
 import { EditorPreview } from "@/components/editor/EditorPreview";
@@ -53,43 +44,36 @@ import { shouldIndexEpisode } from "@/lib/seo/should-index";
 import { countImageBlocksInContent } from "@/lib/editor/chapter-image-block";
 import { StudioLocalDraftRecovery } from "@/components/editor/StudioLocalDraftRecovery";
 import { Button } from "@/components/ui";
-import { ChapterPublishChecklistPanel } from "@/components/studio/ChapterPublishChecklistPanel";
-import { SchedulePicker } from "@/components/studio/SchedulePicker";
 import { useAutosave } from "@/hooks/useAutosave";
-import type { EpisodeFormActionState } from "@/lib/creator/createEpisode";
+import { submitStudioChapterAction } from "@/lib/creator/submitStudioChapter";
+import { formatKeywordsInput } from "@/lib/seo/suggest-keywords";
 import type { CreatorEpisodeFormData } from "@/lib/creator/getCreatorEpisodeById";
 import { formatBlockingErrors } from "@/lib/publish/checklist-utils";
 import { validateChapterBeforePublish } from "@/lib/publish/validate-chapter-before-publish";
 import { getEditorStats } from "@/lib/editor/count-words";
 import { sanitizePlainContent } from "@/lib/editor/sanitize-content";
-import { applyTextareaFormat } from "@/lib/editor/text-format";
+import { normalizeStoryText } from "@/lib/normalizeStoryText";
 import { parseChapterDraftContent } from "@/lib/studio/draft-content";
 import { modeUsesStructuredContent } from "@/lib/presentation/constants";
 import { resolveChapterDisplayStatus } from "@/lib/studio/status-labels";
+import { studioPath } from "@/lib/studio/constants";
 import type { PresentationMode } from "@/types/presentation";
-import { createExcerpt } from "@/lib/text/createExcerpt";
 import type { EditorViewMode } from "@/types/editor";
 import { CHAPTER_IMAGE_MAX_PER_CHAPTER } from "@/types/chapter-images";
+import type { ChapterReelsPromoDraft, ChapterReelsPromoRecord } from "@/types/chapter-reels-promo";
 import type { ChapterDraftContent } from "@/types/drafts";
 import type { StudioDraftRecord, StudioDraftVersionRecord } from "@/types/drafts";
 
 type StudioChapterEditorProps = {
-  action: (
-    previousState: EpisodeFormActionState,
-    formData: FormData
-  ) => Promise<EpisodeFormActionState>;
   authorDisplayName?: string | null;
   backHref: string;
   defaultEpisodeNumber: number;
   defaultTitle?: string;
   episode?: CreatorEpisodeFormData["episode"];
+  initialReelsPromo?: ChapterReelsPromoRecord | null;
   profileId: string;
   savedDraft?: StudioDraftRecord | null;
   story: NonNullable<CreatorEpisodeFormData["story"]>;
-};
-
-const initialState: EpisodeFormActionState = {
-  error: null
 };
 
 const MAX_UNDO = 40;
@@ -106,17 +90,44 @@ function buildInitialChapterState(
     episodeNumber:
       fromDraft.episodeNumber ?? episode?.episode_number ?? defaultEpisodeNumber,
     excerpt: fromDraft.excerpt ?? episode?.excerpt ?? "",
-    title: fromDraft.title ?? episode?.title ?? ""
+    title: fromDraft.title ?? episode?.title ?? "",
+    reelsPromo: fromDraft.reelsPromo
+  };
+}
+
+function buildInitialReelsPromo(
+  draftPromo: ChapterReelsPromoDraft | undefined,
+  serverPromo: ChapterReelsPromoRecord | null | undefined
+): ChapterReelsPromoDraft {
+  if (draftPromo && (draftPromo.enabled || draftPromo.hook || draftPromo.body)) {
+    return draftPromo;
+  }
+
+  if (serverPromo) {
+    return {
+      body: serverPromo.body,
+      enabled: serverPromo.enabled,
+      hook: serverPromo.hook,
+      sourceTextEnd: serverPromo.sourceTextEnd,
+      sourceTextStart: serverPromo.sourceTextStart,
+      sourceType: serverPromo.sourceType
+    };
+  }
+
+  return {
+    body: "",
+    enabled: false,
+    hook: ""
   };
 }
 
 export function StudioChapterEditor({
-  action,
   authorDisplayName,
   backHref,
   defaultEpisodeNumber,
   defaultTitle,
   episode,
+  initialReelsPromo = null,
   profileId,
   savedDraft,
   story
@@ -137,7 +148,10 @@ export function StudioChapterEditor({
     episode?.structured_content != null
       ? JSON.stringify(episode.structured_content, null, 2)
       : "";
-  const [state, formAction, pending] = useActionState(action, initialState);
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const [episodeNumber, setEpisodeNumber] = useState(initial.episodeNumber);
   const [title, setTitle] = useState(initial.title || defaultTitle || "");
   const [content, setContent] = useState(initial.content);
@@ -229,6 +243,10 @@ export function StudioChapterEditor({
       initialPresentationSource
   );
   const [authorNote, setAuthorNote] = useState(initial.excerpt);
+  const [reelsPromo, setReelsPromo] = useState<ChapterReelsPromoDraft>(() =>
+    buildInitialReelsPromo(initial.reelsPromo, initialReelsPromo)
+  );
+  const reelsPromoStatus = initialReelsPromo?.reelStatus ?? null;
   const [seoTitle, setSeoTitle] = useState(episode?.seo_title ?? "");
   const [seoDescription, setSeoDescription] = useState(episode?.seo_description ?? "");
   const [seoKeywords, setSeoKeywords] = useState<string[]>(episode?.seo_keywords ?? []);
@@ -239,10 +257,7 @@ export function StudioChapterEditor({
   });
   const [viewMode, setViewMode] = useState<EditorViewMode>("write");
   const [hasViewedPreview, setHasViewedPreview] = useState(false);
-  const [publishPanelOpen, setPublishPanelOpen] = useState(false);
-  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [validationFlash, setValidationFlash] = useState<string | null>(null);
-  const [composerWarningsAck, setComposerWarningsAck] = useState(false);
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
@@ -300,25 +315,25 @@ export function StudioChapterEditor({
   ]);
 
   const canSubmitComposerReview =
-    !useComposerUi ||
-    (composerPublishReport?.valid === true &&
-      (composerPublishReport.warnings.length === 0 || composerWarningsAck));
+    !useComposerUi || composerPublishReport?.valid === true;
 
   const formContent = useMemo(() => {
     if (useComposerUi) {
       const plain = composerDocumentToPlainFallback(composerDocument);
-      return plain || content;
+      return normalizeStoryText(plain || content);
     }
-    return content;
+    return normalizeStoryText(content);
   }, [composerDocument, content, useComposerUi]);
 
   const stats = useMemo(() => getEditorStats(formContent), [formContent]);
   const imageCount = useMemo(() => countImageBlocksInContent(content), [content]);
   const imageLimitReached = imageCount >= CHAPTER_IMAGE_MAX_PER_CHAPTER;
   const displayStatus = resolveChapterDisplayStatus({
-    status: episode?.status ?? "draft"
+    status: episode?.status ?? "draft",
+    storyStatus: story.status,
+    storyVisibility: story.visibility
   });
-  const canSchedule = Boolean(episode?.id);
+  const canSchedule = true;
 
   const handleViewModeChange = useCallback((mode: EditorViewMode) => {
     setViewMode(mode);
@@ -377,7 +392,8 @@ export function StudioChapterEditor({
         presentationSource,
         composerDocument: useComposerUi ? composerDocument : undefined,
         structuredContentJson: effectiveStructuredJson,
-        presentationEditorMode: useComposerUi ? "structured" : presentationEditorMode
+        presentationEditorMode: useComposerUi ? "structured" : presentationEditorMode,
+        reelsPromo
       } satisfies ChapterDraftContent,
       plainText: formContent,
       title: title.trim() || `Chương ${episodeNumber}`
@@ -390,6 +406,7 @@ export function StudioChapterEditor({
       formContent,
       presentationEditorMode,
       presentationSource,
+      reelsPromo,
       title,
       useComposerUi
     ]
@@ -406,14 +423,133 @@ export function StudioChapterEditor({
     storyId: story.id
   });
 
-  const {
-    acknowledged,
-    ackError,
-    guardSubmit,
-    pendingIntent,
-    setAcknowledged,
-    setPendingIntent
-  } = useGuidelinesSubmitGuard();
+  const [pendingIntent, setPendingIntent] = useState("draft");
+
+  const buildChapterSubmitFormData = useCallback(
+    (intent: "draft" | "review") => {
+      const formData = new FormData();
+      formData.set("intent", intent);
+      formData.set("story_id", story.id);
+      formData.set("return_base_path", "/studio");
+      formData.set("content", formContent);
+      formData.set("title", title);
+      formData.set("episode_number", String(episodeNumber));
+      formData.set("excerpt", authorNote.trim());
+      formData.set("story_presentation_mode", storyPresentationMode);
+      formData.set(
+        "chapter_presentation_mode",
+        presentationSource === "story" ? "" : presentationSource
+      );
+      formData.set(
+        "presentation_editor_mode",
+        useComposerUi || presentationEditorMode === "structured" ? "structured" : "plain"
+      );
+      formData.set("structured_content_json", effectiveStructuredJson);
+      formData.set(
+        "content_format",
+        useComposerUi
+          ? "structured_blocks"
+          : usesStructuredStory && presentationEditorMode === "structured"
+            ? "structured_json"
+            : "plain_text"
+      );
+      formData.set("composer_version", useComposerUi ? "1" : "");
+      formData.set("composer_warnings_ack", "on");
+      formData.set("composer_preview_viewed", viewMode === "preview" ? "1" : "");
+      formData.set("seo_title", seoTitle);
+      formData.set("seo_description", seoDescription);
+      formData.set("seo_keywords", formatKeywordsInput(seoKeywords));
+      formData.set("reels_promo_enabled", reelsPromo.enabled ? "1" : "0");
+      formData.set("reels_hook", reelsPromo.hook);
+      formData.set("reels_body", reelsPromo.body);
+      formData.set("reels_source_type", reelsPromo.sourceType ?? "manual_selection");
+      formData.set(
+        "reels_source_text_start",
+        reelsPromo.sourceTextStart != null ? String(reelsPromo.sourceTextStart) : ""
+      );
+      formData.set(
+        "reels_source_text_end",
+        reelsPromo.sourceTextEnd != null ? String(reelsPromo.sourceTextEnd) : ""
+      );
+
+      if (episode?.id) {
+        formData.set("episode_id", episode.id);
+      }
+
+      if (autosave.draftId) {
+        formData.set("studio_draft_id", autosave.draftId);
+      }
+
+      return formData;
+    },
+    [
+      authorNote,
+      autosave.draftId,
+      effectiveStructuredJson,
+      episode?.id,
+      episodeNumber,
+      formContent,
+      presentationEditorMode,
+      presentationSource,
+      reelsPromo,
+      seoDescription,
+      seoKeywords,
+      seoTitle,
+      story.id,
+      storyPresentationMode,
+      title,
+      useComposerUi,
+      usesStructuredStory,
+      viewMode
+    ]
+  );
+
+  const submitChapterForm = useCallback(
+    async (intent: "draft" | "review") => {
+      setPendingIntent(intent);
+      setSubmitError(null);
+
+      if (intent === "draft") {
+        await autosave.saveNow(true);
+      }
+
+      const formData = buildChapterSubmitFormData(intent);
+      setIsSubmitting(true);
+
+      try {
+        const result = await submitStudioChapterAction(formData);
+
+        if (result?.error) {
+          setSubmitError(result.error);
+          return;
+        }
+
+        if (result?.redirectTo) {
+          router.push(result.redirectTo);
+          return;
+        }
+
+        router.refresh();
+      } catch (error) {
+        if (
+          error &&
+          typeof error === "object" &&
+          "digest" in error &&
+          String((error as { digest?: string }).digest).includes("NEXT_REDIRECT")
+        ) {
+          router.refresh();
+          return;
+        }
+
+        setSubmitError(
+          error instanceof Error ? error.message : "Không lưu được chương."
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [autosave, buildChapterSubmitFormData, router]
+  );
 
   const pushHistory = useCallback((next: string) => {
     const stack = undoStack.current;
@@ -501,6 +637,10 @@ export function StudioChapterEditor({
         setPresentationEditorMode(parsed.presentationEditorMode);
       }
 
+      if (parsed.reelsPromo) {
+        setReelsPromo(parsed.reelsPromo);
+      }
+
       autosave.markDirty();
     },
     [autosave, pushHistory]
@@ -512,20 +652,6 @@ export function StudioChapterEditor({
       void autosave.saveNow(true);
     },
     [applyDraftContent, autosave]
-  );
-
-  const handleFormat = useCallback(
-    (action: Parameters<typeof applyTextareaFormat>[1]) => {
-      const textarea = canvasRef.current?.getTextarea();
-
-      if (!textarea) {
-        return;
-      }
-
-      const next = applyTextareaFormat(textarea, action);
-      handleContentChange(next);
-    },
-    [handleContentChange]
   );
 
   const handleUndo = useCallback(() => {
@@ -559,18 +685,11 @@ export function StudioChapterEditor({
 
   const handleSubmit = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
-      guardSubmit(event);
-
-      if (!event.defaultPrevented) {
-        void autosave.saveNow(true);
-      }
+      event.preventDefault();
+      void autosave.saveNow(true);
     },
-    [autosave, guardSubmit]
+    [autosave]
   );
-
-  const openPublishPanel = useCallback(() => {
-    setPublishPanelOpen(true);
-  }, []);
 
   const storyPublishInput = useMemo(
     () => ({
@@ -589,6 +708,7 @@ export function StudioChapterEditor({
           content: formContent,
           episodeNumber,
           isSaved: !autosave.isDirty && Boolean(episode?.id),
+          hasReelsPromo: Boolean(reelsPromo.enabled && (reelsPromo.hook.trim() || reelsPromo.body.trim())),
           seoDescription,
           status: episode?.status ?? "draft",
           storyValid: true,
@@ -622,13 +742,6 @@ export function StudioChapterEditor({
   }, [publishValidation.rules]);
 
   const scrollToFirstChapterError = useCallback(() => {
-    if (!title.trim()) {
-      document
-        .querySelector('[data-chapter-field="title"]')
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-
     if (!episodeNumber || episodeNumber < 1) {
       document
         .querySelector('[data-chapter-field="number"]')
@@ -641,7 +754,7 @@ export function StudioChapterEditor({
         .querySelector('[data-chapter-field="content"]')
         ?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-  }, [episodeNumber, formContent, title]);
+  }, [episodeNumber, formContent]);
 
   const scheduleDisabledReason = !canSchedule
     ? "Lưu chương trước khi đăng hoặc lên lịch"
@@ -708,10 +821,8 @@ export function StudioChapterEditor({
     (intent: "schedule" | "publish") => {
       setValidationFlash(null);
 
-      if (!title.trim() || !formContent.trim()) {
-        setValidationFlash(
-          !title.trim() ? "Nhập tiêu đề chương." : "Nhập nội dung chương."
-        );
+      if (!formContent.trim()) {
+        setValidationFlash("Nhập nội dung chương.");
         scrollToFirstChapterError();
         return;
       }
@@ -720,12 +831,6 @@ export function StudioChapterEditor({
         setValidationFlash(
           "Sửa lỗi Composer hoặc xác nhận cảnh báo trước khi đăng."
         );
-        return;
-      }
-
-      if (!canSchedule) {
-        setValidationFlash("Lưu chương trước khi đăng hoặc lên lịch.");
-        void autosave.saveNow(true);
         return;
       }
 
@@ -739,22 +844,14 @@ export function StudioChapterEditor({
         return;
       }
 
-      if (intent === "publish") {
-        setPublishConfirmOpen(true);
-        return;
-      }
-
-      openPublishPanel();
+      void submitChapterForm("review");
     },
     [
-      canSchedule,
       canSubmitComposerReview,
       formContent,
-      openPublishPanel,
       publishValidation.rules,
       scrollToFirstChapterError,
-      autosave,
-      title,
+      submitChapterForm,
       useComposerUi
     ]
   );
@@ -794,10 +891,7 @@ export function StudioChapterEditor({
 
       if (event.key.toLowerCase() === "s") {
         event.preventDefault();
-        void autosave.saveNow(true);
-        document
-          .querySelector<HTMLFormElement>("form[data-studio-chapter-form]")
-          ?.requestSubmit();
+        void submitChapterForm("draft");
         return;
       }
 
@@ -807,42 +901,34 @@ export function StudioChapterEditor({
 
       if (event.key.toLowerCase() === "b") {
         event.preventDefault();
-        handleFormat("bold");
+        canvasRef.current?.runFormat("bold");
       }
 
       if (event.key.toLowerCase() === "i") {
         event.preventDefault();
-        handleFormat("italic");
+        canvasRef.current?.runFormat("italic");
       }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [autosave, handleFormat, viewMode]);
+  }, [submitChapterForm, viewMode]);
 
   const pageTitle = episode ? title || "Chỉnh sửa chương" : "Chương mới";
-  const reviewDisabledReason = !canSubmitComposerReview
-    ? "Sửa lỗi Composer hoặc xác nhận cảnh báo trước khi gửi duyệt"
-    : undefined;
 
   const handleSaveDraftClick = useCallback(() => {
-    setPendingIntent("draft");
-    void autosave.saveNow(true);
-    document
-      .querySelector<HTMLFormElement>("form[data-studio-chapter-form]")
-      ?.requestSubmit();
-  }, [autosave, setPendingIntent]);
+    void submitChapterForm("draft");
+  }, [submitChapterForm]);
 
-  const handleSubmitReviewClick = useCallback(() => {
-    if (!canSubmitComposerReview) {
-      setValidationFlash(reviewDisabledReason ?? "Không thể gửi duyệt.");
-      return;
+  const handleNormalizeContent = useCallback(() => {
+    const normalized = normalizeStoryText(content);
+    if (normalized !== content) {
+      skipHistoryRef.current = false;
+      pushHistory(normalized);
+      setContent(normalized);
+      autosave.markDirty();
     }
-    setPendingIntent("review");
-    document
-      .querySelector<HTMLFormElement>("form[data-studio-chapter-form]")
-      ?.requestSubmit();
-  }, [canSubmitComposerReview, reviewDisabledReason, setPendingIntent]);
+  }, [content, autosave, pushHistory]);
 
   const showProseEditor =
     !(useComposerUi || (usesStructuredStory && presentationEditorMode === "structured"));
@@ -858,19 +944,21 @@ export function StudioChapterEditor({
         }}
         backHref={backHref}
         canSchedule={canSchedule}
-        canSubmitReview={canSubmitComposerReview}
         displayStatus={displayStatus}
+        isNewChapter={!episode}
+        newChapterHref={
+          episode ? studioPath(`/stories/${story.id}/chapters/new`) : null
+        }
         onPublish={() => tryOpenPublishFlow("publish")}
         onSaveDraft={handleSaveDraftClick}
         onSchedule={() => tryOpenPublishFlow("schedule")}
-        onSubmitReview={handleSubmitReviewClick}
         onViewModeChange={handleViewModeChange}
         pageTitle={pageTitle}
-        pending={pending}
+        pending={isSubmitting}
         publishDisabledReason={scheduleDisabledReason}
-        reviewDisabledReason={reviewDisabledReason}
         scheduleDisabledReason={scheduleDisabledReason}
         storyTitle={story.title}
+        submitError={submitError}
         viewMode={viewMode}
       />
 
@@ -895,10 +983,10 @@ export function StudioChapterEditor({
       ) : null}
 
       <form
-        action={formAction}
         className="space-y-4"
         data-studio-chapter-form
         onSubmit={handleSubmit}
+        ref={formRef}
       >
         <input name="story_id" type="hidden" value={story.id} />
         <input name="return_base_path" type="hidden" value="/studio" />
@@ -931,11 +1019,7 @@ export function StudioChapterEditor({
           }
         />
         <input name="composer_version" type="hidden" value={useComposerUi ? "1" : ""} />
-        <input
-          name="composer_warnings_ack"
-          type="hidden"
-          value={composerWarningsAck ? "on" : ""}
-        />
+        <input name="composer_warnings_ack" type="hidden" value="on" />
         <input
           name="composer_preview_viewed"
           type="hidden"
@@ -944,9 +1028,31 @@ export function StudioChapterEditor({
         <input
           name="excerpt"
           type="hidden"
-          value={authorNote.trim() || createExcerpt(content)}
+          value={authorNote.trim()}
         />
         <input name="intent" type="hidden" value={pendingIntent} />
+        <input
+          name="reels_promo_enabled"
+          type="hidden"
+          value={reelsPromo.enabled ? "1" : "0"}
+        />
+        <input name="reels_hook" type="hidden" value={reelsPromo.hook} />
+        <input name="reels_body" type="hidden" value={reelsPromo.body} />
+        <input
+          name="reels_source_type"
+          type="hidden"
+          value={reelsPromo.sourceType ?? "manual_selection"}
+        />
+        <input
+          name="reels_source_text_start"
+          type="hidden"
+          value={reelsPromo.sourceTextStart ?? ""}
+        />
+        <input
+          name="reels_source_text_end"
+          type="hidden"
+          value={reelsPromo.sourceTextEnd ?? ""}
+        />
 
         {viewMode === "preview" ? (
           useComposerUi || usesStructuredStory ? (
@@ -984,7 +1090,8 @@ export function StudioChapterEditor({
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_17.5rem]">
             <main className="space-y-4">
               <ChapterMetaCard
-                disabled={pending}
+                chapterPublicCode={episode?.public_code ?? null}
+                disabled={isSubmitting}
                 episodeNumber={episodeNumber}
                 onEpisodeNumberChange={(value) =>
                   handleFieldChange(setEpisodeNumber, value)
@@ -997,7 +1104,7 @@ export function StudioChapterEditor({
               />
 
               <ChapterContentModeCard
-                disabled={pending}
+                disabled={isSubmitting}
                 onPresentationChange={handlePresentationChange}
                 onSwitchToComposer={() => void handleSwitchToComposer()}
                 onSwitchToPlain={handleSwitchToPlain}
@@ -1065,7 +1172,7 @@ export function StudioChapterEditor({
                   onValidate={() => {
                     autosave.markDirty();
                   }}
-                  readonly={pending}
+                  readonly={isSubmitting}
                   saveStatusLabel={
                     autosave.lastSavedAt
                       ? `Đã lưu ${new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(new Date(autosave.lastSavedAt))}`
@@ -1081,14 +1188,14 @@ export function StudioChapterEditor({
                   </p>
                   <button
                     className="text-sm font-semibold text-violet-300 underline-offset-2 hover:underline"
-                    disabled={pending}
+                    disabled={isSubmitting}
                     onClick={() => void handleSwitchToComposer()}
                     type="button"
                   >
                     Chuyển sang Composer
                   </button>
                   <ChapterPresentationPanel
-                    disabled={pending}
+                    disabled={isSubmitting}
                     editorMode={presentationEditorMode}
                     onEditorModeChange={(mode) => {
                       setPresentationEditorMode(mode);
@@ -1111,13 +1218,13 @@ export function StudioChapterEditor({
                   <ChapterProseEditor
                     canvasRef={canvasRef}
                     content={content}
-                    disabled={pending}
+                    disabled={isSubmitting}
                     imageCount={imageCount}
                     imageLimitReached={imageLimitReached}
                     onChange={handleContentChange}
-                    onFormat={handleFormat}
                     onInsertImage={() => void handleOpenInsertImage()}
                     onInsertTemplate={() => void handleOpenTemplatePicker()}
+                    onNormalize={handleNormalizeContent}
                     onRedo={handleRedo}
                     onSaveTemplate={() => setSaveTemplateOpen(true)}
                     onUndo={handleUndo}
@@ -1139,7 +1246,7 @@ export function StudioChapterEditor({
                 authorDisplayName={authorDisplayName}
                 chapterIndexable={chapterIndexable}
                 content={formContent}
-                disabled={pending}
+                disabled={isSubmitting}
                 episodeNumber={episodeNumber}
                 onSeoDescriptionChange={(value) => {
                   setSeoDescription(value);
@@ -1166,22 +1273,25 @@ export function StudioChapterEditor({
             </main>
 
             <ChapterWritingSidebar
-              acknowledged={acknowledged}
-              ackError={ackError}
+              authorDisplayName={authorDisplayName}
               authorNote={authorNote}
               canPublish={canSchedule}
+              chapterTitle={title}
               composerDocument={useComposerUi ? composerDocument : null}
               composerMode={composerMode as PresentationMode}
               content={formContent}
-              disabled={pending}
+              disabled={isSubmitting}
               draftId={autosave.draftId}
               episodeId={episode?.id}
               episodeNumber={episodeNumber}
               isSaved={!autosave.isDirty}
               knownComposerMediaIds={knownComposerMediaIds}
-              onAckChange={setAcknowledged}
               onAuthorNoteChange={(value) => handleFieldChange(setAuthorNote, value)}
-              onComposerWarningsAckChange={setComposerWarningsAck}
+              onReelsPromoChange={(value) => {
+                setReelsPromo(value);
+                autosave.markDirty();
+              }}
+              onComposerWarningsAckChange={undefined}
               onRestoreVersion={handleRestoreVersion}
               onScrollToComposerBlock={(blockId) => {
                 document
@@ -1190,12 +1300,16 @@ export function StudioChapterEditor({
               }}
               onViewPreview={() => handleViewModeChange("preview")}
               previewViewed={hasViewedPreview}
+              reelsPromo={reelsPromo}
+              reelsPromoStatus={reelsPromoStatus}
               seoDescription={seoDescription}
               storyContentWarningsConfirmed={story.contentWarningsConfirmed}
+              storyCoverUrl={story.coverUrl}
               storyId={story.id}
               storyInput={storyPublishInput}
               storyPublicCode={story.publicCode}
               storySlug={story.slug}
+              storyTitle={story.title}
               title={title}
               useComposerUi={useComposerUi}
               viewMode={viewMode}
@@ -1203,11 +1317,6 @@ export function StudioChapterEditor({
           </div>
         )}
 
-        {state.error ? (
-          <p className="rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-100">
-            {state.error}
-          </p>
-        ) : null}
       </form>
 
       <InsertImageDialog
@@ -1241,83 +1350,7 @@ export function StudioChapterEditor({
         open={saveTemplateOpen}
       />
 
-      {publishConfirmOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4"
-          role="dialog"
-        >
-          <div className="w-full max-w-md rounded-t-2xl border border-white/10 bg-zinc-950 p-5 sm:rounded-2xl">
-            <h3 className="text-lg font-bold text-white">Đăng chương ngay?</h3>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">
-              Chương sẽ hiển thị công khai cho độc giả. Bạn vẫn có thể chỉnh sửa sau nếu
-              chính sách cho phép.
-            </p>
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
-              <Button
-                onClick={() => setPublishConfirmOpen(false)}
-                type="button"
-                variant="secondary"
-              >
-                Huỷ
-              </Button>
-              <Button
-                onClick={() => {
-                  setPublishConfirmOpen(false);
-                  openPublishPanel();
-                }}
-                type="button"
-              >
-                Xác nhận đăng
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
-      {publishPanelOpen && canSchedule && episode ? (
-        <div
-          className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
-          role="dialog"
-        >
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-white/10 bg-zinc-950 p-4 sm:rounded-2xl">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold text-white">Đăng hoặc lên lịch</h2>
-              <button
-                className="rounded-lg px-2 py-1 text-sm text-zinc-400 hover:bg-white/10"
-                onClick={() => setPublishPanelOpen(false)}
-                type="button"
-              >
-                Đóng
-              </button>
-            </div>
-
-            <ChapterPublishChecklistPanel
-              authorNote={authorNote}
-              canPublish
-              content={content}
-              episodeId={episode.id}
-              isSaved={!autosave.isDirty}
-              seoDescription={seoDescription}
-              storyId={story.id}
-              storyInput={{
-                status: story.status,
-                title: story.title,
-                visibility: story.visibility
-              }}
-              title={title}
-            />
-
-            <div className="mt-4">
-              <SchedulePicker
-                onScheduled={() => setPublishPanelOpen(false)}
-                storyId={story.id}
-                targetId={episode.id}
-                targetType="chapter"
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

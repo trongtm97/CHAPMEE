@@ -9,7 +9,7 @@ import {
   createFanClubMembership,
   getFanClubMembership,
   getFanClubPlanById
-} from "@/lib/supabase/fan-club";
+} from "@/lib/data/fan-club";
 import { debitUserCoins } from "@/lib/wallets/user-wallet";
 import { recordCreatorNetEarning } from "@/lib/finance/record-creator-net-earning";
 import { calculateCreatorRevenue } from "@/lib/monetization/creator-revenue";
@@ -106,7 +106,7 @@ export async function joinFanClubAction(input: { planId: string }) {
     moduleType: "fan_club",
     creatorUserId: plan.data.creator_user_id,
     coinSpent: plan.data.coin_price,
-    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1000),
+    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1),
     paidCoinAmount: debit.data.paid_coin_amount ?? 0,
     bonusCoinAmount: debit.data.bonus_coin_amount ?? 0,
     coinLotAllocations: ((debit.data.metadata?.coin_lot_allocations as CoinLotAllocation[] | undefined) ?? []),
@@ -143,7 +143,7 @@ export async function joinFanClubAction(input: { planId: string }) {
     sourceId: membership.data.id,
     storyId: plan.data.story_id,
     coinAmount: plan.data.coin_price,
-    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1000),
+    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1),
     revenue,
     revenueStatus: creditStatus,
     transactionType: "creator_revenue_share",

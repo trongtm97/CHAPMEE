@@ -39,7 +39,9 @@ export type StudioMonetizationConfigView = {
   revenueShareCreatorPercent: number;
   revenueSharePlatformPercent: number;
   revenueSharePaidChapterCreatorPercent: number;
+  revenueSharePaidChapterPlatformPercent: number;
   revenueShareTipCreatorPercent: number;
+  revenueShareTipPlatformPercent: number;
   policyText: string;
 };
 
@@ -132,6 +134,14 @@ export type StudioStoryMonetizationRow = {
   autoPriceCoin: number | null;
   adminCompletionStatus?: import("@/types/story-completion").StoryAdminCompletionStatus;
   lockedFullStoryRevenueVnd?: number;
+  contentOrigin: "original" | "translation";
+  rightsStatus: string;
+  canSellChapters: boolean;
+  canSellStoryBundle: boolean;
+  canUseCoinUnlock: boolean;
+  canReceiveTips: boolean;
+  canShareAdsRevenue: boolean;
+  originPolicyNote: string | null;
 };
 
 export type StudioMonetizationRecentTransaction = {

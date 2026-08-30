@@ -2,12 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { buildProfileHandle, validateBio, validateUsername } from "@/lib/profile/buildProfileHandle";
 import { validateDisplayName } from "@/lib/username/validate-display-name";
 import { validateUsername as validateUsernamePolicy } from "@/lib/username/validate-username";
 import { ensureProfileUsername } from "@/lib/profile/ensure-profile-username";
 import { revalidatePublicProfilePaths } from "@/lib/profile/revalidate-public-profile";
+import { resolveProfileAvatarUrl } from "@/lib/profile/resolve-profile-avatar";
 import { recordUsernameChange } from "@/lib/username/record-username-change";
 
 export type UpdateProfileActionState = {
@@ -24,11 +25,11 @@ export async function updateProfileAction(
   const usernameRaw = String(formData.get("username") ?? "").trim();
   const bioRaw = String(formData.get("bio") ?? "");
 
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user },
     error: userError
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (userError || !user) {
     redirect("/login?next=/me/settings");
@@ -77,13 +78,13 @@ export async function updateProfileAction(
     };
   }
 
-  const { data: currentProfile } = await supabase
+  const { data: currentProfile } = await db
     .from("profiles")
     .select("username")
     .eq("id", user.id)
     .maybeSingle();
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await db
     .from("profiles")
     .update({
       display_name: displayResult.normalized,
@@ -117,16 +118,16 @@ export async function updateProfileAction(
 }
 
 export async function getProfileSettingsData() {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) {
     return null;
   }
 
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from("profiles")
     .select("username, display_name, avatar_url, bio, role")
     .eq("id", user.id)
@@ -142,7 +143,7 @@ export async function getProfileSettingsData() {
     displayName: profile.display_name ?? "",
     username: profile.username ?? "",
     bio: profile.bio ?? "",
-    avatarUrl: profile.avatar_url,
+    avatarUrl: resolveProfileAvatarUrl(profile),
     handle: buildProfileHandle({
       username: profile.username,
       displayName: profile.display_name,

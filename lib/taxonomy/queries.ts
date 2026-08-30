@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
+import { createPublicClient } from "@/lib/data/public-client";
 import { mapTaxonomyTermRow } from "@/lib/taxonomy/map-row";
 import type { TaxonomyTerm, TaxonomyTermTreeNode, TaxonomyType } from "@/types/taxonomy";
 
@@ -13,14 +14,16 @@ export type GetTaxonomyTermsOptions = {
   includeInternalNote?: boolean;
   orderBy?: "sort_order" | "name" | "usage_count";
   limit?: number;
+  /** Use anonymous public client to avoid request cookie dependency in cached reads. */
+  usePublicClient?: boolean;
 };
 
 async function buildTermsQuery(
   type: TaxonomyType,
   options?: GetTaxonomyTermsOptions
 ) {
-  const supabase = await createClient();
-  let query = supabase
+  const db = options?.usePublicClient ? createPublicClient() : await createClient();
+  let query = db
     .from("taxonomy_terms")
     .select("*")
     .eq("type", type);
@@ -154,8 +157,9 @@ export async function getTaxonomyTermBySlug(
   slug: string,
   options?: { publicOnly?: boolean; discoverOnly?: boolean; seoOnly?: boolean }
 ) {
-  const supabase = await createClient();
-  let query = supabase
+  const publicOnly = options?.publicOnly !== false;
+  const db = publicOnly ? createPublicClient() : await createClient();
+  let query = db
     .from("taxonomy_terms")
     .select("*")
     .eq("type", type)
@@ -214,8 +218,8 @@ export async function getTaxonomyTermsByIds(termIds: string[]) {
     return { data: [] as TaxonomyTerm[], error: null };
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("taxonomy_terms")
     .select("*")
     .in("id", termIds);

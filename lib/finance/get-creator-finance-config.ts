@@ -26,7 +26,7 @@ export async function getCreatorFinanceConfig(): Promise<CreatorFinanceConfigVie
     minWithdrawAmountVnd: studioView.minWithdrawAmountVnd,
     coinToVndRate: studioView.coinExchangeRateVnd,
     creatorRevenueSharePercent: studioView.revenueSharePaidChapterCreatorPercent,
-    platformFeePercent: studioView.revenueSharePlatformPercent,
+    platformFeePercent: studioView.revenueSharePaidChapterPlatformPercent,
     payoutProcessingDaysLabel: readPayoutProcessingDaysLabel(raw),
     payoutMethodsEnabled: studioView.payoutAllowedMethods,
     coinDisplayName: studioView.coinDisplayName,

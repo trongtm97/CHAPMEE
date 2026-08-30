@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { submitFeedbackAction } from "@/lib/actions/feedback-actions";
 import { INITIAL_SUBMIT_FEEDBACK_STATE } from "@/lib/actions/feedback-state";
 import { FEEDBACK_TYPE_LABELS } from "@/lib/feedback/constants";
@@ -11,9 +12,26 @@ type FeedbackSheetProps = {
   onClose: () => void;
   settings: ContactSettings;
   userEmail?: string | null;
+  pagePath?: string;
 };
 
-export function FeedbackSheet({ onClose, settings, userEmail }: FeedbackSheetProps) {
+function buildPageUrl(pathname: string): string {
+  if (!pathname) return "";
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}${pathname}`;
+  }
+  const base = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "";
+  return base ? `${base}${pathname}` : pathname;
+}
+
+export function FeedbackSheet({
+  onClose,
+  settings,
+  userEmail,
+  pagePath
+}: FeedbackSheetProps) {
+  const pathname = usePathname();
+  const effectivePagePath = pagePath ?? pathname;
   const [state, formAction, pending] = useActionState(
     submitFeedbackAction,
     INITIAL_SUBMIT_FEEDBACK_STATE
@@ -35,7 +53,7 @@ export function FeedbackSheet({ onClose, settings, userEmail }: FeedbackSheetPro
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end bg-black/60 p-3 backdrop-blur-sm sm:items-center sm:justify-center"
+      className="fixed inset-0 z-[80] flex items-end bg-black/60 p-3 backdrop-blur-sm sm:items-center sm:justify-center"
       onClick={onClose}
       role="presentation"
     >
@@ -58,6 +76,8 @@ export function FeedbackSheet({ onClose, settings, userEmail }: FeedbackSheetPro
         </div>
 
         <form action={formAction} className="space-y-3">
+          <input name="page_path" type="hidden" value={effectivePagePath} />
+          <input name="related_url" type="hidden" value={effectivePagePath ? buildPageUrl(effectivePagePath) : ""} />
           <div className="space-y-2">
             <p className="text-sm font-bold text-zinc-200">Loại góp ý</p>
             <div className="flex flex-wrap gap-2">
@@ -99,7 +119,7 @@ export function FeedbackSheet({ onClose, settings, userEmail }: FeedbackSheetPro
             label={
               settings.requireContactEmail
                 ? "Email liên hệ *"
-                : "Email liên hệ (tuỳ chọn)"
+                : "Email liên hệ (tùy chọn)"
             }
             name="contactEmail"
             placeholder="email@example.com"
@@ -107,12 +127,11 @@ export function FeedbackSheet({ onClose, settings, userEmail }: FeedbackSheetPro
             type="email"
           />
 
-          <Input
-            label="URL trang liên quan (tuỳ chọn)"
-            name="relatedUrl"
-            placeholder="https://chapmee.vn/..."
-            type="url"
-          />
+          {effectivePagePath ? (
+            <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-zinc-500">
+              Gửi từ trang: <span className="font-medium text-zinc-300">{effectivePagePath}</span>
+            </p>
+          ) : null}
 
           {settings.requireScreenshot ? (
             <div className="rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100">

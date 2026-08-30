@@ -1,6 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { hasActiveRestriction } from "@/lib/moderation/check-restriction";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { ReportPriority, ReporterQualitySummary } from "@/types/moderation";
 
 export type { ReporterQualitySummary };
@@ -30,8 +30,8 @@ export async function checkDuplicateOpenReport(
   targetType: string,
   targetId: string
 ): Promise<{ isDuplicate: boolean; message?: string }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("reports")
     .select("id, status")
     .eq("reporter_id", userId)
@@ -55,7 +55,7 @@ export async function checkDuplicateOpenReport(
     };
   }
 
-  const { count } = await supabase
+  const { count } = await db
     .from("reports")
     .select("id", { count: "exact", head: true })
     .eq("reporter_id", userId)
@@ -74,8 +74,8 @@ export async function checkDuplicateOpenReport(
 }
 
 export async function recordReportSubmitted(userId: string) {
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("increment_reporter_submitted", {
+  const db = await createClient();
+  const { error } = await db.rpc("increment_reporter_submitted", {
     p_user_id: userId
   });
   if (error && !isMissingSchemaError(error)) {
@@ -92,8 +92,8 @@ export async function recordReportOutcome(
   if (!reporterId) {
     return;
   }
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("apply_reporter_outcome", {
+  const db = await createClient();
+  const { error } = await db.rpc("apply_reporter_outcome", {
     p_reporter_id: reporterId,
     p_outcome: outcome
   });
@@ -105,8 +105,8 @@ export async function recordReportOutcome(
 export async function getReporterQuality(
   userId: string
 ): Promise<ReporterQualitySummary | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("reporter_quality")
     .select(
       `

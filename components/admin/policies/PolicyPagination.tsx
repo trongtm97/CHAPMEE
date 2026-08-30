@@ -20,7 +20,7 @@ export function PolicyPagination({ filters, totalPages, pending, onPageChange }:
         {filters.page > 1 ? (
           <Link
             className={`hover:text-white ${pending ? "pointer-events-none opacity-50" : ""}`}
-            href={`/admin/policies${buildPolicyListQuery({ ...filters, page: filters.page - 1 })}`}
+            href={`/admin/pages${buildPolicyListQuery({ ...filters, page: filters.page - 1 })}`}
             onClick={(event) => {
               event.preventDefault();
               onPageChange(filters.page - 1);
@@ -32,7 +32,7 @@ export function PolicyPagination({ filters, totalPages, pending, onPageChange }:
         {filters.page < totalPages ? (
           <Link
             className={`hover:text-white ${pending ? "pointer-events-none opacity-50" : ""}`}
-            href={`/admin/policies${buildPolicyListQuery({ ...filters, page: filters.page + 1 })}`}
+            href={`/admin/pages${buildPolicyListQuery({ ...filters, page: filters.page + 1 })}`}
             onClick={(event) => {
               event.preventDefault();
               onPageChange(filters.page + 1);

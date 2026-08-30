@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import {
   hasNotificationCampaignAuditTable
 } from "@/lib/notification-campaigns/schema-capabilities";
@@ -18,7 +18,7 @@ function mapAuditRow(row: Record<string, unknown>): NotificationCampaignAuditLog
 }
 
 export async function appendNotificationCampaignAuditLog(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     campaignId: string;
     actorId: string | null;
@@ -35,14 +35,14 @@ export async function appendNotificationCampaignAuditLog(
     created_at: new Date().toISOString()
   };
 
-  const hasTable = await hasNotificationCampaignAuditTable(supabase);
+  const hasTable = await hasNotificationCampaignAuditTable(db);
   if (!hasTable) {
     const existing = memoryAuditLogs.get(input.campaignId) ?? [];
     memoryAuditLogs.set(input.campaignId, [entry, ...existing].slice(0, 200));
     return;
   }
 
-  await supabase.from("notification_campaign_audit_logs").insert({
+  await db.from("notification_campaign_audit_logs").insert({
     campaign_id: input.campaignId,
     actor_id: input.actorId,
     action: input.action,
@@ -51,11 +51,11 @@ export async function appendNotificationCampaignAuditLog(
 }
 
 export async function listNotificationCampaignAuditLogs(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   campaignId: string,
   limit = 50
 ): Promise<{ items: NotificationCampaignAuditLog[]; error: string | null }> {
-  const hasTable = await hasNotificationCampaignAuditTable(supabase);
+  const hasTable = await hasNotificationCampaignAuditTable(db);
   if (!hasTable) {
     return {
       items: (memoryAuditLogs.get(campaignId) ?? []).slice(0, limit),
@@ -63,7 +63,7 @@ export async function listNotificationCampaignAuditLogs(
     };
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("notification_campaign_audit_logs")
     .select("*")
     .eq("campaign_id", campaignId)

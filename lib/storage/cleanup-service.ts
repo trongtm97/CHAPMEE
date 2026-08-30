@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
+import type { DatabaseClient } from "@/lib/db/types";
+import { createClient } from "@/lib/data/server";
 import { requireAnyPermission } from "@/lib/auth/require-permission";
 import type {
   CleanupJobRow,
@@ -127,18 +127,18 @@ function matchesAssetUrl(value: unknown, asset: AssetCandidate) {
 }
 
 async function rowExists(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   table: string,
   id: string
 ) {
-  const { data, error } = await supabase.from(table).select("id").eq("id", id).maybeSingle();
+  const { data, error } = await db.from(table).select("id").eq("id", id).maybeSingle();
   if (error) {
     return true;
   }
   return Boolean(data);
 }
 
-async function isAssetReferenced(supabase: SupabaseClient, asset: AssetCandidate) {
+async function isAssetReferenced(db: DatabaseClient, asset: AssetCandidate) {
   if (!asset.linked_entity_type && !asset.linked_entity_id) {
     return false;
   }
@@ -148,7 +148,7 @@ async function isAssetReferenced(supabase: SupabaseClient, asset: AssetCandidate
   }
 
   if (asset.linked_entity_type === "profile") {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("profiles")
       .select("id, avatar_url")
       .eq("id", asset.linked_entity_id)
@@ -160,7 +160,7 @@ async function isAssetReferenced(supabase: SupabaseClient, asset: AssetCandidate
   }
 
   if (asset.linked_entity_type === "story") {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("stories")
       .select("id, cover_url")
       .eq("id", asset.linked_entity_id)
@@ -172,7 +172,7 @@ async function isAssetReferenced(supabase: SupabaseClient, asset: AssetCandidate
   }
 
   if (asset.linked_entity_type === "content_post") {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("admin_content_posts")
       .select("id, cover_image_url")
       .eq("id", asset.linked_entity_id)
@@ -185,7 +185,7 @@ async function isAssetReferenced(supabase: SupabaseClient, asset: AssetCandidate
   }
 
   if (asset.linked_entity_type === "verification_document") {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("account_verification_documents")
       .select("id, file_path, status")
       .eq("id", asset.linked_entity_id)
@@ -197,7 +197,7 @@ async function isAssetReferenced(supabase: SupabaseClient, asset: AssetCandidate
   }
 
   if (asset.linked_entity_type === "episode") {
-    return rowExists(supabase, "episodes", asset.linked_entity_id);
+    return rowExists(db, "episodes", asset.linked_entity_id);
   }
 
   return true;
@@ -223,8 +223,8 @@ async function requireStorageUpdate() {
 }
 
 async function countAssets(status?: string) {
-  const supabase = await createClient();
-  let query = supabase
+  const db = await createClient();
+  let query = db
     .from("storage_assets")
     .select("id", { count: "exact", head: true });
   if (status) {
@@ -235,8 +235,8 @@ async function countAssets(status?: string) {
 }
 
 async function countAssetsIn(statuses: string[]) {
-  const supabase = await createClient();
-  const { count } = await supabase
+  const db = await createClient();
+  const { count } = await db
     .from("storage_assets")
     .select("id", { count: "exact", head: true })
     .in("status", statuses);
@@ -244,8 +244,8 @@ async function countAssetsIn(statuses: string[]) {
 }
 
 async function sumAssets(statuses?: string[]) {
-  const supabase = await createClient();
-  let query = supabase.from("storage_assets").select("size_bytes").limit(1000);
+  const db = await createClient();
+  let query = db.from("storage_assets").select("size_bytes").limit(1000);
   if (statuses && statuses.length > 0) {
     query = query.in("status", statuses);
   }
@@ -254,8 +254,8 @@ async function sumAssets(statuses?: string[]) {
 }
 
 export async function getCleanupPolicies(): Promise<CleanupPolicyRow[]> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("cleanup_policies")
     .select("*")
     .order("category", { ascending: true })
@@ -266,13 +266,13 @@ export async function getCleanupPolicies(): Promise<CleanupPolicyRow[]> {
 export async function getStorageAssetsPage(
   filters: StorageAssetFilters = {}
 ): Promise<StorageAssetsPage> {
-  const supabase = await createClient();
+  const db = await createClient();
   const page = Math.max(1, filters.page ?? 1);
   const pageSize = Math.min(100, Math.max(10, filters.pageSize ?? DEFAULT_PAGE_SIZE));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase
+  let query = db
     .from("storage_assets")
     .select("*, profiles:owner_id(username)", { count: "exact" })
     .order("created_at", { ascending: false })
@@ -323,13 +323,13 @@ export async function getStorageAssetsPage(
 }
 
 export async function getCleanupJobsPage(page = 1, pageSize = 20): Promise<CleanupJobsPage> {
-  const supabase = await createClient();
+  const db = await createClient();
   const safePage = Math.max(1, page);
   const safeSize = Math.min(50, Math.max(10, pageSize));
   const from = (safePage - 1) * safeSize;
   const to = from + safeSize - 1;
 
-  const { count, data, error } = await supabase
+  const { count, data, error } = await db
     .from("cleanup_jobs")
     .select("*", { count: "exact" })
     .order("started_at", { ascending: false, nullsFirst: false })
@@ -357,7 +357,7 @@ export async function getCleanupJobsPage(page = 1, pageSize = 20): Promise<Clean
 }
 
 async function getDashboard(): Promise<StorageCleanupDashboard> {
-  const supabase = await createClient();
+  const db = await createClient();
   const [
     totalAssets,
     activeAssets,
@@ -377,17 +377,17 @@ async function getDashboard(): Promise<StorageCleanupDashboard> {
     countAssets("pending_delete"),
     sumAssets(),
     sumAssets(["orphan_candidate", "pending_delete", "quarantined"]),
-    supabase
+    db
       .from("storage_assets")
       .select("*, profiles:owner_id(username)")
       .order("size_bytes", { ascending: false })
       .limit(10),
-    supabase
+    db
       .from("cleanup_jobs")
       .select("*")
       .order("started_at", { ascending: false, nullsFirst: false })
       .limit(1),
-    supabase
+    db
       .from("cleanup_jobs")
       .select("*")
       .eq("status", "failed")
@@ -395,7 +395,7 @@ async function getDashboard(): Promise<StorageCleanupDashboard> {
       .limit(1)
   ]);
 
-  const sample = await supabase
+  const sample = await db
     .from("storage_assets")
     .select("bucket, owner_id, size_bytes, profiles:owner_id(username)")
     .order("created_at", { ascending: false })
@@ -561,8 +561,8 @@ export async function updateCleanupPolicyAction(input: {
     return { error: guard.error, ok: false as const };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("cleanup_policies")
     .update({ updated_by: guard.context.userId, value: input.value })
     .eq("key", input.key);
@@ -571,7 +571,7 @@ export async function updateCleanupPolicyAction(input: {
     return { error: error.message, ok: false as const };
   }
 
-  await supabase.from("cleanup_audit_logs").insert({
+  await db.from("cleanup_audit_logs").insert({
     action: "cleanup_policy_updated",
     actor_id: guard.context.userId,
     after: { key: input.key, value: input.value },
@@ -589,10 +589,10 @@ export async function runOrphanScanAction(input: { quarantine?: boolean } = {}) 
     return { error: guard.error, ok: false as const };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const startedAt = new Date().toISOString();
   const mode = input.quarantine ? "quarantine" : "dry_run";
-  const { data: candidates, error: candidateError } = await supabase
+  const { data: candidates, error: candidateError } = await db
     .from("storage_assets")
     .select(
       "id, bucket, path, public_url, size_bytes, status, linked_entity_type, linked_entity_id, linked_field, owner_id"
@@ -608,7 +608,7 @@ export async function runOrphanScanAction(input: { quarantine?: boolean } = {}) 
   const rows = ((candidates ?? []) as DbRecord[]).map(mapCandidate);
   const orphanRows: AssetCandidate[] = [];
   for (const row of rows) {
-    if (!(await isAssetReferenced(supabase, row))) {
+    if (!(await isAssetReferenced(db, row))) {
       orphanRows.push(row);
     }
   }
@@ -626,7 +626,7 @@ export async function runOrphanScanAction(input: { quarantine?: boolean } = {}) 
 
   if (input.quarantine && ids.length > 0) {
     const now = new Date().toISOString();
-    const { error } = await supabase
+    const { error } = await db
       .from("storage_assets")
       .update({
         orphan_detected_at: now,
@@ -638,7 +638,7 @@ export async function runOrphanScanAction(input: { quarantine?: boolean } = {}) 
       status = "failed";
     } else {
       affected = ids.length;
-      await supabase.from("cleanup_audit_logs").insert(
+      await db.from("cleanup_audit_logs").insert(
         ids.slice(0, 100).map((id) => ({
           action: "storage_asset_pending_delete",
           actor_id: guard.context?.userId ?? null,
@@ -651,7 +651,7 @@ export async function runOrphanScanAction(input: { quarantine?: boolean } = {}) 
     }
   } else if (ids.length > 0) {
     const now = new Date().toISOString();
-    await supabase
+    await db
       .from("storage_assets")
       .update({
         orphan_detected_at: now,
@@ -662,7 +662,7 @@ export async function runOrphanScanAction(input: { quarantine?: boolean } = {}) 
   }
 
   const finishedAt = new Date().toISOString();
-  const { error: jobError } = await supabase.from("cleanup_jobs").insert({
+  const { error: jobError } = await db.from("cleanup_jobs").insert({
     affected_count: affected,
     bytes_saved: input.quarantine ? reclaimableBytes : 0,
     error_count: status === "failed" ? 1 : 0,
@@ -705,12 +705,12 @@ export async function runHardDeleteDryRunAction() {
     return { error: guard.error, ok: false as const };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const startedAt = new Date().toISOString();
   const policies = await getCleanupPolicies();
   const minAgeHours = daysPolicyValue(policies, "min_age_before_delete_hours", 24);
   const cutoff = new Date(Date.now() - minAgeHours * 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("storage_assets")
     .select(
       "id, bucket, path, public_url, size_bytes, status, linked_entity_type, linked_entity_id, linked_field, owner_id"
@@ -728,14 +728,14 @@ export async function runHardDeleteDryRunAction() {
   const rows = ((data ?? []) as DbRecord[]).map(mapCandidate);
   const deletable: AssetCandidate[] = [];
   for (const row of rows) {
-    if (!(await isAssetReferenced(supabase, row))) {
+    if (!(await isAssetReferenced(db, row))) {
       deletable.push(row);
     }
   }
 
   const bytes = deletable.reduce((sum, row) => sum + row.size_bytes, 0);
   const finishedAt = new Date().toISOString();
-  const { error: jobError } = await supabase.from("cleanup_jobs").insert({
+  const { error: jobError } = await db.from("cleanup_jobs").insert({
     affected_count: deletable.length,
     bytes_saved: 0,
     error_count: 0,
@@ -784,7 +784,7 @@ export async function executePendingDeleteCleanupAction(input: { confirmText: st
     return { error: "Confirmation text does not match.", ok: false as const };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const startedAt = new Date().toISOString();
   const policies = await getCleanupPolicies();
   const batchSize = Math.min(500, Math.max(1, daysPolicyValue(policies, "cleanup_batch_size", 100)));
@@ -792,7 +792,7 @@ export async function executePendingDeleteCleanupAction(input: { confirmText: st
   const cutoff = new Date(Date.now() - minAgeHours * 60 * 60 * 1000).toISOString();
   const now = new Date().toISOString();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("storage_assets")
     .select(
       "id, bucket, path, public_url, size_bytes, status, linked_entity_type, linked_entity_id, linked_field, owner_id"
@@ -810,7 +810,7 @@ export async function executePendingDeleteCleanupAction(input: { confirmText: st
   const rows = ((data ?? []) as DbRecord[]).map(mapCandidate);
   const deletable: AssetCandidate[] = [];
   for (const row of rows) {
-    if (!(await isAssetReferenced(supabase, row))) {
+    if (!(await isAssetReferenced(db, row))) {
       deletable.push(row);
     }
   }
@@ -825,7 +825,7 @@ export async function executePendingDeleteCleanupAction(input: { confirmText: st
   }
 
   for (const [bucket, assets] of byBucket.entries()) {
-    const { error: removeError } = await supabase.storage
+    const { error: removeError } = await db.storage
       .from(bucket)
       .remove(assets.map((asset) => asset.path));
     if (removeError) {
@@ -835,7 +835,7 @@ export async function executePendingDeleteCleanupAction(input: { confirmText: st
     }
 
     const ids = assets.map((asset) => asset.id);
-    const { error: updateError } = await supabase
+    const { error: updateError } = await db
       .from("storage_assets")
       .update({ deleted_at: now, status: "deleted" })
       .in("id", ids);
@@ -855,7 +855,7 @@ export async function executePendingDeleteCleanupAction(input: { confirmText: st
       size_bytes: asset.size_bytes
     })));
 
-    await supabase.from("cleanup_audit_logs").insert(
+    await db.from("cleanup_audit_logs").insert(
       ids.slice(0, 100).map((id) => ({
         action: "storage_asset_deleted",
         actor_id: guard.context?.userId ?? null,
@@ -868,7 +868,7 @@ export async function executePendingDeleteCleanupAction(input: { confirmText: st
   }
 
   const status = errorCount > 0 ? "failed" : "succeeded";
-  const { error: jobError } = await supabase.from("cleanup_jobs").insert({
+  const { error: jobError } = await db.from("cleanup_jobs").insert({
     affected_count: deletedCount,
     bytes_saved: bytesSaved,
     error_count: errorCount,
@@ -904,7 +904,7 @@ export async function rebuildStorageMetricsAction() {
     return { error: guard.error, ok: false as const };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const startedAt = new Date().toISOString();
   const [total, active, orphan, quarantined, deleted, totalBytes, reclaimableBytes] =
     await Promise.all([
@@ -917,7 +917,7 @@ export async function rebuildStorageMetricsAction() {
       sumAssets(["orphan_candidate", "orphan_detected", "pending_delete", "quarantined"])
     ]);
   const metricDate = new Date().toISOString().slice(0, 10);
-  const { error } = await supabase.from("daily_storage_metrics").upsert(
+  const { error } = await db.from("daily_storage_metrics").upsert(
     {
       active_assets: active,
       date: metricDate,
@@ -936,7 +936,7 @@ export async function rebuildStorageMetricsAction() {
   }
 
   const finishedAt = new Date().toISOString();
-  await supabase.from("cleanup_jobs").insert({
+  await db.from("cleanup_jobs").insert({
     affected_count: 1,
     bytes_saved: 0,
     error_count: 0,
@@ -962,13 +962,13 @@ export async function runDraftVersionCleanupAction(input: { dryRun?: boolean } =
     return { error: guard.error, ok: false as const };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const policies = await getCleanupPolicies();
   const ttlDays = daysPolicyValue(policies, "autosave_ttl_days", 14);
   const maxVersions = daysPolicyValue(policies, "max_autosave_versions_per_entity", 20);
   const cutoff = new Date(Date.now() - ttlDays * 24 * 60 * 60 * 1000).toISOString();
   const startedAt = new Date().toISOString();
-  const { data: oldRows, error } = await supabase
+  const { data: oldRows, error } = await db
     .from("creator_draft_versions")
     .select("id, draft_id")
     .lt("created_at", cutoff)
@@ -984,7 +984,7 @@ export async function runDraftVersionCleanupAction(input: { dryRun?: boolean } =
   ) as string[];
 
   for (const draftId of draftIds.slice(0, 100)) {
-    const { data: extraRows } = await supabase
+    const { data: extraRows } = await db
       .from("creator_draft_versions")
       .select("id")
       .eq("draft_id", draftId)
@@ -997,7 +997,7 @@ export async function runDraftVersionCleanupAction(input: { dryRun?: boolean } =
 
   let affected = 0;
   if (!input.dryRun && candidateIds.size > 0) {
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await db
       .from("creator_draft_versions")
       .delete()
       .in("id", Array.from(candidateIds));
@@ -1009,7 +1009,7 @@ export async function runDraftVersionCleanupAction(input: { dryRun?: boolean } =
     affected = candidateIds.size;
   }
 
-  await supabase.from("cleanup_jobs").insert({
+  await db.from("cleanup_jobs").insert({
     affected_count: affected,
     bytes_saved: 0,
     error_count: 0,
@@ -1032,7 +1032,7 @@ export async function runDraftVersionCleanupAction(input: { dryRun?: boolean } =
     triggered_by: guard.context?.userId ?? null
   });
 
-  await supabase.from("cleanup_audit_logs").insert({
+  await db.from("cleanup_audit_logs").insert({
     action: input.dryRun ? "draft_version_cleanup_dry_run" : "draft_version_cleanup",
     actor_id: guard.context?.userId ?? null,
     after: { affected_count: affected, dry_run: Boolean(input.dryRun) },
@@ -1049,8 +1049,8 @@ export async function markAssetActiveAction(assetId: string) {
   if (!guard.ok) {
     return { error: guard.error, ok: false as const };
   }
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("storage_assets")
     .update({
       last_used_at: new Date().toISOString(),
@@ -1062,7 +1062,7 @@ export async function markAssetActiveAction(assetId: string) {
   if (error) {
     return { error: error.message, ok: false as const };
   }
-  await supabase.from("cleanup_audit_logs").insert({
+  await db.from("cleanup_audit_logs").insert({
     action: "storage_asset_marked_active",
     actor_id: guard.context.userId,
     after: { status: "active" },

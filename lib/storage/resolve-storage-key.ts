@@ -26,7 +26,8 @@ export function resolveStorageObjectKey(legacyBucket: string | undefined, path: 
     "reel-backgrounds/",
     "temp/",
     "story-images/",
-    "chapter-images/"
+    "chapter-images/",
+    "content-posts/"
   ];
 
   if (knownPrefixes.some((prefix) => trimmed.startsWith(prefix))) {

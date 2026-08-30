@@ -1,8 +1,11 @@
-import type { CSSProperties } from "react";
+"use client";
+
+import { useState, type CSSProperties } from "react";
 
 type ReelsBackgroundProps = {
   genreName: string | null;
   imageUrl: string | null;
+  priority?: boolean;
 };
 
 const genreThemes = [
@@ -48,8 +51,11 @@ function hashGenre(value: string | null) {
 
 export function ReelsBackground({
   genreName,
-  imageUrl
+  imageUrl,
+  priority = false
 }: ReelsBackgroundProps) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const showImage = imageUrl && !imageFailed;
   const theme = genreThemes[hashGenre(genreName)];
   const patternStyle: CSSProperties = {
     backgroundImage: `${theme.glow}, ${theme.wash}`,
@@ -58,32 +64,40 @@ export function ReelsBackground({
 
   return (
     <>
-      {imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 h-full w-full object-cover"
-          src={imageUrl}
-        />
+      {showImage ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full object-cover"
+            decoding="async"
+            fetchPriority={priority ? "high" : "low"}
+            loading={priority ? "eager" : "lazy"}
+            onError={() => setImageFailed(true)}
+            src={imageUrl}
+          />
+          <div aria-hidden="true" className="absolute inset-0 bg-black/40" />
+        </>
       ) : null}
-      <div aria-hidden="true" className="absolute inset-0" style={patternStyle} />
       <div
         aria-hidden="true"
-        className="absolute inset-0 opacity-50"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)",
-          backgroundSize: "32px 32px"
-        }}
+        className={`absolute inset-0 transition-opacity duration-300 ${
+          showImage ? "opacity-70" : "opacity-100"
+        }`}
+        style={patternStyle}
       />
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,8,13,0.2)_0%,rgba(5,8,13,0.38)_36%,rgba(5,8,13,0.7)_72%,rgba(5,8,13,0.96)_100%)]"
+        className={`absolute inset-0 ${
+          showImage
+            ? "bg-[linear-gradient(180deg,rgba(5,8,13,0.55)_0%,rgba(5,8,13,0.68)_38%,rgba(5,8,13,0.9)_76%,rgba(5,8,13,0.98)_100%)]"
+            : "bg-[linear-gradient(180deg,rgba(5,8,13,0.35)_0%,rgba(5,8,13,0.5)_40%,rgba(5,8,13,0.82)_78%,rgba(5,8,13,0.96)_100%)]"
+        }`}
       />
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_26%)]"
+        className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_30%)]"
       />
     </>
   );

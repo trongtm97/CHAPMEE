@@ -3,8 +3,7 @@
 import { ReelsCreatorAvatar } from "@/components/reels/ReelsCreatorAvatar";
 import { ReelsIconButton } from "@/components/reels/ReelsIconButton";
 import type { ReelsAnalyticsContext } from "@/lib/analytics/trackReelsEvents";
-import { getProfileUrl } from "@/lib/profile/profile-url";
-import { REELS_PUBLIC_PATH } from "@/lib/routes/reels-paths";
+import { getCreatorPublicHref } from "@/lib/profile/profile-url";
 
 type ReelsActionRailProps = {
   context: ReelsAnalyticsContext;
@@ -85,7 +84,11 @@ export function ReelsActionRail({
   variant = "mobile"
 }: ReelsActionRailProps) {
   const item = context.item;
-  const creatorHref = getProfileUrl(item.creatorHandle) ?? REELS_PUBLIC_PATH;
+  const creatorHref =
+    getCreatorPublicHref({
+      username: item.creatorHandle,
+      userId: item.creatorUserId
+    }) ?? "#";
   const creatorName = item.creatorName ?? "ChapMee";
 
   return (
@@ -93,7 +96,7 @@ export function ReelsActionRail({
       className={
         variant === "desktop"
           ? "w-20 shrink-0"
-          : "pointer-events-none absolute bottom-[calc(7rem+env(safe-area-inset-bottom))] right-3 z-30 sm:right-4"
+          : "pointer-events-none absolute bottom-[calc(7rem+env(safe-area-inset-bottom))] right-5 z-40"
       }
     >
       <div

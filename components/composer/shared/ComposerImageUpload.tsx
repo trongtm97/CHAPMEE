@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 import { Button, Input } from "@/components/ui";
+import { MediaLibraryDialog } from "@/components/editor/MediaLibraryDialog";
+import { StudioPolicyNotice } from "@/components/studio/StudioPolicyNotice";
 import { mapStoryImageUploadError } from "@/lib/images/map-upload-error";
 import {
   CHAPTER_IMAGE_ACCEPT_ATTRIBUTE,
@@ -32,6 +34,7 @@ export function ComposerImageUpload({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
 
   const canUpload = Boolean(episodeId || draftId);
 
@@ -114,14 +117,24 @@ export function ComposerImageUpload({
         ref={fileInputRef}
         type="file"
       />
-      <Button
-        disabled={disabled || !canUpload || processing}
-        onClick={() => fileInputRef.current?.click()}
-        type="button"
-        variant="secondary"
-      >
-        {processing ? "Đang tải..." : mediaId ? "Đổi ảnh" : "Tải ảnh lên"}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          disabled={disabled || !canUpload || processing}
+          onClick={() => fileInputRef.current?.click()}
+          type="button"
+          variant="secondary"
+        >
+          {processing ? "Đang tải..." : mediaId ? "Đổi ảnh" : "Tải ảnh lên"}
+        </Button>
+        <Button
+          disabled={disabled || processing}
+          onClick={() => setShowLibrary(true)}
+          type="button"
+          variant="secondary"
+        >
+          Dùng lại ảnh đã tải
+        </Button>
+      </div>
       <Input
         disabled={disabled}
         label="Alt"
@@ -138,6 +151,31 @@ export function ComposerImageUpload({
       <p className="text-[0.65rem] text-zinc-600">
         Tối đa {CHAPTER_IMAGE_MAX_PER_CHAPTER} ảnh/chương · JPG, PNG, WebP
       </p>
+      <StudioPolicyNotice
+        note="Hãy dùng ảnh do bạn tạo ra hoặc đã được phép sử dụng."
+        title="Quy định ảnh chương"
+        items={[
+          "Tỉ lệ 3:4.",
+          "Không copy 100% từ nguồn khác.",
+          "Không chứa chữ tiếng Việt bị lỗi đọc hoặc chữ nước ngoài gây khó đọc.",
+          "Nên tạo ảnh mới bằng công cụ AI hoặc chỉnh sửa cho phù hợp người Việt."
+        ]}
+      />
+
+      <MediaLibraryDialog
+        filterSource="chapter"
+        onClose={() => setShowLibrary(false)}
+        onPick={(image) => {
+          onChange({
+            media_id: image.id,
+            alt: alt.trim() || image.alt,
+            caption: caption.trim() || image.caption
+          });
+          setShowLibrary(false);
+        }}
+        open={showLibrary}
+        title="Dùng lại ảnh chương đã tải"
+      />
     </div>
   );
 }

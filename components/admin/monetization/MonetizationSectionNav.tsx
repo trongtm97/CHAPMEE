@@ -2,7 +2,7 @@
 
 const SECTIONS = [
   { id: "ecosystem", label: "Trạng thái" },
-  { id: "coin", label: "Coin & tỷ giá" },
+  { id: "coin", label: "Xu & tỷ giá" },
   { id: "coin-topup-packages", label: "Gói nạp" },
   { id: "sepay-payment", label: "SePay" },
   { id: "default-share", label: "Chia sẻ" },

@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import type { CreatorAdPolicyAuditLog } from "@/types/creator-ad-revenue-policy";
 
 export async function logCreatorAdPolicyAudit(input: {
@@ -10,8 +10,8 @@ export async function logCreatorAdPolicyAudit(input: {
   note?: string | null;
 }): Promise<{ ok: boolean; error: string | null }> {
   try {
-    const supabase = createAdminClient();
-    const { error } = await supabase.from("creator_ad_policy_audit_logs").insert({
+    const db = createAdminClient();
+    const { error } = await db.from("creator_ad_policy_audit_logs").insert({
       actor_id: input.actorId,
       action: input.action,
       target_user_id: input.targetUserId ?? null,
@@ -47,8 +47,8 @@ export async function listCreatorAdPolicyAuditLogs(options?: {
   action?: string;
 }): Promise<{ logs: CreatorAdPolicyAuditLog[]; error: string | null }> {
   try {
-    const supabase = createAdminClient();
-    let query = supabase
+    const db = createAdminClient();
+    let query = db
       .from("creator_ad_policy_audit_logs")
       .select(
         `

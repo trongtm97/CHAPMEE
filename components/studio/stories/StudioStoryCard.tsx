@@ -4,8 +4,6 @@
 
 import type { ReactNode } from "react";
 
-import Image from "next/image";
-
 import Link from "next/link";
 
 import { useState } from "react";
@@ -98,6 +96,46 @@ function formatCount(value: number) {
 
   }).format(value);
 
+}
+
+
+
+function StudioStoryCoverThumb({
+  coverThumbUrl,
+  editHref
+}: {
+  coverThumbUrl: string | null;
+  editHref: string;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  if (!coverThumbUrl || failed) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-1.5 bg-gradient-to-br from-zinc-800 to-zinc-900 p-1.5 text-center">
+        <span className="text-[0.6rem] font-medium leading-tight text-zinc-500">
+          {failed ? "Không tải được bìa" : "Chưa có bìa"}
+        </span>
+        <Link
+          className="inline-flex min-h-7 w-full items-center justify-center rounded-md bg-cyan-300/90 px-1 text-[0.6rem] font-semibold text-zinc-950 hover:bg-cyan-200"
+          href={editHref}
+        >
+          {failed ? "Sửa bìa" : "Thêm bìa"}
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      alt=""
+      className="h-full w-full object-cover"
+      decoding="async"
+      loading="lazy"
+      onError={() => setFailed(true)}
+      src={coverThumbUrl}
+    />
+  );
 }
 
 
@@ -220,6 +258,7 @@ export function StudioStoryCard({
   const canSubmitReview = story.status === "rejected" || story.status === "draft";
 
   const previewHref = canViewPublicPage(story) ? publicHref : editHref;
+  const titleHref = canViewPublicPage(story) ? publicHref : editHref;
 
 
 
@@ -437,7 +476,7 @@ export function StudioStoryCard({
 
             type: "action" as const,
 
-            label: "Gửi duyệt lại",
+            label: "Đăng lại",
 
             onAction: async () => {
 
@@ -519,47 +558,7 @@ export function StudioStoryCard({
 
         <div className="relative h-20 w-14 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/5 sm:h-24 sm:w-[4.5rem] lg:h-28 lg:w-20">
 
-          {story.coverThumbUrl ? (
-
-            <Image
-
-              alt=""
-
-              className="object-cover"
-
-              fill
-
-              sizes="80px"
-
-              src={story.coverThumbUrl}
-
-            />
-
-          ) : (
-
-            <div className="flex h-full flex-col items-center justify-center gap-1.5 bg-gradient-to-br from-zinc-800 to-zinc-900 p-1.5 text-center">
-
-              <span className="text-[0.6rem] font-medium leading-tight text-zinc-500">
-
-                Chưa có bìa
-
-              </span>
-
-              <Link
-
-                className="inline-flex min-h-7 w-full items-center justify-center rounded-md bg-cyan-300/90 px-1 text-[0.6rem] font-semibold text-zinc-950 hover:bg-cyan-200"
-
-                href={editHref}
-
-              >
-
-                Thêm bìa
-
-              </Link>
-
-            </div>
-
-          )}
+          <StudioStoryCoverThumb coverThumbUrl={story.coverThumbUrl} editHref={editHref} />
 
         </div>
 
@@ -571,7 +570,7 @@ export function StudioStoryCard({
 
             <div className="min-w-0 flex-1">
 
-              <Link className="hover:text-cyan-200" href={manageContentHref}>
+              <Link className="hover:text-cyan-200" href={titleHref}>
 
                 <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-white sm:text-base">
 

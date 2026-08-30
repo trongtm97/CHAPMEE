@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { countWords } from "@/lib/text/countWords";
 import type { StudioDraftType } from "@/types/drafts";
 
@@ -54,7 +54,7 @@ function shouldCreateIntervalVersion(
 }
 
 async function insertDraftVersion(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   draftId: string,
   profileId: string,
   title: string | null,
@@ -62,7 +62,7 @@ async function insertDraftVersion(
   plainText: string | null,
   wordCount: number
 ) {
-  const { data: latest } = await supabase
+  const { data: latest } = await db
     .from("creator_draft_versions")
     .select("version_number")
     .eq("draft_id", draftId)
@@ -72,7 +72,7 @@ async function insertDraftVersion(
 
   const versionNumber = ((latest?.version_number as number | undefined) ?? 0) + 1;
 
-  const { error } = await supabase.from("creator_draft_versions").insert({
+  const { error } = await db.from("creator_draft_versions").insert({
     content,
     created_by: profileId,
     draft_id: draftId,
@@ -93,12 +93,12 @@ export async function saveStudioDraft(
   input: SaveStudioDraftInput
 ): Promise<SaveStudioDraftResult> {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const plainText = input.plainText ?? "";
     const wordCount = countWords(plainText);
     const now = new Date().toISOString();
 
-    let existingQuery = supabase
+    let existingQuery = db
       .from("creator_drafts")
       .select("id, last_saved_at, last_version_at, version_checkpoint_word_count")
       .eq("owner_id", input.profileId)
@@ -121,7 +121,7 @@ export async function saveStudioDraft(
     let draftId = existing?.id as string | undefined;
 
     if (draftId) {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await db
         .from("creator_drafts")
         .update({
           content: input.content,
@@ -136,7 +136,7 @@ export async function saveStudioDraft(
         throw new Error(updateError.message);
       }
     } else {
-      const { data: inserted, error: insertError } = await supabase
+      const { data: inserted, error: insertError } = await db
         .from("creator_drafts")
         .insert({
           chapter_id: input.chapterId ?? null,
@@ -152,8 +152,8 @@ export async function saveStudioDraft(
         .select("id")
         .single();
 
-      if (insertError) {
-        throw new Error(insertError.message);
+      if (insertError || !inserted) {
+        throw new Error(insertError?.message ?? "Không tạo được bản nháp.");
       }
 
       draftId = inserted.id as string;
@@ -172,7 +172,7 @@ export async function saveStudioDraft(
 
     if (createVersion && draftId) {
       await insertDraftVersion(
-        supabase,
+        db,
         draftId,
         input.profileId,
         input.title ?? null,
@@ -181,7 +181,7 @@ export async function saveStudioDraft(
         wordCount
       );
 
-      await supabase
+      await db
         .from("creator_drafts")
         .update({
           last_version_at: now,

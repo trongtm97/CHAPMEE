@@ -1,5 +1,7 @@
 import { notFound, permanentRedirect } from "next/navigation";
+import { createPublicClient } from "@/lib/data/public-client";
 import { getTaxonomyTermBySlug, getTaxonomyTermsByIds } from "@/lib/taxonomy/queries";
+import { mapTaxonomyTermRow } from "@/lib/taxonomy/map-row";
 import {
   isTaxonomySeoIndexable,
   resolveTaxonomyCanonicalPath
@@ -121,37 +123,56 @@ async function loadParentMainGenre(term: TaxonomyTerm) {
 }
 
 /**
- * If a slug exists under a different public landing type (e.g. subgenre visited via /the-loai).
+ * Redirect when slug belongs to another public taxonomy type or canonical_path differs.
  */
 export async function getLegacyTaxonomyLandingRedirect(
   segment: string,
   slug: string
 ): Promise<string | null> {
-  const type = resolveLandingType(segment);
-  if (!type) {
+  const segmentType = resolveLandingType(segment);
+  if (!segmentType) {
     return null;
   }
 
-  const primary = await getTaxonomyTermBySlug(type, slug, { publicOnly: true });
-  if (primary.data?.is_active && primary.data.is_public) {
+  const normalizedSlug = slug.trim();
+  if (!normalizedSlug) {
     return null;
   }
 
-  if (segment === "the-loai") {
-    const subgenre = await getTaxonomyTermBySlug("subgenre", slug, { publicOnly: true });
-    if (subgenre.data?.is_active && subgenre.data.is_public) {
-      return taxonomyLandingPath("subgenre", slug);
-    }
+  const db = createPublicClient();
+  const { data: rows, error } = await db
+    .from("taxonomy_terms")
+    .select("*")
+    .eq("slug", normalizedSlug)
+    .eq("is_active", true)
+    .eq("is_public", true);
+
+  if (error || !rows?.length) {
+    return null;
   }
 
-  if (segment === "the-loai-phu") {
-    const mainGenre = await getTaxonomyTermBySlug("main_genre", slug, { publicOnly: true });
-    if (mainGenre.data?.is_active && mainGenre.data.is_public) {
-      return taxonomyLandingPath("main_genre", slug);
-    }
+  const terms = rows.map((row) => mapTaxonomyTermRow(row as Record<string, unknown>));
+  const matched =
+    terms.find((term) => term.type === segmentType) ??
+    terms.find((term) => Boolean(taxonomyLandingPath(term.type, term.slug))) ??
+    terms[0];
+
+  if (!matched) {
+    return null;
   }
 
-  return null;
+  const canonicalPath =
+    resolveTaxonomyCanonicalPath(matched) ?? taxonomyLandingPath(matched.type, matched.slug);
+  if (!canonicalPath) {
+    return null;
+  }
+
+  const requestedPath = taxonomyLandingPath(segmentType, normalizedSlug);
+  if (matched.type === segmentType && requestedPath === canonicalPath) {
+    return null;
+  }
+
+  return canonicalPath;
 }
 
 export async function assertTaxonomyLandingRoute(

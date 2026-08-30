@@ -1,13 +1,13 @@
 import { calculateChannelAmounts } from "@/lib/payments/payment-fees";
 import { completeCheckoutPayment } from "@/lib/payments/complete-payment";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { getCoinPackById } from "@/lib/supabase/coin-packs";
+import { getCoinPackById } from "@/lib/data/coin-packs";
 import {
   createCheckoutSessionRecord,
   findGooglePlayCheckoutByPurchaseKeys,
   getCheckoutSessionByProviderReference
-} from "@/lib/supabase/checkout-sessions";
-import { getPaymentProviderProductByProductId } from "@/lib/supabase/payment-provider-products";
+} from "@/lib/data/checkout-sessions";
+import { getPaymentProviderProductByProductId } from "@/lib/data/payment-provider-products";
 import type { CoinPack } from "@/types/payment";
 
 type GooglePlayErrorCode =

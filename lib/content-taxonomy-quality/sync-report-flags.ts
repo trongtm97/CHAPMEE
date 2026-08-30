@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import {
   loadTaxonomyQualityRules,
   runTaxonomyQualityCheckForStory
@@ -11,7 +11,7 @@ const TAXONOMY_REPORT_REASONS = [
 ] as const;
 
 export async function syncTaxonomyReportToQualityFlag(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   targetType: string,
   targetId: string,
   reasonCode: string,
@@ -22,8 +22,8 @@ export async function syncTaxonomyReportToQualityFlag(
     return;
   }
 
-  const rules = await loadTaxonomyQualityRules(supabase);
-  await runTaxonomyQualityCheckForStory(supabase, targetId, rules);
+  const rules = await loadTaxonomyQualityRules(db);
+  await runTaxonomyQualityCheckForStory(db, targetId, rules);
 
   const reportRule = rules.user_reported_wrong_tag;
   const threshold =
@@ -31,7 +31,7 @@ export async function syncTaxonomyReportToQualityFlag(
       ? reportRule.config.report_threshold
       : 3;
 
-  const { count } = await supabase
+  const { count } = await db
     .from("reports")
     .select("id", { count: "exact", head: true })
     .eq("target_type", "story")
@@ -46,7 +46,7 @@ export async function syncTaxonomyReportToQualityFlag(
       ? "missing_warning"
       : "user_reported_wrong_tag";
 
-  const { data: existing } = await supabase
+  const { data: existing } = await db
     .from("content_taxonomy_quality_flags")
     .select("id, details_json")
     .eq("story_id", targetId)
@@ -65,7 +65,7 @@ export async function syncTaxonomyReportToQualityFlag(
   };
 
   if (existing?.id) {
-    await supabase
+    await db
       .from("content_taxonomy_quality_flags")
       .update({
         reason: `Độc giả report phân loại (${count} report, ngưỡng ${threshold}).`,
@@ -75,7 +75,7 @@ export async function syncTaxonomyReportToQualityFlag(
       })
       .eq("id", existing.id);
   } else {
-    await supabase.from("content_taxonomy_quality_flags").insert({
+    await db.from("content_taxonomy_quality_flags").insert({
       story_id: targetId,
       flag_type: flagType,
       severity: reportRule?.severity ?? "medium",

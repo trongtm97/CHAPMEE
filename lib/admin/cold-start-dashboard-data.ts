@@ -1,6 +1,6 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { ColdStartAdminItem, ColdStartDashboardData } from "@/types/cold-start";
 
 function firstRelation<T>(value: T | T[] | null | undefined): T | null {
@@ -9,7 +9,7 @@ function firstRelation<T>(value: T | T[] | null | undefined): T | null {
 }
 
 async function hydrateTitles(
-  supabase: ReturnType<typeof createAdminClient>,
+  db: ReturnType<typeof createAdminClient>,
   rows: Array<{
     id: string;
     item_type: string;
@@ -29,12 +29,12 @@ async function hydrateTitles(
 
   const [stories, reels, creators] = await Promise.all([
     storyIds.length
-      ? supabase.from("stories").select("id, title").in("id", storyIds)
+      ? db.from("stories").select("id, title").in("id", storyIds)
       : Promise.resolve({ data: [] }),
     reelIds.length
-      ? supabase.from("reels_items").select("id, hook, title").in("id", reelIds)
+      ? db.from("reels_items").select("id, hook, title").in("id", reelIds)
       : Promise.resolve({ data: [] }),
-    supabase
+    db
       .from("creator_profiles")
       .select(
         "user_id, pen_name, profiles!creator_profiles_user_id_fkey(display_name, username)"
@@ -95,10 +95,10 @@ async function hydrateTitles(
 }
 
 export async function loadColdStartDashboardData(): Promise<ColdStartDashboardData> {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
 
   try {
-    const { data: rows, error } = await supabase
+    const { data: rows, error } = await db
       .from("cold_start_tests")
       .select("*")
       .order("created_at", { ascending: false })
@@ -125,7 +125,7 @@ export async function loadColdStartDashboardData(): Promise<ColdStartDashboardDa
     const qualificationRate =
       finished > 0 ? (qualifiedCount / finished) * 100 : 0;
 
-    const items = await hydrateTitles(supabase, all as Parameters<typeof hydrateTitles>[1]);
+    const items = await hydrateTitles(db, all as Parameters<typeof hydrateTitles>[1]);
 
     return {
       error: null,

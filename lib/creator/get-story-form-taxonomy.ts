@@ -1,6 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
+import { resolveAgeRatingTermId } from "@/lib/taxonomy/age-rating";
 import { getStoryTaxonomy } from "@/lib/taxonomy/story-taxonomy";
-import { getSelectableTaxonomyTermsForCreator } from "@/lib/taxonomy/queries";
+import {
+  getSelectableTaxonomyTermsForCreator,
+  getTaxonomyTermBySlug,
+  getTaxonomyTermsByIds
+} from "@/lib/taxonomy/queries";
 import {
   getPresentationTemplates,
   getStoryPresentationSettings
@@ -119,13 +124,13 @@ export async function getStoryFormTaxonomyBundle(
   let contentWarningsConfirmed = options?.contentWarningsConfirmed ?? false;
 
   if (storyId) {
-    const supabase = await createClient();
+    const db = await createClient();
     const [taxonomyResult, presentationResult, storyRow] = await Promise.all([
       getStoryTaxonomy(storyId),
       getStoryPresentationSettings(storyId),
-      supabase
+      db
         .from("stories")
-        .select("content_warnings_confirmed")
+        .select("content_warnings_confirmed, age_rating")
         .eq("id", storyId)
         .maybeSingle()
     ]);
@@ -141,8 +146,24 @@ export async function getStoryFormTaxonomyBundle(
       }
     }
 
+    if (!selectedByType.age_rating?.length && storyRow.data?.age_rating) {
+      const ageRatingTermId = await resolveAgeRatingTermId(
+        db,
+        String(storyRow.data.age_rating)
+      );
+      if (ageRatingTermId) {
+        selectedByType.age_rating = [ageRatingTermId];
+      }
+    }
+
     presentationMode = presentationResult.data?.mode ?? presentationMode;
     selectedFormatTemplateId = presentationResult.data?.template_id ?? null;
+
+    await mergeSelectedTermsIntoOptions({
+      optionsByType,
+      presentationMode,
+      selectedByType
+    });
   }
 
   return {
@@ -154,6 +175,51 @@ export async function getStoryFormTaxonomyBundle(
     selectedFormatTemplateId,
     contentWarningsConfirmed
   };
+}
+
+async function mergeSelectedTermsIntoOptions({
+  optionsByType,
+  presentationMode,
+  selectedByType
+}: {
+  optionsByType: StoryFormTaxonomyOptions;
+  presentationMode: string | null;
+  selectedByType: StoryFormTaxonomySelection;
+}) {
+  const selectedIds = [
+    ...new Set(Object.values(selectedByType).flatMap((ids) => ids ?? []))
+  ];
+
+  if (selectedIds.length > 0) {
+    const selectedTermsResult = await getTaxonomyTermsByIds(selectedIds);
+    for (const term of selectedTermsResult.data) {
+      const existing = optionsByType[term.type] ?? [];
+      if (!existing.some((row) => row.id === term.id)) {
+        optionsByType[term.type] = [...existing, term];
+      }
+    }
+  }
+
+  if (!presentationMode) {
+    return;
+  }
+
+  const presentationTerms = optionsByType.presentation_mode ?? [];
+  if (presentationTerms.some((term) => term.slug === presentationMode)) {
+    return;
+  }
+
+  const presentationTermResult = await getTaxonomyTermBySlug(
+    "presentation_mode",
+    presentationMode,
+    { publicOnly: false }
+  );
+  if (presentationTermResult.data) {
+    optionsByType.presentation_mode = [
+      ...presentationTerms,
+      presentationTermResult.data
+    ];
+  }
 }
 
 function mapTemplateOption(row: StoryFormatTemplateRow): StoryFormFormatTemplateOption {

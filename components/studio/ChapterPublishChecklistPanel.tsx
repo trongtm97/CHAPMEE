@@ -13,6 +13,7 @@ type ChapterPublishChecklistPanelProps = {
   authorNote?: string;
   seoDescription?: string | null;
   isSaved?: boolean;
+  hasReelsPromo?: boolean;
   storyInput?: StoryPublishInput | null;
 };
 
@@ -21,6 +22,7 @@ export function ChapterPublishChecklistPanel({
   canPublish,
   content,
   episodeId,
+  hasReelsPromo,
   isSaved = true,
   seoDescription,
   storyId,
@@ -32,6 +34,7 @@ export function ChapterPublishChecklistPanel({
     localChapter: {
       authorNote,
       content,
+      hasReelsPromo,
       isSaved,
       seoDescription,
       storyValid: Boolean(storyId),

@@ -1,5 +1,5 @@
 import { shouldBlockPayout } from "@/lib/risk/risk-engine";
-import { listOpenHighRiskEventsByCreator } from "@/lib/supabase/risk";
+import { listOpenHighRiskEventsByCreator } from "@/lib/data/risk";
 import type { PayoutRequest, PayoutRequestStatus } from "@/types/payout";
 import type { WithdrawalRiskLevel } from "@/types/admin-withdrawal";
 

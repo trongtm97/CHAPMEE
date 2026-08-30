@@ -25,6 +25,16 @@ type ChapMeeImageProps = {
 
 const DEFAULT_FALLBACK = "/icon.png";
 
+const SURFACE_DIMENSIONS: Record<MediaSurface, { width: number; height: number; sizes: string }> = {
+  admin: { width: 160, height: 160, sizes: "160px" },
+  avatar: { width: 96, height: 96, sizes: "96px" },
+  card: { width: 640, height: 360, sizes: "(max-width: 768px) 100vw, 360px" },
+  cover: { width: 800, height: 1200, sizes: "(max-width: 768px) 40vw, 160px" },
+  reader: { width: 1200, height: 1600, sizes: "(max-width: 768px) 100vw, 760px" },
+  reels: { width: 720, height: 1280, sizes: "100vw" },
+  thumbnail: { width: 320, height: 320, sizes: "120px" }
+};
+
 export function ChapMeeImage({
   asset,
   alt,
@@ -40,18 +50,21 @@ export function ChapMeeImage({
 }: ChapMeeImageProps) {
   const src =
     pickMediaVariantUrl(asset?.variants, surface, asset?.publicUrl ?? url) ?? fallbackUrl;
-  const resolvedWidth = width ?? asset?.width ?? 640;
-  const resolvedHeight = height ?? asset?.height ?? 960;
+  const surfaceDimensions = SURFACE_DIMENSIONS[surface];
+  const resolvedWidth = width ?? asset?.width ?? surfaceDimensions.width;
+  const resolvedHeight = height ?? asset?.height ?? surfaceDimensions.height;
+  const resolvedSizes = sizes ?? surfaceDimensions.sizes;
+  const resolvedClassName = className ? `object-cover ${className}` : "object-cover";
 
   if (fill) {
     return (
       <Image
         alt={asset?.alt ?? alt}
-        className={className}
+        className={resolvedClassName}
         fill
         placeholder="empty"
         priority={priority}
-        sizes={sizes ?? "100vw"}
+        sizes={resolvedSizes}
         src={src}
       />
     );
@@ -60,12 +73,12 @@ export function ChapMeeImage({
   return (
     <Image
       alt={asset?.alt ?? alt}
-      className={className}
+      className={resolvedClassName}
       height={resolvedHeight}
       loading={priority ? "eager" : "lazy"}
       placeholder="empty"
       priority={priority}
-      sizes={sizes}
+      sizes={resolvedSizes}
       src={src}
       width={resolvedWidth}
     />

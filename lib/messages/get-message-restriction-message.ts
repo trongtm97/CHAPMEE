@@ -1,7 +1,7 @@
 "use server";
 
 import { getMessagingRestrictionBlockMessage } from "@/lib/messaging/get-active-messaging-restriction";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { RestrictionType } from "@/types/moderation";
 
 const MESSAGE_RESTRICTIONS: RestrictionType[] = [
@@ -31,10 +31,10 @@ export async function getMessageRestrictionMessage(
     return messagingRestriction;
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date().toISOString();
 
-  const { data } = await supabase
+  const { data } = await db
     .from("account_restrictions")
     .select("restriction_type, ends_at")
     .eq("user_id", userId)

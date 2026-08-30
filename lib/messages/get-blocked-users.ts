@@ -1,6 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { profileAvatarUrlFromRow } from "@/lib/profile/map-profile-row";
+import { createClient } from "@/lib/data/server";
 
 export type BlockedUserItem = {
   blockedId: string;
@@ -13,9 +14,9 @@ export type BlockedUserItem = {
 export async function getBlockedUsers(
   blockerId: string
 ): Promise<BlockedUserItem[]> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("message_blocks")
     .select(
       `blocked_id, created_at,
@@ -41,7 +42,7 @@ export async function getBlockedUsers(
       blockedId: row.blocked_id as string,
       displayName: profile.display_name ?? profile.username ?? "Người dùng",
       username: profile.username,
-      avatarUrl: profile.avatar_url,
+      avatarUrl: profileAvatarUrlFromRow(profile),
       blockedAt: row.created_at as string
     };
   });

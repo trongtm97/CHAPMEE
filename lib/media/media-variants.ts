@@ -1,3 +1,5 @@
+import { resolveStoredMediaUrl } from "@/lib/media/media-url";
+
 export type MediaSurface =
   | "thumbnail"
   | "card"
@@ -28,10 +30,27 @@ export function pickMediaVariantUrl(
   for (const key of surfacePreference[surface]) {
     const value = map[key];
     if (typeof value === "string" && value.trim()) {
-      return value;
+      return resolveStoredMediaUrl(value) ?? value;
     }
   }
-  return fallbackUrl ?? null;
+  const resolvedFallback = resolveStoredMediaUrl(fallbackUrl);
+  return resolvedFallback ?? fallbackUrl ?? null;
+}
+
+/** Resolve all variant entries that store object keys. */
+export function resolveMediaVariantMap(
+  variants: MediaVariantMap | null | undefined
+): MediaVariantMap {
+  const map = variants ?? {};
+  const resolved: MediaVariantMap = {};
+  for (const [key, value] of Object.entries(map)) {
+    if (typeof value === "string" && value.trim()) {
+      resolved[key] = resolveStoredMediaUrl(value) ?? value;
+    } else {
+      resolved[key] = value;
+    }
+  }
+  return resolved;
 }
 
 export function hasMediaVariant(

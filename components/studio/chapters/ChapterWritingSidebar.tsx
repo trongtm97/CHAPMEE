@@ -1,26 +1,25 @@
 "use client";
 
-import {
-  GuidelinesAcknowledgementField
-} from "@/components/creator/GuidelinesSubmitAcknowledgement";
 import { VersionHistoryPanel } from "@/components/editor/VersionHistoryPanel";
 import { ComposerPublishingCheck } from "@/components/composer/ComposerPublishingCheck";
 import { ChapterPublishChecklistPanel } from "@/components/studio/ChapterPublishChecklistPanel";
+import { ChapterReelsPromoSection } from "@/components/studio/chapters/ChapterReelsPromoSection";
 import { Textarea } from "@/components/ui";
 import { buildChapterUrlPreview } from "@/lib/chapters/chapter-url-preview";
 import type { ComposerStructuredContent } from "@/lib/composer/types";
 import type { StoryPublishInput } from "@/lib/publish/validate-story-before-publish";
 import type { PresentationMode } from "@/types/presentation";
+import type { ChapterReelsPromoDraft } from "@/types/chapter-reels-promo";
 import type { StudioDraftVersionRecord } from "@/types/drafts";
 import type { EditorViewMode } from "@/types/editor";
 
 const AUTHOR_NOTE_MAX = 500;
 
 type ChapterWritingSidebarProps = {
-  acknowledged: boolean;
-  ackError?: string | null;
+  authorDisplayName?: string | null;
   authorNote: string;
   canPublish: boolean;
+  chapterTitle: string;
   composerDocument?: ComposerStructuredContent | null;
   composerMode?: PresentationMode;
   content: string;
@@ -29,19 +28,23 @@ type ChapterWritingSidebarProps = {
   episodeId?: string | null;
   episodeNumber: number;
   knownComposerMediaIds?: string[];
-  onAckChange: (value: boolean) => void;
   onAuthorNoteChange: (value: string) => void;
   onComposerWarningsAckChange?: (value: boolean) => void;
+  onReelsPromoChange: (value: ChapterReelsPromoDraft) => void;
   onRestoreVersion: (version: StudioDraftVersionRecord) => void;
   onScrollToComposerBlock?: (blockId: string) => void;
   onViewPreview?: () => void;
   previewViewed?: boolean;
+  reelsPromo: ChapterReelsPromoDraft;
+  reelsPromoStatus?: "draft" | "published" | "scheduled" | "hidden" | null;
   seoDescription: string;
   storyContentWarningsConfirmed?: boolean;
+  storyCoverUrl?: string | null;
   storyId: string;
   storyInput?: StoryPublishInput | null;
   storyPublicCode?: string | null;
   storySlug: string;
+  storyTitle: string;
   title: string;
   useComposerUi?: boolean;
   isSaved?: boolean;
@@ -49,10 +52,10 @@ type ChapterWritingSidebarProps = {
 };
 
 export function ChapterWritingSidebar({
-  acknowledged,
-  ackError,
+  authorDisplayName,
   authorNote,
   canPublish,
+  chapterTitle,
   composerDocument,
   composerMode,
   content,
@@ -61,19 +64,23 @@ export function ChapterWritingSidebar({
   episodeId,
   episodeNumber,
   knownComposerMediaIds = [],
-  onAckChange,
   onAuthorNoteChange,
   onComposerWarningsAckChange,
+  onReelsPromoChange,
   onRestoreVersion,
   onScrollToComposerBlock,
   onViewPreview,
   previewViewed = false,
+  reelsPromo,
+  reelsPromoStatus = null,
   seoDescription,
   storyContentWarningsConfirmed = false,
+  storyCoverUrl = null,
   storyId,
   storyInput,
   storyPublicCode,
   storySlug,
+  storyTitle,
   title,
   useComposerUi = false,
   isSaved = true,
@@ -107,6 +114,7 @@ export function ChapterWritingSidebar({
             canPublish={canPublish}
             content={content}
             episodeId={episodeId}
+            hasReelsPromo={Boolean(reelsPromo.enabled && (reelsPromo.hook.trim() || reelsPromo.body.trim()))}
             isSaved={isSaved}
             seoDescription={seoDescription}
             storyId={storyId}
@@ -115,6 +123,21 @@ export function ChapterWritingSidebar({
           />
         </div>
       </section>
+
+      <ChapterReelsPromoSection
+        authorDisplayName={authorDisplayName}
+        chapterContent={content}
+        chapterTitle={chapterTitle}
+        disabled={disabled}
+        episodeNumber={episodeNumber}
+        onChange={onReelsPromoChange}
+        promo={reelsPromo}
+        reelStatus={reelsPromoStatus}
+        storyCoverUrl={storyCoverUrl}
+        storyPublicCode={storyPublicCode}
+        storySlug={storySlug}
+        storyTitle={storyTitle}
+      />
 
       <section className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
@@ -178,16 +201,6 @@ export function ChapterWritingSidebar({
         <div className="mt-2">
           <VersionHistoryPanel draftId={draftId} onRestored={onRestoreVersion} />
         </div>
-      </section>
-
-      <section className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
-        <GuidelinesAcknowledgementField
-          acknowledged={acknowledged}
-          disabled={disabled}
-          error={ackError ?? null}
-          onAckChange={onAckChange}
-          variant="episode"
-        />
       </section>
     </aside>
   );

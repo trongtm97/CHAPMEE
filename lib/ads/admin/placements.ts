@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { logAdPlacementAudit } from "@/lib/ads/ad-placement-audit";
 import { mapPlacementRow } from "@/lib/ads/map-placement-row";
 import { getPlacementRiskLevel } from "@/lib/ads/placement-risk";
@@ -96,11 +96,11 @@ function applyListFilters<T extends { eq: (col: string, val: unknown) => T; is: 
 
 async function attachTodayStats(items: AdPlacementRow[]): Promise<AdPlacementListItem[]> {
   if (items.length === 0) return [];
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   const date = todayDateKey();
   const keys = items.map((i) => i.placement_key);
 
-  const { data: statsRows } = await supabase
+  const { data: statsRows } = await db
     .from("ad_daily_stats")
     .select("placement_key, renders, impressions, clicks, estimated_revenue")
     .eq("stat_date", date)
@@ -148,11 +148,11 @@ export async function listAdPlacementsAdmin(filters: AdPlacementListFilters = {}
   error: string | null;
 }> {
   try {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
     const page = Math.max(1, filters.page ?? 1);
     const pageSize = Math.min(50, Math.max(1, filters.pageSize ?? PAGE_SIZE_DEFAULT));
 
-    let countQuery = supabase.from("ad_placements").select("id", { count: "exact", head: true });
+    let countQuery = db.from("ad_placements").select("id", { count: "exact", head: true });
     countQuery = applyListFilters(countQuery, filters);
     const { count, error: countError } = await countQuery;
     if (countError) {
@@ -164,7 +164,7 @@ export async function listAdPlacementsAdmin(filters: AdPlacementListFilters = {}
     const from = needsRiskFilter ? 0 : (page - 1) * pageSize;
     const to = needsRiskFilter ? fetchSize - 1 : from + pageSize - 1;
 
-    let dataQuery = supabase
+    let dataQuery = db
       .from("ad_placements")
       .select("*")
       .order("surface", { ascending: true })
@@ -203,30 +203,30 @@ export async function getAdPlacementStatsAdmin(): Promise<{
   error: string | null;
 }> {
   try {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const dateKey = todayDateKey();
 
     const [allRes, enabledRes, testRes, eventsRes, dailyRes, allRowsRes] = await Promise.all([
-      supabase.from("ad_placements").select("id", { count: "exact", head: true }).is("archived_at", null),
-      supabase
+      db.from("ad_placements").select("id", { count: "exact", head: true }).is("archived_at", null),
+      db
         .from("ad_placements")
         .select("id", { count: "exact", head: true })
         .eq("is_enabled", true)
         .is("archived_at", null),
-      supabase
+      db
         .from("ad_placements")
         .select("id", { count: "exact", head: true })
         .eq("is_test_mode", true)
         .is("archived_at", null),
-      supabase
+      db
         .from("ad_render_events")
         .select("id", { count: "exact", head: true })
         .eq("event_type", "rendered")
         .gte("created_at", startOfDay.toISOString()),
-      supabase.from("ad_daily_stats").select("renders, impressions, clicks, estimated_revenue").eq("stat_date", dateKey),
-      supabase.from("ad_placements").select("*").is("archived_at", null)
+      db.from("ad_daily_stats").select("renders, impressions, clicks, estimated_revenue").eq("stat_date", dateKey),
+      db.from("ad_placements").select("*").is("archived_at", null)
     ]);
 
     const dailyTotals = (dailyRes.data ?? []).reduce(
@@ -284,17 +284,17 @@ export async function getAdPlacementRevenuePrepAdmin(): Promise<{
   error: string | null;
 }> {
   try {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
     const monthStart = new Date();
     monthStart.setDate(1);
     const monthKey = monthStart.toISOString().slice(0, 10);
 
     const [placementsRes, monthStatsRes] = await Promise.all([
-      supabase
+      db
         .from("ad_placements")
         .select("revenue_eligible, attribution_mode")
         .is("archived_at", null),
-      supabase
+      db
         .from("ad_daily_stats")
         .select("estimated_revenue")
         .gte("stat_date", monthKey)
@@ -346,8 +346,8 @@ export async function getAdPlacementByIdAdmin(id: string): Promise<{
   error: string | null;
 }> {
   try {
-    const supabase = createAdminClient();
-    const { data, error } = await supabase.from("ad_placements").select("*").eq("id", id).maybeSingle();
+    const db = createAdminClient();
+    const { data, error } = await db.from("ad_placements").select("*").eq("id", id).maybeSingle();
     if (error) return { item: null, error: error.message };
     return { item: data ? mapPlacementRow(data as Record<string, unknown>) : null, error: null };
   } catch {
@@ -360,8 +360,8 @@ export async function createAdPlacementAdmin(
   actorId?: string
 ): Promise<{ item: AdPlacementRow | null; error: string | null }> {
   try {
-    const supabase = createAdminClient();
-    const { data, error } = await supabase
+    const db = createAdminClient();
+    const { data, error } = await db
       .from("ad_placements")
       .insert(buildInsertPayload(input, actorId))
       .select("*")
@@ -391,7 +391,7 @@ export async function updateAdPlacementAdmin(
 ): Promise<{ item: AdPlacementRow | null; error: string | null }> {
   try {
     const beforeRes = actorId ? await getAdPlacementByIdAdmin(id) : { item: null };
-    const supabase = createAdminClient();
+    const db = createAdminClient();
     const patch: Record<string, unknown> = { updated_by: actorId ?? undefined };
 
     const fields: (keyof AdPlacementFormInput)[] = [
@@ -446,7 +446,7 @@ export async function updateAdPlacementAdmin(
       }
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("ad_placements")
       .update(patch)
       .eq("id", id)
@@ -504,15 +504,15 @@ export async function archiveAdPlacementAdmin(
       return { error: "Không tìm thấy placement." };
     }
 
-    const supabase = createAdminClient();
-    const { count: statsCount } = await supabase
+    const db = createAdminClient();
+    const { count: statsCount } = await db
       .from("ad_daily_stats")
       .select("id", { count: "exact", head: true })
       .eq("placement_key", placement.placement_key);
 
     const hasStats = (statsCount ?? 0) > 0;
 
-    const { error } = await supabase
+    const { error } = await db
       .from("ad_placements")
       .update({ archived_at: new Date().toISOString(), is_enabled: false, updated_by: actorId })
       .eq("id", id);

@@ -12,9 +12,9 @@ import { validateStudioCoinPrice } from "@/lib/studio/validate-coin-price";
 import {
   getStoryMonetizationSettings,
   upsertStoryMonetizationSettings
-} from "@/lib/supabase/story-monetization";
-import { upsertChapterMonetizationSetting } from "@/lib/supabase/chapter-monetization";
-import { createClient } from "@/lib/supabase/server";
+} from "@/lib/data/story-monetization";
+import { upsertChapterMonetizationSetting } from "@/lib/data/chapter-monetization";
+import { createClient } from "@/lib/data/server";
 import { normalizeStoryStructureType } from "@/lib/stories/story-structure";
 import type {
   StudioMonetizationBulkAction,
@@ -56,8 +56,8 @@ function filterStoryIdsForBulkAction(
 const BATCH_SIZE = 25;
 
 async function loadStoryStructureMap(storyIds: string[]) {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("stories")
     .select("id, structure_type")
     .in("id", storyIds);
@@ -83,8 +83,8 @@ export type BulkMonetizationInput = {
 };
 
 async function setAllChaptersFree(storyId: string, creatorUserId: string) {
-  const supabase = await createClient();
-  const { data: episodes } = await supabase
+  const db = await createClient();
+  const { data: episodes } = await db
     .from("episodes")
     .select("id")
     .eq("story_id", storyId)
@@ -360,8 +360,8 @@ export async function exportMonetizationStoriesCsv(
     return { ok: false, error: "Không có truyện để xuất." };
   }
 
-  const supabase = await createClient();
-  const { data: stories } = await supabase
+  const db = await createClient();
+  const { data: stories } = await db
     .from("stories")
     .select("id, title, slug, status")
     .in("id", storyIds);
@@ -372,7 +372,7 @@ export async function exportMonetizationStoriesCsv(
 
   for (const story of stories ?? []) {
     const settings = await getStoryMonetizationSettings(story.id as string);
-    const { count: paidCount } = await supabase
+    const { count: paidCount } = await db
       .from("chapter_monetization_settings")
       .select("chapter_id", { count: "exact", head: true })
       .eq("story_id", story.id)

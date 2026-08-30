@@ -2,14 +2,14 @@ import { PERMANENTLY_HIDDEN_QUALITY_STATUS } from "@/lib/content-quality/public-
 import { publicContentStatuses } from "@/lib/visibility/contentVisibility";
 import type { NormalizedCatalogParams } from "@/lib/stories/story-catalog-query";
 import { escapeIlikePattern } from "@/lib/stories/story-catalog-query";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 const PUBLIC_STATUSES = [...publicContentStatuses];
 const CATALOG_CANDIDATE_LIMIT = 5000;
 const NEW_CHAPTER_DAYS = 14;
 
 export async function loadPublicCatalogCandidateIds(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   params: NormalizedCatalogParams,
   storyIdFilter: string[] | null
 ): Promise<string[]> {
@@ -17,12 +17,13 @@ export async function loadPublicCatalogCandidateIds(
     return storyIdFilter.slice(0, CATALOG_CANDIDATE_LIMIT);
   }
 
-  let query = supabase
+  let query = db
     .from("stories")
     .select("id")
     .eq("visibility", "public")
     .in("status", PUBLIC_STATUSES)
     .neq("quality_status", PERMANENTLY_HIDDEN_QUALITY_STATUS)
+    .is("deleted_at", null)
     .order("published_at", { ascending: false })
     .limit(CATALOG_CANDIDATE_LIMIT);
 
@@ -31,7 +32,7 @@ export async function loadPublicCatalogCandidateIds(
       "@/lib/taxonomy/public-genres"
     );
     const genreStoryIds = await getPublicStoryIdsForMainGenreSlug(
-      supabase,
+      db,
       params.genre,
       CATALOG_CANDIDATE_LIMIT
     );
@@ -61,7 +62,7 @@ export async function loadPublicCatalogCandidateIds(
 }
 
 export async function getEpisodeCountByStoryId(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyIds: string[]
 ) {
   const counts = new Map<string, number>();
@@ -70,7 +71,7 @@ export async function getEpisodeCountByStoryId(
   const chunkSize = 500;
   for (let i = 0; i < storyIds.length; i += chunkSize) {
     const chunk = storyIds.slice(i, i + chunkSize);
-    const { data, error } = await supabase.rpc("get_public_story_episode_counts", {
+    const { data, error } = await db.rpc("get_public_story_episode_counts", {
       input_story_ids: chunk
     });
     if (!error && data) {
@@ -80,7 +81,7 @@ export async function getEpisodeCountByStoryId(
       continue;
     }
 
-    const { data: fallback } = await supabase
+    const { data: fallback } = await db
       .from("episodes")
       .select("story_id")
       .in("story_id", chunk)
@@ -95,7 +96,7 @@ export async function getEpisodeCountByStoryId(
 }
 
 export async function getSaveCountByStoryId(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyIds: string[]
 ) {
   const counts = new Map<string, number>();
@@ -104,7 +105,7 @@ export async function getSaveCountByStoryId(
   const chunkSize = 500;
   for (let i = 0; i < storyIds.length; i += chunkSize) {
     const chunk = storyIds.slice(i, i + chunkSize);
-    const { data, error } = await supabase.rpc("get_public_story_save_counts", {
+    const { data, error } = await db.rpc("get_public_story_save_counts", {
       input_story_ids: chunk
     });
     if (error) {
@@ -119,7 +120,7 @@ export async function getSaveCountByStoryId(
 }
 
 export async function getFullAccessPriceByStoryId(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyIds: string[]
 ) {
   const prices = new Map<string, number | null>();
@@ -128,7 +129,7 @@ export async function getFullAccessPriceByStoryId(
   const chunkSize = 400;
   for (let i = 0; i < storyIds.length; i += chunkSize) {
     const chunk = storyIds.slice(i, i + chunkSize);
-    const { data } = await supabase
+    const { data } = await db
       .from("story_monetization_settings")
       .select("story_id, full_access_enabled, full_access_price_coin")
       .in("story_id", chunk);
@@ -145,7 +146,7 @@ export async function getFullAccessPriceByStoryId(
 }
 
 export async function getStoryIdsWithRecentEpisodes(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   days = NEW_CHAPTER_DAYS,
   candidateIds?: string[] | null
 ) {
@@ -153,7 +154,7 @@ export async function getStoryIdsWithRecentEpisodes(
   since.setDate(since.getDate() - days);
   const sinceIso = since.toISOString();
 
-  let query = supabase
+  let query = db
     .from("episodes")
     .select("story_id, stories!inner(id)")
     .in("status", PUBLIC_STATUSES)
@@ -187,7 +188,7 @@ export function sortStoryIdsByNumericMap(
 }
 
 export async function getMinPaidChapterPriceByStoryId(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyIds: string[]
 ) {
   const prices = new Map<string, number | null>();
@@ -196,7 +197,7 @@ export async function getMinPaidChapterPriceByStoryId(
   const chunkSize = 200;
   for (let i = 0; i < storyIds.length; i += chunkSize) {
     const chunk = storyIds.slice(i, i + chunkSize);
-    const { data } = await supabase
+    const { data } = await db
       .from("chapter_monetization_settings")
       .select("coin_price, is_paid, episodes!inner(story_id)")
       .in("episodes.story_id", chunk)

@@ -1,25 +1,28 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { assertCreatorOwnsStory } from "@/lib/creator/assertCreatorOwnsStory";
-import { getCurrentCreatorProfile } from "@/lib/creator/getCreatorProfile";
+import { requireCreatorProfile } from "@/lib/creator/require-creator-profile";
 import { parseEpisodeFormData } from "@/lib/creator/episodeFormValidation";
-import { saveEpisodePoll } from "@/lib/supabase/polls";
-import { upsertChapterMonetizationSetting } from "@/lib/supabase/chapter-monetization";
+import { saveEpisodePoll } from "@/lib/data/polls";
+import { upsertChapterMonetizationSetting } from "@/lib/data/chapter-monetization";
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getMonetizationConfig } from "@/lib/monetization/config";
 import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
-import { upsertChapterEarlyAccessSetting } from "@/lib/supabase/early-access";
+import { upsertChapterEarlyAccessSetting } from "@/lib/data/early-access";
 import { resolveReturnBasePath } from "@/lib/creator/resolveReturnBasePath";
 import { linkChapterImagesFromDraft } from "@/lib/images/upload-chapter-image";
 import { generateNumericPublicCode } from "@/lib/urls/public-code";
 import { resolveContentSlug } from "@/lib/urls/slug";
 import { getChapterUrl } from "@/lib/urls/paths";
 import { resolveComposerEpisodePersistFields } from "@/lib/creator/resolve-composer-episode-persist";
+import { persistEpisodeContentToObjectStorage } from "@/lib/chapters/persist-chapter-content";
+import { applyChapterReelsPromoFromForm } from "@/lib/creator/apply-chapter-reels-promo-from-form";
 
 export type EpisodeFormActionState = {
   error: string | null;
+  redirectTo?: string | null;
 };
 
 export async function createEpisodeAction(
@@ -29,17 +32,9 @@ export async function createEpisodeAction(
   const storyId = String(formData.get("story_id") ?? "");
   const studioDraftId = String(formData.get("studio_draft_id") ?? "").trim() || null;
   const returnBasePath = resolveReturnBasePath(formData.get("return_base_path"));
-  const { creatorProfile, user } = await getCurrentCreatorProfile();
-
-  if (!user) {
-    redirect(
-      `/login?next=${returnBasePath}/stories/${storyId}/chapters/new`
-    );
-  }
-
-  if (!creatorProfile) {
-    redirect("/studio/setup");
-  }
+  const { creatorProfile, user } = await requireCreatorProfile(
+    `${returnBasePath}/stories/${storyId}/chapters/new`
+  );
 
   try {
     await assertActionAccess("chapter.create");
@@ -56,14 +51,14 @@ export async function createEpisodeAction(
     return { error: parsed.error };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   await assertCreatorOwnsStory(creatorProfile, storyId);
   const [config, creatorCanEarn] = await Promise.all([
     getMonetizationConfig({ includePrivate: true }),
     isCreatorMonetizationAllowed(creatorProfile.user_id)
   ]);
 
-  const { data: storyRow } = await supabase
+  const { data: storyRow } = await db
     .from("stories")
     .select("slug, public_code")
     .eq("id", storyId)
@@ -73,14 +68,14 @@ export async function createEpisodeAction(
     return { error: "Truyện chưa có mã public URL." };
   }
 
-  const { data: storyMeta } = await supabase
+  const { data: storyMeta } = await db
     .from("stories")
     .select("content_warnings_confirmed")
     .eq("id", storyId)
     .maybeSingle();
 
-  const strictPublish = parsed.values.status === "pending";
-  const composerPersist = await resolveComposerEpisodePersistFields(supabase, {
+  const strictPublish = parsed.values.status === "published";
+  const composerPersist = await resolveComposerEpisodePersistFields(db, {
     content: parsed.values.content,
     contentFormat: parsed.values.contentFormat,
     presentationMode: parsed.values.presentationMode,
@@ -103,18 +98,7 @@ export async function createEpisodeAction(
     };
   }
 
-  if (
-    strictPublish &&
-    parsed.values.contentFormat === "structured_blocks" &&
-    composerPersist.validation_status === "warnings" &&
-    formData.get("composer_warnings_ack") !== "on"
-  ) {
-    return {
-      error: "Vui lòng xác nhận đã xem các cảnh báo Composer trước khi gửi duyệt."
-    };
-  }
-
-  const chapterPublicCode = await generateNumericPublicCode(supabase, "chapter");
+  const chapterPublicCode = await generateNumericPublicCode(db, "chapter");
   const chapterSlug = resolveContentSlug(
     parsed.values.title,
     "chapter",
@@ -125,7 +109,7 @@ export async function createEpisodeAction(
     { slug: chapterSlug, public_code: chapterPublicCode }
   );
 
-  const { data: episode, error } = await supabase
+  const { data: episode, error } = await db
     .from("episodes")
     .insert({
       story_id: storyId,
@@ -134,16 +118,19 @@ export async function createEpisodeAction(
       slug: chapterSlug,
       public_code: chapterPublicCode,
       canonical_path: canonicalPath,
-      content: composerPersist.content,
+      content: "",
       excerpt: parsed.values.excerpt,
-      word_count: parsed.values.wordCount,
+      word_count: 0,
       seo_description: parsed.values.seoDescription,
       seo_keywords: parsed.values.seoKeywords,
       seo_title: parsed.values.seoTitle,
       status: parsed.values.status,
+      published_at:
+        parsed.values.status === "published" ? new Date().toISOString() : null,
       presentation_mode: parsed.values.chapterPresentationMode,
-      structured_content: parsed.values.structuredContent,
+      structured_content: null,
       content_format: parsed.values.contentFormat,
+      content_storage_type: "db",
       validation_status: composerPersist.validation_status,
       validation_errors: composerPersist.validation_errors,
       last_validated_at: composerPersist.last_validated_at,
@@ -154,18 +141,44 @@ export async function createEpisodeAction(
     .select("id")
     .single();
 
-  if (error) {
+  if (error || !episode) {
     return {
       error:
-        error.code === "23505"
+        error?.code === "23505"
           ? "Số chap này đã tồn tại trong truyện."
-          : error.message
+          : error?.message ?? "Không tạo được chương."
     };
+  }
+
+  const objectStorage = await persistEpisodeContentToObjectStorage({
+    storyId,
+    chapterId: String(episode.id),
+    content: composerPersist.content,
+    structuredContent: parsed.values.structuredContent,
+    contentFormat: parsed.values.contentFormat,
+    excerpt: parsed.values.excerpt
+  });
+
+  if (!objectStorage.ok) {
+    await db.from("episodes").delete().eq("id", episode.id);
+    return { error: objectStorage.error };
+  }
+
+  const { error: storagePatchError } = await db
+    .from("episodes")
+    .update({
+      ...objectStorage.dbPatch,
+      excerpt: parsed.values.excerpt?.trim() || objectStorage.dbPatch.excerpt
+    })
+    .eq("id", episode.id);
+
+  if (storagePatchError) {
+    return { error: storagePatchError.message };
   }
 
   if (studioDraftId) {
     try {
-      await linkChapterImagesFromDraft(supabase, {
+      await linkChapterImagesFromDraft(db, {
         draftId: studioDraftId,
         episodeId: episode.id,
         storyId
@@ -214,7 +227,7 @@ export async function createEpisodeAction(
     freePreviewChars: parsed.values.monetization.freePreviewChars
   });
   if (monetizationWrite.error) {
-    return { error: monetizationWrite.error };
+    console.error("[createEpisode] monetization upsert failed:", monetizationWrite.error);
   }
 
   const earlyAccessEnabled =
@@ -257,7 +270,7 @@ export async function createEpisodeAction(
       : null
   });
   if (earlyWrite.error) {
-    return { error: earlyWrite.error };
+    console.error("[createEpisode] early access upsert failed:", earlyWrite.error);
   }
 
   if (parsed.values.poll) {
@@ -275,5 +288,21 @@ export async function createEpisodeAction(
     }
   }
 
-  redirect(`${returnBasePath}/stories/${storyId}/chapters/${episode.id}/edit`);
+  try {
+    await applyChapterReelsPromoFromForm(db, {
+      chapterId: String(episode.id),
+      chapterStatus: parsed.values.status,
+      chapterTitle: parsed.values.title,
+      formData,
+      ownerProfileId: user.id,
+      storyId
+    });
+  } catch {
+    // Reels promo is optional — never block chapter save.
+  }
+
+  const editPath = `${returnBasePath}/stories/${storyId}/chapters/${episode.id}/edit`;
+  revalidatePath(editPath);
+  revalidatePath(`${returnBasePath}/stories/${storyId}/chapters`);
+  return { error: null, redirectTo: editPath };
 }

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { hasAnnouncementSeoIssues } from "@/lib/announcements/labels";
 import { generateNumericPublicCode } from "@/lib/urls/public-code";
 import { getAnnouncementUrl } from "@/lib/urls/paths";
@@ -32,6 +32,9 @@ function mapAnnouncement(row: Record<string, unknown>): PlatformAnnouncement {
     og_title: row.og_title ? String(row.og_title) : null,
     og_description: row.og_description ? String(row.og_description) : null,
     og_image_url: row.og_image_url ? String(row.og_image_url) : null,
+    og_image_media_asset_id: row.og_image_media_asset_id
+      ? String(row.og_image_media_asset_id)
+      : null,
     published_at: row.published_at ? String(row.published_at) : null,
     scheduled_at: row.scheduled_at ? String(row.scheduled_at) : null,
     expires_at: row.expires_at ? String(row.expires_at) : null,
@@ -128,7 +131,7 @@ function applyAdminFilters(query: any, options: AnnouncementListFilters) {
 export async function listAnnouncements(
   options: ListInput = {}
 ): Promise<{ items: PlatformAnnouncement[]; total: number; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
   const isAdminFilters = "audience" in options && "page" in options;
   const adminFilters = isAdminFilters ? (options as AnnouncementListFilters) : null;
   const isPublicPaginated = "publicOnly" in options && options.publicOnly && "page" in options;
@@ -146,7 +149,7 @@ export async function listAnnouncements(
     seoFilter && ["missing_seo_title", "missing_seo_description", "seo_issue"].includes(seoFilter)
   );
 
-  let query = supabase.from("platform_announcements").select("*", { count: "exact" });
+  let query = db.from("platform_announcements").select("*", { count: "exact" });
 
   if ("publicOnly" in options && options.publicOnly) {
     query = applyPublicVisibilityFilters(query);
@@ -219,8 +222,8 @@ export async function getAnnouncementStats(): Promise<{
   stats: AnnouncementStats;
   error: string | null;
 }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("platform_announcements").select("*");
+  const db = await createClient();
+  const { data, error } = await db.from("platform_announcements").select("*");
 
   if (error) {
     return {
@@ -266,8 +269,8 @@ export async function listAnnouncementIdsByFilters(
 export async function getAnnouncementById(
   id: string
 ): Promise<{ item: PlatformAnnouncement | null; error: string | null }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("platform_announcements")
     .select("*")
     .eq("id", id)
@@ -287,8 +290,8 @@ export async function isAnnouncementSlugTaken(
   slug: string,
   excludeId?: string
 ): Promise<boolean> {
-  const supabase = await createClient();
-  let query = supabase.from("platform_announcements").select("id").eq("slug", slug);
+  const db = await createClient();
+  let query = db.from("platform_announcements").select("id").eq("slug", slug);
 
   if (excludeId) {
     query = query.neq("id", excludeId);
@@ -306,9 +309,9 @@ export async function getAnnouncementBySlug(
   slug: string,
   options: { publicOnly?: boolean } = {}
 ): Promise<{ item: PlatformAnnouncement | null; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  let query = supabase.from("platform_announcements").select("*").eq("slug", slug);
+  let query = db.from("platform_announcements").select("*").eq("slug", slug);
 
   if (options.publicOnly) {
     query = applyPublicVisibilityFilters(query);
@@ -330,9 +333,9 @@ export async function getAnnouncementByPublicCode(
   publicCode: string,
   options: { publicOnly?: boolean } = {}
 ): Promise<{ item: PlatformAnnouncement | null; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  let query = supabase
+  let query = db
     .from("platform_announcements")
     .select("*")
     .eq("public_code", publicCode);
@@ -356,7 +359,7 @@ export async function getAnnouncementByPublicCode(
 export async function createAnnouncement(
   input: CreateAnnouncementInput
 ): Promise<{ item: PlatformAnnouncement | null; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date().toISOString();
   const status = input.status ?? "draft";
   const publishedAt =
@@ -365,14 +368,14 @@ export async function createAnnouncement(
   const visibility = input.visibility ?? "public";
   const publicCode =
     visibility === "public"
-      ? await generateNumericPublicCode(supabase, "announcement")
+      ? await generateNumericPublicCode(db, "announcement")
       : null;
   const canonicalPath =
     publicCode && input.slug
       ? getAnnouncementUrl({ slug: input.slug, public_code: publicCode })
       : input.canonical_path ?? null;
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("platform_announcements")
     .insert({
       title: input.title,
@@ -393,6 +396,7 @@ export async function createAnnouncement(
       og_title: input.og_title ?? null,
       og_description: input.og_description ?? null,
       og_image_url: input.og_image_url ?? null,
+      og_image_media_asset_id: input.og_image_media_asset_id ?? null,
       published_at: publishedAt,
       scheduled_at: input.scheduled_at ?? null,
       expires_at: input.expires_at ?? null,
@@ -413,10 +417,10 @@ export async function updateAnnouncement(
   id: string,
   input: UpdateAnnouncementInput
 ): Promise<{ item: PlatformAnnouncement | null; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
   const patch: Record<string, unknown> = { ...input };
 
-  const { data: existingRow } = await supabase
+  const { data: existingRow } = await db
     .from("platform_announcements")
     .select("published_at, public_code, slug, visibility")
     .eq("id", id)
@@ -431,12 +435,12 @@ export async function updateAnnouncement(
   const nextVisibility = input.visibility ?? existingRow?.visibility ?? "public";
   const slug = input.slug ?? existingRow?.slug;
   if (nextVisibility === "public" && !existingRow?.public_code && slug) {
-    const publicCode = await generateNumericPublicCode(supabase, "announcement");
+    const publicCode = await generateNumericPublicCode(db, "announcement");
     patch.public_code = publicCode;
     patch.canonical_path = getAnnouncementUrl({ slug, public_code: publicCode });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("platform_announcements")
     .update(patch)
     .eq("id", id)
@@ -463,8 +467,8 @@ export async function updateAnnouncementStatus(
 export async function deleteAnnouncement(
   id: string
 ): Promise<{ ok: boolean; error: string | null }> {
-  const supabase = await createClient();
-  const { error } = await supabase.from("platform_announcements").delete().eq("id", id);
+  const db = await createClient();
+  const { error } = await db.from("platform_announcements").delete().eq("id", id);
   return { ok: !error, error: error?.message ?? null };
 }
 
@@ -476,8 +480,8 @@ export async function bulkUpdateAnnouncements(
     return { updated: 0, error: null };
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("platform_announcements")
     .update(patch)
     .in("id", ids)
@@ -497,8 +501,8 @@ export async function bulkDeleteAnnouncements(
     return { deleted: 0, error: null };
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("platform_announcements")
     .delete()
     .in("id", ids)
@@ -540,6 +544,7 @@ export async function duplicateAnnouncement(
     og_title: source.og_title,
     og_description: source.og_description,
     og_image_url: source.og_image_url,
+    og_image_media_asset_id: source.og_image_media_asset_id,
     scheduled_at: null,
     expires_at: null
   });

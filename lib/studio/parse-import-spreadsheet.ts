@@ -1,6 +1,10 @@
 import * as XLSX from "xlsx";
 import { normalizeHeader } from "@/lib/studio/csv";
 import {
+  isVietnameseLabelRow,
+  resolveImportHeaderLabels
+} from "@/lib/studio/import-v2-header-labels";
+import {
   isChaptersImportV2Headers,
   isStoriesImportV2Headers
 } from "@/lib/studio/import-v2-headers";
@@ -28,7 +32,18 @@ function aoaToTable(aoa: unknown[][]): { headers: string[]; rows: string[][] } {
   }
 
   const headers = cleaned[0].map((cell) => normalizeHeader(cell));
-  const rows = cleaned.slice(1).map((row) => {
+  const labelMap = resolveImportHeaderLabels(headers);
+  let dataStart = 1;
+
+  if (
+    cleaned.length > 1 &&
+    labelMap &&
+    isVietnameseLabelRow(headers, cleaned[1], labelMap)
+  ) {
+    dataStart = 2;
+  }
+
+  const rows = cleaned.slice(dataStart).map((row) => {
     const cells = [...row];
     while (cells.length < headers.length) {
       cells.push("");

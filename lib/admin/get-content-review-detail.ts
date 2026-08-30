@@ -1,7 +1,7 @@
 "use server";
 
 import { ADMIN_CREATOR_JOIN, resolveAdminCreatorName } from "@/lib/admin/creator-display";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { ContentReviewDetail, ContentReviewQueueItem } from "@/types/admin-content-review";
 
 function firstRelation<T>(relation: unknown): T | null {
@@ -38,11 +38,11 @@ function buildChecklist(input: {
 export async function getContentReviewDetail(
   item: ContentReviewQueueItem
 ): Promise<{ detail: ContentReviewDetail | null; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
 
   try {
     if (item.type === "story") {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("stories")
         .select(
           `id, title, slug, hook, short_description, long_description, cover_url, visibility, status, ${ADMIN_CREATOR_JOIN}`
@@ -67,7 +67,7 @@ export async function getContentReviewDetail(
         display_name: string | null;
         is_verified: boolean;
       }>(creator?.profiles);
-      const author = await loadAuthorStats(supabase, creator?.user_id ?? null);
+      const author = await loadAuthorStats(db, creator?.user_id ?? null);
 
       const detail: ContentReviewDetail = {
         item: {
@@ -100,7 +100,7 @@ export async function getContentReviewDetail(
     }
 
     if (item.type === "episode") {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("episodes")
         .select("id, title, excerpt, content, word_count, status, story_id, stories(slug, title)")
         .eq("id", item.id)
@@ -143,7 +143,7 @@ export async function getContentReviewDetail(
     }
 
     if (item.type === "community_post") {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("community_posts")
         .select("id, title, content, status")
         .eq("id", item.id)
@@ -183,7 +183,7 @@ export async function getContentReviewDetail(
     }
 
     if (item.type === "comment") {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("comments")
         .select("id, body, status")
         .eq("id", item.id)
@@ -232,7 +232,7 @@ export async function getContentReviewDetail(
 }
 
 async function loadAuthorStats(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   userId: string | null
 ) {
   if (!userId) {
@@ -245,7 +245,7 @@ async function loadAuthorStats(
     };
   }
 
-  const { data: creator } = await supabase
+  const { data: creator } = await db
     .from("creator_profiles")
     .select("id, status, user_id")
     .eq("user_id", userId)
@@ -255,26 +255,26 @@ async function loadAuthorStats(
 
   const [publishedRes, rejectedRes, reportsRes, profileRes] = await Promise.all([
     creatorId
-      ? supabase
+      ? db
           .from("stories")
           .select("id", { count: "exact", head: true })
           .eq("creator_id", creatorId)
           .in("status", ["approved", "published"])
       : Promise.resolve({ count: 0, error: null }),
     creatorId
-      ? supabase
+      ? db
           .from("stories")
           .select("id", { count: "exact", head: true })
           .eq("creator_id", creatorId)
           .eq("status", "rejected")
       : Promise.resolve({ count: 0, error: null }),
-    supabase
+    db
       .from("reports")
       .select("id", { count: "exact", head: true })
       .eq("target_type", "user")
       .eq("target_id", userId)
       .in("status", ["open", "reviewing"]),
-    supabase.from("profiles").select("is_verified").eq("id", userId).maybeSingle()
+    db.from("profiles").select("is_verified").eq("id", userId).maybeSingle()
   ]);
 
   return {

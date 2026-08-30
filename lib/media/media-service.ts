@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import {
   linkStorageAssetToEntity,
   markStorageAssetReplaced,
@@ -28,14 +28,14 @@ export type RegisterMediaAssetInput = Omit<
 };
 
 export async function registerMediaAsset(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: RegisterMediaAssetInput
 ) {
-  return registerStorageAsset(supabase, input);
+  return registerStorageAsset(db, input);
 }
 
 export async function linkMediaAssetToEntity(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     bucket: string;
     path: string;
@@ -44,15 +44,15 @@ export async function linkMediaAssetToEntity(
     field: string;
   }
 ) {
-  return linkStorageAssetToEntity(supabase, input);
+  return linkStorageAssetToEntity(db, input);
 }
 
 export async function touchMediaAssets(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   assets: Array<{ bucket: string; path: string }>
 ) {
   const results = await Promise.all(
-    assets.map((asset) => markStorageAssetUsed(supabase, asset))
+    assets.map((asset) => markStorageAssetUsed(db, asset))
   );
   return {
     error: results.find((result) => result.error)?.error ?? null
@@ -60,7 +60,7 @@ export async function touchMediaAssets(
 }
 
 export async function markMediaReplaced(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     bucket?: string;
     path?: string;
@@ -68,15 +68,15 @@ export async function markMediaReplaced(
     replacedTtlDays?: number;
   }
 ) {
-  return markStorageAssetReplaced(supabase, {
+  return markStorageAssetReplaced(db, {
     ...input,
     replacedTtlDays: input.replacedTtlDays ?? 14
   });
 }
 
 export async function markMediaUnlinked(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: Parameters<typeof unlinkStorageAssetFromEntity>[1]
 ) {
-  return unlinkStorageAssetFromEntity(supabase, input);
+  return unlinkStorageAssetFromEntity(db, input);
 }

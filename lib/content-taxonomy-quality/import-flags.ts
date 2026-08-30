@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import {
   loadTaxonomyQualityRules,
   runTaxonomyQualityCheckForStory
@@ -16,14 +16,14 @@ function countMessagePattern(messages: string[], pattern: RegExp) {
 }
 
 export async function recordImportBatchTaxonomyFlags(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     jobId: string;
     rowIssues: ImportRowIssue[];
     importedStoryIds: string[];
   }
 ) {
-  const rules = await loadTaxonomyQualityRules(supabase);
+  const rules = await loadTaxonomyQualityRules(db);
   const importRule = rules.import_error;
   if (importRule?.isEnabled === false) {
     return { flagsCreated: 0 };
@@ -59,7 +59,7 @@ export async function recordImportBatchTaxonomyFlags(
       if (storyIssues.length === 0) continue;
 
       const reason = `Import job có lỗi taxonomy (${storyIssues.length} dòng liên quan).`;
-      await upsertImportFlag(supabase, {
+      await upsertImportFlag(db, {
         storyId,
         jobId: input.jobId,
         severity,
@@ -77,14 +77,14 @@ export async function recordImportBatchTaxonomyFlags(
   }
 
   for (const storyId of input.importedStoryIds) {
-    await runTaxonomyQualityCheckForStory(supabase, storyId, rules);
+    await runTaxonomyQualityCheckForStory(db, storyId, rules);
   }
 
   return { flagsCreated };
 }
 
 async function upsertImportFlag(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     storyId: string;
     jobId: string;
@@ -93,7 +93,7 @@ async function upsertImportFlag(
     details: Record<string, unknown>;
   }
 ) {
-  const { data: existing } = await supabase
+  const { data: existing } = await db
     .from("content_taxonomy_quality_flags")
     .select("id")
     .eq("story_id", input.storyId)
@@ -110,12 +110,12 @@ async function upsertImportFlag(
   };
 
   if (existing?.id) {
-    await supabase
+    await db
       .from("content_taxonomy_quality_flags")
       .update(payload)
       .eq("id", existing.id);
   } else {
-    await supabase.from("content_taxonomy_quality_flags").insert({
+    await db.from("content_taxonomy_quality_flags").insert({
       story_id: input.storyId,
       flag_type: "import_error",
       status: "open",

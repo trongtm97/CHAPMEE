@@ -8,10 +8,11 @@ type ErrorStateProps = {
   variant?: "warning" | "danger";
 };
 
-function isMissingSupabaseEnv(message: string) {
+function isMissingAppEnv(message: string) {
   return (
-    message.includes("NEXT_PUBLIC_SUPABASE_URL") ||
-    message.includes("NEXT_PUBLIC_SUPABASE_ANON_KEY") ||
+    message.includes("DATABASE_URL") ||
+    message.includes("BETTER_AUTH_SECRET") ||
+    message.includes("POSTGREST_URL") ||
     message.toLowerCase().includes("missing required environment variable")
   );
 }
@@ -25,8 +26,8 @@ function safeErrorMessage(message: string | null | undefined) {
     return message;
   }
 
-  if (isMissingSupabaseEnv(message)) {
-    return "App configuration is incomplete. A Supabase environment variable is missing.";
+  if (isMissingAppEnv(message)) {
+    return "App configuration is incomplete. Check DATABASE_URL, BETTER_AUTH_SECRET, and related env vars in .env.local.";
   }
 
   return "Something went wrong while loading this page. Please try again. If this keeps happening, check the server logs.";

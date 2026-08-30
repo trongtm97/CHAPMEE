@@ -66,7 +66,7 @@ Không xóa migration đã chạy trên production. Trước 177: có thể tắ
 - Regenerate SQL seed: `npm run taxonomy:seed-sql`
 - Kiểm tra map subgenre: `npm run taxonomy:verify-slugs`
 - Admin import JSON/CSV tại `/admin/taxonomy`
-- `supabase/seed.sql` — demo stories dùng `story_taxonomy_terms`, không còn `genres`/`story_tags`
+- `db/seed.sql` — demo stories dùng `story_taxonomy_terms`, không còn `genres`/`story_tags`
 
 ## 7. Post-177 cron
 

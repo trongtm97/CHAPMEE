@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   canResubmitQualityStatus,
   isNeedsActionStatus,
@@ -136,9 +136,9 @@ export async function getAuthorContentHealth(
   creatorProfile: CreatorProfile,
   tab: ContentQualityListTab = "all"
 ): Promise<AuthorContentHealthResult> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: stories } = await supabase
+  const { data: stories } = await db
     .from("stories")
     .select(
       "id, title, slug, structure_type, quality_status, low_quality_attempt_count, monetization_disabled_by_quality, quality_updated_at, updated_at"
@@ -149,7 +149,7 @@ export async function getAuthorContentHealth(
 
   const storyRows = stories ?? [];
 
-  const { data: latestReviews } = await supabase
+  const { data: latestReviews } = await db
     .from("content_quality_reviews")
     .select("*")
     .eq("author_id", creatorProfile.id)
@@ -230,9 +230,9 @@ export async function getAuthorContentQualityDetail(
   creatorProfile: CreatorProfile,
   storyId: string
 ): Promise<ContentQualityDetail | null> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: story } = await supabase
+  const { data: story } = await db
     .from("stories")
     .select(
       "id, title, slug, structure_type, quality_status, low_quality_attempt_count, monetization_disabled_by_quality, monetization_status, free_access_set_at, quality_updated_at, updated_at, creator_id"
@@ -245,7 +245,7 @@ export async function getAuthorContentQualityDetail(
     return null;
   }
 
-  const { data: historyRows } = await supabase
+  const { data: historyRows } = await db
     .from("content_quality_reviews")
     .select("*")
     .eq("story_id", storyId)
@@ -314,8 +314,8 @@ export async function getAuthorContentQualityDetail(
 export async function getAuthorNeedsActionQualityCount(
   creatorProfile: CreatorProfile
 ) {
-  const supabase = await createClient();
-  const { count } = await supabase
+  const db = await createClient();
+  const { count } = await db
     .from("stories")
     .select("id", { count: "exact", head: true })
     .eq("creator_id", creatorProfile.id)

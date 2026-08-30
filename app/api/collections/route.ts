@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
 import { getCurrentProfile } from "@/lib/auth/getCurrentProfile";
 import { guardCollectionMutation } from "@/lib/actions/collections";
-import { createCollection, getMyCollections } from "@/lib/supabase/collections";
+import { createCollection, getMyCollections } from "@/lib/data/collections";
 
 export async function GET(request: Request) {
   const { user } = await getCurrentProfile();
@@ -27,13 +27,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ collections });
   }
 
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
+  const { createClient } = await import("@/lib/data/server");
+  const db = await createClient();
   const collectionIds = collections.map((collection) => collection.id);
   const containedIds = new Set<string>();
 
   if (collectionIds.length > 0) {
-    const { data } = await supabase
+    const { data } = await db
       .from("collection_items")
       .select("collection_id")
       .eq("story_id", storyId)
@@ -79,9 +79,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Tên tủ tối đa 60 ký tự." }, { status: 400 });
   }
 
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  const { data: existing } = await supabase
+  const { createClient } = await import("@/lib/data/server");
+  const db = await createClient();
+  const { data: existing } = await db
     .from("collections")
     .select("id")
     .eq("user_id", user.id)

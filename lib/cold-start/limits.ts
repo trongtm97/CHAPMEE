@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { loadColdStartConfig } from "@/lib/cold-start/config";
 import type { AuthorColdStartLimit } from "@/types/cold-start";
 
@@ -9,13 +9,13 @@ function todayStartIso() {
 }
 
 export async function applyAuthorColdStartLimit(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   authorUserId: string
 ): Promise<AuthorColdStartLimit> {
   const config = await loadColdStartConfig();
   const todayStart = todayStartIso();
 
-  const { count: dailyCount } = await supabase
+  const { count: dailyCount } = await db
     .from("cold_start_tests")
     .select("id", { count: "exact", head: true })
     .eq("author_user_id", authorUserId)
@@ -36,7 +36,7 @@ export async function applyAuthorColdStartLimit(
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { count: failedCount } = await supabase
+  const { count: failedCount } = await db
     .from("cold_start_tests")
     .select("id", { count: "exact", head: true })
     .eq("author_user_id", authorUserId)
@@ -49,7 +49,7 @@ export async function applyAuthorColdStartLimit(
   else if (failed >= 3) quotaMultiplier = 0.5;
   else if (failed >= 1) quotaMultiplier = 0.75;
 
-  const { data: authorMetrics } = await supabase
+  const { data: authorMetrics } = await db
     .from("author_metrics_daily")
     .select("reports, hides, impressions")
     .eq("author_user_id", authorUserId)

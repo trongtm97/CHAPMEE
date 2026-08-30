@@ -1,10 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export type ChapterManagerAuditAction =
   | "chapter_hide"
   | "chapter_delete_draft"
   | "chapter_batch_hide"
   | "chapter_batch_draft"
+  | "chapter_batch_publish"
   | "chapter_batch_delete"
   | "chapter_renumber"
   | "chapter_export_csv";
@@ -21,8 +22,8 @@ type LogChapterManagerAuditInput = {
 /** Ghi sự kiện quản lý chương — dùng analytics_events cho tới khi có bảng audit riêng. */
 export async function logChapterManagerAudit(input: LogChapterManagerAuditInput) {
   try {
-    const supabase = await createClient();
-    await supabase.from("analytics_events").insert({
+    const db = await createClient();
+    await db.from("analytics_events").insert({
       event_name: "studio_chapter_manager",
       metadata: {
         action: input.action,

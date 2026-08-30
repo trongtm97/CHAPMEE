@@ -1,15 +1,18 @@
 "use client";
 
-type BackgroundOption = {
+import { resolvePublicMediaUrlClient } from "@/lib/media/public-media-client";
+
+export type BackgroundOption = {
   id: string;
   label: string;
-  url: string | null;
+  /** Value persisted to reels_items.background_image_url (object key or null). */
+  storageValue: string | null;
 };
 
 type ReelsBackgroundPickerProps = {
   options: BackgroundOption[];
   value: string | null;
-  onChange: (url: string | null, optionId: string) => void;
+  onChange: (storageValue: string | null, optionId: string) => void;
 };
 
 export function ReelsBackgroundPicker({
@@ -22,7 +25,10 @@ export function ReelsBackgroundPicker({
       <p className="text-sm font-semibold text-zinc-100">Hình nền</p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {options.map((option) => {
-          const selected = value === option.url && option.id !== "gradient";
+          const selected =
+            value === option.storageValue &&
+            (option.id !== "gradient" || option.storageValue === null);
+          const previewUrl = resolvePublicMediaUrlClient(option.storageValue);
 
           return (
             <button
@@ -33,15 +39,15 @@ export function ReelsBackgroundPicker({
               }`}
               key={option.id}
               onClick={() =>
-                onChange(option.id === "gradient" ? null : option.url, option.id)
+                onChange(option.id === "gradient" ? null : option.storageValue, option.id)
               }
               type="button"
             >
               <div
                 className="h-20 w-full rounded-lg bg-cover bg-center"
                 style={
-                  option.url
-                    ? { backgroundImage: `url(${option.url})` }
+                  previewUrl
+                    ? { backgroundImage: `url(${previewUrl})` }
                     : {
                         backgroundImage:
                           "linear-gradient(145deg, rgba(8,47,73,0.96), rgba(4,7,12,0.98))"

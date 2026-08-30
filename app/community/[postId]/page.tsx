@@ -5,6 +5,7 @@ import { CommunityPostDetail } from "@/components/community/CommunityPostDetail"
 import { ErrorState } from "@/components/ui";
 import { getCommunityPostComments } from "@/lib/comments/getComments";
 import { getCommunityPost } from "@/lib/community/getCommunityPost";
+import { metadataFromSeoEngine } from "@/lib/seo/public-page-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +23,15 @@ export async function generateMetadata({
     return { title: "Bài viết không tồn tại" };
   }
 
-  return {
-    title: post.title,
-    description: post.contentPreview.slice(0, 160)
-  };
+  return metadataFromSeoEngine({
+    path: `/community/${postId}`,
+    pageType: "community",
+    targetType: "route",
+    fallbackTitle: post.title,
+    fallbackDescription: post.contentPreview.slice(0, 160),
+    indexableOverride: false,
+    followOverride: true
+  });
 }
 
 export default async function CommunityPostPage({ params }: CommunityPostPageProps) {

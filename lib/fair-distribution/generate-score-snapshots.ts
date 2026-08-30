@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { getFairDistributionConfig } from "@/lib/fair-distribution/settings";
 import { loadTaxonomyExposureShare } from "@/lib/fair-distribution/load-taxonomy-context";
 import {
@@ -6,7 +6,7 @@ import {
   loadQualityContextForCandidates
 } from "@/lib/fair-distribution/quality-penalties";
 import { scoreStoryCandidate } from "@/lib/fair-distribution/score-story-candidate";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { FairDistributionSurface } from "@/types/fair-distribution";
 import type { FeedCandidate } from "@/types/feed-mixer";
 
@@ -20,12 +20,12 @@ export type GenerateFdsSnapshotsResult = {
 };
 
 export async function generateFdsRecommendationSnapshots(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   options: { storyLimit?: number } = {}
 ): Promise<GenerateFdsSnapshotsResult> {
   const limit = options.storyLimit ?? 120;
 
-  const { data: stories, error: storiesError } = await supabase
+  const { data: stories, error: storiesError } = await db
     .from("stories")
     .select("id, published_at, creator_profiles(user_id)")
     .in("status", ["published", "approved"])
@@ -48,9 +48,9 @@ export async function generateFdsRecommendationSnapshots(
   const { loadStoryTaxonomyBatch } = await import(
     "@/lib/fair-distribution/load-taxonomy-context"
   );
-  const taxonomyMeta = await loadStoryTaxonomyBatch(supabase, storyIds);
+  const taxonomyMeta = await loadStoryTaxonomyBatch(db, storyIds);
 
-  const { data: scoreRows } = await supabase
+  const { data: scoreRows } = await db
     .from("content_score_snapshots")
     .select("item_id, quality_score, discovery_score, freshness_score")
     .eq("item_type", "story")
@@ -96,8 +96,7 @@ export async function generateFdsRecommendationSnapshots(
     };
   });
 
-  const { flags, qualityStatuses } = await loadQualityContextForCandidates(
-    supabase,
+  const { flags, qualityStatuses } = await loadQualityContextForCandidates(db,
     candidates
   );
 
@@ -109,7 +108,7 @@ export async function generateFdsRecommendationSnapshots(
   }> = [];
 
   for (const surface of SURFACES) {
-    const taxonomyShare = await loadTaxonomyExposureShare(supabase, surface, 7);
+    const taxonomyShare = await loadTaxonomyExposureShare(db, surface, 7);
 
     for (const candidate of candidates) {
       const penalty = computeQualityPenalty(
@@ -140,7 +139,7 @@ export async function generateFdsRecommendationSnapshots(
     return { ok: true, storiesProcessed: stories.length, snapshotsWritten: 0 };
   }
 
-  const { error: insertError } = await supabase
+  const { error: insertError } = await db
     .from("recommendation_score_snapshots")
     .insert(rows);
 

@@ -533,6 +533,11 @@ export function MonetizationStoriesTab({
                                   ? "Một phần"
                                   : "Nhiều chương"}
                               </p>
+                              <p className="truncate text-xs text-zinc-500">
+                                {story.contentOrigin === "translation"
+                                  ? "Truyện Dịch · Miễn phí 100%"
+                                  : "Truyện Sáng Tác"}
+                              </p>
                             </div>
                           </div>
                         </td>
@@ -596,6 +601,7 @@ export function MonetizationStoriesTab({
                         <td className="whitespace-nowrap px-2 py-2 align-middle text-right">
                           <StoryRowActions
                             canConfigure={canConfigure}
+                            disablePaidToggle={!story.canSellChapters}
                             menuOpen={menuStoryId === story.storyId}
                             onCloseMenu={() => setMenuStoryId(null)}
                             onConfigure={() => setEditingStory(story)}
@@ -691,7 +697,7 @@ export function MonetizationStoriesTab({
                             </MonetizationTableButton>
                             <MonetizationTableButton
                               className="flex-1"
-                              disabled={!canConfigure || isPending}
+                              disabled={!canConfigure || isPending || !story.canSellChapters}
                               onClick={() => setPendingToggle(story)}
                               tone={story.monetizationEnabled ? "amber" : "green"}
                             >
@@ -820,6 +826,7 @@ function StoryCover({ coverUrl, title }: { coverUrl: string | null; title: strin
 
 function StoryRowActions({
   canConfigure,
+  disablePaidToggle,
   menuOpen,
   onCloseMenu,
   onConfigure,
@@ -829,6 +836,7 @@ function StoryRowActions({
   story
 }: {
   canConfigure: boolean;
+  disablePaidToggle: boolean;
   menuOpen: boolean;
   onCloseMenu: () => void;
   onConfigure: () => void;
@@ -843,7 +851,7 @@ function StoryRowActions({
         Cài đặt
       </MonetizationTableButton>
       <MonetizationTableButton
-        disabled={!canConfigure}
+        disabled={!canConfigure || disablePaidToggle}
         onClick={onToggle}
         tone={story.monetizationEnabled ? "amber" : "green"}
       >
@@ -895,7 +903,7 @@ function StoryRowActions({
           </button>
           <button
             className="block w-full rounded-lg px-3 py-2 text-left text-sm text-zinc-200 hover:bg-white/5"
-            disabled={!canConfigure}
+            disabled={!canConfigure || disablePaidToggle}
             onClick={() => {
               onCloseMenu();
               onToggle();

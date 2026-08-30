@@ -1,8 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { candidateKey } from "@/lib/feed/cursor";
 
 export async function loadUserFeedExclusions(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   userId: string | null | undefined
 ) {
   const excludeKeys = new Set<string>();
@@ -15,13 +15,13 @@ export async function loadUserFeedExclusions(
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
   const [actionsRes, exposureRes] = await Promise.all([
-    supabase
+    db
       .from("user_action_events")
       .select("action_type, item_type, item_id")
       .eq("user_id", userId)
       .in("action_type", ["hide", "report"])
       .limit(500),
-    supabase
+    db
       .from("exposure_events")
       .select("item_type, item_id")
       .eq("user_id", userId)

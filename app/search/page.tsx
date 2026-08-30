@@ -3,12 +3,14 @@ import { Suspense } from "react";
 import { TaxonomyFilterApplyTracker } from "@/components/analytics/TaxonomyFilterApplyTracker";
 import { SearchPageView } from "@/components/search/SearchPageView";
 import { LoadingState } from "@/components/ui";
-import { buildCanonicalUrl, cleanText } from "@/lib/seo/metadata";
+import { cleanText } from "@/lib/seo/metadata";
+import { metadataForStaticRoute } from "@/lib/seo/public-page-metadata";
 
 type SearchPageProps = {
   searchParams: Promise<{
     q?: string;
     type?: string;
+    origin?: string;
     page?: string;
     genre?: string;
   }>;
@@ -21,20 +23,16 @@ export async function generateMetadata({
 }: SearchPageProps): Promise<Metadata> {
   const params = await searchParams;
   const query = cleanText(params.q);
-  const title = query ? `Tìm kiếm: ${query}` : "Tìm kiếm";
-  const description = query
-    ? `Kết quả tìm kiếm cho "${query}" trên ChapMee.`
-    : "Tìm truyện, tác giả, chương và bài viết trên ChapMee.";
-  const canonical = buildCanonicalUrl(
-    query ? `/search?q=${encodeURIComponent(query)}` : "/search"
-  );
-
-  return {
-    title,
-    description,
-    alternates: canonical ? { canonical } : undefined,
-    robots: query ? { index: false, follow: true } : undefined
-  };
+  return metadataForStaticRoute({
+    path: "/search",
+    pageType: "static",
+    fallbackTitle: query ? `Tìm kiếm: ${query}` : "Tìm kiếm | ChapMee",
+    fallbackDescription: query
+      ? `Kết quả tìm kiếm cho "${query}" trên ChapMee.`
+      : "Tìm truyện, tác giả, chương và bài viết trên ChapMee.",
+    indexableOverride: false,
+    followOverride: true
+  });
 }
 
 export default function SearchPage({ searchParams }: SearchPageProps) {
@@ -55,6 +53,7 @@ async function SearchPageContent({ searchParams }: SearchPageProps) {
       />
       <SearchPageView
         genre={params.genre ?? ""}
+        origin={params.origin ?? "all"}
         page={Number(params.page ?? "1")}
         query={params.q ?? ""}
         type={params.type ?? "all"}

@@ -9,9 +9,9 @@ import {
   restoreComposerDefaultsAction,
   saveComposerBlockTypesAction,
   saveComposerModesAction,
-  saveComposerValidationSettingsAction
+  saveComposerValidationSettingsAction,
+  validateComposerTemplatesAction
 } from "@/lib/admin/composer-settings-actions";
-import { listFormatTemplatesAdminAction } from "@/lib/admin/taxonomy-actions";
 import { getDefaultComposerAdminSettings } from "@/lib/composer/composer-settings-defaults";
 import type {
   ComposerAdminSettingsBundle,
@@ -850,28 +850,16 @@ export function AdminStoryFormatsPage() {
             <Button
               onClick={() =>
                 startTransition(async () => {
-                  const result = await listFormatTemplatesAdminAction();
-                  if (result.error) setMessage(result.error);
-                  else {
-                    setSettings({
-                      ...settings,
-                      templates: result.items.map((item) => ({
-                        id: item.id,
-                        name: item.name,
-                        slug: item.name.toLowerCase().replace(/\s+/g, "-"),
-                        mode_key: item.mode as ComposerMode,
-                        content_structure: "both",
-                        description: item.description,
-                        starter_blocks_json: item.example_json ?? {},
-                        preview_text: item.description ?? null,
-                        active: item.is_active,
-                        creator_selectable: true,
-                        sort_order: item.sort_order,
-                        updated_at: item.updated_at
-                      }))
-                    });
-                    setMessage("Đã đồng bộ templates từ taxonomy.");
+                  const validation = await validateComposerTemplatesAction();
+                  if (validation.error) {
+                    setMessage(validation.error);
+                    return;
                   }
+                  const refreshed = await loadComposerAdminSettingsAction();
+                  setSettings(refreshed.settings);
+                  setMessage(
+                    `Templates: ${validation.valid}/${validation.total} hợp lệ · lỗi ${validation.invalid} · cảnh báo ${validation.warnings}.`
+                  );
                 })
               }
               type="button"

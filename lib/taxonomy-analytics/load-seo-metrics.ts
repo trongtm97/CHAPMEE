@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export type TaxonomySeoTopStory = {
   storyId: string;
@@ -18,8 +18,8 @@ export async function loadSeoTopStoriesByTerm(input: {
     return result;
   }
 
-  const supabase = createAdminClient();
-  const { data: metricRows } = await supabase
+  const db = createAdminClient();
+  const { data: metricRows } = await db
     .from("taxonomy_story_metrics")
     .select("term_id, story_id, clicks")
     .gte("date", input.from)
@@ -43,7 +43,7 @@ export async function loadSeoTopStoriesByTerm(input: {
 
   const storyMeta = new Map<string, { title: string; slug: string }>();
   if (storyIds.length > 0) {
-    const { data: stories } = await supabase
+    const { data: stories } = await db
       .from("stories")
       .select("id, title, slug")
       .in("id", storyIds);
@@ -89,8 +89,8 @@ export async function loadTaxonomyPageSeoMetrics(input: {
     }
   >
 > {
-  const supabase = createAdminClient();
-  let query = supabase
+  const db = createAdminClient();
+  let query = db
     .from("taxonomy_daily_metrics")
     .select("term_id, taxonomy_page_views, clicks, filter_applies")
     .gte("date", input.from)

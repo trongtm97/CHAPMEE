@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export async function getPublicUserIdByUsername(username: string) {
   const normalized = username.trim().toLowerCase();
@@ -6,8 +6,8 @@ export async function getPublicUserIdByUsername(username: string) {
     return null;
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("profiles")
     .select("id")
     .eq("username", normalized)
@@ -27,8 +27,8 @@ export async function getPublicCreatorIdByUsername(username: string) {
     return null;
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("creator_profiles")
     .select("id")
     .eq("user_id", userId)

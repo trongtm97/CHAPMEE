@@ -2,7 +2,7 @@ export async function fetchEmailsForUsers(userIds: string[]): Promise<Map<string
   const map = new Map<string, string>();
   if (!userIds.length) return map;
   try {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const { createAdminClient } = await import("@/lib/data/admin");
     const admin = createAdminClient();
     await Promise.all(
       userIds.slice(0, 80).map(async (id) => {

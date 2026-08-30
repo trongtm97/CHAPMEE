@@ -1,0 +1,1 @@
+export const PLATFORM_CONTENT_UPDATED_AT = "03/06/2026";

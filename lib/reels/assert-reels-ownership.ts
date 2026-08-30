@@ -1,7 +1,7 @@
-﻿import { notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { assertCreatorOwnsStory } from "@/lib/creator/assertCreatorOwnsStory";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { mapReelsRow } from "@/lib/reels/map-reels-row";
 import type { ReelsItemRecord } from "@/types/reels";
 
@@ -9,8 +9,8 @@ export async function assertOwnsReelsItem(
   profileId: string,
   reelId: string
 ): Promise<ReelsItemRecord> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("reels_items")
     .select("*")
     .eq("id", reelId)
@@ -39,8 +39,8 @@ export async function assertStoryLinkForReels(
     return;
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("episodes")
     .select("id")
     .eq("id", chapterId)
@@ -60,9 +60,9 @@ export async function assertLinkedContentIsPublic(
   storyId: string,
   chapterId?: string | null
 ): Promise<{ ok: boolean; error?: string }> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: story } = await supabase
+  const { data: story } = await db
     .from("stories")
     .select("status, visibility")
     .eq("id", storyId)
@@ -77,7 +77,7 @@ export async function assertLinkedContentIsPublic(
     story.visibility !== "public"
   ) {
     return {
-      error: "Truyện liên kết phải đang public trước khi đăng Reels.",
+      error: "Truyện liên k?t ph?i dang public tru?c khi dang Reels.",
       ok: false
     };
   }
@@ -86,19 +86,19 @@ export async function assertLinkedContentIsPublic(
     return { ok: true };
   }
 
-  const { data: episode } = await supabase
+  const { data: episode } = await db
     .from("episodes")
     .select("status")
     .eq("id", chapterId)
     .maybeSingle();
 
   if (!episode) {
-    return { error: "Không tìm thấy chương.", ok: false };
+    return { error: "Không tìm th?y chuong.", ok: false };
   }
 
   if (!["published", "approved"].includes(episode.status)) {
     return {
-      error: "Chương liên kết phải đang public trước khi đăng Reels.",
+      error: "Chương liên k?t ph?i dang public tru?c khi dang Reels.",
       ok: false
     };
   }

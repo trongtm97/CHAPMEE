@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { isPresentationModeSupportedByComposer } from "@/lib/taxonomy/presentation-bridge";
 
 /**
@@ -6,11 +6,11 @@ import { isPresentationModeSupportedByComposer } from "@/lib/taxonomy/presentati
  * `story_presentation_settings.mode` (canonical runtime for Composer).
  */
 export async function syncPresentationModeTaxonomyLink(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   mode: string | null | undefined
 ): Promise<{ error: string | null }> {
-  await supabase
+  await db
     .from("story_taxonomy_terms")
     .delete()
     .eq("story_id", storyId)
@@ -21,7 +21,7 @@ export async function syncPresentationModeTaxonomyLink(
     return { error: null };
   }
 
-  const { data: term, error: termError } = await supabase
+  const { data: term, error: termError } = await db
     .from("taxonomy_terms")
     .select("id")
     .eq("type", "presentation_mode")
@@ -37,7 +37,7 @@ export async function syncPresentationModeTaxonomyLink(
     return { error: null };
   }
 
-  const { error: insertError } = await supabase.from("story_taxonomy_terms").insert({
+  const { error: insertError } = await db.from("story_taxonomy_terms").insert({
     story_id: storyId,
     term_id: String(term.id),
     type: "presentation_mode"

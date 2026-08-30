@@ -1,5 +1,5 @@
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/data/admin";
+import { createClient } from "@/lib/data/server";
 import { getAdRevenueEstimateSettings } from "@/lib/ads/ad-revenue-settings";
 import { logAdRevenueReconciliationAudit } from "@/lib/ads/reconciliation-audit";
 import { getCreatorAdRevenuePolicy } from "@/lib/creator-ad-revenue/policy";
@@ -148,8 +148,8 @@ export async function listAdRevenueReconciliations(): Promise<{
   error: string | null;
 }> {
   try {
-    const supabase = createAdminClient();
-    const { data, error } = await supabase
+    const db = createAdminClient();
+    const { data, error } = await db
       .from("ad_revenue_monthly_reconciliations")
       .select("*")
       .order("month", { ascending: false });
@@ -167,8 +167,8 @@ export async function getAdRevenueReconciliation(
   id: string
 ): Promise<{ reconciliation: AdRevenueReconciliationWithAllocations | null; error: string | null }> {
   try {
-    const supabase = createAdminClient();
-    const { data: rec, error: recError } = await supabase
+    const db = createAdminClient();
+    const { data: rec, error: recError } = await db
       .from("ad_revenue_monthly_reconciliations")
       .select("*")
       .eq("id", id)
@@ -177,7 +177,7 @@ export async function getAdRevenueReconciliation(
       return { reconciliation: null, error: recError?.message ?? "Không tìm thấy kỳ đối soát." };
     }
 
-    const { data: allocations, error: allocError } = await supabase
+    const { data: allocations, error: allocError } = await db
       .from("ad_revenue_creator_allocations")
       .select(
         `
@@ -239,7 +239,7 @@ export async function createAdRevenueReconciliation(
   }
 
   try {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
     const policy = await snapshotPolicyPercents();
     const totals = buildTotalsPatch({
       gross_partner_revenue_vnd: input.gross_partner_revenue_vnd ?? 0,
@@ -251,7 +251,7 @@ export async function createAdRevenueReconciliation(
       reserve_percent: policy.reserve_percent
     });
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("ad_revenue_monthly_reconciliations")
       .insert({
         month: input.month,
@@ -325,8 +325,8 @@ export async function updateAdRevenueReconciliation(
   });
 
   try {
-    const supabase = createAdminClient();
-    const { data, error } = await supabase
+    const db = createAdminClient();
+    const { data, error } = await db
       .from("ad_revenue_monthly_reconciliations")
       .update({ ...patch, ...totals })
       .eq("id", id)
@@ -356,8 +356,8 @@ type MonthlyAuthorContribution = {
 };
 
 async function loadMonthlyContributions(month: string): Promise<MonthlyAuthorContribution[]> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const db = createAdminClient();
+  const { data, error } = await db
     .from("ad_monthly_author_stats")
     .select("author_id, rendered_impressions, estimated_reads, invalid_adjustment_vnd")
     .eq("month", month);
@@ -454,14 +454,14 @@ export async function calculateAdRevenueAllocations(
     };
   }
 
-  const supabase = createAdminClient();
-  await supabase
+  const db = createAdminClient();
+  await db
     .from("ad_revenue_creator_allocations")
     .delete()
     .eq("reconciliation_id", reconciliationId);
 
   if (rows.length > 0) {
-    const { error: insertError } = await supabase
+    const { error: insertError } = await db
       .from("ad_revenue_creator_allocations")
       .insert(rows);
     if (insertError) {
@@ -524,10 +524,10 @@ export async function lockAdRevenueReconciliation(
   }
 
   const lockedAt = new Date().toISOString();
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   const before = { ...reconciliation };
 
-  const { data, error: lockError } = await supabase
+  const { data, error: lockError } = await db
     .from("ad_revenue_monthly_reconciliations")
     .update({
       status: "locked",
@@ -540,7 +540,7 @@ export async function lockAdRevenueReconciliation(
 
   if (lockError) return { reconciliation: null, error: lockError.message };
 
-  await supabase
+  await db
     .from("ad_revenue_creator_allocations")
     .update({ status: "locked" })
     .eq("reconciliation_id", id)
@@ -571,10 +571,10 @@ export async function cancelAdRevenueReconciliation(
     return { reconciliation: null, error: "Kỳ đã bị hủy trước đó." };
   }
 
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   const before = { ...reconciliation };
 
-  const { data, error: cancelError } = await supabase
+  const { data, error: cancelError } = await db
     .from("ad_revenue_monthly_reconciliations")
     .update({ status: "cancelled" })
     .eq("id", id)
@@ -583,7 +583,7 @@ export async function cancelAdRevenueReconciliation(
 
   if (cancelError) return { reconciliation: null, error: cancelError.message };
 
-  await supabase
+  await db
     .from("ad_revenue_creator_allocations")
     .update({ status: "cancelled" })
     .eq("reconciliation_id", id);
@@ -612,8 +612,8 @@ export async function markAdRevenueReconciliationReconciled(
     return { reconciliation: null, error: "Chỉ đánh dấu đối soát sau khi đã khóa kỳ." };
   }
 
-  const supabase = createAdminClient();
-  const { data, error: updateError } = await supabase
+  const db = createAdminClient();
+  const { data, error: updateError } = await db
     .from("ad_revenue_monthly_reconciliations")
     .update({ status: "reconciled" })
     .eq("id", id)
@@ -622,7 +622,7 @@ export async function markAdRevenueReconciliationReconciled(
 
   if (updateError) return { reconciliation: null, error: updateError.message };
 
-  await supabase
+  await db
     .from("ad_revenue_creator_allocations")
     .update({ status: "payable" })
     .eq("reconciliation_id", id)
@@ -655,8 +655,8 @@ export async function getCreatorReconciledAdRevenueMonths(
   const estimateSettings = await getAdRevenueEstimateSettings();
 
   try {
-    const supabase = await createClient();
-    const { data: allocations, error } = await supabase
+    const db = await createClient();
+    const { data: allocations, error } = await db
       .from("ad_revenue_creator_allocations")
       .select(
         `

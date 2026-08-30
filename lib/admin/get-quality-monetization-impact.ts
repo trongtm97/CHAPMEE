@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type {
   MonetizationStatus,
   QualityMonetizationImpact
@@ -13,9 +13,9 @@ export async function getQualityMonetizationImpact(input: {
   storyId: string;
   chapterId?: string | null;
 }): Promise<{ data: QualityMonetizationImpact | null; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: story, error: storyError } = await supabase
+  const { data: story, error: storyError } = await db
     .from("stories")
     .select(
       "id, title, monetization_status, monetization_disabled_by_quality, creator_id"
@@ -27,7 +27,7 @@ export async function getQualityMonetizationImpact(input: {
     return { data: null, error: storyError?.message ?? "Không tìm thấy truyện." };
   }
 
-  let unlockQuery = supabase
+  let unlockQuery = db
     .from("chapter_unlocks")
     .select(
       "id, user_id, coin_amount, paid_coin_amount, bonus_coin_amount, refunded_coin_amount, refund_status, created_at"
@@ -61,7 +61,7 @@ export async function getQualityMonetizationImpact(input: {
   const targetType = input.chapterId ? "chapter" : "story";
   const targetId = input.chapterId ?? input.storyId;
 
-  let earningQuery = supabase
+  let earningQuery = db
     .from("creator_earning_transactions")
     .select("creator_net_amount_vnd, status")
     .eq("story_id", input.storyId)
@@ -79,7 +79,7 @@ export async function getQualityMonetizationImpact(input: {
     creatorRevenueVnd += toNumber(row.creator_net_amount_vnd);
   }
 
-  const { data: batches } = await supabase
+  const { data: batches } = await db
     .from("coin_refund_batches")
     .select("id, status")
     .eq("target_type", targetType)
@@ -126,11 +126,11 @@ export async function getQualityRefundHistory(input: {
   chapterId?: string | null;
   limit?: number;
 }) {
-  const supabase = await createClient();
+  const db = await createClient();
   const targetType = input.chapterId ? "chapter" : "story";
   const targetId = input.chapterId ?? input.storyId;
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("coin_refund_batches")
     .select(
       "id, status, reason_code, refund_scope, refund_percent, total_users, total_transactions, total_coin_refunded, author_note, created_at, confirmed_at"

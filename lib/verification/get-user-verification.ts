@@ -1,5 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
-import { fetchAppSettingByKey } from "@/lib/supabase/app-settings";
+import { createClient } from "@/lib/data/server";
+import { fetchAppSettingByKey } from "@/lib/data/app-settings";
 import { resolveVerificationLabel } from "@/lib/verification/labels";
 import type {
   AccountVerificationRow,
@@ -65,8 +65,8 @@ export async function areVerificationRequestsEnabled() {
 export async function getPublicVerificationBadge(
   userId: string
 ): Promise<PublicVerificationBadge | null> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("profiles")
     .select("id, is_verified, verification_type, verification_label")
     .eq("id", userId)
@@ -85,8 +85,8 @@ export async function getPublicVerificationBadges(
     return map;
   }
 
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("profiles")
     .select("id, is_verified, verification_type, verification_label")
     .in("id", uniqueIds)
@@ -105,15 +105,15 @@ export async function getPublicVerificationBadges(
 export async function getUserVerificationSummary(
   userId: string
 ): Promise<UserVerificationSummary> {
-  const supabase = await createClient();
+  const db = await createClient();
   const [recordsResult, requestsEnabled, profileResult] = await Promise.all([
-    supabase
+    db
       .from("account_verifications")
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false }),
     areVerificationRequestsEnabled(),
-    supabase
+    db
       .from("profiles")
       .select("id, is_verified, verification_type, verification_label")
       .eq("id", userId)

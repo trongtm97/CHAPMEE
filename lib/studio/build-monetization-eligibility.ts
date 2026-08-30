@@ -81,7 +81,7 @@ export function buildMonetizationEligibilityChecklist(
         id: "tax",
         label: "Đã cung cấp thông tin thuế (nếu yêu cầu)",
         status: taxOk ? "ok" : "missing",
-        href: "/studio/settings",
+        href: "/studio/finance?tab=ads",
         ctaLabel: taxOk ? undefined : "Cập nhật thuế"
       })
     );

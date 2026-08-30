@@ -1,6 +1,7 @@
 import type { CommunityPost, CommunityPostType } from "@/lib/community/getCommunityFeed";
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
-import { createClient } from "@/lib/supabase/server";
+import { resolveProfileAvatarUrlForUser } from "@/lib/profile/resolve-profile-avatar";
+import { createClient } from "@/lib/data/server";
 
 type CommunityPostRow = {
   id: string;
@@ -9,9 +10,20 @@ type CommunityPostRow = {
   content: string;
   created_at: string;
   story_id: string | null;
+  user_id: string;
   profiles:
-    | { display_name: string | null; username: string | null }
-    | { display_name: string | null; username: string | null }[]
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+        default_avatar_id: number | null;
+      }
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+        default_avatar_id: number | null;
+      }[]
     | null;
   stories:
     | {
@@ -22,11 +34,13 @@ type CommunityPostRow = {
         creator_profiles:
           | {
               id: string;
+              user_id: string | null;
               pen_name: string | null;
               profiles?: { display_name: string | null; username: string | null } | null;
             }
           | {
               id: string;
+              user_id: string | null;
               pen_name: string | null;
               profiles?: { display_name: string | null; username: string | null } | null;
             }[]
@@ -40,11 +54,13 @@ type CommunityPostRow = {
         creator_profiles:
           | {
               id: string;
+              user_id: string | null;
               pen_name: string | null;
               profiles?: { display_name: string | null; username: string | null } | null;
             }
           | {
               id: string;
+              user_id: string | null;
               pen_name: string | null;
               profiles?: { display_name: string | null; username: string | null } | null;
             }[]
@@ -79,6 +95,8 @@ export function mapCommunityPostRows(rows: CommunityPostRow[]): CommunityPost[] 
       authorName:
         author?.display_name ?? author?.username ?? "Độc giả ChapMee",
       authorUsername: author?.username?.trim().toLowerCase() ?? null,
+      authorAvatarUrl: resolveProfileAvatarUrlForUser(post.user_id, author),
+      authorUserId: post.user_id ?? null,
       relatedStoryTitle: story?.title ?? null,
       relatedStorySlug: story?.slug ?? null,
       relatedStoryPublicCode: story?.public_code ?? null,
@@ -90,6 +108,7 @@ export function mapCommunityPostRows(rows: CommunityPostRow[]): CommunityPost[] 
       creatorUsername:
         firstRelation(storyCreator?.profiles ?? null)?.username?.trim().toLowerCase() ??
         null,
+      creatorUserId: storyCreator?.user_id ?? null,
       createdAt: post.created_at,
       commentCount: 0
     };
@@ -105,8 +124,8 @@ export async function attachCommentCounts(posts: CommunityPost[]) {
     return posts;
   }
 
-  const supabase = await createClient();
-  const { data: comments } = await supabase
+  const db = await createClient();
+  const { data: comments } = await db
     .from("comments")
     .select("story_id")
     .in("story_id", storyIds)

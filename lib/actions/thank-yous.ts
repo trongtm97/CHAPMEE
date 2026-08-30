@@ -2,13 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createThankYou } from "@/lib/supabase/thank-yous";
-import { createClient } from "@/lib/supabase/server";
+import { createThankYou } from "@/lib/data/thank-yous";
+import { createClient } from "@/lib/data/server";
 import type { ThankYouRecipientGroupType } from "@/types/thank-you";
 
 async function getUser() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
+  const db = await createClient();
+  const { data } = await db.auth.getUser();
   return data.user ?? null;
 }
 

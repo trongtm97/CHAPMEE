@@ -10,6 +10,8 @@ export const STORY_IMAGE_ACCEPTED_MIME_TYPES = [
 
 export type StoryImageAcceptedMimeType = (typeof STORY_IMAGE_ACCEPTED_MIME_TYPES)[number];
 
+export const STORY_IMAGE_MIN_SIZE_LABEL = "tối thiểu 600×600px";
+
 export const STORY_IMAGE_ACCEPT_ATTRIBUTE = STORY_IMAGE_ACCEPTED_MIME_TYPES.join(",");
 
 export const STORY_IMAGE_ERROR = {

@@ -20,7 +20,7 @@ export function CommunityFeedEnd({ onWriteClick }: CommunityFeedEndProps) {
         ) : (
           <Link
             className="text-xs font-bold text-cyan-300 hover:text-cyan-200"
-            href="/community/new?type=discussion"
+            href="/community"
           >
             Tạo bài mới
           </Link>

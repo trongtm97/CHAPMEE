@@ -1,6 +1,7 @@
-import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/postgrest-selects";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getMyCommunityGroups } from "@/lib/community/get-community-groups";
 import type {
   LibraryFollowedAuthor,
@@ -17,11 +18,12 @@ async function getLatestEpisodeNumbers(storyIds: string[]) {
     return new Map<string, number>();
   }
 
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("episodes")
     .select("story_id, episode_number")
     .in("story_id", storyIds)
+    .is("deleted_at", null)
     .order("episode_number", { ascending: false });
 
   const latestByStory = new Map<string, number>();
@@ -36,10 +38,10 @@ async function getLatestEpisodeNumbers(storyIds: string[]) {
 
 export async function getFollowingForLibrary(userId: string) {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const [{ data: creatorFollows }, { data: storyFollows }, communityResult] =
       await Promise.all([
-        supabase
+        db
           .from("follows")
           .select(
             "created_at, creator_id, creator_profiles(id, pen_name, profiles!creator_profiles_user_id_fkey(display_name, username))"
@@ -48,7 +50,7 @@ export async function getFollowingForLibrary(userId: string) {
           .not("creator_id", "is", null)
           .order("created_at", { ascending: false })
           .limit(20),
-        supabase
+        db
           .from("follows")
           .select(
             `created_at, story_id, stories(id, title, slug, public_code, cover_url, ${CREATOR_PROFILE_STORY_JOIN})`
@@ -66,7 +68,7 @@ export async function getFollowingForLibrary(userId: string) {
 
     const readEpisodeByStory = new Map<string, number>();
     if (followedStoryIds.length > 0) {
-      const { data: progressRows } = await supabase
+      const { data: progressRows } = await db
         .from("reading_progress")
         .select("story_id, episodes(episode_number)")
         .eq("user_id", userId)
@@ -91,11 +93,12 @@ export async function getFollowingForLibrary(userId: string) {
 
     const storyCountByCreator = new Map<string, number>();
     if (creatorIds.length > 0) {
-      const { data: storyCounts } = await supabase
+      const { data: storyCounts } = await db
         .from("stories")
         .select("creator_id")
         .in("creator_id", creatorIds)
-        .in("status", ["approved", "published"]);
+        .in("status", ["approved", "published"])
+        .is("deleted_at", null);
 
       for (const story of storyCounts ?? []) {
         const cid = story.creator_id as string;
@@ -207,7 +210,7 @@ export async function getFollowingForLibrary(userId: string) {
           slug: story.slug,
           publicCode: story.public_code,
           title: story.title,
-          coverUrl: story.cover_url,
+          coverUrl: resolveStoryCoverUrl(story.cover_url),
           authorName: creator
             ? resolvePublicDisplayName(firstRelation(creator.profiles), creator)
             : null,

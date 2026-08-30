@@ -1,9 +1,9 @@
 "use server";
 
 import { calculateCreatorEarningBreakdown } from "@/lib/finance/calculate-creator-earning-breakdown";
-import { insertCreatorWalletLedgerEntry } from "@/lib/supabase/creator-finance";
-import { createClient } from "@/lib/supabase/server";
-import { applyCreatorRevenueLedgerRecord } from "@/lib/supabase/wallets";
+import { insertCreatorWalletLedgerEntry } from "@/lib/data/creator-finance";
+import { createClient } from "@/lib/data/server";
+import { applyCreatorRevenueLedgerRecord } from "@/lib/data/wallets";
 import { buildTransactionCode } from "@/lib/transactions/ledger";
 import type { CreatorEarningSourceType } from "@/types/finance";
 import type { CreatorRevenueBreakdown } from "@/types/revenue-share";
@@ -47,9 +47,9 @@ export async function recordCreatorNetEarning(input: RecordCreatorNetEarningInpu
     return { data: null, error: "Creator net amount must be > 0." };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: earningRow, error: earningError } = await supabase
+  const { data: earningRow, error: earningError } = await db
     .from("creator_earning_transactions")
     .insert({
       creator_user_id: input.creatorUserId,
@@ -109,12 +109,12 @@ export async function recordCreatorNetEarning(input: RecordCreatorNetEarningInpu
     return { data: null, error: tx.error ?? "Không thể cập nhật ví creator." };
   }
 
-  await supabase
+  await db
     .from("creator_earning_transactions")
     .update({ legacy_transaction_id: tx.data.id })
     .eq("id", earningRow.id);
 
-  await supabase
+  await db
     .from("transactions")
     .update({
       money_amount_vnd: breakdown.grossAmountVnd,

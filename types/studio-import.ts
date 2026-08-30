@@ -108,6 +108,7 @@ export type ImportExportHistoryEntry = {
 export type StoryQuickPickItem = {
   id: string;
   title: string;
+  publicCode: string | null;
   displayStatus: StudioDisplayStatus;
   episodeCount: number;
   structureType: "chaptered" | "standalone";

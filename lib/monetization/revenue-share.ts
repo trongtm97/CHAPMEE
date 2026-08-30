@@ -1,6 +1,6 @@
 import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
 import { calculateCreatorRevenue } from "@/lib/monetization/creator-revenue";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 type RevenueShareType =
   | "tip"
@@ -52,8 +52,8 @@ export async function calculateRevenueShare(input: RevenueShareInput) {
   }
 
   if (input.storyId) {
-    const supabase = await createClient();
-    const { data: story } = await supabase
+    const db = await createClient();
+    const { data: story } = await db
       .from("stories")
       .select("status")
       .eq("id", input.storyId)

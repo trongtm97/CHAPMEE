@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { getAlgorithmConfig } from "@/lib/algorithm/settings";
 import { buildScoringConfig, type ScoringConfig } from "@/lib/scoring/config";
 import { calculateDiscoveryScore as computeDiscoveryScore } from "@/lib/scoring/discovery";
@@ -39,22 +39,22 @@ async function resolveScoringConfig(
 }
 
 export async function calculateStoryQualityScore(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   window: MetricsWindow = "7d",
   configOverride?: ScoringConfig
 ) {
   const config = await resolveScoringConfig(configOverride);
-  const metrics = await loadStoryMetricsAggregate(supabase, storyId, window);
+  const metrics = await loadStoryMetricsAggregate(db, storyId, window);
   return calculateStoryQualityScoreFromMetrics(metrics, config);
 }
 
 export async function calculateReelQualityScore(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   reelId: string,
   window: MetricsWindow = "7d"
 ) {
-  const metrics = await loadReelMetricsAggregate(supabase, reelId, window);
+  const metrics = await loadReelMetricsAggregate(db, reelId, window);
   return calculateReelQualityScoreFromMetrics(metrics);
 }
 
@@ -67,14 +67,14 @@ export async function calculateFreshnessScore(
 }
 
 export async function calculateDiscoveryScore(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   item: ScoringItem,
   qualityScore: number,
   configOverride?: ScoringConfig,
   authorMeta?: { storyCount?: number; authorImpressions7d?: number }
 ) {
   const config = await resolveScoringConfig(configOverride);
-  const exposure = await loadExposureStats(supabase, {
+  const exposure = await loadExposureStats(db, {
     authorUserId: item.authorUserId,
     storyId: item.storyId,
     itemId: item.itemId,
@@ -89,13 +89,13 @@ export async function calculateDiscoveryScore(
 }
 
 export async function calculateFairnessScore(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   item: ScoringItem,
   qualityScore: number,
   configOverride?: ScoringConfig
 ) {
   const config = await resolveScoringConfig(configOverride);
-  const exposure = await loadExposureStats(supabase, {
+  const exposure = await loadExposureStats(db, {
     authorUserId: item.authorUserId,
     storyId: item.storyId,
     itemId: item.itemId,
@@ -114,7 +114,7 @@ export async function calculateSafetyScore(
 }
 
 export async function calculatePersonalFitScore(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   userId: string | null | undefined,
   item: ScoringItem
 ) {
@@ -122,7 +122,7 @@ export async function calculatePersonalFitScore(
     return { score: null, debug: { reason: "anonymous" } };
   }
 
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from("user_interest_profiles")
     .select(
       "preferred_genres, preferred_tags, preferred_authors, preferred_story_lengths, negative_genres, negative_tags, hidden_authors"
@@ -130,11 +130,14 @@ export async function calculatePersonalFitScore(
     .eq("user_id", userId)
     .maybeSingle();
 
-  return calculatePersonalFitScoreFromProfile(item, profile);
+  return calculatePersonalFitScoreFromProfile(
+    item,
+    profile as Parameters<typeof calculatePersonalFitScoreFromProfile>[1]
+  );
 }
 
 export async function scoreContentItem(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   item: ScoringItem,
   options?: {
     window?: MetricsWindow;
@@ -151,7 +154,7 @@ export async function scoreContentItem(
   let metricsForSafety: StoryMetricsAggregate;
 
   if (item.itemType === "reel") {
-    const reelMetrics = await loadReelMetricsAggregate(supabase, item.itemId, window);
+    const reelMetrics = await loadReelMetricsAggregate(db, item.itemId, window);
     const reelQ = calculateReelQualityScoreFromMetrics(reelMetrics);
     qualityScore = reelQ.score;
     qualityDebug = reelQ.debug;
@@ -179,8 +182,8 @@ export async function scoreContentItem(
   } else {
     const storyId = item.itemType === "story" ? item.itemId : item.storyId;
     const storyMetrics = storyId
-      ? await loadStoryMetricsAggregate(supabase, storyId, window)
-      : await loadStoryMetricsAggregate(supabase, item.itemId, window);
+      ? await loadStoryMetricsAggregate(db, storyId, window)
+      : await loadStoryMetricsAggregate(db, item.itemId, window);
     const storyQ = calculateStoryQualityScoreFromMetrics(storyMetrics, config);
     qualityScore = storyQ.score;
     qualityDebug = storyQ.debug;
@@ -188,7 +191,7 @@ export async function scoreContentItem(
   }
 
   const freshness = computeFreshnessScore(item, config);
-  const exposure = await loadExposureStats(supabase, {
+  const exposure = await loadExposureStats(db, {
     authorUserId: item.authorUserId,
     storyId: item.storyId,
     itemId: item.itemId,
@@ -201,7 +204,7 @@ export async function scoreContentItem(
   });
   const fairness = computeFairnessScore(config, { qualityScore, exposure });
   const safety = computeSafetyScore(item, config, metricsForSafety);
-  const personal = await calculatePersonalFitScore(supabase, options?.userId, item);
+  const personal = await calculatePersonalFitScore(db, options?.userId, item);
 
   const monetizationSignal = clamp01(
     metricsForSafety.paidUnlocks > 0
@@ -259,13 +262,13 @@ export async function scoreContentItem(
 }
 
 export async function calculateFinalScoreForSurface(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   surface: ScoringSurface,
   userId: string | null | undefined,
   item: ScoringItem,
   options?: { window?: MetricsWindow; config?: ScoringConfig }
 ) {
-  const breakdown = await scoreContentItem(supabase, item, {
+  const breakdown = await scoreContentItem(db, item, {
     window: options?.window,
     userId,
     config: options?.config

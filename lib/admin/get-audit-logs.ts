@@ -1,7 +1,7 @@
 "use server";
 
 import { assertAnyPermission, assertPermission } from "@/lib/auth/require-permission";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export type AdminAuditLogRow = {
   id: string;
@@ -29,13 +29,13 @@ export async function getAdminAuditLogs(options?: {
 }) {
   await assertPermission("admin.audit.view");
 
-  const supabase = await createClient();
+  const db = await createClient();
   const page = Math.max(1, options?.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, options?.pageSize ?? 50));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase
+  let query = db
     .from("admin_audit_logs")
     .select(
       "id, action, target_type, target_id, metadata, created_at, actor_id",
@@ -72,7 +72,7 @@ export async function getAdminAuditLogs(options?: {
   >();
 
   if (actorIds.length) {
-    const { data: actors } = await supabase
+    const { data: actors } = await db
       .from("profiles")
       .select("id, username, display_name")
       .in("id", actorIds);
@@ -110,8 +110,8 @@ export async function getRolesWithPermissions() {
     "admin.user.role.assign"
   ]);
 
-  const supabase = await createClient();
-  const { data: roles, error } = await supabase
+  const db = await createClient();
+  const { data: roles, error } = await db
     .from("roles")
     .select("id, code, name, description, is_system")
     .order("code");
@@ -122,7 +122,7 @@ export async function getRolesWithPermissions() {
 
   const result = [];
   for (const role of roles ?? []) {
-    const { data: mappings } = await supabase
+    const { data: mappings } = await db
       .from("role_permissions")
       .select("permissions(code, name, group_key)")
       .eq("role_id", role.id);

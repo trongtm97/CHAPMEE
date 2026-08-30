@@ -13,7 +13,7 @@ import {
   rejectWithdrawalRequest,
   returnWithdrawalToApproved
 } from "@/lib/finance/admin-withdrawal";
-import { getPayoutRequestById } from "@/lib/supabase/payouts";
+import { getPayoutRequestById } from "@/lib/data/payouts";
 import { checkStaffPermission } from "@/lib/auth/staff-guards";
 import type { ProcessWithdrawalActionInput, WithdrawalAdminAction } from "@/types/admin-withdrawal";
 import type { PayoutRequestStatus } from "@/types/payout";

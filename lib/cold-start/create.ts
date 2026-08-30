@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import {
   coldStartEndsAt,
   loadColdStartConfig
@@ -7,11 +7,11 @@ import {
   applyAuthorColdStartLimit,
   scaledTargetImpressions
 } from "@/lib/cold-start/limits";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { ColdStartItemType, ColdStartTestRow } from "@/types/cold-start";
 
 async function insertTest(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     itemType: ColdStartItemType;
     itemId: string;
@@ -27,7 +27,7 @@ async function insertTest(
   const config = await loadColdStartConfig();
   const startedAt = new Date().toISOString();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("cold_start_tests")
     .insert({
       item_type: input.itemType,
@@ -59,10 +59,10 @@ async function insertTest(
 }
 
 async function resolveStoryAuthor(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string
 ): Promise<{ authorUserId: string | null }> {
-  const { data } = await supabase
+  const { data } = await db
     .from("stories")
     .select("creator_profiles(user_id)")
     .eq("id", storyId)
@@ -76,17 +76,17 @@ async function resolveStoryAuthor(
 }
 
 export async function createColdStartTestForStory(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string
 ) {
   const config = await loadColdStartConfig();
-  const { authorUserId } = await resolveStoryAuthor(supabase, storyId);
+  const { authorUserId } = await resolveStoryAuthor(db, storyId);
 
   if (!authorUserId) {
     return { ok: false as const, error: "Không xác định được tác giả." };
   }
 
-  const limit = await applyAuthorColdStartLimit(supabase, authorUserId);
+  const limit = await applyAuthorColdStartLimit(db, authorUserId);
   if (!limit.allowed) {
     return { ok: false as const, error: limit.reason ?? "Vượt giới hạn cold start." };
   }
@@ -96,7 +96,7 @@ export async function createColdStartTestForStory(
     limit
   );
 
-  return insertTest(supabase, {
+  return insertTest(db, {
     itemType: "story",
     itemId: storyId,
     storyId,
@@ -106,12 +106,12 @@ export async function createColdStartTestForStory(
 }
 
 export async function createColdStartTestForReel(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   reelId: string
 ) {
   const config = await loadColdStartConfig();
 
-  const { data: reel } = await supabase
+  const { data: reel } = await db
     .from("reels_items")
     .select("owner_id, story_id")
     .eq("id", reelId)
@@ -121,7 +121,7 @@ export async function createColdStartTestForReel(
     return { ok: false as const, error: "Không tìm thấy Reels." };
   }
 
-  const limit = await applyAuthorColdStartLimit(supabase, reel.owner_id);
+  const limit = await applyAuthorColdStartLimit(db, reel.owner_id);
   if (!limit.allowed) {
     return { ok: false as const, error: limit.reason ?? "Vượt giới hạn cold start." };
   }
@@ -131,7 +131,7 @@ export async function createColdStartTestForReel(
     limit
   );
 
-  return insertTest(supabase, {
+  return insertTest(db, {
     itemType: "reel",
     itemId: reelId,
     storyId: (reel.story_id as string) ?? null,
@@ -141,11 +141,11 @@ export async function createColdStartTestForReel(
 }
 
 export async function createColdStartTestForAuthor(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   authorUserId: string
 ) {
   const config = await loadColdStartConfig();
-  const limit = await applyAuthorColdStartLimit(supabase, authorUserId);
+  const limit = await applyAuthorColdStartLimit(db, authorUserId);
   if (!limit.allowed) {
     return { ok: false as const, error: limit.reason ?? "Vượt giới hạn cold start." };
   }
@@ -156,7 +156,7 @@ export async function createColdStartTestForAuthor(
     limit
   );
 
-  return insertTest(supabase, {
+  return insertTest(db, {
     itemType: "author",
     itemId: authorUserId,
     storyId: null,
@@ -166,10 +166,10 @@ export async function createColdStartTestForAuthor(
 }
 
 export async function isFirstPublishedStory(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   authorUserId: string
 ) {
-  const { data: creator } = await supabase
+  const { data: creator } = await db
     .from("creator_profiles")
     .select("id")
     .eq("user_id", authorUserId)
@@ -177,7 +177,7 @@ export async function isFirstPublishedStory(
 
   if (!creator?.id) return false;
 
-  const { count } = await supabase
+  const { count } = await db
     .from("stories")
     .select("id", { count: "exact", head: true })
     .eq("creator_id", creator.id)
@@ -188,21 +188,21 @@ export async function isFirstPublishedStory(
 }
 
 export async function onStoryPublished(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   authorUserId: string
 ) {
-  const storyResult = await createColdStartTestForStory(supabase, storyId);
+  const storyResult = await createColdStartTestForStory(db, storyId);
 
   let authorResult: Awaited<ReturnType<typeof createColdStartTestForAuthor>> | null =
     null;
-  if (await isFirstPublishedStory(supabase, authorUserId)) {
-    authorResult = await createColdStartTestForAuthor(supabase, authorUserId);
+  if (await isFirstPublishedStory(db, authorUserId)) {
+    authorResult = await createColdStartTestForAuthor(db, authorUserId);
   }
 
   return { storyResult, authorResult };
 }
 
-export async function onReelPublished(supabase: SupabaseClient, reelId: string) {
-  return createColdStartTestForReel(supabase, reelId);
+export async function onReelPublished(db: DatabaseClient, reelId: string) {
+  return createColdStartTestForReel(db, reelId);
 }

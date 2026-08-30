@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { NotificationSettingsPage } from "@/components/notifications/NotificationSettingsPage";
 import { ErrorState } from "@/components/ui";
 import { getCurrentProfile } from "@/lib/auth/getCurrentProfile";
-import { getNotificationPreferences } from "@/lib/supabase/notifications";
+import { getNotificationPreferences } from "@/lib/data/notifications";
 
 export const dynamic = "force-dynamic";
 

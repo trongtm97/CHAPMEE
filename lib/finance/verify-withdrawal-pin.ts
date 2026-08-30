@@ -3,7 +3,7 @@
 import {
   getCreatorWithdrawalSecurity,
   upsertCreatorWithdrawalSecurity
-} from "@/lib/supabase/creator-finance";
+} from "@/lib/data/creator-finance";
 import { logFinanceSecurityEvent } from "@/lib/finance/log-finance-security";
 import {
   isValidWithdrawalPin,

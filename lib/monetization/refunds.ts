@@ -2,20 +2,20 @@
 
 import { logFinanceAdminAction } from "@/lib/auth/finance-guards";
 import { checkStaffPermission } from "@/lib/auth/staff-guards";
-import { applyUserCoinLedgerRecord } from "@/lib/supabase/wallets";
+import { applyUserCoinLedgerRecord } from "@/lib/data/wallets";
 import { buildTransactionCode } from "@/lib/transactions/ledger";
-import { updateUserSubscriptionStatus } from "@/lib/supabase/vip";
-import { createRiskEventRecord, getOrCreateUserRiskProfile, updateUserRiskProfileRecord } from "@/lib/supabase/risk";
+import { updateUserSubscriptionStatus } from "@/lib/data/vip";
+import { createRiskEventRecord, getOrCreateUserRiskProfile, updateUserRiskProfileRecord } from "@/lib/data/risk";
 import {
   createRefundRecord,
   findProcessedRefundByOriginalTransaction,
   getRefundById,
   updateRefundStatus
-} from "@/lib/supabase/refunds";
-import { getTransactionById } from "@/lib/supabase/transactions";
+} from "@/lib/data/refunds";
+import { getTransactionById } from "@/lib/data/transactions";
 import { createRefundTransaction } from "@/lib/transactions/reversal";
-import { shiftCreatorWalletBalances } from "@/lib/supabase/payouts";
-import { createClient } from "@/lib/supabase/server";
+import { shiftCreatorWalletBalances } from "@/lib/data/payouts";
+import { createClient } from "@/lib/data/server";
 
 function asNumber(v: number | null | undefined) {
   return Number.isFinite(v ?? NaN) ? Number(v) : 0;
@@ -68,8 +68,8 @@ export async function createManualRefundAction(input: {
 }
 
 async function cancelVipIfMatched(originalTxId: string) {
-  const supabase = await createClient();
-  const { data: sub } = await supabase
+  const db = await createClient();
+  const { data: sub } = await db
     .from("user_subscriptions")
     .select("id")
     .eq("transaction_id", originalTxId)
@@ -80,8 +80,8 @@ async function cancelVipIfMatched(originalTxId: string) {
 }
 
 async function cancelFanClubIfMatched(originalTxId: string) {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("fan_club_memberships")
     .update({ status: "cancelled" })
     .eq("transaction_id", originalTxId)
@@ -101,8 +101,8 @@ async function cancelFanClubIfMatched(originalTxId: string) {
 }
 
 async function lockCreatorRevenueIfTraceable(originalTxId: string) {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("transactions")
     .select("id, creator_user_id, money_amount_vnd, metadata")
     .eq("type", "creator_revenue_share")
@@ -138,8 +138,8 @@ async function debitUserCoinForRefund(input: {
   amount: number;
   originalTransactionId: string;
 }) {
-  const supabase = await createClient();
-  const { data: wallet } = await supabase
+  const db = await createClient();
+  const { data: wallet } = await db
     .from("user_wallets")
     .select("paid_coin_balance, bonus_coin_balance")
     .eq("user_id", input.userId)

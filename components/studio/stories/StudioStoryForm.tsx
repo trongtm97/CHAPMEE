@@ -3,6 +3,7 @@
 import { useActionState, useCallback, useState } from "react";
 import Link from "next/link";
 import { AutosaveStatusBar } from "@/components/editor/AutosaveStatus";
+import { StoryDescriptionEditor } from "@/components/editor/StoryDescriptionEditor";
 import { StudioLocalDraftRecovery } from "@/components/editor/StudioLocalDraftRecovery";
 import { VersionHistoryPanel } from "@/components/editor/VersionHistoryPanel";
 import { Button, Card, Input, Textarea } from "@/components/ui";
@@ -10,7 +11,7 @@ import { useAutosave } from "@/hooks/useAutosave";
 import { parseStoryDraftContent } from "@/lib/studio/draft-content";
 import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import {
-  GuidelinesAcknowledgementField,
+  PublishGuidelinesNotice,
   useGuidelinesSubmitGuard
 } from "@/components/creator/GuidelinesSubmitAcknowledgement";
 import { StoryContentClassification } from "@/components/creator/StoryContentClassification";
@@ -23,6 +24,9 @@ import { StoryPublishChecklistPanel } from "@/components/studio/stories/StoryPub
 import { StoryTaxonomyFields } from "@/components/studio/stories/StoryTaxonomyFields";
 import { TaxonomyRequestPanel } from "@/components/studio/stories/TaxonomyRequestPanel";
 import { SEOAssistantPanel } from "@/components/studio/SEOAssistantPanel";
+import { StoryOriginStep } from "@/components/studio/story/StoryOriginStep";
+import { TranslationMetadataForm } from "@/components/studio/story/TranslationMetadataForm";
+import { OriginalStoryDeclaration } from "@/components/studio/story/OriginalStoryDeclaration";
 import { shouldIndexStory } from "@/lib/seo/should-index";
 import type { SensitiveFlag, StoryAgeRating } from "@/types/moderation";
 import type { StoryFormActionState } from "@/lib/creator/createStory";
@@ -37,6 +41,7 @@ import type {
 import type { StoryImage } from "@/types/story-images";
 import type { StoryDraftContent } from "@/types/drafts";
 import type { StudioDraftRecord, StudioDraftVersionRecord } from "@/types/drafts";
+import type { ContentOrigin } from "@/lib/content-origin/content-origin-types";
 
 type StudioStoryFormProps = {
   action: (
@@ -50,6 +55,7 @@ type StudioStoryFormProps = {
   savedDraft?: StudioDraftRecord | null;
   story?: CreatorStoryFormStory | null;
   taxonomy: StoryFormTaxonomyBundle;
+  reviewSubmitted?: boolean;
 };
 
 function buildInitialStoryState(
@@ -81,7 +87,8 @@ export function StudioStoryForm({
   profileId,
   savedDraft,
   story,
-  taxonomy
+  taxonomy,
+  reviewSubmitted = false
 }: StudioStoryFormProps) {
   const initial = buildInitialStoryState(story, savedDraft);
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -94,6 +101,19 @@ export function StudioStoryForm({
   const [seoDescription, setSeoDescription] = useState(story?.seo_description ?? "");
   const [seoKeywords, setSeoKeywords] = useState<string[]>(story?.seo_keywords ?? []);
   const [canonicalUrl, setCanonicalUrl] = useState(story?.canonical_url ?? "");
+  const [coverUrl, setCoverUrl] = useState(story?.cover_url ?? "");
+  const [visibility, setVisibility] = useState<"public" | "private">(
+    story?.visibility ?? "private"
+  );
+  const [contentOrigin, setContentOrigin] = useState<ContentOrigin | "">(
+    story?.contentOrigin ?? "original"
+  );
+  const [translationMeta, setTranslationMeta] = useState({
+    sourceTitle: story?.sourceTitle ?? "",
+    sourceAuthorName: story?.sourceAuthorName ?? "",
+    originalLanguage: story?.originalLanguage ?? "",
+    sourceUrl: story?.sourceUrl ?? ""
+  });
   const mainGenreTerm = getSelectedMainGenreTerm(taxonomy);
   const genreName = mainGenreTerm?.name ?? null;
   const tagNames = collectSelectedTaxonomyTagNames(taxonomy);
@@ -137,13 +157,7 @@ export function StudioStoryForm({
     story?.visibility === "public" &&
     (story.status === "approved" || story.status === "published");
 
-  const {
-    acknowledged,
-    ackError,
-    guardSubmit,
-    setAcknowledged,
-    setPendingIntent
-  } = useGuidelinesSubmitGuard();
+  const { setPendingIntent } = useGuidelinesSubmitGuard();
 
   const handleFieldChange = useCallback(
     <T,>(setter: (value: T) => void, value: T) => {
@@ -182,6 +196,12 @@ export function StudioStoryForm({
           status={autosave.status}
         />
 
+        {reviewSubmitted ? (
+          <p className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-100">
+            Truyện đã được đăng công khai.
+          </p>
+        ) : null}
+
         {autosave.localRecovery?.snapshot ? (
           <StudioLocalDraftRecovery
             onApply={() => {
@@ -200,12 +220,8 @@ export function StudioStoryForm({
         <form
           action={formAction}
           className="space-y-6"
-          onSubmit={(event) => {
-            guardSubmit(event);
-
-            if (!event.defaultPrevented) {
-              void autosave.saveNow(true);
-            }
+          onSubmit={() => {
+            void autosave.saveNow(true);
           }}
         >
           {story ? <input name="story_id" type="hidden" value={story.id} /> : null}
@@ -241,6 +257,7 @@ export function StudioStoryForm({
             <Input
               disabled={pending}
               label="Tiêu đề"
+              labelRequired
               name="title"
               onChange={(event) => handleFieldChange(setTitle, event.target.value)}
               placeholder="Tên truyện"
@@ -249,8 +266,9 @@ export function StudioStoryForm({
             />
             <div className="space-y-1">
               <Input
-                disabled={pending || isPublishedStory}
-                label="Slug"
+                disabled={pending}
+                label="Slug (đường dẫn tùy chỉnh)"
+                labelRequired
                 name="slug"
                 onChange={(event) => handleFieldChange(setSlug, event.target.value)}
                 placeholder="tu-khoa-url-safe"
@@ -259,19 +277,46 @@ export function StudioStoryForm({
               />
               {isPublishedStory ? (
                 <p className="text-xs text-zinc-500">
-                  Truyện đã public — giữ nguyên đường dẫn để tránh gãy URL.
+                  Truyện đã public — đổi slug sẽ tự chuyển hướng từ đường dẫn cũ sang mới.
                 </p>
               ) : null}
             </div>
           </div>
+
+          <StoryOriginStep
+            disabled={pending}
+            onChange={(value) => handleFieldChange(setContentOrigin, value)}
+            value={contentOrigin}
+          />
+
+          {story ? (
+            <p className="text-xs text-zinc-500">
+              Trạng thái quyền:{" "}
+              {story.rightsStatus === "verified"
+                ? "Đã xác minh quyền"
+                : "Cần xác minh quyền"}
+            </p>
+          ) : null}
+
+          {contentOrigin === "translation" ? (
+            <TranslationMetadataForm
+              disabled={pending}
+              onChange={(next) => {
+                setTranslationMeta(next);
+                autosave.markDirty();
+              }}
+              value={translationMeta}
+            />
+          ) : (
+            <OriginalStoryDeclaration />
+          )}
 
           <Textarea
             disabled={pending}
             label="Hook"
             name="hook"
             onChange={(event) => handleFieldChange(setHook, event.target.value)}
-            placeholder="Một câu thu hút độc giả đọc tiếp."
-            required
+            placeholder="Một câu thu hút độc giả đọc tiếp. (tùy chọn)"
             rows={4}
             value={hook}
           />
@@ -288,72 +333,78 @@ export function StudioStoryForm({
               rows={5}
               value={shortDescription}
             />
-            <Textarea
+            <StoryDescriptionEditor
               disabled={pending}
               label="Mô tả dài"
               name="long_description"
-              onChange={(event) =>
-                handleFieldChange(setLongDescription, event.target.value)
-              }
-              placeholder="Bối cảnh, nhân vật, điểm nổi bật..."
-              rows={5}
+              onChange={(next) => handleFieldChange(setLongDescription, next)}
               value={longDescription}
             />
           </div>
 
-          <SEOAssistantPanel
-            canonicalUrl={canonicalUrl}
-            disabled={pending}
-            hasCover={Boolean(story?.cover_url || currentImage)}
-            hasGenre={Boolean(mainGenreTerm)}
-            hasTags={tagNames.length > 0}
-            isIndexable={isIndexable}
-            isPublishedStory={isPublishedStory}
-            keywords={seoKeywords}
-            mode="story"
-            onCanonicalUrlChange={(value) => {
-              setCanonicalUrl(value);
-              autosave.markDirty();
-            }}
-            onKeywordsChange={(value) => {
-              setSeoKeywords(value);
-              autosave.markDirty();
-            }}
-            onSeoDescriptionChange={(value) => {
-              setSeoDescription(value);
-              autosave.markDirty();
-            }}
-            onSeoTitleChange={(value) => {
-              setSeoTitle(value);
-              autosave.markDirty();
-            }}
-            onSlugChange={
-              isPublishedStory ? undefined : (value) => handleFieldChange(setSlug, value)
-            }
-            originalSlug={story?.slug}
-            seoDescription={seoDescription}
-            seoTitle={seoTitle}
-            slug={slug}
-            storyContext={{
-              authorName: authorDisplayName,
-              genreName,
-              hook,
-              longDescription,
-              shortDescription,
-              tagNames,
-              title
-            }}
-          />
+          <details className="rounded-2xl border border-white/10 bg-white/[0.02]">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-zinc-300">
+              SEO (tiêu đề & mô tả meta)
+            </summary>
+            <div className="border-t border-white/10 p-4">
+              <SEOAssistantPanel
+                canonicalUrl={canonicalUrl}
+                compact
+                disabled={pending}
+                hasCover={Boolean(coverUrl || currentImage)}
+                hasGenre={Boolean(genreName)}
+                hasTags={tagNames.length > 0}
+                isIndexable={isIndexable}
+                isPublishedStory={isPublishedStory}
+                keywords={seoKeywords}
+                mode="story"
+                onCanonicalUrlChange={(value) => {
+                  setCanonicalUrl(value);
+                  autosave.markDirty();
+                }}
+                onKeywordsChange={(value) => {
+                  setSeoKeywords(value);
+                  autosave.markDirty();
+                }}
+                onSeoDescriptionChange={(value) => {
+                  setSeoDescription(value);
+                  autosave.markDirty();
+                }}
+                onSeoTitleChange={(value) => {
+                  setSeoTitle(value);
+                  autosave.markDirty();
+                }}
+                originalSlug={story?.slug}
+                seoDescription={seoDescription}
+                seoTitle={seoTitle}
+                slug={slug}
+                storyContext={{
+                  authorName: authorDisplayName,
+                  genreName,
+                  hook,
+                  longDescription,
+                  shortDescription,
+                  tagNames,
+                  title
+                }}
+              />
+            </div>
+          </details>
 
           <StoryCoverField
-            coverUrl={story?.cover_url}
+            coverUrl={coverUrl || story?.cover_url}
             currentImage={currentImage}
             disabled={pending}
+            onCoverChange={(value) => setCoverUrl(value ?? "")}
             storyId={story?.id}
           />
 
           {taxonomy.enabled ? (
-            <StoryTaxonomyFields bundle={taxonomy} disabled={pending} />
+            <StoryTaxonomyFields
+              bundle={taxonomy}
+              disabled={pending}
+              key={story?.id ?? "new-story-taxonomy"}
+            />
           ) : (
             <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
               Taxonomy chưa được cấu hình trên hệ thống. Liên hệ quản trị viên trước khi
@@ -387,9 +438,13 @@ export function StudioStoryForm({
               </span>
               <select
                 className="min-h-12 w-full rounded-xl border border-white/10 bg-zinc-950/70 px-4 py-3 text-base text-white outline-none transition focus:border-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
-                defaultValue={story?.visibility ?? "private"}
                 disabled={pending}
                 name="visibility"
+                onChange={(event) => {
+                  setVisibility(event.target.value as "public" | "private");
+                  autosave.markDirty();
+                }}
+                value={visibility}
               >
                 <option value="private">Private</option>
                 <option value="public">Public</option>
@@ -404,44 +459,42 @@ export function StudioStoryForm({
             </div>
           </div>
 
-          <GuidelinesAcknowledgementField
-            acknowledged={acknowledged}
-            disabled={pending}
-            error={ackError}
-            onAckChange={setAcknowledged}
-            variant="story"
-          />
-
           {state.error ? (
             <p className="rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-100">
               {state.error}
             </p>
           ) : null}
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <Button
-              disabled={!canSaveDraft}
-              loading={pending}
-              name="intent"
-              onClick={() => {
-                setPendingIntent("draft");
-                void autosave.saveNow(true);
-              }}
-              type="submit"
-              value="draft"
-              variant="secondary"
-            >
-              Lưu nháp
-            </Button>
-            <Button
-              loading={pending}
-              name="intent"
-              onClick={() => setPendingIntent("review")}
-              type="submit"
-              value="review"
-            >
-              Gửi duyệt
-            </Button>
+          <div className="space-y-4 rounded-xl border border-white/10 bg-zinc-950/40 p-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <Button
+                disabled={!canSaveDraft}
+                loading={pending}
+                name="intent"
+                onClick={() => {
+                  setPendingIntent("draft");
+                  void autosave.saveNow(true);
+                }}
+                type="submit"
+                value="draft"
+                variant="secondary"
+              >
+                Lưu nháp
+              </Button>
+              <div className="space-y-2">
+                <PublishGuidelinesNotice bare variant="story" />
+                <Button
+                  className="w-full"
+                  loading={pending}
+                  name="intent"
+                  onClick={() => setPendingIntent("review")}
+                  type="submit"
+                  value="review"
+                >
+                  {isPublishedStory ? "Cập nhật" : "Đăng truyện"}
+                </Button>
+              </div>
+            </div>
           </div>
         </form>
       </Card>
@@ -452,9 +505,9 @@ export function StudioStoryForm({
           <>
             <StoryPublishChecklistPanel
               input={{
-                coverUrl: story.cover_url,
+                coverUrl: coverUrl || story.cover_url,
                 genreId: mainGenreTerm?.id ?? null,
-                hasCover: Boolean(story.cover_url || currentImage),
+                hasCover: Boolean(coverUrl || story.cover_url || currentImage),
                 hook,
                 longDescription,
                 seoDescription,

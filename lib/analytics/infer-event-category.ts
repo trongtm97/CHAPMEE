@@ -56,6 +56,9 @@ export function inferEventCategory(eventName: string) {
   if (eventName.startsWith("experiment_")) {
     return analyticsCategories.experiment;
   }
+  if (eventName.startsWith("utility_") || eventName === analyticsEvents.contentPostViewed) {
+    return analyticsCategories.app;
+  }
   if (
     eventName.startsWith("taxonomy_") ||
     eventName === analyticsEvents.storyImpression ||

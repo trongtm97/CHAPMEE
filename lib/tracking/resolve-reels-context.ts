@@ -6,6 +6,7 @@ export function resolveReelsTrackingContext(item: ReelsItem): TrackingContextFie
     return {
       itemType: "reel",
       itemId: item.id,
+      chapterId: item.chapterId,
       reelId: item.id,
       storyId: item.storyId,
       authorUserId: item.creatorUserId
@@ -15,7 +16,7 @@ export function resolveReelsTrackingContext(item: ReelsItem): TrackingContextFie
   return {
     itemType: "chapter",
     itemId: item.id,
-    chapterId: item.id,
+    chapterId: item.chapterId ?? item.id,
     storyId: item.storyId,
     authorUserId: item.creatorUserId
   };

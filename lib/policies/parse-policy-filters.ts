@@ -1,9 +1,10 @@
-import type { PolicyStatus, PolicyType } from "@/types/policy-pages";
+import type { PolicyStatus, PolicyType, SitePageGroupFilter } from "@/types/policy-pages";
 
 export type PolicyListFilters = {
   search: string;
   status: PolicyStatus | "all";
   policyType: PolicyType | "all";
+  siteGroup: SitePageGroupFilter;
   page: number;
   pageSize: number;
 };
@@ -15,6 +16,7 @@ export function getDefaultPolicyListFilters(): PolicyListFilters {
     search: "",
     status: "all",
     policyType: "all",
+    siteGroup: "all",
     page: 1,
     pageSize: DEFAULT_POLICY_PAGE_SIZE
   };
@@ -28,9 +30,11 @@ export function parsePolicyListFilters(
   const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
   const statusRaw = String(Array.isArray(query.status) ? query.status[0] : query.status ?? "all");
   const typeRaw = String(Array.isArray(query.type) ? query.type[0] : query.type ?? "all");
+  const groupRaw = String(Array.isArray(query.group) ? query.group[0] : query.group ?? "all");
   const search = String(Array.isArray(query.q) ? query.q[0] : query.q ?? "").trim();
 
   const validStatuses = new Set(["all", "draft", "published", "archived"]);
+  const validGroups = new Set(["all", "legal", "info", "legacy"]);
   const validTypes = new Set([
     "all",
     "account",
@@ -48,6 +52,9 @@ export function parsePolicyListFilters(
     policyType: validTypes.has(typeRaw)
       ? (typeRaw as PolicyListFilters["policyType"])
       : defaults.policyType,
+    siteGroup: validGroups.has(groupRaw)
+      ? (groupRaw as PolicyListFilters["siteGroup"])
+      : defaults.siteGroup,
     page,
     pageSize: defaults.pageSize
   };
@@ -58,6 +65,7 @@ export function buildPolicyListQuery(filters: PolicyListFilters): string {
   if (filters.search) params.set("q", filters.search);
   if (filters.status !== "all") params.set("status", filters.status);
   if (filters.policyType !== "all") params.set("type", filters.policyType);
+  if (filters.siteGroup !== "all") params.set("group", filters.siteGroup);
   if (filters.page > 1) params.set("page", String(filters.page));
   const qs = params.toString();
   return qs ? `?${qs}` : "";

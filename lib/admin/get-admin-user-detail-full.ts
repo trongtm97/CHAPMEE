@@ -3,12 +3,12 @@
 import { assertPermission } from "@/lib/auth/require-permission";
 import { mapRoleRowsWithAssigners } from "@/lib/admin/get-users";
 import { getUserCoinBalance } from "@/lib/coins/get-user-coin-balance";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { AdminUserDetailFull } from "@/types/admin-user";
 
 async function fetchUserEmail(userId: string): Promise<string | null> {
   try {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const { createAdminClient } = await import("@/lib/data/admin");
     const admin = createAdminClient();
     const { data } = await admin.auth.admin.getUserById(userId);
     return data.user?.email ?? null;
@@ -21,9 +21,9 @@ export async function getAdminUserDetailFull(
   userId: string
 ): Promise<{ detail: AdminUserDetailFull | null; error: string | null }> {
   await assertPermission("admin.user.view");
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: profile, error } = await supabase
+  const { data: profile, error } = await db
     .from("profiles")
     .select(
       "id, username, display_name, avatar_url, role, status, created_at, updated_at, is_verified, verification_type, verification_label"
@@ -56,75 +56,75 @@ export async function getAdminUserDetailFull(
     auditLogs,
     email
   ] = await Promise.all([
-    supabase
+    db
       .from("user_roles")
       .select("assigned_at, assigned_by, roles(code, name)")
       .eq("user_id", userId),
-    supabase
+    db
       .from("user_bans")
       .select("id, reason, ends_at, created_at")
       .eq("user_id", userId)
       .eq("is_active", true)
       .maybeSingle(),
     getUserCoinBalance(userId),
-    supabase
+    db
       .from("story_saves")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId),
-    supabase
+    db
       .from("user_follows")
       .select("id", { count: "exact", head: true })
       .eq("follower_id", userId),
-    supabase
+    db
       .from("community_posts")
       .select("id", { count: "exact", head: true })
       .eq("author_id", userId),
-    supabase
+    db
       .from("comments")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId),
-    supabase
+    db
       .from("reports")
       .select("id", { count: "exact", head: true })
       .eq("reporter_id", userId),
-    supabase
+    db
       .from("reports")
       .select("id", { count: "exact", head: true })
       .eq("reported_user_id", userId),
-    supabase
+    db
       .from("message_safety_logs")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       .gte("created_at", since24h)
       .eq("status", "blocked"),
-    supabase
+    db
       .from("account_restrictions")
       .select("id, restriction_type, reason, ends_at")
       .eq("user_id", userId)
       .eq("is_active", true),
-    supabase
+    db
       .from("messaging_restrictions")
       .select("id, restriction_type, reason_code, ends_at")
       .eq("user_id", userId)
       .eq("is_active", true),
-    supabase
+    db
       .from("violations")
       .select("id, policy_area, severity, action_taken, note, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(20),
-    supabase
+    db
       .from("creator_profiles")
       .select("id, status")
       .eq("user_id", userId)
       .maybeSingle(),
-    supabase
+    db
       .from("account_verifications")
       .select("id, verification_type, status, submitted_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(10),
-    supabase
+    db
       .from("admin_audit_logs")
       .select(
         `id, action, metadata, created_at,
@@ -138,7 +138,7 @@ export async function getAdminUserDetailFull(
 
   let storyCountVal = 0;
   if (creatorProfile.data?.id) {
-    const { count } = await supabase
+    const { count } = await db
       .from("stories")
       .select("id", { count: "exact", head: true })
       .eq("creator_id", creatorProfile.data.id as string);
@@ -191,7 +191,7 @@ export async function getAdminUserDetailFull(
       verificationLabel: profile.verification_label as string | null,
       createdAt: profile.created_at as string,
       updatedAt: profile.updated_at as string | null,
-      roles: await mapRoleRowsWithAssigners(supabase, roleRows.data ?? []),
+      roles: await mapRoleRowsWithAssigners(db, roleRows.data ?? []),
       activeBan: activeBan.data
         ? {
             id: activeBan.data.id as string,

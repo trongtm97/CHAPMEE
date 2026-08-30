@@ -18,20 +18,31 @@ export const PWA_MANIFEST_DESCRIPTION = `Đọc, viết và khám phá truyện 
 
 const DEFAULT_DESCRIPTION = DEFAULT_SITE_DESCRIPTION;
 const DEFAULT_OG_IMAGE = "/og-default.svg";
-const FALLBACK_SITE_URL = "http://localhost:3000";
 
 function readSiteUrl() {
-  const value = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  // NEXT_PUBLIC_* is inlined at build time in standalone images; APP_URL / SITE_URL
+  // are runtime env vars on Docker VPS and must be used as fallbacks for sitemap, canonical, robots.
+  const candidates = [
+    process.env.NEXT_PUBLIC_SITE_URL,
+    process.env.SITE_URL,
+    process.env.APP_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.BETTER_AUTH_URL
+  ];
 
-  if (!value) {
-    return new URL(FALLBACK_SITE_URL);
+  for (const raw of candidates) {
+    const value = raw?.trim();
+    if (!value) {
+      continue;
+    }
+    try {
+      return new URL(value);
+    } catch {
+      continue;
+    }
   }
 
-  try {
-    return new URL(value);
-  } catch {
-    return new URL(FALLBACK_SITE_URL);
-  }
+  return null;
 }
 
 export function getMetadataBase() {

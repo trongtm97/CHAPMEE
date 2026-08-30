@@ -1,4 +1,4 @@
-import { RankingsPageByType } from "@/app/rankings/page";
+import { RankingsPageByType } from "@/components/rankings/RankingsPageByType";
 import type { Metadata } from "next";
 
 type RouteProps = {

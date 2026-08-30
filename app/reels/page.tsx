@@ -10,7 +10,8 @@ import { getProductConfigFast } from "@/lib/config/product-config";
 import { getReelsItemByPublicCode } from "@/lib/reels/get-reels-item-by-public-code";
 import { getReelsItems } from "@/lib/reels/getReelsItems";
 import { REELS_PUBLIC_PATH } from "@/lib/routes/reels-paths";
-import { buildCanonicalUrl, getDefaultOgImage } from "@/lib/seo/metadata";
+import { SITE_NAME } from "@/lib/seo/metadata";
+import { metadataForStaticRoute } from "@/lib/seo/public-page-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -19,29 +20,13 @@ type ReelsPageProps = {
 };
 
 export async function generateMetadata(): Promise<Metadata> {
-  const title = "Reels";
-  const description =
-    "Lướt nhanh các trích đoạn truyện hấp dẫn, khám phá chương mới và tìm truyện đáng đọc.";
-  const canonical = buildCanonicalUrl(REELS_PUBLIC_PATH);
-
-  return {
-    title,
-    description,
-    alternates: { canonical },
-    openGraph: {
-      title,
-      description,
-      type: "website",
-      ...(canonical ? { url: canonical } : {}),
-      images: [{ url: getDefaultOgImage(), alt: title }]
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-      images: [getDefaultOgImage()]
-    }
-  };
+  return metadataForStaticRoute({
+    path: REELS_PUBLIC_PATH,
+    pageType: "reels",
+    fallbackTitle: SITE_NAME,
+    fallbackDescription:
+      "Lướt nhanh các trích đoạn truyện hấp dẫn, khám phá chương mới và tìm truyện đáng đọc."
+  });
 }
 
 async function ReelsContent({ focusReelCode }: { focusReelCode: string | null }) {

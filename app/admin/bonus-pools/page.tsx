@@ -1,8 +1,8 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { ErrorState, SectionHeader } from "@/components/ui";
 import { requireFinanceAccess } from "@/lib/auth/require-permission";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { listCreatorBonusAllocationsByPool, listCreatorBonusPools } from "@/lib/supabase/creator-bonus";
+import { listCreatorBonusAllocationsByPool, listCreatorBonusPools } from "@/lib/data/creator-bonus";
 import { BonusPoolManager } from "@/components/admin/bonus/BonusPoolManager";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export default async function AdminBonusPoolsPage() {
         <Link className="text-sm font-semibold text-cyan-300 hover:text-cyan-200" href="/admin">
           ← Admin
         </Link>
-        <ErrorState title="Bonus pool đang tắt" message="Creator bonus pool đang tắt bởi admin flags." />
+        <ErrorState title="Bonus pool dang t?t" message="Creator bonus pool dang t?t b?i admin flags." />
       </section>
     );
   }

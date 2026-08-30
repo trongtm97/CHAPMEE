@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { MessageSafetySettings } from "@/types/messaging-safety";
 
 const DEFAULT_SETTINGS: MessageSafetySettings = {
@@ -52,8 +52,8 @@ function mapRow(row: Record<string, unknown>): MessageSafetySettings {
 }
 
 export async function getMessageSafetySettings(): Promise<MessageSafetySettings> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("message_safety_settings")
     .select("*")
     .limit(1)

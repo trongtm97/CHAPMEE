@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertCollectionOwner } from "@/lib/actions/collections";
 import { getCurrentProfile } from "@/lib/auth/getCurrentProfile";
-import { addStoryToCollection, removeStoryFromCollection } from "@/lib/supabase/collections";
+import { addStoryToCollection, removeStoryFromCollection } from "@/lib/data/collections";
 
 export async function POST(
   request: Request,

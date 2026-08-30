@@ -3,7 +3,7 @@ import { CollectionEditor } from "@/components/collections";
 import { CollectionCard } from "@/components/collections/CollectionCard";
 import { MobileBackHeader } from "@/components/me/MobileBackHeader";
 import { EmptyState } from "@/components/ui";
-import { getCollectionById } from "@/lib/supabase/collections";
+import { getCollectionById } from "@/lib/data/collections";
 
 type ManageCollectionPageProps = {
   params: Promise<{ id: string }>;

@@ -10,7 +10,7 @@ import {
 } from "@/lib/content-quality/apply-low-quality-action";
 import { notifyAuthorContentQuality } from "@/lib/content-quality/notify-author";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { ContentQualityReasonCode } from "@/types/content-quality";
 
 async function assertModerator() {
@@ -19,8 +19,8 @@ async function assertModerator() {
     return { ok: false as const, error: "Cần đăng nhập." };
   }
 
-  const supabase = await createClient();
-  const { data: allowed } = await supabase.rpc("user_has_permission", {
+  const db = await createClient();
+  const { data: allowed } = await db.rpc("user_has_permission", {
     input_user_id: profile.id,
     permission_code: "moderation.action.create"
   });
@@ -29,7 +29,7 @@ async function assertModerator() {
     return { ok: false as const, error: "Không có quyền moderation." };
   }
 
-  return { ok: true as const, profileId: profile.id, supabase };
+  return { ok: true as const, profileId: profile.id, db };
 }
 
 function requireNote(note: string | undefined, label: string) {
@@ -39,8 +39,8 @@ function requireNote(note: string | undefined, label: string) {
   return { ok: true as const };
 }
 
-async function loadStoryContext(supabase: Awaited<ReturnType<typeof createClient>>, storyId: string) {
-  const { data: story } = await supabase
+async function loadStoryContext(db: Awaited<ReturnType<typeof createClient>>, storyId: string) {
+  const { data: story } = await db
     .from("stories")
     .select(
       "id, title, creator_id, quality_status, low_quality_attempt_count, monetization_disabled_by_quality, creator_profiles(user_id)"
@@ -82,7 +82,7 @@ export async function applyAdminQualityAction(input: {
     return { ok: false, error: actor.error };
   }
 
-  const ctx = await loadStoryContext(actor.supabase, input.storyId);
+  const ctx = await loadStoryContext(actor.db, input.storyId);
   if (!ctx.ok) {
     return { ok: false, error: ctx.error };
   }
@@ -101,7 +101,7 @@ export async function applyAdminQualityAction(input: {
       reasonCodes: input.reasonCodes ?? [],
       reviewedBy: actor.profileId,
       storyId: input.storyId,
-      supabase: actor.supabase,
+      db: actor.db,
       targetId: input.storyId,
       targetType: "story"
     });
@@ -129,11 +129,11 @@ export async function applyAdminQualityAction(input: {
       moderatorNote: input.moderatorNote,
       reviewedBy: actor.profileId,
       storyId: input.storyId,
-      supabase: actor.supabase
+      db: actor.db
     });
 
     if (input.action === "approve_appeal") {
-      await actor.supabase
+      await actor.db
         .from("content_quality_appeals")
         .update({
           status: "approved",
@@ -162,9 +162,9 @@ export async function applyAdminQualityAction(input: {
       return { ok: false, error: noteCheck.error };
     }
 
-    await applyPermanentQualityHide(actor.supabase, input.storyId);
+    await applyPermanentQualityHide(actor.db, input.storyId);
 
-    await actor.supabase.from("content_quality_reviews").insert({
+    await actor.db.from("content_quality_reviews").insert({
       action_taken: "permanently_hidden",
       attempt_number: 3,
       author_id: ctx.authorId,
@@ -204,9 +204,9 @@ export async function applyAdminQualityAction(input: {
       return { ok: false, error: noteCheck.error };
     }
 
-    await disableStoryMonetizationByQuality(actor.supabase, input.storyId);
+    await disableStoryMonetizationByQuality(actor.db, input.storyId);
 
-    await actor.supabase.from("content_quality_reviews").insert({
+    await actor.db.from("content_quality_reviews").insert({
       action_taken: "monetization_disabled",
       attempt_number: ctx.story.low_quality_attempt_count ?? 0,
       author_id: ctx.authorId,
@@ -233,7 +233,7 @@ export async function applyAdminQualityAction(input: {
   }
 
   if (input.action === "hide_temporarily") {
-    await actor.supabase
+    await actor.db
       .from("stories")
       .update({
         visibility: "private",
@@ -242,7 +242,7 @@ export async function applyAdminQualityAction(input: {
       })
       .eq("id", input.storyId);
 
-    await actor.supabase.from("content_quality_reviews").insert({
+    await actor.db.from("content_quality_reviews").insert({
       action_taken: "hidden_temporarily",
       attempt_number: ctx.story.low_quality_attempt_count ?? 0,
       author_id: ctx.authorId,
@@ -274,7 +274,7 @@ export async function applyAdminQualityAction(input: {
       return { ok: false, error: noteCheck.error };
     }
 
-    await actor.supabase
+    await actor.db
       .from("content_quality_appeals")
       .update({
         status: "rejected",

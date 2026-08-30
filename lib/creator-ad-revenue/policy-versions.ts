@@ -1,6 +1,6 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { logCreatorAdPolicyAudit } from "@/lib/creator-ad-revenue/audit";
 import { getCreatorAdRevenuePolicy, updateCreatorAdRevenuePolicy } from "@/lib/creator-ad-revenue/policy";
 import type { CreatorAdPolicyVersion } from "@/types/creator-ad-policy-version";
@@ -26,8 +26,8 @@ export async function listCreatorAdPolicyVersions(limit = 20): Promise<{
   error: string | null;
 }> {
   try {
-    const supabase = createAdminClient();
-    const { data, error } = await supabase
+    const db = createAdminClient();
+    const { data, error } = await db
       .from("creator_ad_policy_versions")
       .select("*")
       .order("created_at", { ascending: false })
@@ -49,8 +49,8 @@ export async function saveCreatorAdPolicyDraftVersion(input: {
   title?: string;
 }): Promise<{ version: CreatorAdPolicyVersion | null; error: string | null }> {
   try {
-    const supabase = createAdminClient();
-    const { data, error } = await supabase
+    const db = createAdminClient();
+    const { data, error } = await db
       .from("creator_ad_policy_versions")
       .insert({
         version: input.policy.policy_version,
@@ -85,15 +85,15 @@ export async function publishCreatorAdPolicyVersion(input: {
   effectiveAt?: string | null;
 }): Promise<{ version: CreatorAdPolicyVersion | null; error: string | null }> {
   try {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
     const now = new Date().toISOString();
 
-    await supabase
+    await db
       .from("creator_ad_policy_versions")
       .update({ status: "archived" })
       .eq("status", "published");
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("creator_ad_policy_versions")
       .insert({
         version: input.policy.policy_version,
@@ -128,8 +128,8 @@ export async function restoreCreatorAdPolicyVersion(
   actorId: string
 ): Promise<{ policy: CreatorAdRevenuePolicy | null; error: string | null }> {
   try {
-    const supabase = createAdminClient();
-    const { data: row, error: loadError } = await supabase
+    const db = createAdminClient();
+    const { data: row, error: loadError } = await db
       .from("creator_ad_policy_versions")
       .select("*")
       .eq("id", versionId)

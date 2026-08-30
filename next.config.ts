@@ -2,7 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  productionBrowserSourceMaps: false,
   experimental: {
+    webpackMemoryOptimizations: true,
+    serverSourceMaps: false,
     serverActions: {
       bodySizeLimit: "10mb"
     }

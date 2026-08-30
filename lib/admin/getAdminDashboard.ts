@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
+import { OPEN_QUEUE_REPORT_STATUSES } from "@/lib/admin/getReports";
 
 export type AdminDashboardStats = {
   pendingStories: number;
@@ -15,7 +16,7 @@ export type AdminDashboardData = {
 
 export async function getAdminDashboard(): Promise<AdminDashboardData> {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const [
       pendingStories,
       pendingEpisodes,
@@ -23,27 +24,26 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
       pendingCommunityPosts,
       recentModerationCases
     ] = await Promise.all([
-      supabase
+      db
         .from("stories")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending"),
-      supabase
+      db
         .from("episodes")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending"),
-      supabase
+      db
         .from("reports")
         .select("id", { count: "exact", head: true })
-        .in("status", ["open", "reviewing"]),
-      supabase
+        .in("status", OPEN_QUEUE_REPORT_STATUSES),
+      db
         .from("community_posts")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending"),
-      supabase
+      db
         .from("moderation_cases")
         .select("id", { count: "exact", head: true })
-        .order("created_at", { ascending: false })
-        .limit(10)
+        .eq("status", "open"),
     ]);
 
     const error =

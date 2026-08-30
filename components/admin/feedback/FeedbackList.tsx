@@ -23,6 +23,11 @@ function userLabel(item: AdminFeedbackListItem) {
 }
 
 function entityLabel(item: AdminFeedbackListItem) {
+  const pagePath =
+    item.device_info && typeof item.device_info.page_path === "string"
+      ? item.device_info.page_path
+      : null;
+  if (pagePath) return pagePath;
   if (item.related_entity_type && item.related_entity_id) {
     return `${item.related_entity_type}:${item.related_entity_id.slice(0, 8)}`;
   }

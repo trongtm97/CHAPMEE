@@ -1,15 +1,15 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 /** Đưa hội thoại trở lại inbox chính khi có tin mới từ người khác. */
 export async function restoreConversationInboxForRecipients(
   conversationId: string,
   senderId: string
 ): Promise<void> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: participants } = await supabase
+  const { data: participants } = await db
     .from("conversation_participants")
     .select("user_id")
     .eq("conversation_id", conversationId)
@@ -20,7 +20,7 @@ export async function restoreConversationInboxForRecipients(
   }
 
   for (const row of participants) {
-    await supabase
+    await db
       .from("conversation_participants")
       .update({
         is_archived: false,

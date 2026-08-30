@@ -1,7 +1,7 @@
 "use server";
 
 import { checkStaffAnyPermission } from "@/lib/auth/staff-guards";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { RefundKpiSummary } from "@/types/admin-refund";
 
 function toNumber(v: unknown) {
@@ -36,8 +36,8 @@ export async function getRefundKpis(input?: {
     };
   }
 
-  const supabase = await createClient();
-  let query = supabase.from("refunds").select("*");
+  const db = await createClient();
+  let query = db.from("refunds").select("*");
   if (input?.startDate) query = query.gte("created_at", input.startDate);
   if (input?.endDate) query = query.lte("created_at", `${input.endDate}T23:59:59.999Z`);
 
@@ -93,7 +93,7 @@ export async function getRefundKpis(input?: {
     if (status === "failed" || status === "reviewing") failedOrReviewCount += 1;
   }
 
-  const { count: batchQualityCount } = await supabase
+  const { count: batchQualityCount } = await db
     .from("coin_refund_batches")
     .select("id", { count: "exact", head: true })
     .eq("status", "completed")

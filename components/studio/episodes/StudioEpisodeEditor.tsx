@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useCallback, useMemo, useState } from "react";
 import {
-  GuidelinesAcknowledgementField,
+  PublishGuidelinesNotice,
   useGuidelinesSubmitGuard
 } from "@/components/creator/GuidelinesSubmitAcknowledgement";
 import { AutosaveStatusBar } from "@/components/editor/AutosaveStatus";
@@ -109,13 +109,7 @@ export function StudioEpisodeEditor({
     storyId: story.id
   });
 
-  const {
-    acknowledged,
-    ackError,
-    guardSubmit,
-    setAcknowledged,
-    setPendingIntent
-  } = useGuidelinesSubmitGuard();
+  const { setPendingIntent } = useGuidelinesSubmitGuard();
 
   const handleFieldChange = useCallback(
     <T,>(setter: (value: T) => void, value: T) => {
@@ -155,16 +149,9 @@ export function StudioEpisodeEditor({
     [applyDraftContent, autosave]
   );
 
-  const handleSubmit = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
-      guardSubmit(event);
-
-      if (!event.defaultPrevented) {
-        void autosave.saveNow(true);
-      }
-    },
-    [autosave, guardSubmit]
-  );
+  const handleSubmit = useCallback(() => {
+    void autosave.saveNow(true);
+  }, [autosave]);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
@@ -273,14 +260,6 @@ export function StudioEpisodeEditor({
               </Link>
             </p>
 
-            <GuidelinesAcknowledgementField
-              acknowledged={acknowledged}
-              disabled={pending}
-              error={ackError}
-              onAckChange={setAcknowledged}
-              variant="episode"
-            />
-
             <div className="grid gap-3 md:grid-cols-2">
               <Button
                 loading={pending}
@@ -295,15 +274,19 @@ export function StudioEpisodeEditor({
               >
                 Lưu nháp
               </Button>
-              <Button
-                loading={pending}
-                name="intent"
-                onClick={() => setPendingIntent("review")}
-                type="submit"
-                value="review"
-              >
-                Gửi duyệt
+              <div className="space-y-2">
+                <PublishGuidelinesNotice bare variant="episode" />
+                <Button
+                  className="w-full"
+                  loading={pending}
+                  name="intent"
+                  onClick={() => setPendingIntent("review")}
+                  type="submit"
+                  value="review"
+                >
+                Đăng chương
               </Button>
+              </div>
             </div>
 
             {state.error ? (

@@ -1,5 +1,5 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
+import type { DatabaseClient } from "@/lib/db/types";
+import { createClient } from "@/lib/data/server";
 import { groupTermsByType } from "@/lib/taxonomy/map-row";
 import { syncPresentationModeTaxonomyLink } from "@/lib/taxonomy/presentation-taxonomy-sync";
 import { getTaxonomyTermsByIds } from "@/lib/taxonomy/queries";
@@ -18,8 +18,8 @@ export async function getStoryTaxonomy(storyId: string): Promise<{
   data: StoryTaxonomyByType;
   error: string | null;
 }> {
-  const supabase = await createClient();
-  const { data: links, error } = await supabase
+  const db = await createClient();
+  const { data: links, error } = await db
     .from("story_taxonomy_terms")
     .select("*")
     .eq("story_id", storyId);
@@ -47,11 +47,11 @@ export async function setStoryTaxonomy(
     return { ok: false, error: validation.errors.join(" ") };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const oldTermIds = await getStoryTaxonomyTermIds(supabase, storyId);
+  const oldTermIds = await getStoryTaxonomyTermIds(db, storyId);
 
-  const { error: deleteError } = await supabase
+  const { error: deleteError } = await db
     .from("story_taxonomy_terms")
     .delete()
     .eq("story_id", storyId);
@@ -70,7 +70,7 @@ export async function setStoryTaxonomy(
   );
 
   if (inserts.length > 0) {
-    const { error: insertError } = await supabase
+    const { error: insertError } = await db
       .from("story_taxonomy_terms")
       .insert(inserts);
 
@@ -80,7 +80,7 @@ export async function setStoryTaxonomy(
   }
 
   if (input.contentWarningsConfirmed !== undefined) {
-    const { error: confirmError } = await supabase
+    const { error: confirmError } = await db
       .from("stories")
       .update({ content_warnings_confirmed: input.contentWarningsConfirmed })
       .eq("id", storyId);
@@ -91,7 +91,7 @@ export async function setStoryTaxonomy(
   }
 
   if (input.presentationMode) {
-    const { error: presentationError } = await supabase
+    const { error: presentationError } = await db
       .from("story_presentation_settings")
       .upsert(
         {
@@ -107,7 +107,7 @@ export async function setStoryTaxonomy(
     }
 
     const syncPresentation = await syncPresentationModeTaxonomyLink(
-      supabase,
+      db,
       storyId,
       input.presentationMode
     );
@@ -118,7 +118,7 @@ export async function setStoryTaxonomy(
 
   const newTermIds = inserts.map((row) => String(row.term_id));
   const usageUpdate = await updateTaxonomyUsageForStory(
-    supabase,
+    db,
     storyId,
     oldTermIds,
     newTermIds
@@ -153,8 +153,8 @@ export async function setStoryTaxonomyTermIds(
     );
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("taxonomy_terms")
     .select("*")
     .in("id", termIds);
@@ -183,21 +183,21 @@ export async function setStoryTaxonomyTermIds(
 
 /** Copy taxonomy links + presentation settings when duplicating a story. */
 export async function copyStoryTaxonomyFromStory(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   sourceStoryId: string,
   targetStoryId: string
 ): Promise<{ ok: boolean; error: string | null }> {
   const [linksResult, presentationResult, storyRow] = await Promise.all([
-    supabase
+    db
       .from("story_taxonomy_terms")
       .select("term_id, type")
       .eq("story_id", sourceStoryId),
-    supabase
+    db
       .from("story_presentation_settings")
       .select("mode, template_id")
       .eq("story_id", sourceStoryId)
       .maybeSingle(),
-    supabase
+    db
       .from("stories")
       .select("content_warnings_confirmed, age_rating")
       .eq("id", sourceStoryId)
@@ -215,14 +215,14 @@ export async function copyStoryTaxonomyFromStory(
   }));
 
   if (inserts.length > 0) {
-    const { error } = await supabase.from("story_taxonomy_terms").insert(inserts);
+    const { error } = await db.from("story_taxonomy_terms").insert(inserts);
     if (error) {
       return { ok: false, error: error.message };
     }
   }
 
   if (presentationResult.data?.mode) {
-    const { error } = await supabase.from("story_presentation_settings").upsert({
+    const { error } = await db.from("story_presentation_settings").upsert({
       story_id: targetStoryId,
       mode: presentationResult.data.mode,
       template_id: presentationResult.data.template_id ?? null
@@ -233,7 +233,7 @@ export async function copyStoryTaxonomyFromStory(
   }
 
   if (storyRow.data) {
-    await supabase
+    await db
       .from("stories")
       .update({
         content_warnings_confirmed: storyRow.data.content_warnings_confirmed,

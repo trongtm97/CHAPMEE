@@ -30,7 +30,7 @@ export function ContinueReadingCard({
       >
         <StoryImageThumb
           className={`relative shrink-0 overflow-hidden rounded-md border border-white/8 bg-white/5 ${
-            compact ? "h-[3.25rem] w-[2.35rem]" : "h-14 w-10"
+            compact ? "!w-[2.4375rem]" : "!w-[2.625rem]"
           }`}
           story={item.story}
           usage="catalogRow"
@@ -41,7 +41,10 @@ export function ContinueReadingCard({
               {item.story.title}
             </h3>
             <p className="mt-0.5 truncate text-[0.65rem] text-zinc-500">
-              Chap {item.episode.episodeNumber} · {item.progressPercent}%
+              {item.episode.title?.trim()
+                ? item.episode.title
+                : `Chap ${item.episode.episodeNumber}`}{" "}
+              · {item.progressPercent}%
             </p>
           </div>
           <div className="mt-1.5 flex items-center gap-2">

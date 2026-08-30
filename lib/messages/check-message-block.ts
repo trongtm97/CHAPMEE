@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export type MessageBlockState = "none" | "blocked_by_me" | "blocked_by_other";
 
@@ -12,9 +12,9 @@ export async function getMessageBlockState(
     return "none";
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: iBlocked } = await supabase
+  const { data: iBlocked } = await db
     .from("message_blocks")
     .select("id")
     .eq("blocker_id", viewerId)
@@ -25,7 +25,7 @@ export async function getMessageBlockState(
     return "blocked_by_me";
   }
 
-  const { data: anyBlock, error } = await supabase.rpc("is_message_blocked", {
+  const { data: anyBlock, error } = await db.rpc("is_message_blocked", {
     p_user_a: viewerId,
     p_user_b: otherUserId
   });

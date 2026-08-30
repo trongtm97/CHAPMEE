@@ -7,10 +7,10 @@ import {
   getSettingDefinition,
   refreshMonetizationConfig
 } from "@/lib/monetization/config";
-import { upsertMonetizationSettings } from "@/lib/supabase/monetization-settings";
-import { upsertCoinPack } from "@/lib/supabase/coin-packs";
-import { upsertPaymentProviderSetting } from "@/lib/supabase/payment-provider-settings";
-import { upsertPaymentProviderProduct } from "@/lib/supabase/payment-provider-products";
+import { upsertMonetizationSettings } from "@/lib/data/monetization-settings";
+import { upsertCoinPack } from "@/lib/data/coin-packs";
+import { upsertPaymentProviderSetting } from "@/lib/data/payment-provider-settings";
+import { upsertPaymentProviderProduct } from "@/lib/data/payment-provider-products";
 import type { PaymentChannel, PaymentProvider, PaymentProviderKey } from "@/types/payment";
 
 async function assertPaymentAdminStaff() {

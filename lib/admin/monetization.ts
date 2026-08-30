@@ -166,15 +166,15 @@ export const ECOSYSTEM_TOGGLES: EcosystemToggleDefinition[] = [
   {
     key: "monetization.enabled",
     label: "Bật hệ sinh thái tiền",
-    description: "Công tắc tổng cho coin, chương trả phí và kiếm tiền.",
+    description: "Công tắc tổng cho Xu, chương trả phí và kiếm tiền.",
     impactNote: "Tắt sẽ ẩn luồng tiền phía người dùng và tác giả.",
     dangerous: true,
     important: true
   },
   {
     key: "coin.purchase_enabled",
-    label: "Cho phép nạp/mua coin",
-    description: "Cho phép người đọc mua coin qua kênh thanh toán.",
+    label: "Cho phép nạp Xu",
+    description: "Cho phép người đọc nạp Xu qua kênh thanh toán.",
     impactNote: "Cần bật hệ sinh thái tiền.",
     important: true,
     requiresMonetization: true
@@ -182,13 +182,13 @@ export const ECOSYSTEM_TOGGLES: EcosystemToggleDefinition[] = [
   {
     key: "paid_chapters.enabled",
     label: "Cho phép chương trả phí",
-    description: "Tác giả có thể đặt giá coin cho chương.",
+    description: "Tác giả có thể đặt giá Xu cho chương.",
     requiresMonetization: true
   },
   {
     key: "tips.enabled",
     label: "Cho phép tip tác giả",
-    description: "Người đọc có thể tip coin cho tác giả.",
+    description: "Người đọc có thể tip Xu cho tác giả.",
     requiresMonetization: true
   },
   {
@@ -251,8 +251,8 @@ export type DraftSettingChange = {
 
 export const FIELD_LABELS: Record<MonetizationDashboardKey, string> = {
   "monetization.enabled": "Hệ sinh thái tiền",
-  "coin.enabled": "Bật coin",
-  "coin.purchase_enabled": "Mua coin",
+  "coin.enabled": "Bật Xu",
+  "coin.purchase_enabled": "Nạp Xu",
   "paid_chapters.enabled": "Chương trả phí",
   "early_access.enabled": "Truy cập sớm",
   "tips.enabled": "Tip tác giả",
@@ -262,11 +262,11 @@ export const FIELD_LABELS: Record<MonetizationDashboardKey, string> = {
   "creator_monetization.enabled": "Tác giả kiếm tiền",
   "monetization.show_money_ui_to_creators": "Hiển thị số tiền (Studio)",
   "payout.enabled": "Rút tiền tác giả",
-  "coin.exchange_rate_vnd": "Tỷ giá coin → VND",
-  "coin.min_purchase_coins": "Coin tối thiểu/lần mua",
-  "coin.max_purchase_coins": "Coin tối đa/lần mua",
-  "paid_chapters.min_coin_price": "Giá coin tối thiểu/chương",
-  "paid_chapters.max_coin_price": "Giá coin tối đa/chương",
+  "coin.exchange_rate_vnd": "1 VNĐ = 1 Xu",
+  "coin.min_purchase_coins": "Xu tối thiểu/lần mua",
+  "coin.max_purchase_coins": "Xu tối đa/lần mua",
+  "paid_chapters.min_coin_price": "Giá Xu tối thiểu/chương",
+  "paid_chapters.max_coin_price": "Giá Xu tối đa/chương",
   "revenue_share.default_creator_percent": "% tác giả mặc định",
   "revenue_share.default_platform_percent": "% nền tảng mặc định",
   "revenue_share.paid_chapter_creator_percent": "% tác giả — chương trả phí",
@@ -301,7 +301,7 @@ export const FIELD_LABELS: Record<MonetizationDashboardKey, string> = {
   "fraud.lock_revenue_on_severe_report": "Khóa khi report nghiêm trọng",
   "fraud.lock_revenue_on_low_quality": "Khóa khi chất lượng thấp",
   "fraud.lock_revenue_on_creator_warning": "Khóa khi tác giả bị cảnh báo",
-  "fraud.lock_revenue_on_refund_dispute": "Khóa khi tranh chấp hoàn coin",
+  "fraud.lock_revenue_on_refund_dispute": "Khóa khi tranh chấp hoàn Xu",
   "fraud.revenue_lock_days": "Số ngày giữ doanh thu bị khóa",
   "fraud.allow_admin_manual_revenue_unlock": "Admin mở khóa thủ công"
 };
@@ -442,14 +442,13 @@ export function validateMonetizationDashboard(
   }
   if (maxCoin > MAX_CHAPTER_COIN_WARN) {
     fieldWarnings["paid_chapters.max_coin_price"] =
-      `Giá tối đa ${maxCoin} coin khá cao — cân nhắc ảnh hưởng trải nghiệm người đọc.`;
+      `Giá tối đa ${maxCoin} Xu khá cao — cân nhắc ảnh hưởng trải nghiệm người đọc.`;
   }
 
   const minPurchase = num(settings["coin.min_purchase_coins"]);
   const maxPurchase = num(settings["coin.max_purchase_coins"]);
   if (minPurchase > maxPurchase) {
-    fieldErrors["coin.max_purchase_coins"] =
-      "Coin tối đa mỗi lần mua phải ≥ coin tối thiểu.";
+    fieldErrors["coin.max_purchase_coins"] = "Xu tối đa mỗi lần mua phải ≥ Xu tối thiểu.";
   }
 
   const holdDays = num(settings["payout.hold_days"]);

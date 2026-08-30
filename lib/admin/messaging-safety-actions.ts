@@ -6,7 +6,7 @@ import { invalidateKeywordRulesCache } from "@/lib/messaging/get-keyword-rules";
 import { restrictionEndsAt } from "@/lib/messaging/labels";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { notifyMessageRestriction } from "@/lib/notifications/create-message-notification";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type {
   KeywordRuleAction,
   KeywordRuleCategory,
@@ -32,10 +32,10 @@ export async function createMessagingRestrictionAction(input: {
     return { ok: false, error: guard.error };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const endsAt = restrictionEndsAt(input.restrictionType);
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("messaging_restrictions")
     .insert({
       user_id: input.userId,
@@ -87,15 +87,15 @@ export async function revokeMessagingRestrictionAction(input: {
     return { ok: false, error: guard.error };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: row } = await supabase
+  const { data: row } = await db
     .from("messaging_restrictions")
     .select("user_id")
     .eq("id", input.restrictionId)
     .maybeSingle();
 
-  const { error } = await supabase
+  const { error } = await db
     .from("messaging_restrictions")
     .update({
       is_active: false,
@@ -135,13 +135,13 @@ export async function updateMessageReportStatusAction(input: {
     return { ok: false, error: guard.error };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const auditAction =
     input.status === "dismissed" || input.status === "rejected"
       ? "messaging_report_rejected"
       : "messaging_report_resolved";
 
-  const { error } = await supabase
+  const { error } = await db
     .from("message_reports")
     .update({
       status: input.status === "rejected" ? "dismissed" : input.status,
@@ -192,8 +192,8 @@ export async function updateMessageSafetySettingsAction(input: {
     return { ok: false, error: guard.error };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("message_safety_settings")
     .update({
       enabled: input.patch.enabled,
@@ -248,7 +248,7 @@ export async function upsertKeywordRuleAction(input: {
     return { ok: false, error: guard.error };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const payload = {
     keyword: input.keyword.trim().toLowerCase(),
     action: input.action,
@@ -262,7 +262,7 @@ export async function upsertKeywordRuleAction(input: {
   }
 
   if (input.ruleId) {
-    const { error } = await supabase
+    const { error } = await db
       .from("message_safety_keyword_rules")
       .update(payload)
       .eq("id", input.ruleId);
@@ -279,7 +279,7 @@ export async function upsertKeywordRuleAction(input: {
       metadata: payload
     });
   } else {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("message_safety_keyword_rules")
       .insert({ ...payload, created_by: input.moderatorId })
       .select("id")
@@ -304,8 +304,8 @@ export async function upsertKeywordRuleAction(input: {
 }
 
 export async function getKeywordRulesForAdmin() {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("message_safety_keyword_rules")
     .select("*")
     .order("created_at", { ascending: false })

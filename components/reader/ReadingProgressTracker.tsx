@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { saveReadingScrollPosition } from "@/lib/reader/reading-scroll-position";
 import { updateReadingProgress } from "@/lib/reading/updateReadingProgress";
 
 type ReadingProgressTrackerProps = {
@@ -33,12 +34,18 @@ function getReadableProgress() {
   return Math.min(100, Math.max(0, (read / total) * 100));
 }
 
+const LOCAL_DEBOUNCE_MS = 400;
+const SERVER_DEBOUNCE_MS = 3000;
+
 export function ReadingProgressTracker({
   episodeId,
   returnTo,
   storyId
 }: ReadingProgressTrackerProps) {
   const savedMilestones = useRef(new Set<number>());
+  const localTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const serverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastLocalPercent = useRef(0);
 
   useEffect(() => {
     async function persistProgress(percent: number) {
@@ -57,7 +64,24 @@ export function ReadingProgressTracker({
 
     function handleScroll() {
       const percent = getReadableProgress();
-      void persistProgress(percent);
+      if (Math.abs(percent - lastLocalPercent.current) < 1) {
+        return;
+      }
+      lastLocalPercent.current = percent;
+
+      if (localTimer.current) {
+        clearTimeout(localTimer.current);
+      }
+      localTimer.current = setTimeout(() => {
+        saveReadingScrollPosition({ storyId, episodeId, scrollPercent: percent });
+      }, LOCAL_DEBOUNCE_MS);
+
+      if (serverTimer.current) {
+        clearTimeout(serverTimer.current);
+      }
+      serverTimer.current = setTimeout(() => {
+        void persistProgress(percent);
+      }, SERVER_DEBOUNCE_MS);
     }
 
     handleScroll();
@@ -67,6 +91,12 @@ export function ReadingProgressTracker({
     return () => {
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleScroll);
+      if (localTimer.current) {
+        clearTimeout(localTimer.current);
+      }
+      if (serverTimer.current) {
+        clearTimeout(serverTimer.current);
+      }
     };
   }, [episodeId, returnTo, storyId]);
 

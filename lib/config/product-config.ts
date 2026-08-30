@@ -1,6 +1,6 @@
 import { readEnvFlag } from "@/lib/env/legacy-env";
 import { unstable_cache } from "next/cache";
-import { fetchMonetizationSettings } from "@/lib/supabase/monetization-settings";
+import { fetchMonetizationSettings } from "@/lib/data/monetization-settings";
 import type { ProductConfig } from "@/types/product-config";
 
 const DEFAULT_PRODUCT_CONFIG: ProductConfig = {

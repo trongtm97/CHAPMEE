@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   getDefaultSeoRule,
   normalizePathname,
@@ -12,8 +12,8 @@ export async function listSeoRulesFromDb(): Promise<{
   error: string | null;
 }> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("seo_rules")
       .select("*")
       .order("route_pattern", { ascending: true });
@@ -38,8 +38,8 @@ export async function getSeoRuleForRoute(pathname: string): Promise<SeoRule | nu
   const normalized = normalizePathname(pathname);
 
   try {
-    const supabase = await createClient();
-    const { data } = await supabase.from("seo_rules").select("*");
+    const db = await createClient();
+    const { data } = await db.from("seo_rules").select("*");
 
     if (data?.length) {
       const rules = data.map((row) => mapSeoRule(row as Record<string, unknown>));
@@ -134,8 +134,8 @@ export async function bulkUpdateSeoRulesInDb(
   if (ids.length === 0) return { updated: 0, error: null };
 
   try {
-    const supabase = await createClient();
-    const { error, count } = await supabase
+    const db = await createClient();
+    const { error, count } = await db
       .from("seo_rules")
       .update(patch)
       .in("id", ids);
@@ -155,8 +155,8 @@ export async function getSeoRuleById(id: string): Promise<{
   error: string | null;
 }> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("seo_rules")
       .select("*")
       .eq("id", id)
@@ -201,8 +201,8 @@ export async function updateSeoRuleInDb(
   >
 ): Promise<{ error: string | null }> {
   try {
-    const supabase = await createClient();
-    const { error } = await supabase.from("seo_rules").update(input).eq("id", id);
+    const db = await createClient();
+    const { error } = await db.from("seo_rules").update(input).eq("id", id);
     return { error: error?.message ?? null };
   } catch (error) {
     return {

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 import type { CreatorStoryStatus } from "@/lib/creator/getCreatorStories";
 
@@ -8,6 +8,8 @@ export type OwnedCreatorStory = {
   title: string;
   slug: string;
   status: CreatorStoryStatus;
+  public_code: string | null;
+  content_origin: string | null;
 };
 
 export type OwnedCreatorEpisode = {
@@ -33,8 +35,8 @@ export async function assertOwnsResourceUserId(
 }
 
 export async function assertOwnsComment(commentId: string, currentUserId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("comments")
     .select("id, user_id, story_id, episode_id")
     .eq("id", commentId)
@@ -56,12 +58,13 @@ export async function assertCreatorOwnsStory(
   creatorProfile: CreatorProfile,
   storyId: string
 ): Promise<OwnedCreatorStory> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("stories")
-    .select("id, title, slug, status")
+    .select("id, title, slug, status, public_code, content_origin")
     .eq("id", storyId)
     .eq("creator_id", creatorProfile.id)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (error) {
@@ -80,8 +83,8 @@ export async function assertCreatorOwnsEpisode(
   storyId: string,
   episodeId: string
 ): Promise<OwnedCreatorEpisode> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("episodes")
     .select("id, story_id, status, stories!inner(creator_id)")
     .eq("id", episodeId)

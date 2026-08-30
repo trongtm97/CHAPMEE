@@ -9,6 +9,19 @@ import { isUrlSafeSlug } from "@/lib/slugify";
 import { parseStoryTaxonomyFormFields } from "@/lib/creator/parse-story-taxonomy-form";
 import { normalizeStorySlugInput } from "@/lib/creator/resolve-unique-story-slug";
 import { normalizeStoryStructureType } from "@/lib/stories/story-structure";
+import {
+  CONTENT_ORIGIN_VALUES,
+  type ContentOrigin,
+  type StoryMonetizationPolicy,
+  type TranslationType
+} from "@/lib/content-origin/content-origin-types";
+import { resolveTranslationFormDefaults } from "@/lib/creator/story-translation-defaults";
+import { isKnownStorySourceLanguage } from "@/lib/creator/story-source-languages";
+import {
+  isValidSourceUrl,
+  normalizeSourceUrl,
+  SOURCE_URL_VALIDATION_MESSAGE
+} from "@/lib/creator/validate-source-url";
 import type { ParsedStoryTaxonomyForm } from "@/lib/creator/parse-story-taxonomy-form";
 import type { SensitiveFlag, StoryAgeRating } from "@/types/moderation";
 import type { StoryStructureType } from "@/types/story-structure";
@@ -38,6 +51,18 @@ export type StoryFormValues = {
   useTaxonomy: boolean;
   taxonomy: ParsedStoryTaxonomyForm;
   structureType: StoryStructureType;
+  contentOrigin: ContentOrigin;
+  translationType: TranslationType | null;
+  sourceTitle: string | null;
+  sourceAuthorName: string | null;
+  originalLanguage: string | null;
+  translatedLanguage: string | null;
+  sourceUrl: string | null;
+  sourcePlatform: string | null;
+  licenseNote: string | null;
+  licenseDocumentMediaId: string | null;
+  rightsStatus: "pending_review" | "unverified";
+  monetizationPolicy: StoryMonetizationPolicy;
 };
 
 const AGE_RATINGS = new Set<StoryAgeRating>([
@@ -74,12 +99,21 @@ export function parseStoryFormData(
   const slug = String(formData.get("slug") ?? "").trim();
   const hook = String(formData.get("hook") ?? "").trim();
   const useTaxonomy = formData.get("use_taxonomy") === "1";
-  const taxonomy = parseStoryTaxonomyFormFields(formData);
+  const taxonomy = {
+    ...parseStoryTaxonomyFormFields(formData),
+    contentWarningsConfirmed: true
+  };
   const visibilityInput = String(formData.get("visibility") ?? "private");
   const structureType = normalizeStoryStructureType(
     String(formData.get("structure_type") ?? "chaptered")
   );
   const intentInput = String(formData.get("intent") ?? "draft");
+  const contentOriginInput = String(formData.get("content_origin") ?? "").trim();
+  const contentOrigin: ContentOrigin = CONTENT_ORIGIN_VALUES.includes(
+    contentOriginInput as ContentOrigin
+  )
+    ? (contentOriginInput as ContentOrigin)
+    : "original";
   const intent: StoryFormIntent =
     intentInput === "review"
       ? "review"
@@ -90,12 +124,26 @@ export function parseStoryFormData(
           : "draft";
 
   const normalizedSlug = slug ? normalizeStorySlugInput(slug) : "";
+  const isPublishing = intent === "review" || intent === "create" || intent === "create_and_chapter";
 
   if (!title) {
     return { ok: false, error: "Vui lòng nhập tiêu đề truyện." };
   }
 
-  if (intent !== "draft") {
+  if (isPublishing) {
+    if (!contentOriginInput) {
+      return {
+        ok: false,
+        error: "Vui lòng chọn loại nội dung: Truyện Sáng Tác hoặc Truyện Dịch."
+      };
+    }
+
+    if (!CONTENT_ORIGIN_VALUES.includes(contentOriginInput as ContentOrigin)) {
+      return { ok: false, error: "Loại nội dung không hợp lệ." };
+    }
+  }
+
+  if (isPublishing) {
     if (!normalizedSlug) {
       return { ok: false, error: "Vui lòng nhập slug." };
     }
@@ -105,11 +153,6 @@ export function parseStoryFormData(
         ok: false,
         error: "Slug chỉ dùng chữ thường, số và dấu gạch ngang."
       };
-    }
-
-    const shortDescription = String(formData.get("short_description") ?? "").trim();
-    if (!shortDescription) {
-      return { ok: false, error: "Vui lòng nhập mô tả ngắn." };
     }
 
     if (!useTaxonomy) {
@@ -132,29 +175,6 @@ export function parseStoryFormData(
         error: "Vui lòng chọn cách trình bày (presentation mode)."
       };
     }
-
-    if (useTaxonomy && !taxonomy.contentWarningsConfirmed) {
-      return {
-        ok: false,
-        error: "Vui lòng xác nhận cảnh báo nội dung."
-      };
-    }
-  }
-
-  if (intent === "review" && !hook) {
-    return { ok: false, error: "Vui lòng nhập hook cho truyện." };
-  }
-
-  if (
-    intent === "review" &&
-    useTaxonomy &&
-    !taxonomy.contentWarningsConfirmed
-  ) {
-    return {
-      ok: false,
-      error:
-        "Vui lòng xác nhận cảnh báo nội dung (có hoặc không có) trước khi gửi duyệt."
-    };
   }
 
   const ageRatingInput = String(formData.get("age_rating") ?? "all_ages");
@@ -169,20 +189,46 @@ export function parseStoryFormData(
       SENSITIVE_FLAGS.has(flag as SensitiveFlag)
     );
 
-  if (intent === "review" && formData.get("guidelines_ack") !== "on") {
-    return {
-      ok: false,
-      error:
-        "Vui lòng xác nhận quyền đăng và tuân thủ Quy định cộng đồng trước khi gửi duyệt."
-    };
-  }
-
   const seoKeywords = parseSeoKeywordsField(formData);
-  const keywordCheck = validateKeywordsList(seoKeywords);
-
-  if (!keywordCheck.ok) {
-    return { ok: false, error: keywordCheck.error };
+  if (intent !== "draft") {
+    const keywordCheck = validateKeywordsList(seoKeywords);
+    if (!keywordCheck.ok) {
+      return { ok: false, error: keywordCheck.error };
+    }
   }
+
+  const sourceTitle = String(formData.get("source_title") ?? "").trim();
+  const sourceAuthorName = String(formData.get("source_author_name") ?? "").trim();
+  const originalLanguage = String(formData.get("original_language") ?? "").trim();
+  const sourceUrl = String(formData.get("source_url") ?? "").trim();
+  const translationDefaults = resolveTranslationFormDefaults({
+    translatedLanguage: String(formData.get("translated_language") ?? ""),
+    translationType: String(formData.get("translation_type") ?? ""),
+    sourcePlatform: String(formData.get("source_platform") ?? ""),
+    licenseNote: String(formData.get("license_note") ?? ""),
+    licenseDocumentMediaId: String(formData.get("license_document_media_id") ?? "")
+  });
+
+  if (contentOrigin === "translation" && isPublishing) {
+    if (!originalLanguage) {
+      return { ok: false, error: "Vui lòng chọn Ngôn ngữ gốc." };
+    }
+    if (
+      !isKnownStorySourceLanguage(originalLanguage) &&
+      originalLanguage.trim().length < 2
+    ) {
+      return { ok: false, error: "Vui lòng nhập tên ngôn ngữ khác (ít nhất 2 ký tự)." };
+    }
+    if (!sourceUrl) {
+      return { ok: false, error: "Vui lòng nhập Nguồn đăng gốc / source URL." };
+    }
+    if (!isValidSourceUrl(sourceUrl)) {
+      return { ok: false, error: SOURCE_URL_VALIDATION_MESSAGE };
+    }
+  }
+
+  const normalizedSourceUrl =
+    contentOrigin === "translation" && sourceUrl ? normalizeSourceUrl(sourceUrl) : null;
 
   return {
     ok: true,
@@ -197,9 +243,11 @@ export function parseStoryFormData(
       coverUrl: String(formData.get("cover_url") ?? "").trim() || null,
       isCompleted: formData.get("is_completed") === "on",
       visibility:
-        visibilityInput === "public" || visibilityInput === "private"
-          ? visibilityInput
-          : "private",
+        intent === "review"
+          ? "public"
+          : visibilityInput === "public" || visibilityInput === "private"
+            ? visibilityInput
+            : "private",
       intent,
       ageRating,
       sensitiveFlags,
@@ -209,7 +257,25 @@ export function parseStoryFormData(
       canonicalUrl: parseCanonicalUrlField(formData),
       useTaxonomy,
       taxonomy,
-      structureType
+      structureType,
+      contentOrigin,
+      translationType:
+        contentOrigin === "translation" ? translationDefaults.translationType : null,
+      sourceTitle: contentOrigin === "translation" ? sourceTitle : null,
+      sourceAuthorName: contentOrigin === "translation" ? sourceAuthorName : null,
+      originalLanguage: contentOrigin === "translation" ? originalLanguage : null,
+      translatedLanguage:
+        contentOrigin === "translation" ? translationDefaults.translatedLanguage : null,
+      sourceUrl: contentOrigin === "translation" ? normalizedSourceUrl : null,
+      sourcePlatform:
+        contentOrigin === "translation" ? translationDefaults.sourcePlatform : null,
+      licenseNote: contentOrigin === "translation" ? translationDefaults.licenseNote : null,
+      licenseDocumentMediaId:
+        contentOrigin === "translation"
+          ? translationDefaults.licenseDocumentMediaId
+          : null,
+      rightsStatus: contentOrigin === "translation" ? "pending_review" : "unverified",
+      monetizationPolicy: contentOrigin === "translation" ? "free_only" : "full"
     }
   };
 }

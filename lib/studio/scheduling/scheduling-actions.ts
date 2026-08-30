@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
@@ -15,7 +15,7 @@ import {
 import { validateReelsBeforePublishFromDb } from "@/lib/publish/validate-reels-before-publish-server";
 import { parseVietnamScheduleInput } from "@/lib/studio/scheduling/timezone";
 import { studioPath } from "@/lib/studio/constants";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { ScheduledTargetType } from "@/types/scheduling";
 import { STUDIO_DEFAULT_TIMEZONE, isReelsScheduledTarget } from "@/types/scheduling";
 
@@ -52,16 +52,16 @@ export async function schedulePublicationAction(input: {
   const scheduledAt = parseVietnamScheduleInput(input.scheduleDate, input.scheduleTime);
 
   if (!scheduledAt) {
-    return { error: "Ngày giờ lên lịch không hợp lệ.", ok: false as const };
+    return { error: "Ngày gi? lên l?ch không h?p l?.", ok: false as const };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const result = await schedulePublication({
     creatorProfileId: actor.creatorProfileId,
     profileId: actor.profileId,
     scheduledAt,
     storyId: input.storyId,
-    supabase,
+    db,
     targetId: input.targetId,
     targetType: input.targetType,
     timezone: STUDIO_DEFAULT_TIMEZONE
@@ -89,12 +89,12 @@ export async function updateScheduledPublicationAction(input: {
   const scheduledAt = parseVietnamScheduleInput(input.scheduleDate, input.scheduleTime);
 
   if (!scheduledAt) {
-    return { error: "Ngày giờ lên lịch không hợp lệ.", ok: false as const };
+    return { error: "Ngày gi? lên l?ch không h?p l?.", ok: false as const };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: row, error: fetchError } = await supabase
+  const { data: row, error: fetchError } = await db
     .from("scheduled_publications")
     .select("id, status")
     .eq("id", input.scheduleId)
@@ -102,14 +102,14 @@ export async function updateScheduledPublicationAction(input: {
     .maybeSingle();
 
   if (fetchError || !row) {
-    return { error: "Không tìm thấy lịch đăng.", ok: false as const };
+    return { error: "Không tìm th?y l?ch dang.", ok: false as const };
   }
 
   if (row.status !== "scheduled") {
-    return { error: "Chỉ có thể sửa lịch đang chờ đăng.", ok: false as const };
+    return { error: "Chỉ có thể sửa lịch đăng chờ đăng.", ok: false as const };
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("scheduled_publications")
     .update({
       last_error: null,
@@ -133,9 +133,9 @@ export async function cancelScheduledPublicationAction(scheduleId: string) {
     return { error: actor.error, ok: false as const };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const result = await cancelScheduledPublication(
-    supabase,
+    db,
     scheduleId,
     actor.profileId,
     actor.creatorProfileId
@@ -159,12 +159,12 @@ export async function publishNowAction(input: {
     return { error: actor.error, ok: false as const };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const result = await publishNowPublication({
     creatorProfileId: actor.creatorProfileId,
     profileId: actor.profileId,
     storyId: input.storyId,
-    supabase,
+    db,
     targetId: input.targetId,
     targetType: input.targetType
   });
@@ -194,11 +194,11 @@ export async function getPublishChecklistAction(input: {
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
   if (input.targetType === "story") {
     return validateStoryForPublish(
-      supabase,
+      db,
       input.targetId,
       actor.creatorProfileId
     );
@@ -206,7 +206,7 @@ export async function getPublishChecklistAction(input: {
 
   if (input.targetType === "chapter" && input.storyId) {
     return validateChapterForPublish(
-      supabase,
+      db,
       input.targetId,
       input.storyId,
       actor.creatorProfileId
@@ -215,7 +215,7 @@ export async function getPublishChecklistAction(input: {
 
   if (isReelsScheduledTarget(input.targetType)) {
     return validateReelsBeforePublishFromDb(
-      supabase,
+      db,
       input.targetId,
       actor.profileId
     );

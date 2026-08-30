@@ -1,7 +1,7 @@
 import { searchStoriesForCatalog } from "@/lib/search/catalog-bridge";
 import { loadDiscoverGenresFromTaxonomy } from "@/lib/taxonomy/discover-bridge";
 import type { DiscoverStory } from "@/lib/discover/getDiscoverData";
-import { createPublicClient } from "@/lib/supabase/public-client";
+import { createPublicClient } from "@/lib/data/public-client";
 import type { StoryCatalogStory } from "@/types/story";
 
 function toDiscoverStory(story: StoryCatalogStory): DiscoverStory {
@@ -11,6 +11,7 @@ function toDiscoverStory(story: StoryCatalogStory): DiscoverStory {
     slug: story.slug,
     publicCode: story.publicCode,
     coverUrl: story.coverUrl,
+    currentImage: story.currentImage ?? null,
     hook: story.hook,
     shortDescription: story.shortDescription,
     longDescription: null,
@@ -23,6 +24,10 @@ function toDiscoverStory(story: StoryCatalogStory): DiscoverStory {
     publishedAt: story.publishedAt,
     tagNames: story.tagPreview ?? [],
     score: story.score,
+    contentOrigin: story.contentOrigin,
+    rightsStatus: story.rightsStatus,
+    structureType: story.structureType,
+    standaloneReadingTimeMinutes: story.standaloneReadingTimeMinutes,
     feed: {
       requestId: "discover-search",
       algorithmVersion: "search",
@@ -43,7 +48,7 @@ export async function getDiscoverSearchResults(input: {
     return { stories: [] as DiscoverStory[], genres: [] };
   }
 
-  const supabase = createPublicClient();
+  const db = createPublicClient();
   const [search, genres] = await Promise.all([
     searchStoriesForCatalog({
       q,
@@ -51,11 +56,17 @@ export async function getDiscoverSearchResults(input: {
       page: 1,
       pageSize: input.limit ?? 24
     }),
-    loadDiscoverGenresFromTaxonomy(supabase)
+    loadDiscoverGenresFromTaxonomy(db)
   ]);
 
+  const { attachDiscoverStoryImages } = await import("@/lib/discover/attach-discover-story-images");
+  const { enrichDiscoverStories } = await import("@/src/lib/audio/audio-summary");
+  const stories = await enrichDiscoverStories(
+    await attachDiscoverStoryImages(search.stories.map(toDiscoverStory))
+  );
+
   return {
-    stories: search.stories.map(toDiscoverStory),
+    stories,
     genres: genres.map((genre) => ({
       id: genre.id,
       name: genre.name,

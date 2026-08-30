@@ -4,11 +4,14 @@ export type StudioDraftStatus = "draft" | "archived";
 
 export type StudioDraftListFilter = "all" | StudioDraftType | "standalone_content";
 
+import type { ChapterReelsPromoDraft } from "@/types/chapter-reels-promo";
+
 export type ChapterDraftContent = {
   episodeNumber: number;
   title: string;
   content: string;
   excerpt: string;
+  reelsPromo?: ChapterReelsPromoDraft;
   /** Studio Composer autosave */
   useComposerUi?: boolean;
   presentationSource?: string;

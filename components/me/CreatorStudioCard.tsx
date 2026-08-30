@@ -27,14 +27,14 @@ export function CreatorStudioCard({
     return (
       <Card className="space-y-3 p-4">
         <div>
-          <h2 className="text-base font-bold text-white">Bạn có câu chuyện muốn kể?</h2>
+          <h2 className="text-base font-bold text-white">Bắt đầu viết trên ChapMee</h2>
           <p className="mt-1 text-xs leading-5 text-zinc-500">
-            Đăng truyện đầu tiên và xây cộng đồng độc giả.
+            Tạo truyện đầu tiên và mở Studio cho độc giả của bạn.
           </p>
         </div>
         <Link
           className="inline-flex min-h-9 items-center justify-center rounded-full bg-cyan-300 px-4 text-xs font-bold text-zinc-950 transition hover:bg-cyan-200"
-          href="/studio/setup"
+          href="/studio"
           >
           Bắt đầu viết
         </Link>
@@ -45,7 +45,8 @@ export function CreatorStudioCard({
   const quickStats = [
     { label: "Truyện", value: stats?.stories ?? 0 },
     { label: "Lượt đọc", value: stats?.reads ?? 0 },
-    { label: "Bình luận", value: stats?.comments ?? 0 }
+    { label: "Bình luận", value: stats?.comments ?? 0 },
+    ...(stats?.drafts != null ? [{ label: "Nháp", value: stats.drafts }] : [])
   ];
 
   if (showRevenue && stats?.revenue != null) {
@@ -64,8 +65,8 @@ export function CreatorStudioCard({
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-1.5">
-        {quickStats.slice(0, showRevenue ? 4 : 3).map((stat) => (
+      <div className={`grid gap-1.5 ${quickStats.length > 3 ? "grid-cols-4" : "grid-cols-3"}`}>
+        {quickStats.slice(0, showRevenue ? 5 : 4).map((stat) => (
           <div
             className="rounded-lg border border-white/8 bg-white/[0.02] px-2 py-2 text-center"
             key={stat.label}

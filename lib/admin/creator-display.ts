@@ -1,14 +1,14 @@
 import {
   CREATOR_PROFILE_PUBLIC_SELECT,
   CREATOR_PROFILE_STORY_JOIN
-} from "@/lib/creator/supabase-selects";
+} from "@/lib/creator/postgrest-selects";
 import { resolveCreatorRowName } from "@/lib/creator/resolve-creator-row-name";
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
 import type { LegacyPenNameFields, ProfileNameFields } from "@/lib/profile/resolve-public-display-name";
 
 export { CREATOR_PROFILE_PUBLIC_SELECT, CREATOR_PROFILE_STORY_JOIN };
 
-/** Inline `creator_profiles(...)` fragment for admin Supabase selects. */
+/** Inline `creator_profiles(...)` fragment for admin db selects. */
 export const ADMIN_CREATOR_JOIN = `creator_profiles(${CREATOR_PROFILE_PUBLIC_SELECT})`;
 
 type CreatorJoinRow = LegacyPenNameFields & {

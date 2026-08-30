@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 let extendedSeoSchemaCache: boolean | null = null;
 let seoChangeLogsTableCache: boolean | null = null;
@@ -13,16 +13,16 @@ export function isMissingTableError(message: string | undefined) {
   return message.includes("does not exist") && message.includes("relation");
 }
 
-export async function hasExtendedSeoRuleSchema(supabase: SupabaseClient): Promise<boolean> {
+export async function hasExtendedSeoRuleSchema(db: DatabaseClient): Promise<boolean> {
   if (extendedSeoSchemaCache !== null) return extendedSeoSchemaCache;
-  const { error } = await supabase.from("seo_rules").select("include_sitemap").limit(1);
+  const { error } = await db.from("seo_rules").select("include_sitemap").limit(1);
   extendedSeoSchemaCache = !(error && isMissingColumnError(error.message));
   return extendedSeoSchemaCache;
 }
 
-export async function hasSeoChangeLogsTable(supabase: SupabaseClient): Promise<boolean> {
+export async function hasSeoChangeLogsTable(db: DatabaseClient): Promise<boolean> {
   if (seoChangeLogsTableCache !== null) return seoChangeLogsTableCache;
-  const { error } = await supabase.from("seo_change_logs").select("id").limit(1);
+  const { error } = await db.from("seo_change_logs").select("id").limit(1);
   seoChangeLogsTableCache = !(error && (isMissingTableError(error.message) || isMissingColumnError(error.message)));
   return seoChangeLogsTableCache;
 }

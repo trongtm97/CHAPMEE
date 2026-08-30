@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { CreatorAlertsList } from "@/components/creator/CreatorAlertsList";
 import { ContinueWritingList } from "@/components/creator/ContinueWritingList";
-import { CreatorOnboardingCard } from "@/components/creator/CreatorOnboardingCard";
 import { CreatorOverviewCards } from "@/components/creator/CreatorOverviewCards";
 import { CreatorPerformanceSection } from "@/components/creator/CreatorPerformanceSection";
 import { CreatorQuickActions } from "@/components/creator/CreatorQuickActions";
@@ -78,8 +77,6 @@ export function CreatorDashboard({
       {data.error ? (
         <ErrorState message={data.error} title="Không tải được dữ liệu" />
       ) : null}
-
-      {!data.hasStories ? <CreatorOnboardingCard /> : null}
 
       <DashboardSection title="Tổng quan Studio">
         <CreatorOverviewCards overview={data.overview} />

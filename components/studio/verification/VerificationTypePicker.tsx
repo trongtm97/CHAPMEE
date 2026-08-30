@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  STUDIO_VERIFICATION_TYPES,
+  STUDIO_VERIFICATION_PICKER_TYPES,
   STUDIO_VERIFICATION_TYPE_CONFIG,
   type StudioVerificationType
 } from "@/lib/verification/config";
@@ -17,7 +17,7 @@ export function VerificationTypePicker({ disabled, onChange, value }: Verificati
     <div className="space-y-3">
       <p className="text-sm font-semibold text-white">Bước 1 · Chọn loại xác thực</p>
       <div className="grid gap-3 sm:grid-cols-2">
-        {STUDIO_VERIFICATION_TYPES.map((type) => {
+        {STUDIO_VERIFICATION_PICKER_TYPES.map((type) => {
           const config = STUDIO_VERIFICATION_TYPE_CONFIG[type];
           const active = value === type;
           return (

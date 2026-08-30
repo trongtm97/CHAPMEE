@@ -10,6 +10,7 @@ import {
   useState
 } from "react";
 import { InsertTableDialog } from "@/components/editor/InsertTableDialog";
+import { MediaLibraryDialog } from "@/components/editor/MediaLibraryDialog";
 import { TiptapLinkDialog, type LinkDialogState } from "@/components/editor/tiptap/TiptapLinkDialog";
 import { TiptapToolbar } from "@/components/editor/tiptap/TiptapToolbar";
 import {
@@ -89,10 +90,8 @@ export const TiptapRichTextEditor = forwardRef<TiptapEditorHandle, Props>(
     const [htmlDraft, setHtmlDraft] = useState("");
     const [showLinkDialog, setShowLinkDialog] = useState(false);
     const [showTableDialog, setShowTableDialog] = useState(false);
+    const [showMediaDialog, setShowMediaDialog] = useState(false);
     const [linkDialog, setLinkDialog] = useState<LinkDialogState>(defaultLinkDialog);
-    const [imageError, setImageError] = useState<string | null>(null);
-    const [imageLoading, setImageLoading] = useState(false);
-    const imageInputRef = useRef<HTMLInputElement>(null);
     const isExternalUpdateRef = useRef(false);
 
     const emitFromHtml = useCallback(
@@ -278,25 +277,41 @@ export const TiptapRichTextEditor = forwardRef<TiptapEditorHandle, Props>(
       setShowLinkDialog(false);
     }
 
-    async function handleImageFile(event: React.ChangeEvent<HTMLInputElement>) {
-      const file = event.target.files?.[0];
-      event.target.value = "";
-      if (!file || !onImageUpload || !editor) {
-        return;
+    async function handleMediaUpload(file: File) {
+      if (!onImageUpload) {
+        return { ok: false as const, message: "Tải ảnh không khả dụng." };
       }
-
-      setImageError(null);
-      setImageLoading(true);
       const result = await onImageUpload(file);
-      setImageLoading(false);
-
       if (!result.ok || !result.previewUrl) {
-        setImageError(result.message ?? "Không thể tải ảnh lên.");
+        return { ok: false as const, message: result.message ?? "Không thể tải ảnh lên." };
+      }
+      return {
+        ok: true as const,
+        image: {
+          id: `upload-${Date.now()}`,
+          source: "asset" as const,
+          url: result.previewUrl,
+          objectKey: result.previewUrl,
+          thumbUrl: result.previewUrl,
+          thumbKey: result.previewUrl,
+          width: null,
+          height: null,
+          alt: "",
+          caption: "",
+          createdAt: new Date().toISOString()
+        }
+      };
+    }
+
+    function insertLibraryImage(image: { url: string; alt: string; caption: string }) {
+      if (!editor) {
         return;
       }
-
-      const alt = file.name.replace(/\.[^.]+$/, "") || "Ảnh minh họa";
-      editor.chain().focus().setImage({ src: result.previewUrl, alt }).run();
+      editor
+        .chain()
+        .focus()
+        .setPostImage({ src: image.url, alt: image.alt, caption: image.caption })
+        .run();
       emitFromHtml(editor.getHTML());
     }
 
@@ -352,11 +367,12 @@ export const TiptapRichTextEditor = forwardRef<TiptapEditorHandle, Props>(
               <TiptapToolbar
                 disabled={disabled}
                 editor={editor}
-                imageLoading={imageLoading}
-                onImageClick={onImageUpload ? () => imageInputRef.current?.click() : undefined}
-                onLinkClick={profile !== "chapter" ? openLinkDialog : undefined}
+                onImageClick={onImageUpload ? () => setShowMediaDialog(true) : undefined}
+                onLinkClick={openLinkDialog}
                 onTableClick={
-                  profile !== "chapter" ? () => setShowTableDialog(true) : undefined
+                  profile === "story" || profile === "content-post"
+                    ? () => setShowTableDialog(true)
+                    : undefined
                 }
                 profile={profile}
               />
@@ -364,7 +380,18 @@ export const TiptapRichTextEditor = forwardRef<TiptapEditorHandle, Props>(
           ) : null}
         </div>
 
-        {imageError ? <p className="text-xs text-red-300">{imageError}</p> : null}
+        {showMediaDialog ? (
+          <MediaLibraryDialog
+            onClose={() => setShowMediaDialog(false)}
+            onPick={(image) =>
+              insertLibraryImage({ url: image.url, alt: image.alt, caption: image.caption })
+            }
+            open={showMediaDialog}
+            title="Thư viện ảnh bài viết"
+            uploadFile={onImageUpload ? handleMediaUpload : undefined}
+            uploadHint="JPG, PNG, WebP · tối đa 5MB. Ảnh đã tải sẽ lưu lại để dùng cho các bài sau."
+          />
+        ) : null}
 
         {showTableDialog ? (
           <InsertTableDialog
@@ -421,15 +448,6 @@ export const TiptapRichTextEditor = forwardRef<TiptapEditorHandle, Props>(
           />
         )}
 
-        {onImageUpload ? (
-          <input
-            accept="image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={handleImageFile}
-            ref={imageInputRef}
-            type="file"
-          />
-        ) : null}
       </div>
     );
   }

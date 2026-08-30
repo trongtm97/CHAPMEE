@@ -33,3 +33,20 @@ export {
   getTaxonomyUrl,
   getTaxonomyUrlByType
 } from "@/lib/seo/canonical";
+
+export {
+  resolveSeoMetadata,
+  resolveNextMetadata
+} from "@/lib/seo/resolve-seo-metadata";
+export { createNextMetadata } from "@/lib/seo/create-next-metadata";
+export {
+  metadataForStaticRoute,
+  metadataForStory,
+  metadataForChapter,
+  metadataForProfile,
+  metadataForTaxonomyLanding,
+  metadataForContentPost,
+  metadataFromSeoEngine
+} from "@/lib/seo/public-page-metadata";
+export { resolveMediaAssetPublicUrl } from "@/lib/seo/seo-media";
+export { interpolateSeoTemplate } from "@/lib/seo/interpolate-seo-template";

@@ -5,7 +5,7 @@ import {
   validateUsernameFormat
 } from "@/lib/username/normalize-username";
 import { normalizePolicyText } from "@/lib/username/normalize-policy-text";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type {
   UsernamePolicyRuleRow,
   UsernamePolicyValidationResult
@@ -86,8 +86,8 @@ export async function validateUsername(
   }
 
   if (userId) {
-    const supabase = await createClient();
-    const { data: profile, error: lockError } = await supabase
+    const db = await createClient();
+    const { data: profile, error: lockError } = await db
       .from("profiles")
       .select("username_change_locked")
       .eq("id", userId)
@@ -126,8 +126,8 @@ export async function validateUsername(
     return fail(code, message ?? "Username không hợp lệ.");
   }
 
-  const supabase = await createClient();
-  let uniquenessQuery = supabase
+  const db = await createClient();
+  let uniquenessQuery = db
     .from("profiles")
     .select("id")
     .eq("username", normalized)

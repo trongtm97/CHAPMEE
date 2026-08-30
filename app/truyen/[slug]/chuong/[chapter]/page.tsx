@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 
 import EpisodePage, { generateMetadata as generateEpisodeMetadata } from "@/app/stories/[slug]/episodes/[episodeNumber]/page";
+
+export const dynamic = "force-dynamic";
 import { redirectToCanonicalIfNeeded, tryRedirectFromLookupTable } from "@/lib/urls/canonical";
 import { getPublicChapterSegments } from "@/lib/seo/static-params";
 import { resolveChapterFromSegments } from "@/lib/urls/resolve-chapter";

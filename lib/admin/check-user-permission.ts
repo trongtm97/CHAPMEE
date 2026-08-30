@@ -5,7 +5,7 @@ import { assertAnyPermission } from "@/lib/auth/require-permission";
 import { formatRoleLabel } from "@/lib/admin/roles";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { PermissionCheckResult } from "@/types/admin-roles";
 import type { PermissionCode, RoleCode } from "@/types/permissions";
 import type { ProfileRole } from "@/lib/auth/getCurrentProfile";
@@ -26,8 +26,8 @@ export async function checkUserPermissionAction(input: {
     return { ok: false, result: null, error: "Bạn cần đăng nhập." };
   }
 
-  const supabase = await createClient();
-  const { data: profile } = await supabase
+  const db = await createClient();
+  const { data: profile } = await db
     .from("profiles")
     .select("role, status")
     .eq("id", input.userId)
@@ -47,14 +47,14 @@ export async function checkUserPermissionAction(input: {
 
   const sourceRoles: PermissionCheckResult["sourceRoles"] = [];
   for (const roleCode of ctx.roles) {
-    const { data: roleRow } = await supabase
+    const { data: roleRow } = await db
       .from("roles")
       .select("id")
       .eq("code", roleCode)
       .maybeSingle();
     if (!roleRow) continue;
 
-    const { data: mappings } = await supabase
+    const { data: mappings } = await db
       .from("role_permissions")
       .select("permissions(code)")
       .eq("role_id", roleRow.id);
@@ -67,7 +67,7 @@ export async function checkUserPermissionAction(input: {
       .filter(Boolean);
 
     if (codes.includes(input.permissionCode)) {
-      const { data: ur } = await supabase
+      const { data: ur } = await db
         .from("user_roles")
         .select("expires_at")
         .eq("user_id", input.userId)

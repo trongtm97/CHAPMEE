@@ -38,7 +38,7 @@ export default async function StudioOverviewPage() {
 
   const [dashboard, creatorCampaign] = await Promise.all([
     getCreatorStudioDashboard(creatorProfile),
-    loadCreatorStudioCampaign()
+    loadCreatorStudioCampaign().catch(() => null)
   ]);
 
   void trackEvent({
@@ -46,7 +46,7 @@ export default async function StudioOverviewPage() {
     targetId: creatorProfile.id,
     targetType: "creator",
     metadata: { creator_id: creatorProfile.id, surface: "studio" }
-  });
+  }).catch(() => undefined);
 
   return (
     <section className="w-full min-w-0">

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getFinanceIdentityStatus } from "@/lib/finance/get-finance-identity-status";
 import type { CreatorAdComplianceView } from "@/types/creator-ad-revenue-dashboard";
 import type {
@@ -10,15 +10,15 @@ import type {
 export async function getCreatorComplianceForStudio(
   userId: string
 ): Promise<CreatorAdComplianceView> {
-  const supabase = await createClient();
+  const db = await createClient();
 
   const [identity, payoutResult, profileResult] = await Promise.all([
     getFinanceIdentityStatus(userId),
-    supabase
+    db
       .from("creator_payout_accounts")
       .select("verification_status, is_default")
       .eq("creator_user_id", userId),
-    supabase
+    db
       .from("creator_ad_monetization_profiles")
       .select("kyc_status, tax_status, payout_status")
       .eq("user_id", userId)

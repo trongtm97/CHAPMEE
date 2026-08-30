@@ -61,7 +61,7 @@ Prefix mới `chapmee:` — đọc key cũ `chapchap*` một lần rồi chuyể
 
 - `lib/env/legacy-env.ts` — đọc `CHAPMEE_*` trước, fallback `CHAPCHAP_*`
 - `.env.example` ghi cả hai tên
-- `CHAPMEE_SUPABASE_TIMEOUT_MS`, `CHAPMEE_SKIP_REMOTE_CONFIG`, `CHAPMEE_RUNTIME_PLATFORM`
+- `CHAPMEE_POSTGREST_TIMEOUT_MS`, `CHAPMEE_SKIP_REMOTE_CONFIG`, `CHAPMEE_RUNTIME_PLATFORM`
 - Header runtime: `x-chapmee-runtime-platform` (+ fallback cũ)
 
 ### Admin / export (tên file hiển thị)
@@ -72,7 +72,7 @@ Prefix mới `chapmee:` — đọc key cũ `chapchap*` một lần rồi chuyể
 
 ### Database (migration mới)
 
-- `supabase/migrations/071_brand_chapmee_content.sql`
+- `db/migrations/legacy/071_brand_chapmee_content.sql`
   - `badges.description`: replace ChapChap → ChapMee
   - `app_settings.contact_description` (key contact_feedback)
 

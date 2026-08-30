@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getCurrentCreatorProfile } from "@/lib/creator/getCreatorProfile";
+import { requireCreatorProfile } from "@/lib/creator/require-creator-profile";
 import { validateDisplayName } from "@/lib/username/validate-display-name";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export type CreatorProfileSettingsActionState = {
   error: string | null;
@@ -25,6 +25,12 @@ export async function updateCreatorProfileAction(
   const displayName = String(formData.get("display_name") ?? formData.get("pen_name") ?? "").trim();
   const bio = String(formData.get("bio") ?? "").trim();
   const avatarUrl = parseAvatarUrl(formData.get("avatar_url"));
+  if (avatarUrl) {
+    return {
+      error: "Ảnh đại diện phải upload qua trình upload avatar, không dán URL.",
+      success: false
+    };
+  }
 
   if (!displayName) {
     return { error: "Vui lòng nhập tên hiển thị.", success: false };
@@ -38,27 +44,18 @@ export async function updateCreatorProfileAction(
     return { error: "Giới thiệu tối đa 500 ký tự.", success: false };
   }
 
-  const { creatorProfile, user } = await getCurrentCreatorProfile();
-
-  if (!user) {
-    redirect("/login?next=/studio/settings");
-  }
-
-  if (!creatorProfile) {
-    redirect("/studio/setup");
-  }
+  const { creatorProfile, user } = await requireCreatorProfile("/studio/settings");
 
   const displayNamePolicy = await validateDisplayName(displayName, user.id);
   if (!displayNamePolicy.valid) {
     return { error: displayNamePolicy.message ?? "Tên hiển thị không hợp lệ.", success: false };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { error: profileError } = await supabase
+  const { error: profileError } = await db
     .from("profiles")
     .update({
-      avatar_url: avatarUrl,
       bio: bio || null,
       display_name: displayName
     })

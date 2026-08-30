@@ -10,7 +10,7 @@ type StoryImageVariantPreviewProps = {
 
 const PREVIEW_FRAMES = [
   { id: "landscape", label: "Ảnh ngang", aspectClass: "aspect-video" },
-  { id: "portrait", label: "Ảnh dọc", aspectClass: "aspect-[2/3]" },
+  { id: "portrait", label: "Ảnh dọc", aspectClass: "aspect-[3/4]" },
   { id: "square", label: "Ảnh vuông", aspectClass: "aspect-square" }
 ] as const;
 

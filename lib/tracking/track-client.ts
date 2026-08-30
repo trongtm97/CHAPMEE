@@ -6,7 +6,7 @@ import {
   sanitizeReasonCode,
   sanitizeTrackingMetadata
 } from "@/lib/tracking/sanitize-metadata";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/data/client";
 import type {
   TrackExposureInput,
   TrackStoryActionMetadata,
@@ -66,10 +66,10 @@ async function resolveAuthUserId(explicitUserId?: string | null) {
     return explicitUserId;
   }
   try {
-    const supabase = createClient();
+    const db = createClient();
     const {
       data: { user }
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
     return user?.id ?? null;
   } catch {
     return null;
@@ -82,9 +82,9 @@ export async function trackExposure(input: TrackExposureInput) {
   }
 
   try {
-    const supabase = createClient();
+    const db = createClient();
     const userId = await resolveAuthUserId(input.userId);
-    const { error } = await supabase.from("exposure_events").insert({
+    const { error } = await db.from("exposure_events").insert({
       user_id: userId,
       anonymous_id: input.anonymousId ?? getTrackingAnonymousId(),
       surface: input.surface,
@@ -124,11 +124,11 @@ export async function trackUserAction(input: TrackUserActionInput) {
   }
 
   try {
-    const supabase = createClient();
+    const db = createClient();
     const userId = await resolveAuthUserId(input.userId);
     const metadata = sanitizeTrackingMetadata(input.metadata ?? {});
 
-    const { error } = await supabase.from("user_action_events").insert({
+    const { error } = await db.from("user_action_events").insert({
       user_id: userId,
       anonymous_id: input.anonymousId ?? getTrackingAnonymousId(),
       surface: input.surface,
@@ -425,7 +425,7 @@ export async function updateUserInterestProfileFromAction(
   }
 
   try {
-    const supabase = createClient();
+    const db = createClient();
     const key =
       action.actionType === "hide" || action.actionType === "report"
         ? action.authorUserId
@@ -444,7 +444,7 @@ export async function updateUserInterestProfileFromAction(
           : "preferred_content_types";
 
     const patch = { [key]: 1 };
-    const { data: existing } = await supabase
+    const { data: existing } = await db
       .from("user_interest_profiles")
       .select(field)
       .eq("user_id", userId)
@@ -457,7 +457,7 @@ export async function updateUserInterestProfileFromAction(
 
     const merged = { ...current, ...patch };
 
-    await supabase.from("user_interest_profiles").upsert(
+    await db.from("user_interest_profiles").upsert(
       {
         user_id: userId,
         [field]: merged,

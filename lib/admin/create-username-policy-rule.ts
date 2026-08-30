@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminAuditLog } from "@/lib/admin/create-audit-log";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { normalizePolicyText } from "@/lib/username/normalize-policy-text";
 import { normalizeUsername } from "@/lib/username/normalize-username";
 import type {
@@ -97,8 +97,8 @@ export async function createUsernamePolicyRuleAction(input: {
       input.enforcementLevel ?? defaultEnforcement(input.ruleType);
     const normalized_value = resolveNormalizedValue(input.ruleType, value, matchType);
 
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("username_policy_rules")
       .insert({
         rule_type: input.ruleType,
@@ -117,8 +117,8 @@ export async function createUsernamePolicyRuleAction(input: {
       .select("*")
       .single();
 
-    if (error) {
-      return { ok: false, error: error.message };
+    if (error || !data) {
+      return { ok: false, error: error?.message ?? "Không tạo được rule." };
     }
 
     await createAdminAuditLog({

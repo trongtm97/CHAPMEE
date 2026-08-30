@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { MonetizationSettingsShell } from "@/components/admin/monetization/MonetizationSettingsShell";
 import { getAdMonetizationOverview } from "@/lib/admin/get-ad-monetization-overview";
 import { listCreatorAdPolicyAuditLogs } from "@/lib/creator-ad-revenue/audit";
@@ -9,8 +9,8 @@ import { getCurrentAuthContext } from "@/lib/auth/permissions";
 import { resolveMonetizationSettingsPermissions } from "@/lib/auth/monetization-settings-permissions";
 import { requireFinanceSettingsView } from "@/lib/auth/require-permission";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { getCoinPacksForAdmin } from "@/lib/supabase/coin-packs";
-import { getPaymentProviderSettings } from "@/lib/supabase/payment-provider-settings";
+import { getCoinPacksForAdmin } from "@/lib/data/coin-packs";
+import { getPaymentProviderSettings } from "@/lib/data/payment-provider-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -45,22 +45,23 @@ export default async function AdminMonetizationSettingsRoute() {
     config = null;
   }
 
-  const [audit, overrideStats, topupPackages, adOverview, adAudit, paymentProviders] = await Promise.all([
-    permissions.canViewAudit ? getMonetizationAuditLogs(10) : { logs: [], error: null },
-    getCreatorFeeOverrideStats().catch(() => ({
-      customRateCreators: 0,
-      activeFeePolicies: 0,
-      policiesNeedingReview: 0
-    })),
-    getCoinPacksForAdmin().catch(() => ({ data: [], error: null })),
-    getAdMonetizationOverview(),
-    permissions.canViewAudit
-      ? listCreatorAdPolicyAuditLogs({ limit: 10 })
-      : Promise.resolve({ logs: [], error: null })
-    ,
-    getPaymentProviderSettings().catch(() => ({ data: [], error: null }))
-  ]);
-  const loadedSepaySetting = paymentProviders.data.find((item) => item.provider_key === "sepay") ?? null;
+  const [audit, overrideStats, topupPackages, adOverview, adAudit, paymentProviders] =
+    await Promise.all([
+      permissions.canViewAudit ? getMonetizationAuditLogs(10) : { logs: [], error: null },
+      getCreatorFeeOverrideStats().catch(() => ({
+        customRateCreators: 0,
+        activeFeePolicies: 0,
+        policiesNeedingReview: 0
+      })),
+      getCoinPacksForAdmin().catch(() => ({ data: [], error: null })),
+      getAdMonetizationOverview(),
+      permissions.canViewAudit
+        ? listCreatorAdPolicyAuditLogs({ limit: 10 })
+        : Promise.resolve({ logs: [], error: null }),
+      getPaymentProviderSettings().catch(() => ({ data: [], error: null }))
+    ]);
+  const loadedSepaySetting =
+    paymentProviders.data.find((item) => item.provider_key === "sepay") ?? null;
   const sepaySetting = loadedSepaySetting
     ? { ...loadedSepaySetting, private_config_reference: null }
     : null;
@@ -76,14 +77,12 @@ export default async function AdminMonetizationSettingsRoute() {
           title="Lỗi tải dữ liệu"
           variant="danger"
         />
-        <form action="/admin/monetization-settings">
-          <button
-            className="rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-zinc-950"
-            type="submit"
-          >
-            Thử lại
-          </button>
-        </form>
+        <Link
+          className="inline-flex rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-zinc-950"
+          href="/admin/monetization-settings"
+        >
+          Thử lại
+        </Link>
       </section>
     );
   }

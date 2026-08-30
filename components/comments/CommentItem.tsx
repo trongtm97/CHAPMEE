@@ -31,6 +31,11 @@ export function CommentItem({ comment, returnTo }: CommentItemProps) {
           </p>
           {comment.isVip ? <Badge className="mt-1" variant="success">VIP</Badge> : null}
           <p className="mt-1 text-xs text-zinc-500">
+            {comment.sourceLabel ? (
+              <span className="mr-2 rounded-full border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-semibold text-cyan-200/90">
+                {comment.sourceLabel}
+              </span>
+            ) : null}
             {formatDate(comment.createdAt)}
           </p>
         </div>

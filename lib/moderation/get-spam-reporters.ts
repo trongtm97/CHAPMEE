@@ -1,14 +1,14 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { ReporterQualitySummary } from "@/types/moderation";
 
 export async function getSpamSuspectedReporters(): Promise<
   ReporterQualitySummary[]
 > {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("reporter_quality")
     .select(
       `

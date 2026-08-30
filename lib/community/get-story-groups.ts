@@ -1,6 +1,6 @@
-import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/postgrest-selects";
 import { resolveCreatorRowName } from "@/lib/creator/resolve-creator-row-name";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { StoryCommunityGroup } from "@/types/community";
 
 type StoryRow = {
@@ -73,8 +73,8 @@ export async function getStoryGroups(): Promise<{
   error: string | null;
 }> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("stories")
       .select(`id, title, slug, cover_url, ${CREATOR_PROFILE_STORY_JOIN}`)
       .eq("visibility", "public")
@@ -91,7 +91,7 @@ export async function getStoryGroups(): Promise<{
     const postCountByStory = new Map<string, number>();
 
     if (storyIds.length > 0) {
-      const { data: posts } = await supabase
+      const { data: posts } = await db
         .from("community_posts")
         .select("story_id")
         .in("story_id", storyIds)

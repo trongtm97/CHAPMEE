@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { profileAvatarUrlFromRow } from "@/lib/profile/map-profile-row";
+import { createClient } from "@/lib/data/server";
 import { getConversationMessagingState } from "@/lib/messages/get-conversation-messaging-state";
 import { getMessagePrivacySettings } from "@/lib/messages/get-privacy-settings";
 import { mapMessageRow } from "@/lib/messages/map-message-row";
@@ -9,9 +10,9 @@ export async function getConversationDetail(
   conversationId: string,
   userId: string
 ): Promise<ConversationDetail | null> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: participant } = await supabase
+  const { data: participant } = await db
     .from("conversation_participants")
     .select("is_muted, is_archived, last_read_at, conversations!inner(id, status)")
     .eq("conversation_id", conversationId)
@@ -28,7 +29,7 @@ export async function getConversationDetail(
     status: string;
   };
 
-  const { data: otherParticipant } = await supabase
+  const { data: otherParticipant } = await db
     .from("conversation_participants")
     .select(
       `user_id, last_read_at,
@@ -54,7 +55,7 @@ export async function getConversationDetail(
 
   const privacy = await getMessagePrivacySettings(userId);
 
-  const { data: messages } = await supabase
+  const { data: messages } = await db
     .from("messages")
     .select("id, sender_id, body, body_safety_status, created_at, deleted_at, status")
     .eq("conversation_id", conversationId)
@@ -92,7 +93,7 @@ export async function getConversationDetail(
       id: profile.id,
       displayName: profile.display_name ?? profile.username ?? "Người dùng",
       username: profile.username,
-      avatarUrl: profile.avatar_url,
+      avatarUrl: profileAvatarUrlFromRow(profile),
       lastReadAt: (otherParticipant?.last_read_at as string | null) ?? null
     },
     messages: mapped,

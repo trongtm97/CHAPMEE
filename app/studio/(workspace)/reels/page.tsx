@@ -80,7 +80,9 @@ export default async function StudioReelsRoute({ searchParams }: StudioReelsRout
 
   const stories =
     (storiesForForm.stories ?? []).map((story) => ({
+      hook: (story.hook as string | null) ?? null,
       id: story.id as string,
+      long_description: (story.long_description as string | null) ?? null,
       slug: story.slug as string,
       title: story.title as string
     })) ?? [];

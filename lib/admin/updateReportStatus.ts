@@ -5,7 +5,7 @@ import { createModerationCase } from "@/lib/admin/createModerationCase";
 import { assertStaffPermission } from "@/lib/auth/staff-guards";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { requireAdminOrModerator } from "@/lib/auth/requireAdminOrModerator";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 async function requireAdminAction() {
   const guard = await requireAdminOrModerator("/admin/reports");
@@ -18,8 +18,8 @@ async function requireAdminAction() {
 }
 
 async function getReport(reportId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("reports")
     .select("id, target_type, target_id")
     .eq("id", reportId)
@@ -36,8 +36,8 @@ export async function markReportReviewingAction(formData: FormData) {
   await requireAdminAction();
   await assertStaffPermission("report.review");
   const reportId = String(formData.get("report_id") ?? "");
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("reports")
     .update({ status: "reviewing" })
     .eq("id", reportId)
@@ -62,8 +62,8 @@ export async function resolveReportAction(formData: FormData) {
     return;
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("reports")
     .update({ status: "resolved" })
     .eq("id", reportId);
@@ -104,8 +104,8 @@ export async function rejectReportAction(formData: FormData) {
     return;
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("reports")
     .update({ status: "rejected" })
     .eq("id", reportId);

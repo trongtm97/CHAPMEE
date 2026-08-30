@@ -1,7 +1,7 @@
 "use server";
 
 import { ADMIN_CREATOR_JOIN, resolveAdminCreatorName } from "@/lib/admin/creator-display";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { sumLockedFullStoryRevenueForStory } from "@/lib/monetization/story-completion-escrow";
 import type {
   AdminStoryCompletionReviewRow,
@@ -53,9 +53,9 @@ export async function getStoryCompletionReviews(
   const statusFilter = query.status ?? "all";
   const sort = query.sort ?? "requested_desc";
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: settingsRows, error: settingsError } = await supabase
+  const { data: settingsRows, error: settingsError } = await db
     .from("story_monetization_settings")
     .select("story_id, full_access_enabled, full_access_price_coin")
     .eq("full_access_enabled", true);
@@ -93,7 +93,7 @@ export async function getStoryCompletionReviews(
     };
   }
 
-  let storiesQuery = supabase
+  let storiesQuery = db
     .from("stories")
     .select(
       `id, title, slug, status, visibility, is_completed, updated_at, admin_completion_status, admin_completion_requested_at, admin_completion_reviewed_at, admin_completion_note, author_completion_request_note, ${ADMIN_CREATOR_JOIN}`
@@ -155,11 +155,11 @@ export async function getStoryCompletionReviews(
 
       const [{ count: chapterCount }, { data: lastEpisode }, lockedRevenue] =
         await Promise.all([
-          supabase
+          db
             .from("episodes")
             .select("id", { count: "exact", head: true })
             .eq("story_id", storyId),
-          supabase
+          db
             .from("episodes")
             .select("updated_at")
             .eq("story_id", storyId)
@@ -231,8 +231,8 @@ export async function getStoryCompletionReviews(
 }
 
 export async function getStoryCompletionReviewSummary() {
-  const supabase = await createClient();
-  const { data: settingsRows } = await supabase
+  const db = await createClient();
+  const { data: settingsRows } = await db
     .from("story_monetization_settings")
     .select("story_id")
     .eq("full_access_enabled", true);
@@ -244,17 +244,17 @@ export async function getStoryCompletionReviewSummary() {
 
   const [{ count: pending }, { count: approved }, { count: rejected }] =
     await Promise.all([
-      supabase
+      db
         .from("stories")
         .select("id", { count: "exact", head: true })
         .in("id", storyIds)
         .eq("admin_completion_status", "pending_review"),
-      supabase
+      db
         .from("stories")
         .select("id", { count: "exact", head: true })
         .in("id", storyIds)
         .eq("admin_completion_status", "approved"),
-      supabase
+      db
         .from("stories")
         .select("id", { count: "exact", head: true })
         .in("id", storyIds)

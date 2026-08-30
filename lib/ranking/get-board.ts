@@ -1,7 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { hydrateRankingSnapshots } from "@/lib/ranking/hydrate-items";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type {
+  RankingBoardItem,
   RankingBoardResult,
   RankingBoardType,
   RankingSnapshotRow,
@@ -24,14 +25,14 @@ type GenreBoardKeys = {
 };
 
 async function resolveGenreBoardKeys(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   params: GetRankingBoardParams
 ): Promise<GenreBoardKeys> {
   const { resolveMainGenreTermBySlug } = await import(
     "@/lib/taxonomy/ranking-bridge"
   );
 
-  const term = await resolveMainGenreTermBySlug(supabase, params.genreSlug);
+  const term = await resolveMainGenreTermBySlug(db, params.genreSlug);
 
   return {
     taxonomyTermId: term?.termId ?? params.genreId ?? null
@@ -52,7 +53,7 @@ function applyGenreSnapshotFilter(query: any, boardType: RankingBoardType, keys:
 }
 
 async function tryGenreTaxonomyFallback(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   params: GetRankingBoardParams,
   page: number,
   pageSize: number
@@ -64,7 +65,7 @@ async function tryGenreTaxonomyFallback(
   const { getGenreStoriesBoardFromTaxonomy } = await import(
     "@/lib/ranking/taxonomy-genre-board-fallback"
   );
-  return getGenreStoriesBoardFromTaxonomy(supabase, {
+  return getGenreStoriesBoardFromTaxonomy(db, {
     genreSlug: params.genreSlug,
     timeWindow: params.timeWindow,
     page,
@@ -72,12 +73,69 @@ async function tryGenreTaxonomyFallback(
   });
 }
 
+async function tryLiveBoardFallback(
+  db: DatabaseClient,
+  params: GetRankingBoardParams,
+  page: number,
+  pageSize: number
+) {
+  const { getLiveRankingBoardFallback } = await import(
+    "@/lib/ranking/live-board-fallback"
+  );
+  return getLiveRankingBoardFallback(db, params, page, pageSize);
+}
+
+function logRankingBoard(message: string, data: Record<string, unknown>) {
+  if (process.env.NODE_ENV !== "development") return;
+  console.info("[ranking-board]", message, data);
+}
+
+function emptyRankingBoard(
+  params: GetRankingBoardParams,
+  page: number,
+  pageSize: number,
+  fallbackNote?: string | null
+): RankingBoardResult {
+  return {
+    boardType: params.boardType,
+    timeWindow: params.timeWindow,
+    genreSlug: params.genreSlug ?? null,
+    items: [],
+    totalCount: 0,
+    page,
+    pageSize,
+    totalPages: 0,
+    snapshotAt: null,
+    fallbackNote: fallbackNote ?? null,
+    error: null
+  };
+}
+
+async function attachAudioToItems(items: RankingBoardItem[]) {
+  const storyIds = items
+    .filter((item) => item.itemType === "story")
+    .map((item) => item.id);
+  const { getStoryAudioCardSummaryMap } = await import("@/src/lib/audio/audio-summary");
+  const audioMap = await getStoryAudioCardSummaryMap(storyIds);
+  return items.map((item) => {
+    if (item.itemType !== "story") {
+      return item;
+    }
+    const audio = audioMap.get(item.id);
+    return {
+      ...item,
+      hasPublishedAudio: audio?.hasPublishedAudio ?? false,
+      hasContinuousPlayback: audio?.hasContinuousPlayback ?? false
+    };
+  });
+}
+
 async function latestSnapshotAt(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   params: GetRankingBoardParams,
   keys: GenreBoardKeys
 ) {
-  let query = supabase
+  let query = db
     .from("ranking_snapshots")
     .select("snapshot_at")
     .eq("ranking_type", params.boardType)
@@ -93,25 +151,51 @@ async function latestSnapshotAt(
 }
 
 export async function getRankingBoard(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   params: GetRankingBoardParams
 ): Promise<RankingBoardResult> {
   const page = Math.max(1, params.page ?? 1);
   const pageSize = params.pageSize ?? RANKING_PAGE_SIZE;
-  const genreKeys = await resolveGenreBoardKeys(supabase, params);
 
   try {
-    const snapshotAt = await latestSnapshotAt(supabase, params, genreKeys);
+    const genreKeys = await resolveGenreBoardKeys(db, params);
 
-    if (!snapshotAt) {
-      const fallback = await tryGenreTaxonomyFallback(
-        supabase,
+    if (params.boardType === "boosted_stories") {
+      const { getBoostedStoriesBoard } = await import(
+        "@/lib/ranking/boosted-stories-board"
+      );
+      const boostedBoard = await getBoostedStoriesBoard(db, {
+        timeWindow: params.timeWindow,
+        page,
+        pageSize
+      });
+      logRankingBoard("boosted stories live board", {
+        boardType: params.boardType,
+        timeWindow: params.timeWindow,
+        count: boostedBoard.totalCount
+      });
+      const items = await attachAudioToItems(boostedBoard.items);
+      return { ...boostedBoard, items };
+    }
+
+    if (
+      params.boardType === "original_stories" ||
+      params.boardType === "translation_stories"
+    ) {
+      const officialBoard = await tryLiveBoardFallback(
+        db,
         params,
         page,
         pageSize
       );
-      if (fallback) {
-        return fallback;
+      logRankingBoard("official origin board", {
+        boardType: params.boardType,
+        timeWindow: params.timeWindow,
+        count: officialBoard?.totalCount ?? 0
+      });
+      if (officialBoard) {
+        const items = await attachAudioToItems(officialBoard.items);
+        return { ...officialBoard, items };
       }
 
       return {
@@ -128,7 +212,50 @@ export async function getRankingBoard(
       };
     }
 
-    let countQuery = supabase
+    const snapshotAt = await latestSnapshotAt(db, params, genreKeys);
+
+    if (!snapshotAt) {
+      const genreFallback = await tryGenreTaxonomyFallback(
+        db,
+        params,
+        page,
+        pageSize
+      );
+      if (genreFallback) {
+        return genreFallback;
+      }
+
+      const liveFallback = await tryLiveBoardFallback(
+        db,
+        params,
+        page,
+        pageSize
+      );
+      logRankingBoard("no snapshot — live fallback", {
+        boardType: params.boardType,
+        timeWindow: params.timeWindow,
+        count: liveFallback?.totalCount ?? 0
+      });
+      if (liveFallback) {
+        const items = await attachAudioToItems(liveFallback.items);
+        return { ...liveFallback, items };
+      }
+
+      return {
+        boardType: params.boardType,
+        timeWindow: params.timeWindow,
+        genreSlug: params.genreSlug ?? null,
+        items: [],
+        totalCount: 0,
+        page,
+        pageSize,
+        totalPages: 0,
+        snapshotAt: null,
+        error: null
+      };
+    }
+
+    let countQuery = db
       .from("ranking_snapshots")
       .select("id", { count: "exact", head: true })
       .eq("ranking_type", params.boardType)
@@ -147,14 +274,30 @@ export async function getRankingBoard(
     const totalCount = count ?? 0;
 
     if (totalCount === 0) {
-      const fallback = await tryGenreTaxonomyFallback(
-        supabase,
+      const genreFallback = await tryGenreTaxonomyFallback(
+        db,
         params,
         page,
         pageSize
       );
-      if (fallback) {
-        return fallback;
+      if (genreFallback) {
+        return genreFallback;
+      }
+
+      const liveFallback = await tryLiveBoardFallback(
+        db,
+        params,
+        page,
+        pageSize
+      );
+      logRankingBoard("empty snapshot count — live fallback", {
+        boardType: params.boardType,
+        timeWindow: params.timeWindow,
+        count: liveFallback?.totalCount ?? 0
+      });
+      if (liveFallback) {
+        const items = await attachAudioToItems(liveFallback.items);
+        return { ...liveFallback, items };
       }
     }
 
@@ -162,7 +305,7 @@ export async function getRankingBoard(
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    let dataQuery = supabase
+    let dataQuery = db
       .from("ranking_snapshots")
       .select("*")
       .eq("ranking_type", params.boardType)
@@ -181,7 +324,34 @@ export async function getRankingBoard(
     if (error && !isMissingSchemaError(error)) throw error;
 
     const rows = (data ?? []) as RankingSnapshotRow[];
-    const items = await hydrateRankingSnapshots(supabase, rows, params.boardType);
+    const hydrated = await hydrateRankingSnapshots(db, rows, params.boardType);
+
+    if (hydrated.length === 0 && rows.length > 0) {
+      const liveFallback = await tryLiveBoardFallback(
+        db,
+        params,
+        page,
+        pageSize
+      );
+      logRankingBoard("hydrate empty — live fallback", {
+        boardType: params.boardType,
+        timeWindow: params.timeWindow,
+        snapshotRows: rows.length,
+        count: liveFallback?.totalCount ?? 0
+      });
+      if (liveFallback) {
+        const items = await attachAudioToItems(liveFallback.items);
+        return { ...liveFallback, items };
+      }
+    }
+
+    const items = await attachAudioToItems(hydrated);
+    logRankingBoard("snapshot board", {
+      boardType: params.boardType,
+      timeWindow: params.timeWindow,
+      totalCount,
+      itemCount: items.length
+    });
 
     return {
       boardType: params.boardType,
@@ -195,7 +365,23 @@ export async function getRankingBoard(
       snapshotAt,
       error: null
     };
-  } catch (error) {
+  } catch (error: any) {
+    if (isMissingSchemaError(error)) {
+      return emptyRankingBoard(
+        params,
+        page,
+        pageSize,
+        "Ranking data is not ready yet. It will appear after migrations and snapshots finish."
+      );
+    }
+
+    return emptyRankingBoard(
+      params,
+      page,
+      pageSize,
+      "Ranking data is temporarily unavailable. The page will update when data recovers."
+    );
+
     if (isMissingSchemaError(error)) {
       return {
         boardType: params.boardType,

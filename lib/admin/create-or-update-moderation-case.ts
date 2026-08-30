@@ -1,5 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import { priorityToSeverity, severityToPriority } from "@/lib/admin/report-labels";
 import type { ReportSeverity } from "@/types/reports";
 
@@ -13,10 +13,10 @@ type UpsertCaseInput = {
 };
 
 export async function findOrCreateModerationCase(input: UpsertCaseInput) {
-  const supabase = await createClient();
+  const db = await createClient();
   const severity = input.severity ?? "medium";
 
-  const { data: existing, error: findError } = await supabase
+  const { data: existing, error: findError } = await db
     .from("moderation_cases")
     .select("id, report_count")
     .eq("target_type", input.targetType)
@@ -30,7 +30,7 @@ export async function findOrCreateModerationCase(input: UpsertCaseInput) {
 
   if (existing?.id) {
     if (input.incrementCount !== false) {
-      await supabase
+      await db
         .from("moderation_cases")
         .update({
           report_count: ((existing.report_count as number) ?? 1) + 1,
@@ -41,7 +41,7 @@ export async function findOrCreateModerationCase(input: UpsertCaseInput) {
     return existing.id as string;
   }
 
-  const { data: created, error: insertError } = await supabase
+  const { data: created, error: insertError } = await db
     .from("moderation_cases")
     .insert({
       target_type: input.targetType,
@@ -69,8 +69,8 @@ export async function linkReportsToCase(
   caseId: string | null
 ) {
   if (!caseId) return;
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("reports")
     .update({ moderation_case_id: caseId })
     .eq("target_type", targetType)

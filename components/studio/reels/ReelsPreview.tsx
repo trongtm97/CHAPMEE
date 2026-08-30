@@ -8,6 +8,7 @@ type ReelsPreviewProps = {
   hook: string;
   body: string;
   cta: string;
+  contentSource?: "chapter" | "story";
   storyTitle: string;
   storySlug: string;
   storyPublicCode?: string;
@@ -22,6 +23,7 @@ export function ReelsPreview({
   hook,
   body,
   cta,
+  contentSource,
   storyTitle,
   storySlug,
   storyPublicCode = "preview",
@@ -31,9 +33,12 @@ export function ReelsPreview({
   genreName,
   backgroundImageUrl
 }: ReelsPreviewProps) {
+  const resolvedContentSource = contentSource ?? (episodeNumber ? "chapter" : "story");
   const previewItem: ReelsItem = {
     backgroundImageUrl,
+    chapterId: resolvedContentSource === "chapter" ? "preview-chapter" : null,
     commentCount: 0,
+    contentSource: resolvedContentSource,
     creatorAvatarUrl: null,
     creatorHandle: null,
     creatorId: null,
@@ -47,6 +52,7 @@ export function ReelsPreview({
     genreName: genreName ?? null,
     hookTitle: hook || "Hook",
     id: "preview",
+    reelItemId: null,
     isFollowingCreator: false,
     isLiked: false,
     isSaved: false,

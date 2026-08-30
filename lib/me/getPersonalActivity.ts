@@ -1,5 +1,5 @@
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getStoryUrl } from "@/lib/urls/paths";
 import type { ReaderProfileData } from "@/lib/profile/getReaderProfile";
 import type { PersonalActivityItem } from "@/types/me-page";
@@ -57,16 +57,16 @@ export async function getPersonalActivity(
   const items: PersonalActivityItem[] = [];
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const [commentsResult, followsResult, savesResult] = await Promise.all([
-      supabase
+      db
         .from("comments")
         .select("id, content, created_at, stories(title, slug, public_code)")
         .eq("user_id", userId)
         .eq("status", "visible")
         .order("created_at", { ascending: false })
         .limit(5),
-      supabase
+      db
         .from("follows")
         .select(
           "id, creator_id, created_at, creator_profiles(pen_name, user_id, profiles!creator_profiles_user_id_fkey(display_name, username))"
@@ -75,7 +75,7 @@ export async function getPersonalActivity(
         .not("creator_id", "is", null)
         .order("created_at", { ascending: false })
         .limit(5),
-      supabase
+      db
         .from("bookshelf_items")
         .select("id, updated_at, stories(title, slug, public_code)")
         .eq("user_id", userId)

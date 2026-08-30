@@ -23,10 +23,10 @@ function CoinPackForm({ pack }: { pack?: CoinPack }) {
     <form action={action} className="space-y-2 rounded-xl border border-white/10 p-3">
       <input name="id" type="hidden" value={pack?.id ?? ""} />
       <div className="grid gap-2 sm:grid-cols-2">
-        <Input defaultValue={pack?.name ?? ""} label="Tên pack" name="name" required />
+        <Input defaultValue={pack?.name ?? ""} label="Tên gói" name="name" required />
         <Input
           defaultValue={String(pack?.base_coin_amount ?? 100)}
-          label="Base coin amount"
+          label="Xu gốc"
           min={1}
           name="base_coin_amount"
           required
@@ -34,7 +34,7 @@ function CoinPackForm({ pack }: { pack?: CoinPack }) {
         />
         <Input
           defaultValue={String(pack?.bonus_coin_amount ?? 0)}
-          label="Bonus coin"
+          label="Xu bonus"
           min={0}
           name="bonus_coin_amount"
           type="number"
@@ -95,8 +95,8 @@ export function CoinPackManager({ packs }: CoinPackManagerProps) {
   return (
     <Card className="space-y-4">
       <SectionHeader
-        subtitle="Quản lý pack nạp cố định. Bonus tối đa khuyến nghị 15%."
-        title="Gói coin"
+        subtitle="Quản lý gói nạp cố định. Bonus tối đa khuyến nghị 15%."
+        title="Gói Xu"
       />
       <CoinPackForm />
       <div className="space-y-2">

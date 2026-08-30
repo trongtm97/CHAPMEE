@@ -10,10 +10,12 @@ type UserFollowButtonProps = {
   allowFollow: boolean;
   isOwner: boolean;
   returnTo: string;
+  buttonClassName?: string;
 };
 
 export function UserFollowButton({
   allowFollow,
+  buttonClassName,
   followingId,
   isFollowing,
   isLoggedIn,
@@ -36,10 +38,13 @@ export function UserFollowButton({
   if (!isLoggedIn) {
     return (
       <Link
-        className="inline-flex min-h-10 w-full items-center justify-center rounded-full bg-cyan-300 px-4 text-sm font-semibold text-zinc-950"
+        className={
+          buttonClassName ??
+          "inline-flex h-9 w-full items-center justify-center rounded-full bg-cyan-300 px-4 text-sm font-semibold text-zinc-950"
+        }
         href={`/login?next=${encodeURIComponent(returnTo)}`}
       >
-        Đăng nhập để theo dõi
+        Theo dõi
       </Link>
     );
   }
@@ -57,7 +62,7 @@ export function UserFollowButton({
       }}
     >
       <Button
-        className="w-full normal-case tracking-normal"
+        className={`h-9 w-full normal-case tracking-normal ${buttonClassName ?? ""}`}
         type="submit"
         variant={isFollowing ? "secondary" : "primary"}
       >

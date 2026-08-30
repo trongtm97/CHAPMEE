@@ -1,11 +1,11 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { hasSeoChangeLogsTable } from "@/lib/seo/schema-capabilities";
 import type { SeoChangeLog } from "@/types/admin-seo";
 
 const memoryLogs: SeoChangeLog[] = [];
 
 export async function appendSeoChangeLog(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     entityType: string;
     entityId?: string | null;
@@ -28,14 +28,14 @@ export async function appendSeoChangeLog(
     created_at: new Date().toISOString()
   };
 
-  const hasTable = await hasSeoChangeLogsTable(supabase);
+  const hasTable = await hasSeoChangeLogsTable(db);
   if (!hasTable) {
     memoryLogs.unshift(entry);
     memoryLogs.splice(200);
     return;
   }
 
-  await supabase.from("seo_change_logs").insert({
+  await db.from("seo_change_logs").insert({
     entity_type: input.entityType,
     entity_id: input.entityId ?? null,
     action: input.action,
@@ -47,15 +47,15 @@ export async function appendSeoChangeLog(
 }
 
 export async function listSeoChangeLogs(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   limit = 50
 ): Promise<{ items: SeoChangeLog[]; error: string | null }> {
-  const hasTable = await hasSeoChangeLogsTable(supabase);
+  const hasTable = await hasSeoChangeLogsTable(db);
   if (!hasTable) {
     return { items: memoryLogs.slice(0, limit), error: null };
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("seo_change_logs")
     .select("*")
     .order("created_at", { ascending: false })

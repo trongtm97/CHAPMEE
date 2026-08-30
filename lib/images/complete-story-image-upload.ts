@@ -6,10 +6,10 @@ import { processUploadedStoryImage } from "@/lib/images/process-uploaded-image";
 import { uploadStoryImageSet } from "@/lib/images/upload-story-image-variants";
 import { saveStoryImageRecord } from "@/lib/stories/update-story-image";
 import type { StoryImage } from "@/types/story-images";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type CompleteStoryImageUploadInput = {
-  supabase: SupabaseClient;
+  db: DatabaseClient;
   storyId: string;
   imageId: string;
   fileBuffer: Buffer;
@@ -34,7 +34,7 @@ export async function completeStoryImageUpload(
   );
 
   const uploaded = await uploadStoryImageSet(
-    input.supabase,
+    input.db,
     input.storyId,
     input.imageId,
     processed.buffer,
@@ -43,9 +43,10 @@ export async function completeStoryImageUpload(
 
   const totalBytes = processed.processedFileSizeBytes + totalProcessedBytes;
 
-  const { image, error } = await saveStoryImageRecord(input.supabase, {
+  const { image, error } = await saveStoryImageRecord(input.db, {
     storyId: input.storyId,
     imageId: input.imageId,
+    coverMediaAssetId: uploaded.coverMediaAssetId,
     urls: uploaded.urls,
     width: processed.width,
     height: processed.height,
@@ -62,7 +63,7 @@ export async function completeStoryImageUpload(
   logStoryImageVariantGap(input.storyId, image);
 
   await cleanupSupersededStoryImageStorage(
-    input.supabase,
+    input.db,
     input.storyId,
     input.imageId
   );

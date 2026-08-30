@@ -1,4 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCreatorFollowerCountsMap } from "@/lib/community/get-creator-follower-counts";
+import { profileAvatarUrlFromRow } from "@/lib/profile/map-profile-row";
+import { createClient } from "@/lib/data/server";
 import type { AuthorCommunityGroup } from "@/types/community";
 
 function firstRelation<T>(relation: T | T[] | null | undefined) {
@@ -10,11 +12,11 @@ export async function getAuthorGroupById(authorId: string): Promise<{
   error: string | null;
 }> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("creator_profiles")
       .select(
-        "id, pen_name, profiles(display_name, username, avatar_url), stories(count)"
+        "id, user_id, pen_name, profiles(display_name, username, avatar_url, default_avatar_id), stories(count)"
       )
       .eq("id", authorId)
       .maybeSingle();
@@ -27,37 +29,44 @@ export async function getAuthorGroupById(authorId: string): Promise<{
       return { group: null, error: null };
     }
 
-    const profile = firstRelation(
-      (data as { profiles: unknown }).profiles as
+    const row = data as {
+      id: string;
+      user_id: string;
+      pen_name: string | null;
+      profiles:
         | {
             display_name: string | null;
             username: string | null;
             avatar_url: string | null;
+            default_avatar_id: number | null;
           }
         | {
             display_name: string | null;
             username: string | null;
             avatar_url: string | null;
+            default_avatar_id: number | null;
           }[]
-        | null
-    );
-    const storyRelation = (data as { stories: { count: number }[] | { count: number } | null })
-      .stories;
+        | null;
+      stories: { count: number }[] | { count: number } | null;
+    };
+
+    const profile = firstRelation(row.profiles);
+    const storyRelation = row.stories;
     const storyCount = Array.isArray(storyRelation)
       ? (storyRelation[0]?.count ?? 0)
       : (storyRelation?.count ?? 0);
+    const followerCounts = await getCreatorFollowerCountsMap([row.id]);
 
     return {
       error: null,
       group: {
-        id: `author-group-${data.id}`,
-        authorId: data.id,
+        id: `author-group-${row.id}`,
+        authorId: row.id,
         authorUsername: profile?.username?.trim().toLowerCase() ?? null,
-        name:
-          data.pen_name ?? profile?.display_name ?? profile?.username ?? "Tác giả",
-        avatarUrl: profile?.avatar_url ?? null,
+        name: row.pen_name ?? profile?.display_name ?? profile?.username ?? "Tác giả",
+        avatarUrl: profileAvatarUrlFromRow({ ...profile, id: row.user_id }),
         storyCount,
-        followerCount: 200,
+        followerCount: followerCounts.get(row.id) ?? 0,
         statusLine: "Nhóm tác giả",
         isReplying: true
       }

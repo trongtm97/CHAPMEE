@@ -1,6 +1,12 @@
 import { isUrlSafeSlug } from "@/lib/slugify";
 import type { StoryFormIntent } from "@/lib/creator/storyFormValidation";
 import type { StoryStructureType } from "@/types/story-structure";
+import type { ContentOrigin } from "@/lib/content-origin/content-origin-types";
+import { isKnownStorySourceLanguage } from "@/lib/creator/story-source-languages";
+import {
+  isValidSourceUrl,
+  SOURCE_URL_VALIDATION_MESSAGE
+} from "@/lib/creator/validate-source-url";
 
 export type StoryCreateFieldIssue = {
   field: string;
@@ -8,19 +14,7 @@ export type StoryCreateFieldIssue = {
   level: "error" | "warning";
 };
 
-export type ChapteredComposerPath =
-  | "story_only"
-  | "first_chapter_composer"
-  | "first_chapter_plain";
-
-export type StandaloneComposerPath =
-  | "standalone_composer"
-  | "standalone_plain"
-  | "standalone_draft_only";
-
-export type StoryComposerPath = ChapteredComposerPath | StandaloneComposerPath;
-
-export type StoryCreateStepId = "basic" | "taxonomy" | "composer" | "publish";
+export type StoryCreateStepId = "basic" | "taxonomy";
 
 export type StoryCreateValidationInput = {
   intent: StoryFormIntent;
@@ -34,13 +28,15 @@ export type StoryCreateValidationInput = {
   hasAgeRating: boolean;
   presentationMode: string;
   contentWarningsConfirmed: boolean;
-  guidelinesAcknowledged: boolean;
   hasCoverPreview: boolean;
-  composerPath: StoryComposerPath;
   structureType: StoryStructureType;
-  firstChapterTitle?: string;
-  standaloneHasContent?: boolean;
-  standaloneHasPlainText?: boolean;
+  contentOrigin: ContentOrigin | "";
+  translationMeta: {
+    sourceTitle: string;
+    sourceAuthorName: string;
+    originalLanguage: string;
+    sourceUrl: string;
+  };
 };
 
 export type StoryCreateValidationOptions = {
@@ -76,6 +72,7 @@ export function validateStoryCreateClient(
   const issues: StoryCreateFieldIssue[] = [];
   const title = input.title.trim();
   const slug = input.slug.trim();
+  const needsFullFields = input.intent !== "draft";
 
   if (!title) {
     pushIssue(
@@ -89,7 +86,64 @@ export function validateStoryCreateClient(
     );
   }
 
-  const needsFullFields = input.intent !== "draft";
+  if (needsFullFields && !input.contentOrigin) {
+    pushIssue(
+      issues,
+      {
+        field: "content_origin",
+        message: "Chọn Truyện Sáng Tác hoặc Truyện Dịch trước khi tiếp tục.",
+        level: "error"
+      },
+      options
+    );
+  } else if (input.contentOrigin === "translation" && needsFullFields) {
+    const originalLanguage = input.translationMeta.originalLanguage.trim();
+    if (!originalLanguage) {
+      pushIssue(
+        issues,
+        {
+          field: "original_language",
+          message: "Chọn Ngôn ngữ gốc.",
+          level: "error"
+        },
+        options
+      );
+    } else if (
+      !isKnownStorySourceLanguage(originalLanguage) &&
+      originalLanguage.length < 2
+    ) {
+      pushIssue(
+        issues,
+        {
+          field: "original_language",
+          message: "Nhập tên ngôn ngữ khác (ít nhất 2 ký tự).",
+          level: "error"
+        },
+        options
+      );
+    }
+    if (!input.translationMeta.sourceUrl.trim()) {
+      pushIssue(
+        issues,
+        {
+          field: "source_url",
+          message: "Nhập link nguồn gốc.",
+          level: "error"
+        },
+        options
+      );
+    } else if (!isValidSourceUrl(input.translationMeta.sourceUrl)) {
+      pushIssue(
+        issues,
+        {
+          field: "source_url",
+          message: SOURCE_URL_VALIDATION_MESSAGE,
+          level: "error"
+        },
+        options
+      );
+    }
+  }
 
   if (needsFullFields) {
     if (!slug) {
@@ -113,24 +167,12 @@ export function validateStoryCreateClient(
         options
       );
     }
-
-    if (!input.shortDescription.trim()) {
-      pushIssue(
-        issues,
-        {
-          field: "short_description",
-          message: "Vui lòng nhập mô tả ngắn.",
-          level: "error"
-        },
-        options
-      );
-    }
   }
 
   const needsTaxonomy =
-    needsFullFields && input.useTaxonomy && input.intent !== "draft";
+    needsFullFields && input.useTaxonomy && input.intent === "review";
 
-  if (needsTaxonomy && input.intent === "review") {
+  if (needsTaxonomy) {
     if (!input.hasContentType) {
       pushIssue(
         issues,
@@ -175,63 +217,6 @@ export function validateStoryCreateClient(
         options
       );
     }
-    if (!input.contentWarningsConfirmed) {
-      pushIssue(
-        issues,
-        {
-          field: "content_warnings_confirmed",
-          message: "Xác nhận phân loại và cảnh báo nội dung.",
-          level: "error"
-        },
-        options
-      );
-    }
-  }
-
-  if (input.intent === "review" && !input.guidelinesAcknowledged) {
-    pushIssue(
-      issues,
-      {
-        field: "guidelines_ack",
-        message: "Xác nhận quyền sở hữu và quy định cộng đồng.",
-        level: "error"
-      },
-      options
-    );
-  }
-
-  if (
-    input.intent === "review" &&
-    input.structureType === "standalone" &&
-    input.composerPath === "standalone_composer" &&
-    !input.standaloneHasContent
-  ) {
-    pushIssue(
-      issues,
-      {
-        field: "standalone_content",
-        message: "Thêm nội dung truyện một phần trước khi gửi duyệt.",
-        level: "error"
-      },
-      options
-    );
-  }
-
-  if (
-    input.intent === "review" &&
-    input.structureType === "standalone" &&
-    input.composerPath === "standalone_plain" &&
-    !input.standaloneHasPlainText
-  ) {
-    pushIssue(
-      issues,
-      {
-        field: "standalone_plain",
-        message: "Nhập nội dung văn bản trước khi gửi duyệt.",
-        level: "error"
-      },
-      options
-    );
   }
 
   if (needsFullFields && !input.hook.trim()) {
@@ -246,25 +231,6 @@ export function validateStoryCreateClient(
     );
   }
 
-  if (
-    input.structureType === "chaptered" &&
-    (input.intent === "create_and_chapter" ||
-      input.composerPath === "first_chapter_composer" ||
-      input.composerPath === "first_chapter_plain")
-  ) {
-    if (!input.firstChapterTitle?.trim()) {
-      pushIssue(
-        issues,
-        {
-          field: "first_chapter_title",
-          message: "Nhập tiêu đề chương đầu (khuyến nghị).",
-          level: "warning"
-        },
-        options
-      );
-    }
-  }
-
   return issues;
 }
 
@@ -273,7 +239,6 @@ export function validateStoryCreateStep(
   input: StoryCreateValidationInput
 ): StoryCreateFieldIssue[] {
   const issues: StoryCreateFieldIssue[] = [];
-  const opts = { showErrors: true } satisfies StoryCreateValidationOptions;
 
   if (step === "basic") {
     if (!input.title.trim()) {
@@ -324,35 +289,6 @@ export function validateStoryCreateStep(
       });
     }
     return issues;
-  }
-
-  if (step === "composer") {
-    if (
-      input.structureType === "standalone" &&
-      input.composerPath === "standalone_composer" &&
-      !input.standaloneHasContent
-    ) {
-      issues.push({
-        field: "standalone_content",
-        message: "Soạn nội dung hoặc chọn «Chỉ tạo bản nháp».",
-        level: "warning"
-      });
-    }
-    if (
-      input.structureType === "standalone" &&
-      input.composerPath === "standalone_plain" &&
-      !input.standaloneHasPlainText
-    ) {
-      issues.push({
-        field: "standalone_plain",
-        message: "Nhập văn bản hoặc chọn «Chỉ tạo bản nháp».",
-        level: "warning"
-      });
-    }
-  }
-
-  if (step === "publish" && input.intent === "review") {
-    return validateStoryCreateClient(input, opts);
   }
 
   return issues;

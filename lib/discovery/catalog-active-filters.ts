@@ -166,6 +166,43 @@ export function buildActiveCatalogFilterChips(
       clearHref: withoutKey(filters, "hasWarning", query)
     });
   }
+  if (filters.hasAudio === "yes") {
+    chips.push({
+      key: "hasAudio",
+      label: "Có audio",
+      clearHref: withoutKey(filters, "hasAudio", query)
+    });
+  }
+  if (filters.hasVideo === "yes") {
+    chips.push({
+      key: "hasVideo",
+      label: "Có video",
+      clearHref: withoutKey(filters, "hasVideo", query)
+    });
+  }
+  if (filters.contentOrigin === "original") {
+    chips.push({
+      key: "contentOrigin",
+      label: "Truyện sáng tác",
+      clearHref: withoutKey(filters, "contentOrigin", query)
+    });
+  }
+  if (filters.contentOrigin === "translation") {
+    chips.push({
+      key: "contentOrigin",
+      label: "Truyện dịch",
+      clearHref: withoutKey(filters, "contentOrigin", query)
+    });
+  }
+  if (filters.genre) {
+    const genreName =
+      options.genres.find((item) => item.slug === filters.genre)?.name ?? filters.genre;
+    chips.push({
+      key: "genre",
+      label: genreName ?? filters.genre,
+      clearHref: withoutKey(filters, "genre", query)
+    });
+  }
   if (filters.status && filters.status !== "all") {
     chips.push({
       key: "status",

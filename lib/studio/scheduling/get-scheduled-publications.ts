@@ -1,4 +1,4 @@
-﻿import {
+import {
   normalizeCalendarContentFilter,
   normalizeCalendarTab,
   normalizeCalendarTimeFilter,
@@ -26,7 +26,7 @@ import type {
   ScheduledPublicationStatus,
   ScheduledTargetType
 } from "@/types/scheduling";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export {
   normalizeCalendarTab,
@@ -35,7 +35,7 @@ export {
   parseCalendarPageSize
 } from "@/lib/studio/scheduling/calendar-query";
 
-type Row = {
+type ScheduledPublicationBaseRow = {
   id: string;
   target_type: ScheduledTargetType;
   target_id: string;
@@ -48,16 +48,76 @@ type Row = {
   published_at: string | null;
   canceled_at: string | null;
   created_at?: string;
+};
+
+type Row = ScheduledPublicationBaseRow & {
   stories: {
     title: string;
     slug: string;
     structure_type?: string | null;
-  } | {
-    title: string;
-    slug: string;
-    structure_type?: string | null;
-  }[] | null;
+  } | null;
 };
+
+type StoryLookupRow = {
+  id: string;
+  title: string;
+  slug: string;
+  structure_type?: string | null;
+};
+
+function resolveStoryId(row: ScheduledPublicationBaseRow) {
+  if (row.story_id) {
+    return row.story_id;
+  }
+
+  if (row.target_type === "story") {
+    return row.target_id;
+  }
+
+  return null;
+}
+
+async function loadScheduledStoryRows(
+  db: DatabaseClient,
+  rows: ScheduledPublicationBaseRow[]
+): Promise<Row[]> {
+  const storyIds = [
+    ...new Set(
+      rows
+        .map((row) => resolveStoryId(row))
+        .filter((id): id is string => Boolean(id))
+    )
+  ];
+
+  const storiesById = new Map<string, Row["stories"]>();
+
+  if (storyIds.length > 0) {
+    const { data: storyRows, error: storyError } = await db
+      .from("stories")
+      .select("id, title, slug, structure_type")
+      .in("id", storyIds);
+
+    if (storyError) {
+      throw new Error(storyError.message);
+    }
+
+    for (const story of (storyRows ?? []) as StoryLookupRow[]) {
+      storiesById.set(story.id, {
+        title: story.title,
+        slug: story.slug,
+        structure_type: story.structure_type
+      });
+    }
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    stories: (() => {
+      const storyId = resolveStoryId(row);
+      return storyId ? (storiesById.get(storyId) ?? null) : null;
+    })()
+  }));
+}
 
 function firstRelation<T>(relation: T | T[] | null | undefined) {
   return Array.isArray(relation) ? (relation[0] ?? null) : (relation ?? null);
@@ -270,7 +330,7 @@ function computeWriteChapterHref(items: ScheduledPublicationListItem[]) {
 }
 
 export async function getScheduledPublicationsPage(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   profileId: string,
   options?: {
     tab?: string;
@@ -288,12 +348,10 @@ export async function getScheduledPublicationsPage(
   const timeFilter = normalizeCalendarTimeFilter(options?.time);
   const search = (options?.search ?? "").trim().toLowerCase();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("scheduled_publications")
     .select(
-      `id, target_type, target_id, story_id, scheduled_at, timezone, status,
-      publish_attempts, last_error, published_at, canceled_at, created_at,
-      stories(title, slug, structure_type)`
+      "id, target_type, target_id, story_id, scheduled_at, timezone, status, publish_attempts, last_error, published_at, canceled_at, created_at"
     )
     .eq("creator_id", profileId)
     .order("scheduled_at", { ascending: tab === "upcoming" || tab === "today" });
@@ -328,7 +386,10 @@ export async function getScheduledPublicationsPage(
     };
   }
 
-  const rawRows = (data ?? []) as unknown as Row[];
+  const rawRows = await loadScheduledStoryRows(
+    db,
+    (data ?? []) as ScheduledPublicationBaseRow[]
+  );
   const chapterIds = rawRows
     .filter((row) => row.target_type === "chapter")
     .map((row) => row.target_id);
@@ -340,7 +401,7 @@ export async function getScheduledPublicationsPage(
   const reelMeta = new Map<string, { title: string | null; story_id: string | null }>();
 
   if (chapterIds.length > 0) {
-    const { data: episodes } = await supabase
+    const { data: episodes } = await db
       .from("episodes")
       .select("id, title, episode_number")
       .in("id", chapterIds);
@@ -354,7 +415,7 @@ export async function getScheduledPublicationsPage(
   }
 
   if (reelIds.length > 0) {
-    const { data: reels } = await supabase
+    const { data: reels } = await db
       .from("reels_items")
       .select("id, title, story_id")
       .in("id", reelIds);
@@ -439,10 +500,10 @@ export async function getScheduledPublicationsPage(
 }
 
 export async function getScheduledPublicationCounts(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   profileId: string
 ) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("scheduled_publications")
     .select("status, scheduled_at, published_at")
     .eq("creator_id", profileId);

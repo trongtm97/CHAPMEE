@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { getAlgorithmConfig } from "@/lib/algorithm/settings";
 import { applyRankingAuthorDiversity } from "@/lib/ranking/diversity";
 import {
@@ -18,7 +18,7 @@ import {
   loadRankingWeights,
   reasonFromBoard
 } from "@/lib/ranking/score-formula";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type {
   RankingBoardType,
   RankingItemType,
@@ -65,7 +65,7 @@ function fairnessFromImpressions(impressions: number, medianImpressions: number)
 }
 
 async function scoreStoryCandidates(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   stories: EligibleStory[],
   window: RankingTimeWindow,
   boardType: RankingBoardType,
@@ -73,7 +73,7 @@ async function scoreStoryCandidates(
   dayMetricsMap?: Awaited<ReturnType<typeof loadAggregatedStoryMetrics>>
 ) {
   const weights = await loadRankingWeights();
-  const metricsMap = await loadAggregatedStoryMetrics(supabase, window);
+  const metricsMap = await loadAggregatedStoryMetrics(db, window);
   const impressions = stories.map((s) => metricsMap.get(s.id)?.impressions ?? 0);
   const medianImpressions = median(impressions);
 
@@ -146,13 +146,13 @@ async function scoreStoryCandidates(
 }
 
 async function scoreAuthorCandidates(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   stories: EligibleStory[],
   window: RankingTimeWindow
 ) {
   const weights = await loadRankingWeights();
-  const metricsMap = await loadAggregatedStoryMetrics(supabase, window);
-  const authors = await fetchEligibleAuthors(supabase, stories);
+  const metricsMap = await loadAggregatedStoryMetrics(db, window);
+  const authors = await fetchEligibleAuthors(db, stories);
 
   const byAuthor = new Map<string, EligibleStory[]>();
   for (const story of stories) {
@@ -221,9 +221,9 @@ async function scoreAuthorCandidates(
   return scored;
 }
 
-async function scoreReelCandidates(supabase: SupabaseClient, window: RankingTimeWindow) {
-  const reels = await fetchEligibleReels(supabase);
-  const metricsMap = await loadAggregatedReelMetrics(supabase, window);
+async function scoreReelCandidates(db: DatabaseClient, window: RankingTimeWindow) {
+  const reels = await fetchEligibleReels(db);
+  const metricsMap = await loadAggregatedReelMetrics(db, window);
   const weights = await loadRankingWeights();
 
   return reels
@@ -256,12 +256,12 @@ async function scoreReelCandidates(supabase: SupabaseClient, window: RankingTime
 }
 
 async function scoreChapterCandidates(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   stories: EligibleStory[],
   window: RankingTimeWindow
 ) {
-  const chapters = await fetchEligibleChapters(supabase);
-  const metricsMap = await loadAggregatedStoryMetrics(supabase, window);
+  const chapters = await fetchEligibleChapters(db);
+  const metricsMap = await loadAggregatedStoryMetrics(db, window);
   const storyMap = new Map(stories.map((s) => [s.id, s]));
   const weights = await loadRankingWeights();
 
@@ -298,6 +298,42 @@ async function scoreChapterCandidates(
       };
     })
     .filter((row): row is NonNullable<typeof row> => row !== null);
+}
+
+async function scoreBoostedStoryCandidates(
+  stories: EligibleStory[],
+  halfLifeDays: number
+) {
+  const { loadBoostedStoryScores } = await import("@/lib/boost/refresh-boost-daily-stats");
+  const boosted = await loadBoostedStoryScores(halfLifeDays);
+  const storyMap = new Map(stories.map((story) => [story.id, story]));
+
+  return boosted
+    .filter((row) => storyMap.has(row.storyId))
+    .map((row) => {
+      const story = storyMap.get(row.storyId)!;
+      const breakdown: RankingScoreBreakdown = {
+        completion_rate: 0,
+        next_chapter_rate: 0,
+        save_rate: 0,
+        follow_rate: 0,
+        unlock_rate: 0,
+        freshness: 0,
+        fairness: 0,
+        report_penalty: 0,
+        hide_penalty: 0,
+        raw_score: row.score,
+        reason: "Được đề cử"
+      };
+
+      return {
+        item_id: story.id,
+        story_id: story.id,
+        author_user_id: story.authorUserId,
+        score: row.score,
+        score_breakdown: breakdown
+      };
+    });
 }
 
 function finalizeRows(
@@ -360,12 +396,12 @@ function finalizeRows(
 }
 
 async function insertSnapshots(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   rows: SnapshotInsert[]
 ) {
   if (rows.length === 0) return 0;
 
-  const { error } = await supabase.from("ranking_snapshots").insert(rows);
+  const { error } = await db.from("ranking_snapshots").insert(rows);
   if (error) {
     if (isMissingSchemaError(error)) return 0;
     throw error;
@@ -374,12 +410,12 @@ async function insertSnapshots(
 }
 
 async function purgeOldSnapshots(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   retentionDays: number
 ) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - retentionDays);
-  await supabase
+  await db
     .from("ranking_snapshots")
     .delete()
     .lt("snapshot_at", cutoff.toISOString());
@@ -393,18 +429,20 @@ export type GenerateRankingSnapshotsResult = {
 };
 
 export async function generateRankingSnapshots(
-  supabase: SupabaseClient
+  db: DatabaseClient
 ): Promise<GenerateRankingSnapshotsResult> {
   const config = await getAlgorithmConfig();
   const maxSameAuthor = Number(config["ranking.max_same_author_top_slots"] ?? 2);
   const retentionDays = Number(config["ranking.snapshot_retention_days"] ?? 14);
   const snapshotAt = new Date().toISOString();
 
-  const stories = await fetchEligibleStories(supabase);
+  const stories = await fetchEligibleStories(db);
+  const { getBoostSettings } = await import("@/lib/boost/boost-settings");
+  const boostSettings = await getBoostSettings();
   const { listTaxonomyMainGenresForRanking } = await import(
     "@/lib/taxonomy/ranking-bridge"
   );
-  const taxonomyGenres = await listTaxonomyMainGenresForRanking(supabase);
+  const taxonomyGenres = await listTaxonomyMainGenresForRanking(db);
 
   let inserted = 0;
   const boards: GenerateRankingSnapshotsResult["boards"] = [];
@@ -424,11 +462,11 @@ export async function generateRankingSnapshots(
 
   for (const window of TIME_WINDOWS) {
     const dayMetricsMap =
-      window === "week" ? await loadAggregatedStoryMetrics(supabase, "day") : undefined;
+      window === "week" ? await loadAggregatedStoryMetrics(db, "day") : undefined;
 
     for (const board of storyBoards) {
       const candidates = await scoreStoryCandidates(
-        supabase,
+        db,
         stories,
         window,
         board.type,
@@ -445,11 +483,37 @@ export async function generateRankingSnapshots(
         maxSameAuthor,
         board.diversity ?? false
       );
-      inserted += await insertSnapshots(supabase, rows);
+      inserted += await insertSnapshots(db, rows);
       boards.push({ type: board.type, window, genreId: null, count: rows.length });
     }
 
-    const authorCandidates = await scoreAuthorCandidates(supabase, stories, window);
+    if (boostSettings.enabled) {
+      for (const window of ["day", "week", "month", "all_time"] as RankingTimeWindow[]) {
+        const candidates = await scoreBoostedStoryCandidates(
+          stories,
+          boostSettings.decayHalfLifeDays
+        );
+        const rows = finalizeRows(
+          "boosted_stories",
+          window,
+          null,
+          "story",
+          candidates,
+          snapshotAt,
+          maxSameAuthor,
+          true
+        );
+        inserted += await insertSnapshots(db, rows);
+        boards.push({
+          type: "boosted_stories",
+          window,
+          genreId: null,
+          count: rows.length
+        });
+      }
+    }
+
+    const authorCandidates = await scoreAuthorCandidates(db, stories, window);
     const authorRows = finalizeRows(
       "new_authors",
       window,
@@ -460,10 +524,10 @@ export async function generateRankingSnapshots(
       maxSameAuthor,
       true
     );
-    inserted += await insertSnapshots(supabase, authorRows);
+    inserted += await insertSnapshots(db, authorRows);
     boards.push({ type: "new_authors", window, genreId: null, count: authorRows.length });
 
-    const reelCandidates = await scoreReelCandidates(supabase, window);
+    const reelCandidates = await scoreReelCandidates(db, window);
     const reelRows = finalizeRows(
       "reels_read_through",
       window,
@@ -474,7 +538,7 @@ export async function generateRankingSnapshots(
       maxSameAuthor,
       false
     );
-    inserted += await insertSnapshots(supabase, reelRows);
+    inserted += await insertSnapshots(db, reelRows);
     boards.push({
       type: "reels_read_through",
       window,
@@ -482,7 +546,7 @@ export async function generateRankingSnapshots(
       count: reelRows.length
     });
 
-    const chapterCandidates = await scoreChapterCandidates(supabase, stories, window);
+    const chapterCandidates = await scoreChapterCandidates(db, stories, window);
     const chapterRows = finalizeRows(
       "chapter_next_rate",
       window,
@@ -493,7 +557,7 @@ export async function generateRankingSnapshots(
       maxSameAuthor,
       false
     );
-    inserted += await insertSnapshots(supabase, chapterRows);
+    inserted += await insertSnapshots(db, chapterRows);
     boards.push({
       type: "chapter_next_rate",
       window,
@@ -510,7 +574,7 @@ export async function generateRankingSnapshots(
   for (const target of genreBoardTargets) {
     for (const window of ["week", "month"] as RankingTimeWindow[]) {
       const candidates = await scoreStoryCandidates(
-        supabase,
+        db,
         stories,
         window,
         "genre_stories",
@@ -528,7 +592,7 @@ export async function generateRankingSnapshots(
         maxSameAuthor,
         true
       );
-      inserted += await insertSnapshots(supabase, rows);
+      inserted += await insertSnapshots(db, rows);
       boards.push({
         type: "genre_stories",
         window,
@@ -538,7 +602,7 @@ export async function generateRankingSnapshots(
     }
   }
 
-  await purgeOldSnapshots(supabase, retentionDays);
+  await purgeOldSnapshots(db, retentionDays);
 
   return { inserted, boards, snapshotAt, error: null };
 }

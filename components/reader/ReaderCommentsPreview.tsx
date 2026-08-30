@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { CommentForm } from "@/components/comments/CommentForm";
+import { CommunityGroupLink } from "@/components/community/CommunityGroupLink";
 import { ReaderSheet } from "@/components/reader/ReaderSheet";
 import {
   readerSectionDivider,
@@ -15,6 +16,7 @@ type ReaderCommentsPreviewProps = {
   currentUserId: string | null;
   returnTo: string;
   storyId: string;
+  storySlug: string;
   episodeId: string;
   totalCount?: number;
 };
@@ -32,6 +34,7 @@ export function ReaderCommentsPreview({
   episodeId,
   returnTo,
   storyId,
+  storySlug,
   totalCount
 }: ReaderCommentsPreviewProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -40,7 +43,14 @@ export function ReaderCommentsPreview({
 
   return (
     <section className={`${readerSectionDivider} lg:hidden`} id="comments">
-      <h3 className={readerSectionTitle}>Bình luận</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className={readerSectionTitle}>Bình luận</h3>
+        <CommunityGroupLink
+          className="text-xs font-semibold text-cyan-300"
+          label="Group truyện"
+          storySlug={storySlug}
+        />
+      </div>
       <button
         className="tap-highlight mt-3 flex min-h-10 w-full items-center rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 text-left text-sm text-zinc-500"
         onClick={() => setSheetOpen(true)}

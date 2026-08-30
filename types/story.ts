@@ -23,6 +23,7 @@ export type StoryCatalogStory = {
   hook: string | null;
   shortDescription: string | null;
   coverUrl: string | null;
+  currentImage?: import("@/types/story-images").StoryImage | null;
   creatorName: string | null;
   creatorUsername: string | null;
   genreName: string | null;
@@ -36,6 +37,13 @@ export type StoryCatalogStory = {
   structureType?: "chaptered" | "standalone";
   standaloneReadingTimeMinutes?: number;
   accessLabel?: string | null;
+  contentOrigin?: "original" | "translation";
+  rightsStatus?: string | null;
+  originalLanguage?: string | null;
+  translatedLanguage?: string | null;
+  hasPublishedAudio?: boolean;
+  hasContinuousPlayback?: boolean;
+  hasPublishedVideo?: boolean;
 };
 
 export type StoryCatalogGenre = {

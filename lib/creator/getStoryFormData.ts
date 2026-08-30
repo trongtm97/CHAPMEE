@@ -1,5 +1,5 @@
 import { getCurrentStoryImage } from "@/lib/images/get-current-story-image";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 import type { CreatorStoryStatus } from "@/lib/creator/getCreatorStories";
 import type { SensitiveFlag, StoryAgeRating } from "@/types/moderation";
@@ -9,6 +9,10 @@ import {
 } from "@/lib/creator/get-story-form-taxonomy";
 import type { StoryStructureType } from "@/types/story-structure";
 import type { StoryImage } from "@/types/story-images";
+import type {
+  ContentOrigin,
+  TranslationType
+} from "@/lib/content-origin/content-origin-types";
 
 export type CreatorStoryFormStory = {
   id: string;
@@ -32,6 +36,18 @@ export type CreatorStoryFormStory = {
   structureType: StoryStructureType;
   contentFormat: string | null;
   standalonePlainText: string | null;
+  contentOrigin: ContentOrigin;
+  translationType: TranslationType | null;
+  rightsStatus: string | null;
+  monetizationPolicy: string | null;
+  sourceTitle: string | null;
+  sourceAuthorName: string | null;
+  originalLanguage: string | null;
+  translatedLanguage: string | null;
+  sourceUrl: string | null;
+  sourcePlatform: string | null;
+  licenseNote: string | null;
+  licenseDocumentMediaId: string | null;
 };
 
 export type StoryFormData = {
@@ -46,17 +62,17 @@ export async function getStoryFormData(
   storyId?: string
 ): Promise<StoryFormData> {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const taxonomy = await getStoryFormTaxonomyBundle(storyId);
 
     let story: CreatorStoryFormStory | null = null;
     let currentImage: StoryImage | null = null;
 
     if (storyId) {
-      const { data: storyRow, error: storyError } = await supabase
+      const { data: storyRow, error: storyError } = await db
         .from("stories")
         .select(
-          "id, title, slug, public_code, hook, short_description, long_description, cover_url, status, visibility, is_completed, age_rating, sensitive_flags, seo_title, seo_description, seo_keywords, canonical_url, content_warnings_confirmed, structure_type, content_format, standalone_plain_text"
+          "id, title, slug, public_code, hook, short_description, long_description, cover_url, status, visibility, is_completed, age_rating, sensitive_flags, seo_title, seo_description, seo_keywords, canonical_url, content_warnings_confirmed, structure_type, content_format, standalone_plain_text, content_origin, translation_type, rights_status, monetization_policy, source_title, source_author_name, original_language, translated_language, source_url, source_platform, license_note, license_document_media_id"
         )
         .eq("id", storyId)
         .eq("creator_id", creatorProfile.id)
@@ -67,7 +83,7 @@ export async function getStoryFormData(
       }
 
       if (storyRow) {
-        currentImage = (await getCurrentStoryImage(supabase, storyRow.id)).image;
+        currentImage = (await getCurrentStoryImage(db, storyRow.id)).image;
 
         const coverUrl =
           currentImage?.portraitUrl ??
@@ -88,7 +104,32 @@ export async function getStoryFormData(
               : "chaptered",
           contentFormat: (storyRow as { content_format?: string | null }).content_format ?? null,
           standalonePlainText:
-            (storyRow as { standalone_plain_text?: string | null }).standalone_plain_text ?? null
+            (storyRow as { standalone_plain_text?: string | null }).standalone_plain_text ?? null,
+          contentOrigin:
+            (storyRow as { content_origin?: string | null }).content_origin === "translation"
+              ? "translation"
+              : "original",
+          translationType:
+            ((storyRow as { translation_type?: TranslationType | null }).translation_type as
+              | TranslationType
+              | null) ?? null,
+          rightsStatus: (storyRow as { rights_status?: string | null }).rights_status ?? null,
+          monetizationPolicy:
+            (storyRow as { monetization_policy?: string | null }).monetization_policy ?? null,
+          sourceTitle: (storyRow as { source_title?: string | null }).source_title ?? null,
+          sourceAuthorName:
+            (storyRow as { source_author_name?: string | null }).source_author_name ?? null,
+          originalLanguage:
+            (storyRow as { original_language?: string | null }).original_language ?? null,
+          translatedLanguage:
+            (storyRow as { translated_language?: string | null }).translated_language ?? null,
+          sourceUrl: (storyRow as { source_url?: string | null }).source_url ?? null,
+          sourcePlatform:
+            (storyRow as { source_platform?: string | null }).source_platform ?? null,
+          licenseNote: (storyRow as { license_note?: string | null }).license_note ?? null,
+          licenseDocumentMediaId:
+            (storyRow as { license_document_media_id?: string | null }).license_document_media_id ??
+            null
         };
       }
     }

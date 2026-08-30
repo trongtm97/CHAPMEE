@@ -326,6 +326,46 @@ export function FairnessExposureDashboard({ data }: FairnessExposureDashboardPro
           </div>
         )}
       </Card>
+
+      <Card className="space-y-3">
+        <h2 className="text-base font-black text-white">Origin mix logs gần đây</h2>
+        {data.recentFeedMixLogs.length === 0 ? (
+          <p className="text-sm text-zinc-500">
+            Chưa có log origin mix từ algorithm feed requests.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-white/10 text-xs uppercase text-zinc-500">
+                  <th className="py-2 pr-3">Thời gian</th>
+                  <th className="py-2 pr-3">Surface</th>
+                  <th className="py-2 pr-3">Request</th>
+                  <th className="py-2 pr-3">Original</th>
+                  <th className="py-2 pr-3">Translation</th>
+                  <th className="py-2">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recentFeedMixLogs.map((row) => (
+                  <tr className="border-b border-white/5" key={row.requestId}>
+                    <td className="py-2 pr-3 text-xs text-zinc-500">
+                      {new Date(row.createdAt).toLocaleString("vi-VN")}
+                    </td>
+                    <td className="py-2 pr-3 text-zinc-300">{row.surface}</td>
+                    <td className="py-2 pr-3 text-zinc-400">{row.requestId.slice(0, 8)}</td>
+                    <td className="py-2 pr-3 text-cyan-100">{row.originalCount}</td>
+                    <td className="py-2 pr-3 text-amber-100">{row.translationCount}</td>
+                    <td className="py-2 text-zinc-400">
+                      {row.notes.length > 0 ? row.notes.join(", ") : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

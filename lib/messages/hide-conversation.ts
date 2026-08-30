@@ -1,14 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export async function hideConversationForUser(
   userId: string,
   conversationId: string
 ): Promise<{ ok: boolean }> {
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("conversation_participants")
     .update({ hidden_at: new Date().toISOString() })
     .eq("conversation_id", conversationId)

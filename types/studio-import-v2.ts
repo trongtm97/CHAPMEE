@@ -1,13 +1,29 @@
-/** Bulk story import/export v2 — taxonomy slugs, story_code = public_code */
+/** Bulk story import/export v2 — story_code = public_code */
 
+import type {
+  ContentOrigin,
+  TranslationType
+} from "@/lib/content-origin/content-origin-types";
+
+/** Cột xuất / mẫu — trường người dùng điền trên form Studio */
 export const STORIES_IMPORT_V2_HEADERS = [
-  "external_key",
   "story_code",
   "story_structure_type",
   "content_format",
   "title",
   "slug",
+  "hook",
   "description",
+  "long_description",
+  "cover_url",
+  "seo_title",
+  "seo_description",
+  "content_origin",
+  "source_title",
+  "source_author_name",
+  "original_language",
+  "source_url",
+  "translation_type",
   "content_type_slug",
   "main_genre_slug",
   "subgenre_slugs",
@@ -21,7 +37,6 @@ export const STORIES_IMPORT_V2_HEADERS = [
   "age_rating_slug",
   "has_content_warning",
   "content_warning_slugs",
-  "status",
   "publish_at",
   "is_completed",
   "free_first_chapters_count",
@@ -37,23 +52,39 @@ export const STORIES_IMPORT_V2_HEADERS = [
   "standalone_price"
 ] as const;
 
+/** Cột hệ thống — vẫn đọc file cũ, không xuất trong template */
+export const STORIES_IMPORT_V2_SYSTEM_FIELDS = ["external_key", "status"] as const;
+
+export const STORIES_IMPORT_V2_ALL_FIELDS = [
+  ...STORIES_IMPORT_V2_HEADERS,
+  ...STORIES_IMPORT_V2_SYSTEM_FIELDS
+] as const;
+
 export const CHAPTERS_IMPORT_V2_HEADERS = [
-  "external_key",
-  "story_external_key",
   "story_code",
   "chapter_code",
   "chapter_order",
   "title",
-  "slug",
   "content",
-  "content_format",
   "structured_content_json",
-  "validation_status",
   "presentation_mode",
   "status",
   "publish_at",
   "price_coin",
   "is_free"
+] as const;
+
+export const CHAPTERS_IMPORT_V2_SYSTEM_FIELDS = [
+  "external_key",
+  "story_external_key",
+  "slug",
+  "content_format",
+  "validation_status"
+] as const;
+
+export const CHAPTERS_IMPORT_V2_ALL_FIELDS = [
+  ...CHAPTERS_IMPORT_V2_HEADERS,
+  ...CHAPTERS_IMPORT_V2_SYSTEM_FIELDS
 ] as const;
 
 export const TAXONOMY_REFERENCE_HEADERS = [
@@ -66,21 +97,29 @@ export const TAXONOMY_REFERENCE_HEADERS = [
 ] as const;
 
 export type StoriesImportV2Row = Record<
-  (typeof STORIES_IMPORT_V2_HEADERS)[number],
+  (typeof STORIES_IMPORT_V2_ALL_FIELDS)[number],
   string
 >;
 
 export type ChaptersImportV2Row = Record<
-  (typeof CHAPTERS_IMPORT_V2_HEADERS)[number],
+  (typeof CHAPTERS_IMPORT_V2_ALL_FIELDS)[number],
   string
 >;
 
 export type StoryImportV2Validation = {
+  canImport: boolean;
   ok: boolean;
+  blockingErrors: string[];
   errors: string[];
   warnings: string[];
+  skippedFields: string[];
   termIds: string[];
   presentationMode: string | null;
   hasContentWarning: boolean;
   contentWarningsConfirmed: boolean;
+  contentOrigin: ContentOrigin;
+  originalLanguage: string | null;
+  sourceUrl: string | null;
+  translationType: TranslationType;
+  ageRatingSlug: string | null;
 };

@@ -6,7 +6,7 @@ import { getStudioDraftVersions } from "@/lib/studio/get-draft-versions";
 import { restoreStudioDraftVersion } from "@/lib/studio/restore-draft-version";
 import { saveStudioDraft, type SaveStudioDraftInput } from "@/lib/studio/save-draft";
 import { studioPath } from "@/lib/studio/constants";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 async function getProfileId() {
   const { profile, user } = await getCurrentUser();
@@ -19,8 +19,8 @@ async function getProfileId() {
     return { error: null, profileId: profile.id };
   }
 
-  const supabase = await createClient();
-  const { data: loaded, error } = await supabase
+  const db = await createClient();
+  const { data: loaded, error } = await db
     .from("profiles")
     .select("id")
     .eq("user_id", user.id)
@@ -92,8 +92,8 @@ export async function deleteStudioDraftAction(draftId: string) {
   }
 
   try {
-    const supabase = await createClient();
-    const { error: deleteError } = await supabase
+    const db = await createClient();
+    const { error: deleteError } = await db
       .from("creator_drafts")
       .delete()
       .eq("id", draftId)
@@ -128,8 +128,8 @@ export async function bulkDeleteStudioDraftsAction(draftIds: string[]) {
   }
 
   try {
-    const supabase = await createClient();
-    const { error: deleteError, count } = await supabase
+    const db = await createClient();
+    const { error: deleteError, count } = await db
       .from("creator_drafts")
       .delete({ count: "exact" })
       .eq("owner_id", profileId)

@@ -25,7 +25,7 @@ type MonetizationSettingsPanelProps = {
 
 const GROUP_TITLES: Record<MonetizationSettingGroup, string> = {
   overview: "Tổng quan",
-  coin: "Coin",
+  coin: "Xu",
   payments: "Payment providers",
   creator: "Monetization tác giả",
   revenue_share: "Revenue share",

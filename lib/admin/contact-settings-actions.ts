@@ -102,7 +102,7 @@ export async function updateContactSettingsAction(
     };
   }
 
-  const { upsertContactSettings } = await import("@/lib/supabase/app-settings.server");
+  const { upsertContactSettings } = await import("@/lib/data/app-settings.server");
   const result = await upsertContactSettings(settings, guard.userId ?? null);
   if (!result.success) {
     return {
@@ -149,7 +149,7 @@ export async function resetContactSettingsAction(
     };
   }
 
-  const { upsertContactSettings } = await import("@/lib/supabase/app-settings.server");
+  const { upsertContactSettings } = await import("@/lib/data/app-settings.server");
   const result = await upsertContactSettings(
     DEFAULT_CONTACT_SETTINGS,
     guard.userId ?? null

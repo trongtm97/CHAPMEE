@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type StoryTaxonomyMeta = {
   mainGenreTermId: string | null;
@@ -7,14 +7,14 @@ export type StoryTaxonomyMeta = {
 };
 
 export async function loadStoryTaxonomyBatch(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyIds: string[]
 ): Promise<Map<string, StoryTaxonomyMeta>> {
   const map = new Map<string, StoryTaxonomyMeta>();
   if (storyIds.length === 0) return map;
 
   const unique = [...new Set(storyIds.filter(Boolean))];
-  const { data } = await supabase
+  const { data } = await db
     .from("story_taxonomy_terms")
     .select("story_id, term_id, type, taxonomy_terms(slug)")
     .in("story_id", unique);
@@ -51,7 +51,7 @@ export async function loadStoryTaxonomyBatch(
 }
 
 export async function loadTaxonomyExposureShare(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   surface: string,
   days = 7
 ): Promise<Map<string, number>> {
@@ -59,7 +59,7 @@ export async function loadTaxonomyExposureShare(
   since.setDate(since.getDate() - days);
   const sinceDate = since.toISOString().slice(0, 10);
 
-  const { data } = await supabase
+  const { data } = await db
     .from("taxonomy_exposure_daily")
     .select("term_id, impressions")
     .eq("surface", surface)

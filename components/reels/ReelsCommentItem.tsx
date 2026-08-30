@@ -5,6 +5,7 @@ import { AvatarFallback } from "@/components/ui/AvatarFallback";
 type ReelsCommentReply = {
   id: string;
   authorLabel: string;
+  authorAvatarUrl: string;
   content: string;
   createdAt: string;
   likeCount: number;
@@ -17,6 +18,7 @@ type ReelsCommentReply = {
 export type ReelsCommentView = {
   id: string;
   authorLabel: string;
+  authorAvatarUrl: string;
   content: string;
   createdAt: string;
   likeCount: number;
@@ -78,6 +80,7 @@ function PinIcon() {
 }
 
 function CommentRow({
+  authorAvatarUrl,
   authorLabel,
   content,
   createdAt,
@@ -86,6 +89,7 @@ function CommentRow({
   likeCount,
   onLike
 }: {
+  authorAvatarUrl: string;
   authorLabel: string;
   content: string;
   createdAt: string;
@@ -96,7 +100,7 @@ function CommentRow({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <AvatarFallback name={authorLabel} size="sm" />
+      <AvatarFallback name={authorLabel} size="sm" src={authorAvatarUrl} />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -146,6 +150,7 @@ export function ReelsCommentItem({
   return (
     <article className="space-y-3 border-b border-[#e5e7eb] pb-4">
       <CommentRow
+        authorAvatarUrl={comment.authorAvatarUrl}
         authorLabel={comment.authorLabel}
         content={comment.content}
         createdAt={comment.createdAt}
@@ -187,6 +192,7 @@ export function ReelsCommentItem({
         <div className="ml-[3.25rem] space-y-3 border-l border-[#e5e7eb] pl-3">
           {comment.replies.map((reply) => (
             <CommentRow
+              authorAvatarUrl={reply.authorAvatarUrl}
               authorLabel={reply.authorLabel}
               content={reply.content}
               createdAt={reply.createdAt}

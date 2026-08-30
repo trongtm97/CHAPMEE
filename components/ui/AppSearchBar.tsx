@@ -15,6 +15,7 @@ type AppSearchBarProps = {
   catalogNavigation?: boolean;
   onSearch?: (query: string) => void;
   autoFocus?: boolean;
+  variant?: "pill" | "field" | "discover";
 };
 
 export function AppSearchBar({
@@ -25,7 +26,8 @@ export function AppSearchBar({
   defaultValue = "",
   hiddenFields = {},
   onSearch,
-  placeholder = APP_SEARCH_PLACEHOLDER
+  placeholder = APP_SEARCH_PLACEHOLDER,
+  variant = "pill"
 }: AppSearchBarProps) {
   const router = useRouter();
   const useCatalogNavigation = catalogNavigation ?? (!action && !onSearch);
@@ -62,6 +64,7 @@ export function AppSearchBar({
         autoFocus={autoFocus}
         defaultValue={defaultValue}
         placeholder={placeholder}
+        variant={variant}
       />
     </form>
   );

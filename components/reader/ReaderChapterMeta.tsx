@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { AuthorNameLink } from "@/components/profile/AuthorNameLink";
 import type { EpisodeReaderData } from "@/lib/episodes/getEpisodeReaderData";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 
 type ReaderChapterMetaProps = {
   data: EpisodeReaderData;
@@ -21,35 +23,45 @@ export function ReaderChapterMeta({ data }: ReaderChapterMetaProps) {
   const publishedLabel = formatDate(data.episode.publishedAt);
   const storyTitle = data.story.title?.trim() ?? "";
   const creatorName = data.story.creatorName?.trim() ?? "";
+  const storyHref = getStoryDetailHref({
+    slug: data.story.slug,
+    public_code: data.story.publicCode
+  });
 
   return (
-    <div className="min-w-0 space-y-1.5 pb-3 pt-3">
+    <header className="min-w-0 space-y-1.5 pb-3 pt-2 lg:pt-3">
+      <nav aria-label="Breadcrumb" className="text-[0.6875rem] text-zinc-500">
+        {data.story.genreName ? (
+          <span className="text-cyan-200/70">{data.story.genreName}</span>
+        ) : null}
+        {data.story.genreName && storyTitle ? <span className="mx-1">·</span> : null}
+        {storyTitle ? (
+          <Link className="font-medium text-zinc-400 hover:text-zinc-200" href={storyHref}>
+            {storyTitle}
+          </Link>
+        ) : null}
+      </nav>
       <p className="text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-cyan-200/85">
-        Chap {data.episode.episodeNumber}
+        Chương {data.episode.episodeNumber}
       </p>
       <h1
-        className="line-clamp-2 text-xl font-bold leading-snug text-white sm:text-[1.35rem] sm:leading-tight"
+        className="text-xl font-bold leading-snug text-white sm:text-[1.65rem] sm:leading-tight"
         title={data.episode.title}
       >
         {data.episode.title}
       </h1>
-      <p
-        className="truncate text-sm text-zinc-400"
-        title={[storyTitle, creatorName].filter(Boolean).join(" · ")}
-      >
-        {storyTitle ? <span>{storyTitle}</span> : null}
-        {storyTitle && creatorName ? <span className="text-zinc-600"> · </span> : null}
-        {creatorName ? (
+      {creatorName ? (
+        <p className="text-sm text-zinc-400">
           <AuthorNameLink
             badge={data.story.authorVerification}
             name={creatorName}
             username={data.story.creatorUsername}
           />
-        ) : null}
-      </p>
+        </p>
+      ) : null}
       {publishedLabel ? (
         <p className="text-[0.6875rem] text-zinc-500">Cập nhật {publishedLabel}</p>
       ) : null}
-    </div>
+    </header>
   );
 }

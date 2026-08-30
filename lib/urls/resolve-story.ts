@@ -1,5 +1,5 @@
 import { PERMANENTLY_HIDDEN_QUALITY_STATUS } from "@/lib/content-quality/public-visibility";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { publicContentStatuses } from "@/lib/visibility/contentVisibility";
 import { parsePublicSegment } from "@/lib/urls/parse";
 import { pickPublicRedirectPath } from "@/lib/urls/redirect-canonical";
@@ -17,8 +17,8 @@ export type PublicStoryRecord = StoryUrlFields & {
 export async function getStoryByPublicCode(
   publicCode: string
 ): Promise<PublicStoryRecord | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("stories")
     .select("id, title, slug, public_code, status, visibility, canonical_url")
     .eq("public_code", publicCode)
@@ -60,8 +60,8 @@ export async function resolveStoryFromSegment(segment: string): Promise<{
     return { story, canonicalPath };
   }
 
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("stories")
     .select("id, title, slug, public_code, status, visibility, canonical_url")
     .eq("slug", segment)
@@ -70,7 +70,7 @@ export async function resolveStoryFromSegment(segment: string): Promise<{
     .neq("quality_status", PERMANENTLY_HIDDEN_QUALITY_STATUS)
     .maybeSingle();
 
-  if (!data?.public_code) {
+  if (!data) {
     return { story: null, canonicalPath: null };
   }
 
@@ -78,7 +78,7 @@ export async function resolveStoryFromSegment(segment: string): Promise<{
     id: data.id,
     title: data.title,
     slug: data.slug,
-    public_code: data.public_code,
+    public_code: data.public_code ?? "",
     status: data.status,
     visibility: data.visibility,
     canonical_url: data.canonical_url

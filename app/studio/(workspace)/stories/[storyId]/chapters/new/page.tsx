@@ -1,13 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 import { StudioChapterEditor } from "@/components/studio/StudioChapterEditor";
 import { ErrorState } from "@/components/ui";
-import { createEpisodeAction } from "@/lib/creator/createEpisode";
 import { getCreatorEpisodeFormData } from "@/lib/creator/getCreatorEpisodeById";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getStudioAccess } from "@/lib/creator/getStudioAccess";
 import { studioStoryEpisodesHref } from "@/lib/studio/ownership";
 import { getStudioDraftForEditor } from "@/lib/studio/get-draft";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { studioPath } from "@/lib/studio/constants";
 
 type NewChapterPageProps = {
@@ -39,8 +38,8 @@ export default async function StudioNewChapterPage({
     );
   }
 
-  const supabase = await createClient();
-  const { data: structureRow } = await supabase
+  const db = await createClient();
+  const { data: structureRow } = await db
     .from("stories")
     .select("structure_type")
     .eq("id", storyId)
@@ -53,9 +52,6 @@ export default async function StudioNewChapterPage({
 
   const { profile } = await getCurrentUser();
   const data = await getCreatorEpisodeFormData(creatorProfile, storyId);
-  const savedDraft = profile?.id
-    ? await getStudioDraftForEditor(profile.id, "chapter", storyId, null)
-    : null;
 
   if (!data.story && !data.error) {
     notFound();
@@ -70,13 +66,12 @@ export default async function StudioNewChapterPage({
   return (
     <section className="space-y-4">
       <StudioChapterEditor
-        action={createEpisodeAction}
         authorDisplayName={creatorProfile.display_name}
         backHref={studioStoryEpisodesHref(storyId)}
         defaultEpisodeNumber={data.nextEpisodeNumber}
         defaultTitle={defaultTitle?.trim() || undefined}
         profileId={profile?.id ?? ""}
-        savedDraft={savedDraft}
+        savedDraft={null}
         story={data.story}
       />
     </section>

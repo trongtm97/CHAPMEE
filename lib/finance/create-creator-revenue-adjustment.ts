@@ -1,6 +1,6 @@
-import { insertCreatorWalletLedgerEntry } from "@/lib/supabase/creator-finance";
-import { shiftCreatorWalletBalances } from "@/lib/supabase/payouts";
-import { createClient } from "@/lib/supabase/server";
+import { insertCreatorWalletLedgerEntry } from "@/lib/data/creator-finance";
+import { shiftCreatorWalletBalances } from "@/lib/data/payouts";
+import { createClient } from "@/lib/data/server";
 
 function toNumber(value: unknown) {
   const n = typeof value === "number" ? value : Number(value);
@@ -13,9 +13,9 @@ export async function reverseCreatorEarningForQualityRefund(input: {
   storyId: string;
   chapterId?: string | null;
 }) {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: earning } = await supabase
+  const { data: earning } = await db
     .from("creator_earning_transactions")
     .select(
       "id, creator_user_id, creator_net_amount_vnd, status, coin_amount, story_id, chapter_id"
@@ -30,14 +30,14 @@ export async function reverseCreatorEarningForQualityRefund(input: {
 
   const amountVnd = toNumber(earning.creator_net_amount_vnd);
   if (amountVnd <= 0) {
-    await supabase
+    await db
       .from("creator_earning_transactions")
       .update({ status: "refunded" })
       .eq("id", earning.id);
     return { reversed: true, amountVnd: 0, error: null };
   }
 
-  const { data: ledgerRow } = await supabase
+  const { data: ledgerRow } = await db
     .from("creator_wallet_ledger")
     .select("balance_type")
     .eq("earning_transaction_id", earning.id)
@@ -84,7 +84,7 @@ export async function reverseCreatorEarningForQualityRefund(input: {
     }
   });
 
-  await supabase
+  await db
     .from("creator_earning_transactions")
     .update({ status: "refunded" })
     .eq("id", earning.id);

@@ -62,6 +62,10 @@ export type StudioReelsAnalytics = {
   views: number;
   ctaClicks: number;
   ctaRate: number | null;
+  likeCount: number;
+  commentCount: number;
+  saveCount: number;
+  shareCount: number;
   status: string;
   editHref: string;
 };

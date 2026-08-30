@@ -1,0 +1,53 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chapmee-app
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    depends_on:
+      - postgres
+      - redis
+      - postgrest
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  postgres:
+    image: postgres:17
+    container_name: chapmee-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: chapmee
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: chapmee
+    volumes:
+      - chapmee_postgres:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: chapmee-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+
+  postgrest:
+    image: postgrest/postgrest:v12.2.8
+    container_name: chapmee-postgrest
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      PGRST_DB_URI: postgresql://chapmee:${POSTGRES_PASSWORD}@postgres:5432/chapmee
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_DB_EXTRA_SEARCH_PATH: public,auth
+      PGRST_JWT_SECRET: JesW3RtOvOHmToYJEuFekq7pIZz/cdjh5j0SQW+H87E=
+    expose:
+      - "3000"
+
+volumes:
+  chapmee_postgres:

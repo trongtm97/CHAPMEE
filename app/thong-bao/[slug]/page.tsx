@@ -79,7 +79,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     canonical_path: item.canonical_path,
     indexable: item.indexable,
     follow_links: item.follow_links,
-    og_image_url: item.og_image_url
+    og_image_url: item.og_image_url,
+    og_image_media_asset_id: item.og_image_media_asset_id
   });
 }
 

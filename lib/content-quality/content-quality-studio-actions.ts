@@ -6,7 +6,7 @@ import { getCurrentCreatorProfile } from "@/lib/creator/getCreatorProfile";
 import { getAuthorContentQualityDetail } from "@/lib/content-quality/get-author-content-health";
 import { notifyAuthorContentQuality } from "@/lib/content-quality/notify-author";
 import { studioPath } from "@/lib/studio/constants";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 async function getActor() {
   const [{ profile }, creatorState] = await Promise.all([
@@ -28,19 +28,11 @@ async function getActor() {
 export async function resubmitContentQualityReviewAction(input: {
   storyId: string;
   authorNote: string;
-  acknowledged: boolean;
 }) {
   const actor = await getActor();
 
   if (!actor.ok) {
     return { error: actor.error, ok: false as const };
-  }
-
-  if (!input.acknowledged) {
-    return {
-      error: "Vui lòng xác nhận đã đọc lý do cảnh báo.",
-      ok: false as const
-    };
   }
 
   const note = input.authorNote.trim();
@@ -68,10 +60,10 @@ export async function resubmitContentQualityReviewAction(input: {
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const status = "pending_quality_review";
 
-  await supabase
+  await db
     .from("stories")
     .update({
       quality_status: status,
@@ -80,7 +72,7 @@ export async function resubmitContentQualityReviewAction(input: {
     .eq("id", input.storyId)
     .eq("creator_id", actor.creatorProfile.id);
 
-  await supabase.from("content_quality_reviews").insert({
+  await db.from("content_quality_reviews").insert({
     action_taken: "resubmitted",
     attempt_number: detail.attemptCount,
     author_id: actor.creatorProfile.id,
@@ -136,9 +128,9 @@ export async function submitContentQualityAppealAction(input: {
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { error } = await supabase.from("content_quality_appeals").insert({
+  const { error } = await db.from("content_quality_appeals").insert({
     author_id: actor.creatorProfile.id,
     message,
     status: "pending",
@@ -153,7 +145,7 @@ export async function submitContentQualityAppealAction(input: {
     return { error: error.message, ok: false as const };
   }
 
-  await supabase
+  await db
     .from("stories")
     .update({
       quality_status: "appealed",
@@ -161,7 +153,7 @@ export async function submitContentQualityAppealAction(input: {
     })
     .eq("id", input.storyId);
 
-  await supabase.from("content_quality_reviews").insert({
+  await db.from("content_quality_reviews").insert({
     action_taken: "resubmitted",
     attempt_number: detail.attemptCount,
     author_id: actor.creatorProfile.id,

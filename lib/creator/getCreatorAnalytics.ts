@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { analyticsEvents } from "@/lib/analytics/events";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 
@@ -143,10 +143,10 @@ export async function getCreatorAnalytics(
   const overview = createOverview();
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const rangeStart = getRangeStart(activeRange);
 
-    const { data: storyRows, error: storiesError } = await supabase
+    const { data: storyRows, error: storiesError } = await db
       .from("stories")
       .select("id, title, slug, public_code")
       .eq("creator_id", creatorProfile.id)
@@ -169,7 +169,7 @@ export async function getCreatorAnalytics(
       };
     }
 
-    const { data: episodeRows, error: episodesError } = await supabase
+    const { data: episodeRows, error: episodesError } = await db
       .from("episodes")
       .select("id, story_id, episode_number, title")
       .in("story_id", storyIds)
@@ -225,7 +225,7 @@ export async function getCreatorAnalytics(
       await Promise.all([
         trackedTargetIds.length
           ? applyDateFilter(
-              supabase
+              db
                 .from("analytics_events")
                 .select("event_name, target_id")
                 .in("target_id", trackedTargetIds),
@@ -233,7 +233,7 @@ export async function getCreatorAnalytics(
             )
           : emptyAnalyticsResult,
         applyDateFilter(
-          supabase
+          db
             .from("bookshelf_items")
             .select("story_id")
             .eq("status", "saved")
@@ -241,11 +241,11 @@ export async function getCreatorAnalytics(
           rangeStart
         ),
         applyDateFilter(
-          supabase.from("follows").select("id").eq("creator_id", creatorProfile.id),
+          db.from("follows").select("id").eq("creator_id", creatorProfile.id),
           rangeStart
         ),
         applyDateFilter(
-          supabase
+          db
             .from("comments")
             .select("id, story_id, episode_id")
             .eq("status", "visible")

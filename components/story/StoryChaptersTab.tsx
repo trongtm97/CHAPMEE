@@ -25,6 +25,7 @@ type StoryChaptersTabProps = {
     excerpt: string | null;
     publishedAt: string | null;
   }>;
+  isTranslation?: boolean;
 };
 
 function chapterStatus(
@@ -49,7 +50,8 @@ export function StoryChaptersTab({
   shortEpisodes,
   storyId,
   storySlug,
-  storyPublicCode
+  storyPublicCode,
+  isTranslation = false
 }: StoryChaptersTabProps) {
   const isLongStory = initialData.totalChapters > SHORT_STORY_CHAPTER_THRESHOLD;
   const [data, setData] = useState(initialData);
@@ -199,6 +201,7 @@ export function StoryChaptersTab({
           <li key={chapter.id}>
             <ChapterListItem
               chapter={chapter}
+              isTranslation={isTranslation}
               status={chapterStatus(chapter.episodeNumber, readingProgress)}
               storyPublicCode={storyPublicCode}
               storySlug={storySlug}

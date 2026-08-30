@@ -2,7 +2,7 @@
 
 import { assertAnyPermission } from "@/lib/auth/require-permission";
 import { summaryCardToFilterPatch } from "@/lib/admin/parse-verification-filters";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { VerificationDashboardFilters, VerificationListResult } from "@/types/admin-verification";
 import type { AdminVerificationListItem, VerificationType } from "@/types/verification";
 
@@ -43,7 +43,7 @@ async function loadEmails(userIds: string[]) {
   if (!userIds.length) return map;
 
   try {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const { createAdminClient } = await import("@/lib/data/admin");
     const admin = createAdminClient();
     await Promise.all(
       userIds.slice(0, 100).map(async (userId) => {
@@ -62,8 +62,8 @@ async function loadAuthorUserIds(userIds: string[]) {
   const set = new Set<string>();
   if (!userIds.length) return set;
 
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("creator_profiles")
     .select("user_id")
     .in("user_id", userIds);
@@ -177,11 +177,11 @@ export async function getVerifications(
     ? { ...filters, ...summaryCardToFilterPatch(filters.summaryCard) }
     : filters;
 
-  const supabase = await createClient();
+  const db = await createClient();
   const page = Math.max(1, effective.page);
   const pageSize = Math.min(100, Math.max(1, effective.pageSize));
 
-  const { data: rawRows, error } = await supabase
+  const { data: rawRows, error } = await db
     .from("account_verifications")
     .select(
       "id, user_id, verification_type, status, source, display_badge, public_label, request_reason, admin_note, reviewed_by, submitted_at, reviewed_at, created_at"
@@ -225,7 +225,7 @@ export async function getVerifications(
   const [profilesResult, emailMap, authorIds, revenueResult, followerResult] =
     await Promise.all([
       allProfileIds.length
-        ? supabase
+        ? db
             .from("profiles")
             .select("id, username, display_name, avatar_url")
             .in("id", allProfileIds)
@@ -233,10 +233,10 @@ export async function getVerifications(
       loadEmails(userIds),
       loadAuthorUserIds(userIds),
       userIds.length
-        ? supabase.from("creator_wallets").select("user_id, total_earned_vnd").in("user_id", userIds)
+        ? db.from("creator_wallets").select("user_id, total_earned_vnd").in("user_id", userIds)
         : Promise.resolve({ data: [] as { user_id: string; total_earned_vnd: number }[] }),
       userIds.length
-        ? supabase
+        ? db
             .from("user_follows")
             .select("following_id")
             .in("following_id", userIds)
@@ -316,8 +316,8 @@ export async function getVerificationRequests(
     selectedId: null
   });
 
-  const supabase = await createClient();
-  const { data: allRows } = await supabase
+  const db = await createClient();
+  const { data: allRows } = await db
     .from("account_verifications")
     .select("status")
     .limit(5000);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/data/client";
 import {
   getExperimentVariant,
   getOrCreateAnonymousExperimentId,
@@ -56,9 +56,9 @@ export function useExperiment(
 
   useEffect(() => {
     let isMounted = true;
-    const supabase = createClient();
+    const db = createClient();
 
-    void supabase.auth.getUser().then(({ data }) => {
+    void db.auth.getUser().then(({ data }) => {
       if (!isMounted || !data.user?.id) {
         return;
       }

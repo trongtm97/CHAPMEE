@@ -1,7 +1,7 @@
 "use server";
 
 import { checkStaffAnyPermission } from "@/lib/auth/staff-guards";
-import { queryRefundsForAdmin } from "@/lib/supabase/refunds";
+import { queryRefundsForAdmin } from "@/lib/data/refunds";
 import { refundSourceLabel, refundStatusLabel, refundTypeLabel, formatRefundId } from "@/lib/admin/refunds/refund-labels";
 import type { RefundDashboardFilters } from "@/types/admin-refund";
 

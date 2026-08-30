@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   resolveTransactionKind,
   type MonetizationTxKind
@@ -85,9 +85,9 @@ export async function getCreatorTransactionsPage(
 ): Promise<StudioMonetizationTransactionsPage> {
   const page = Math.max(1, options.page);
   const pageSize = Math.min(50, Math.max(5, options.pageSize));
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: txRows, error } = await supabase
+  const { data: txRows, error } = await db
     .from("transactions")
     .select(
       "id, story_id, chapter_id, type, source, net_amount_vnd, creator_gross_vnd, platform_fee_vnd, status, created_at, coin_amount",
@@ -117,10 +117,10 @@ export async function getCreatorTransactionsPage(
 
   const [{ data: stories }, { data: chapters }] = await Promise.all([
     storyIds.length > 0
-      ? supabase.from("stories").select("id, title").in("id", storyIds)
+      ? db.from("stories").select("id, title").in("id", storyIds)
       : Promise.resolve({ data: [] }),
     chapterIds.length > 0
-      ? supabase.from("episodes").select("id, title, episode_number").in("id", chapterIds)
+      ? db.from("episodes").select("id, title, episode_number").in("id", chapterIds)
       : Promise.resolve({ data: [] })
   ]);
 

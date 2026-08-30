@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { STORAGE_KEYS } from "@/lib/brand/storage";
 import { readSessionCache, writeSessionCache } from "@/lib/client/session-cache";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/data/client";
 import { getTotalSpendableCoinBalance } from "@/lib/wallet/get-coin-balance";
 
 const COIN_CACHE_KEY = STORAGE_KEYS.coinBalance;
@@ -38,6 +38,7 @@ export function useCoinBalance() {
 
   useEffect(() => {
     let isCancelled = false;
+    let hasSessionUser = false;
 
     const cached = readCoinCache();
     if (cached) {
@@ -46,10 +47,10 @@ export function useCoinBalance() {
 
     async function loadBalance() {
       try {
-        const supabase = createClient();
+        const db = createClient();
         const {
           data: { user }
-        } = await supabase.auth.getUser();
+        } = await db.auth.getUser();
 
         if (!user) {
           if (!isCancelled) {
@@ -66,8 +67,9 @@ export function useCoinBalance() {
           }
           return;
         }
+        hasSessionUser = true;
 
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from("user_wallets")
           .select("paid_coin_balance, bonus_coin_balance")
           .eq("user_id", user.id)
@@ -98,7 +100,7 @@ export function useCoinBalance() {
         }
       } catch {
         if (!isCancelled) {
-          setState({ balance: 0, isLoggedIn: false, loading: false });
+          setState({ balance: 0, isLoggedIn: hasSessionUser, loading: false });
         }
       }
     }

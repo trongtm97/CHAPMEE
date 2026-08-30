@@ -7,7 +7,7 @@ import {
   getMyCommunityGroups
 } from "@/lib/community/get-community-groups";
 import { normalizeCommunityGroupsParams } from "@/lib/community/community-groups-query";
-import { buildCanonicalUrl } from "@/lib/seo/metadata";
+import { metadataForStaticRoute } from "@/lib/seo/public-page-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -26,12 +26,14 @@ type CommunityGroupsIndexProps = {
 const pageDescription = "Tìm fandom từng truyện — thảo luận, review, poll và bình luận hot trên ChapMee.";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const canonical = buildCanonicalUrl("/community/groups");
-  return {
-    title: "Nhóm truyện",
-    description: pageDescription,
-    alternates: canonical ? { canonical } : undefined
-  };
+  return metadataForStaticRoute({
+    path: "/community/groups",
+    pageType: "community",
+    fallbackTitle: "Nhóm truyện | ChapMee",
+    fallbackDescription: pageDescription,
+    indexableOverride: false,
+    followOverride: true
+  });
 }
 
 export default async function CommunityGroupsIndexPage({ searchParams }: CommunityGroupsIndexProps) {

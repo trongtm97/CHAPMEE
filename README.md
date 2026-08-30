@@ -1,128 +1,124 @@
 # ChapMee
 
-ChapMee is a mobile-first PWA web app for text entertainment. The MVP foundation uses Next.js App Router, TypeScript, Tailwind CSS, ESLint, Prettier, Supabase-ready folders, and Vercel-friendly defaults.
+ChapMee is a mobile-first PWA for text entertainment: Reels, Discover, Community, Creator Studio, and Admin operations.
 
-## Tech Stack
+## Tech stack (self-hosted)
 
-- Next.js
-- TypeScript
-- Tailwind CSS
-- Supabase
-- Vercel
+- **Next.js** (App Router) + TypeScript + Tailwind CSS
+- **PostgreSQL** + legacy schema from `db/migrations/legacy/`
+- **Drizzle** — Better Auth tables + direct SQL where needed
+- **Better Auth** — email/password (replaces Supabase Auth)
+- **Google OAuth** — optional Better Auth social login for web/PWA
+- **PostgREST** — compatibility layer for legacy `.from()` / `.rpc()` queries
+- **S3-compatible storage** — MinIO (local) / Vietnix Object Storage (production)
 
-## Getting Started
+Runtime code does **not** depend on `@supabase/supabase-js`.
 
-Install dependencies:
+## Quick start (local)
 
-```bash
-npm install
-```
-
-Run the development server:
+See **[LOCAL_SETUP.md](./LOCAL_SETUP.md)** for the full checklist.
 
 ```bash
+npm install --legacy-peer-deps
+docker compose -f docker-compose.local.yml up -d
+cp .env.example .env.local   # set BETTER_AUTH_SECRET, DATABASE_URL, S3_*
+npm run db:migrate
+npm run db:legacy            # first time only (~197 migrations)
+npm run verify:local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Environment Variables
+## Environment variables
 
-Copy the example file and add your local Supabase project values:
+Copy `.env.example` → `.env.local`. Required:
 
-```bash
-cp .env.example .env.local
-```
+| Variable | Purpose |
+|----------|---------|
+| `DATABASE_URL` | PostgreSQL |
+| `BETTER_AUTH_SECRET` | Auth signing (generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`) |
+| `BETTER_AUTH_URL` / `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` locally |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional Google sign-in for `/login` and `/register` |
+| `POSTGREST_URL` / `NEXT_PUBLIC_POSTGREST_URL` | `http://127.0.0.1:54321` |
+| `S3_*` | MinIO or production object storage |
 
-Required variables:
+Do **not** commit `.env.local`.
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-```
+## Deploy (Vietnix VPS)
 
-Optional but recommended for deployed builds and absolute links:
+See **[DEPLOY_VIETNIX.md](./DEPLOY_VIETNIX.md)**.
 
-```bash
-NEXT_PUBLIC_SITE_URL=
-```
+## npm scripts
 
-Do not commit `.env.local` or real Supabase keys.
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Next.js dev server |
+| `npm run build` | Production build |
+| `npm run db:migrate` | Drizzle SQL `0000`–`0011` (tracked in `schema_migrations`) |
+| `npm run db:migrate:status` | List applied / pending drizzle files |
+| `npm run db:legacy` | Apply `db/migrations/legacy/` |
+| `npm run db:setup` | migrate + legacy + shims |
+| `npm run db:seed` | Demo users + sample stories (local) |
+| `npm run db:repair-auth-users` | Backfill `auth.users` + `profiles` |
+| `npm run verify:local` | Health check stack |
+| `npm run test:rbac:setup` | RBAC test users (needs `DATABASE_URL`) |
 
-## Vercel Deployment
+### Chapter content (S3) & import
 
-Add the same environment variables in the Vercel project settings:
+| Script | Description |
+|--------|-------------|
+| `npm run test:chapter-content` | MinIO save/load smoke test |
+| `npm run backfill:chapter-content` | Migrate inline `episodes.content` → S3 |
+| `npm run import:local-file` | CLI upload/parse import file |
+| `npm run import:cleanup` | List old failed import jobs (dry-run) |
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `NEXT_PUBLIC_SITE_URL`
+### Storage ops (search/cache lifecycle)
 
-Use the production site URL for `NEXT_PUBLIC_SITE_URL` so metadata, share links,
-and canonical links resolve correctly.
+| Script | Description |
+|--------|-------------|
+| `npm run storage:health` | Schema + optional S3 probe |
+| `npm run storage:check-chapters` | Verify chapter objects in bucket |
+| `npm run storage:check-imports` | Verify import raw/processed keys |
+| `npm run storage:cleanup-import-temp` | Dry-run import temp cleanup |
+| `npm run storage:cleanup-orphan-chapters` | Dry-run orphan chapter report |
 
-Before testing the deployed app, apply the Supabase migrations to the target
-project and confirm the schema is up to date. The app expects the database
-tables, policies, and seed-ready structures from `supabase/migrations/`.
+Docs: [OPERATIONS_STORAGE.md](./docs/OPERATIONS_STORAGE.md) (runbook), [STORAGE_LIFECYCLE.md](./docs/STORAGE_LIFECYCLE.md), [IMPORT_PIPELINE.md](./docs/IMPORT_PIPELINE.md), [CHAPTER_CONTENT_STORAGE_PLAN.md](./docs/CHAPTER_CONTENT_STORAGE_PLAN.md).
+
+Admin: `/admin/storage`, `/admin/imports`, `/admin/storage-cleanup`.
 
 ## Validation
 
-Run lint checks:
-
 ```bash
 npm run lint
-```
-
-Create a production build:
-
-```bash
 npm run build
 ```
 
-Check formatting:
+Run `npm run typecheck` before commits; production build enforces types (`ignoreBuildErrors: false`).
 
-```bash
-npm run format:check
-```
+## Google OAuth setup
 
-## Seed demo data
+If you want Google sign-in on `/login` and `/register`:
 
-ChapMee only seeds demo content after a real creator exists in Supabase.
+1. Create a Google OAuth Client in Google Cloud Console.
+2. Choose `Web application`.
+3. Add redirect URIs:
+   - Local: `http://localhost:3000/api/auth/callback/google`
+   - Production: `https://YOUR_DOMAIN/api/auth/callback/google`
+4. Fill these env vars:
+   - `GOOGLE_CLIENT_ID`
+   - `GOOGLE_CLIENT_SECRET`
+   - `APP_URL`
+   - `BETTER_AUTH_URL`
+   - `BETTER_AUTH_SECRET` or `AUTH_SECRET`
 
-1. Register or log in with a real user in the app.
-2. Open `/me` and enable Creator Mode so `creator_profiles` exists.
-3. Apply the latest migrations in `supabase/migrations/`.
-4. Run `supabase/seed.sql` in Supabase Dashboard -> SQL Editor, or via the linked Supabase CLI workflow.
-5. Run:
+ChapMee only requests `openid`, `email`, and `profile`.
 
-```sql
-NOTIFY pgrst, 'reload schema';
-```
+## Project layout
 
-6. Restart the local dev server with `npm run dev`.
-7. Verify the seeded rows with the queries below.
-
-```sql
-select count(*) from genres;
-select count(*) from tags;
-select count(*) from stories;
-select count(*) from episodes;
-select count(*) from community_posts;
-select count(*) from analytics_events;
-```
-
-The seed is safe for an existing project: it uses `insert ... on conflict`, does not create fake `auth.users`, does not drop or truncate tables, and stops with a clear error if no creator profile exists yet.
-
-## Project Structure
-
-```text
-app/
-components/
-  layout/
-  ui/
-lib/
-  supabase/
-styles/
-supabase/
-  migrations/
-types/
-```
+- `app/` — routes and API
+- `lib/db/` — Drizzle, PostgREST compat client
+- `lib/auth/` — Better Auth + `auth.users` shim
+- `lib/data/` — PostgREST data access modules (queries, settings, monetization, …)
+- `db/migrations/legacy/` — SQL migrations (applied via `npm run db:legacy`)
+- `drizzle/` — foundation SQL for auth + shims

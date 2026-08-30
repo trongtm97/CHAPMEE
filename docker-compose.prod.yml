@@ -1,0 +1,157 @@
+# ChapMee production — VPS 4GB (pull pre-built image from registry, NEVER build on server).
+#
+# Prerequisites:
+#   1. GitHub Actions pushes to GHCR (see docs/DEPLOY_GITHUB_ACTIONS.md)
+#   2. VPS: docker login ghcr.io (one-time)
+#   3. .env.production on VPS with CHAPMEE_WEB_IMAGE=ghcr.io/<owner>/chapmee-web:<sha>
+#
+# Deploy (NO --build):
+#   docker compose -f docker-compose.prod.yml --env-file .env.production pull web
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+#
+# Rollback to a commit SHA:
+#   CHAPMEE_WEB_IMAGE=ghcr.io/<owner>/chapmee-web:<commit-sha> \
+#     ./scripts/deploy/vps-pull-deploy.sh
+#
+# NEVER on VPS:
+#   docker compose up --build
+#   docker compose build
+#   docker build .
+name: chapmee
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  web:
+    image: ${CHAPMEE_WEB_IMAGE:?set CHAPMEE_WEB_IMAGE in .env.production e.g. ghcr.io/owner/chapmee-web:latest}
+    pull_policy: always
+    container_name: chapmee-web
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      NEXT_TELEMETRY_DISABLED: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      postgrest:
+        condition: service_started
+    ports:
+      - "127.0.0.1:3000:3000"
+    expose:
+      - "3000"
+    # Postfix on VPS host — SMTP via host.docker.internal (see scripts/deploy/setup-postfix-mail.sh)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    logging: *default-logging
+    networks:
+      - chapmee_net
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: chapmee-postgres
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env.production}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env.production}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U \"${POSTGRES_USER}\" -d \"${POSTGRES_DB}\" || exit 1"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging: *default-logging
+    networks:
+      - chapmee_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: chapmee-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    logging: *default-logging
+    networks:
+      - chapmee_net
+
+  postgrest:
+    image: postgrest/postgrest:v12.2.8
+    container_name: chapmee-postgrest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env.production
+    environment:
+      PGRST_DB_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_DB_EXTRA_SEARCH_PATH: public,auth
+      PGRST_JWT_SECRET: ${POSTGREST_JWT_SECRET:?set POSTGREST_JWT_SECRET in .env.production}
+      PGRST_OPENAPI_SERVER_PROXY_URI: https://chapmee.com/api/postgrest
+    expose:
+      - "3000"
+    logging: *default-logging
+    networks:
+      - chapmee_net
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: chapmee-caddy
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+      postgrest:
+        condition: service_started
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging: *default-logging
+    networks:
+      - chapmee_net
+
+networks:
+  chapmee_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

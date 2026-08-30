@@ -1,9 +1,9 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { ErrorState } from "@/components/ui";
 import { PaymentDashboard } from "@/components/admin/payments/PaymentDashboard";
 import { requireFinanceAccess } from "@/lib/auth/require-permission";
-import { listCheckoutSessionsForAdmin } from "@/lib/supabase/checkout-sessions";
-import { listPaymentWebhookEventsForAdmin } from "@/lib/supabase/payment-webhook-events";
+import { listCheckoutSessionsForAdmin } from "@/lib/data/checkout-sessions";
+import { listPaymentWebhookEventsForAdmin } from "@/lib/data/payment-webhook-events";
 import { getSePayConfig } from "@/lib/payments/sepay-config";
 
 type AdminPaymentsPageProps = {

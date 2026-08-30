@@ -21,6 +21,59 @@ export type ContentPostStatus = (typeof CONTENT_POST_STATUSES)[number];
 
 export type ContentPostRobots = "index,follow" | "noindex,follow" | "noindex,nofollow";
 
+export type ContentPostCategoryStatus = "active" | "hidden";
+
+export type ContentPostCategory = {
+  id: string;
+  parent_id: string | null;
+  name: string;
+  slug: string;
+  description: string | null;
+  sort_order: number;
+  status: ContentPostCategoryStatus;
+  cover_image_url: string | null;
+  cover_media_asset_id: string | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  canonical_url: string | null;
+  indexable: boolean;
+  robots: ContentPostRobots;
+  og_title: string | null;
+  og_description: string | null;
+  og_image_url: string | null;
+  og_image_media_asset_id: string | null;
+  public_code: string;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type CreateContentPostCategoryInput = {
+  parent_id?: string | null;
+  name: string;
+  slug: string;
+  description?: string | null;
+  sort_order?: number;
+  status?: ContentPostCategoryStatus;
+  cover_image_url?: string | null;
+  cover_media_asset_id?: string | null;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  canonical_url?: string | null;
+  indexable?: boolean;
+  robots?: ContentPostRobots;
+  og_title?: string | null;
+  og_description?: string | null;
+  og_image_url?: string | null;
+  og_image_media_asset_id?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
+};
+
+export type UpdateContentPostCategoryInput = Partial<CreateContentPostCategoryInput>;
+
 export type AdminContentPost = {
   id: string;
   title: string;
@@ -29,6 +82,9 @@ export type AdminContentPost = {
   excerpt: string | null;
   content: string | null;
   cover_image_url: string | null;
+  /** @deprecated Legacy object key — prefer cover_media_asset_id. */
+  cover_media_asset_id?: string | null;
+  og_image_media_asset_id?: string | null;
   category: string | null;
   tags: string[];
   post_type: ContentPostType;
@@ -50,6 +106,8 @@ export type AdminContentPost = {
   view_count: number;
   created_at: string;
   updated_at: string;
+  /** Resolved at read time — not persisted. */
+  coverDisplayUrl?: string | null;
 };
 
 export type CreateContentPostInput = {
@@ -58,6 +116,8 @@ export type CreateContentPostInput = {
   excerpt?: string | null;
   content?: string | null;
   cover_image_url?: string | null;
+  cover_media_asset_id?: string | null;
+  og_image_media_asset_id?: string | null;
   category?: string | null;
   tags?: string[];
   post_type?: ContentPostType;
@@ -150,6 +210,7 @@ export type PlatformAnnouncement = {
   og_title: string | null;
   og_description: string | null;
   og_image_url: string | null;
+  og_image_media_asset_id?: string | null;
   published_at: string | null;
   scheduled_at: string | null;
   expires_at: string | null;
@@ -177,6 +238,7 @@ export type CreateAnnouncementInput = {
   og_title?: string | null;
   og_description?: string | null;
   og_image_url?: string | null;
+  og_image_media_asset_id?: string | null;
   published_at?: string | null;
   scheduled_at?: string | null;
   expires_at?: string | null;
@@ -400,6 +462,8 @@ export type ListContentPostsOptions = {
   status?: ContentPostStatus | ContentPostStatus[];
   postType?: ContentPostType;
   category?: string;
+  /** Filter posts whose tags array contains this value (e.g. featured). */
+  tag?: string;
   publicOnly?: boolean;
   limit?: number;
   offset?: number;

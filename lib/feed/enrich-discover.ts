@@ -1,7 +1,10 @@
+import { loadCurrentStoryImagesByStoryIds } from "@/lib/images/get-current-story-image";
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
 import { normalizeStoryStructureType } from "@/lib/stories/story-structure";
+import { normalizeDbContentOrigin } from "@/lib/stories/story-origin";
 import type { DiscoverStory } from "@/lib/discover/getDiscoverData";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import type { FeedCandidate, FeedDeliveryMeta } from "@/types/feed-mixer";
 import { logRecommendationExposureBatch } from "@/lib/fair-distribution/log-exposure";
 
@@ -18,6 +21,8 @@ type StoryRow = {
   published_at: string | null;
   structure_type?: string | null;
   standalone_reading_time_minutes?: number | null;
+  content_origin?: string | null;
+  rights_status?: string | null;
   creator_profiles:
     | {
         id: string;
@@ -39,7 +44,7 @@ function firstRelation<T>(relation: T | T[] | null | undefined) {
 }
 
 export async function enrichDiscoverCandidates(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   candidates: FeedCandidate[],
   delivery: { requestId: string; algorithmVersion: string },
   tagsByStory: Map<string, string[]>
@@ -47,10 +52,10 @@ export async function enrichDiscoverCandidates(
   const storyIds = candidates.map((c) => c.storyId);
   if (storyIds.length === 0) return [];
 
-  const { data: rows } = await supabase
+  const { data: rows } = await db
     .from("stories")
     .select(
-      "id, title, slug, public_code, cover_url, hook, short_description, long_description, is_completed, published_at, structure_type, standalone_reading_time_minutes, creator_profiles(id, user_id, pen_name, profiles!creator_profiles_user_id_fkey(display_name, username))"
+      "id, title, slug, public_code, cover_url, hook, short_description, long_description, is_completed, published_at, structure_type, standalone_reading_time_minutes, content_origin, rights_status, creator_profiles(id, user_id, pen_name, profiles!creator_profiles_user_id_fkey(display_name, username))"
     )
     .in("id", storyIds);
 
@@ -62,15 +67,18 @@ export async function enrichDiscoverCandidates(
     "@/lib/taxonomy/discover-bridge"
   );
   const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(
-    supabase,
+    db,
     storyIds
   );
 
-  const { data: episodeCounts } = await supabase
-    .from("episodes")
-    .select("story_id")
-    .in("story_id", storyIds)
-    .in("status", ["approved", "published"]);
+  const [{ data: episodeCounts }, imageByStoryId] = await Promise.all([
+    db
+      .from("episodes")
+      .select("story_id")
+      .in("story_id", storyIds)
+      .in("status", ["approved", "published"]),
+    loadCurrentStoryImagesByStoryIds(db, storyIds)
+  ]);
 
   const episodeCountByStory = new Map<string, number>();
   for (const episode of episodeCounts ?? []) {
@@ -84,6 +92,7 @@ export async function enrichDiscoverCandidates(
       if (!row) return null;
       const taxonomy = taxonomyByStory.get(row.id);
       const creator = firstRelation(row.creator_profiles);
+      const currentImage = imageByStoryId.get(row.id) ?? null;
       const feed: FeedDeliveryMeta = {
         requestId: delivery.requestId,
         algorithmVersion: delivery.algorithmVersion,
@@ -97,7 +106,8 @@ export async function enrichDiscoverCandidates(
         structureType: normalizeStoryStructureType(row.structure_type),
         episodeCount: episodeCountByStory.get(row.id) ?? 0,
         standaloneReadingTimeMinutes: row.standalone_reading_time_minutes ?? 0,
-        coverUrl: row.cover_url,
+        coverUrl: resolveStoryCoverUrl(row.cover_url),
+        currentImage,
         hook: row.hook,
         shortDescription: row.short_description,
         longDescription: row.long_description,
@@ -117,12 +127,14 @@ export async function enrichDiscoverCandidates(
             ? (tagsByStory.get(row.id) ?? [])
             : (taxonomy?.tagNames ?? []),
         score: candidate.mixerScore,
+        contentOrigin: normalizeDbContentOrigin(row.content_origin),
+        rightsStatus: row.rights_status ?? null,
         feed
       } satisfies DiscoverStory;
     })
     .filter(Boolean) as DiscoverStory[];
 
-  void logRecommendationExposureBatch(supabase, candidates, {
+  void logRecommendationExposureBatch(db, candidates, {
     surface: "discover",
     requestId: delivery.requestId
   });

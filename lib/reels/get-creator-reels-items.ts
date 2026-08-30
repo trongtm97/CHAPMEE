@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { mapReelsListRow } from "@/lib/reels/map-reels-row";
 import { paginateList, parseStudioPage } from "@/lib/studio/pagination";
 import type { ReelsItemListItem, ReelsListTab } from "@/types/reels";
@@ -33,8 +33,8 @@ export async function getCreatorReelsItems(input: {
   const page = parseStudioPage(String(input.page ?? 1));
 
   try {
-    const supabase = await createClient();
-    let query = supabase
+    const db = await createClient();
+    let query = db
       .from("reels_items")
       .select("*, stories(title, slug), episodes(title, episode_number)")
       .eq("owner_id", input.ownerId)

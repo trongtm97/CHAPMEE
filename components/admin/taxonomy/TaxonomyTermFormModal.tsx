@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button, Input, Textarea } from "@/components/ui";
+import { SeoMediaAssetField } from "@/components/admin/seo/SeoMediaAssetField";
 import {
   listTaxonomyTermsAdminAction,
   saveTaxonomyTermAdminAction
@@ -64,7 +65,7 @@ export function TaxonomyTermFormModal({
   const [seoIndexable, setSeoIndexable] = useState(true);
   const [sitemapPriority, setSitemapPriority] = useState("");
   const [sitemapChangefreq, setSitemapChangefreq] = useState("weekly");
-  const [ogImageUrl, setOgImageUrl] = useState("");
+  const [ogImageAssetId, setOgImageAssetId] = useState<string | null>(null);
   const [useForPinterestFeed, setUseForPinterestFeed] = useState(false);
   const [minStoriesOverride, setMinStoriesOverride] = useState("");
   const [parentOptions, setParentOptions] = useState<TaxonomyTermRow[]>([]);
@@ -103,7 +104,7 @@ export function TaxonomyTermFormModal({
       setSeoIndexable(term.seo_indexable);
       setSitemapPriority(term.sitemap_priority != null ? String(term.sitemap_priority) : "");
       setSitemapChangefreq(term.sitemap_changefreq ?? "weekly");
-      setOgImageUrl(term.og_image_url ?? "");
+      setOgImageAssetId(term.og_image_asset_id ?? null);
       setUseForPinterestFeed(term.use_for_pinterest_feed);
       setMinStoriesOverride(
         term.min_stories_override != null ? String(term.min_stories_override) : ""
@@ -137,7 +138,7 @@ export function TaxonomyTermFormModal({
       setSeoIndexable(true);
       setSitemapPriority("");
       setSitemapChangefreq("weekly");
-      setOgImageUrl("");
+      setOgImageAssetId(null);
       setUseForPinterestFeed(false);
       setMinStoriesOverride("");
     }
@@ -215,7 +216,8 @@ export function TaxonomyTermFormModal({
                   seo_indexable: seoIndexable,
                   sitemap_priority: sitemapPriority ? Number(sitemapPriority) : null,
                   sitemap_changefreq: sitemapChangefreq || null,
-                  og_image_url: ogImageUrl || null,
+                  og_image_url: null,
+                  og_image_asset_id: ogImageAssetId,
                   use_for_pinterest_feed: useForPinterestFeed,
                   min_stories_override: minStoriesOverride ? Number(minStoriesOverride) : null
                 }
@@ -370,10 +372,12 @@ export function TaxonomyTermFormModal({
                   )}
                 </select>
               </label>
-              <Input
-                label="OG image URL"
-                onChange={(e) => setOgImageUrl(e.target.value)}
-                value={ogImageUrl}
+              <SeoMediaAssetField
+                hint="Upload ảnh OG nội bộ — không dán URL MinIO/S3."
+                label="OG image"
+                name="og_image_asset_id"
+                onChange={setOgImageAssetId}
+                value={ogImageAssetId}
               />
               <Input
                 label="Min stories override"

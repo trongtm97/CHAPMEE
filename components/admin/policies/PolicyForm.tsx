@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { PolicyPageEditor } from "@/components/admin/policies/PolicyPageEditor";
 import { PolicyStatusBadge } from "@/components/admin/policies/PolicyStatusBadge";
 import { Button } from "@/components/ui";
 import {
@@ -46,6 +47,7 @@ export function PolicyForm({ item, capabilities, initialTab = "edit" }: Props) {
   const [seoTitle, setSeoTitle] = useState(item?.seo_title ?? "");
   const [seoDescription, setSeoDescription] = useState(item?.seo_description ?? "");
   const [seoIndexable, setSeoIndexable] = useState(item?.seo_indexable ?? true);
+  const [publicPath, setPublicPath] = useState(item?.canonical_path ?? "");
   const [changeNote, setChangeNote] = useState("");
 
   function showToast(message: string) {
@@ -79,7 +81,8 @@ export function PolicyForm({ item, capabilities, initialTab = "edit" }: Props) {
           effective_date: effectiveDate || null,
           seo_title: seoTitle.trim() || null,
           seo_description: seoDescription.trim() || null,
-          seo_indexable: seoIndexable
+          seo_indexable: seoIndexable,
+          canonical_path: publicPath.trim() || null
         }
       });
       if (result.error) {
@@ -88,7 +91,7 @@ export function PolicyForm({ item, capabilities, initialTab = "edit" }: Props) {
       }
       showToast("Đã lưu bản nháp.");
       if (!isEdit && result.item) {
-        router.push(`/admin/policies/${result.item.id}/edit`);
+        router.push(`/admin/pages/${result.item.id}/edit`);
       }
     });
   }
@@ -108,6 +111,7 @@ export function PolicyForm({ item, capabilities, initialTab = "edit" }: Props) {
           seo_title: seoTitle.trim() || null,
           seo_description: seoDescription.trim() || null,
           seo_indexable: seoIndexable,
+          canonical_path: publicPath.trim() || null,
           change_note: changeNote.trim() || null
         }
       });
@@ -122,7 +126,7 @@ export function PolicyForm({ item, capabilities, initialTab = "edit" }: Props) {
         setError(publishResult.error);
         return;
       }
-      showToast("Đã xuất bản chính sách.");
+      showToast("Đã xuất bản trang.");
       router.refresh();
     });
   }
@@ -136,24 +140,28 @@ export function PolicyForm({ item, capabilities, initialTab = "edit" }: Props) {
         return;
       }
       showToast("Đã lưu trữ.");
-      router.push("/admin/policies");
+      router.push("/admin/pages");
     });
   }
 
   const previewUrl =
-    item?.public_code != null
-      ? getPolicyUrl({ slug: item.slug, public_code: item.public_code })
+    item?.status === "published"
+      ? publicPath.trim() ||
+        item.canonical_path ||
+        (item.public_code != null
+          ? getPolicyUrl({ slug: item.slug, public_code: item.public_code })
+          : null)
       : null;
 
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link className="text-sm text-zinc-400 hover:text-white" href="/admin/policies">
-            ← Quản lý chính sách
+          <Link className="text-sm text-zinc-400 hover:text-white" href="/admin/pages">
+            ← Quản lý trang
           </Link>
           <h1 className="mt-2 text-3xl font-bold text-white">
-            {isEdit ? "Sửa chính sách" : "Tạo chính sách"}
+            {isEdit ? "Sửa trang" : "Tạo trang"}
           </h1>
           {item ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -163,13 +171,13 @@ export function PolicyForm({ item, capabilities, initialTab = "edit" }: Props) {
           ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
-          {previewUrl && item?.status === "published" ? (
+          {previewUrl ? (
             <Link
               className="rounded-lg border border-white/10 px-3 py-2 text-sm text-zinc-200"
               href={previewUrl}
               target="_blank"
             >
-              Preview public
+              Xem public
             </Link>
           ) : null}
         </div>
@@ -243,12 +251,24 @@ export function PolicyForm({ item, capabilities, initialTab = "edit" }: Props) {
               />
             </label>
             <label className="block space-y-1">
-              <span className="text-sm text-zinc-300">Slug</span>
+              <span className="text-sm text-zinc-300">Slug (CMS)</span>
               <input
                 className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-white"
                 onChange={(event) => setSlug(event.target.value)}
                 value={slug}
               />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-sm text-zinc-300">URL public</span>
+              <input
+                className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 font-mono text-sm text-white"
+                onChange={(event) => setPublicPath(event.target.value)}
+                placeholder="/legal/terms, /about, /chinh-sach/..."
+                value={publicPath}
+              />
+              <p className="text-xs text-zinc-500">
+                Đường dẫn người dùng truy cập. Trang hệ thống nên dùng đúng path trong danh mục.
+              </p>
             </label>
             <label className="block space-y-1">
               <span className="text-sm text-zinc-300">Policy type</span>
@@ -272,14 +292,14 @@ export function PolicyForm({ item, capabilities, initialTab = "edit" }: Props) {
                 value={summary}
               />
             </label>
-            <label className="block space-y-1">
-              <span className="text-sm text-zinc-300">Content (Markdown)</span>
-              <textarea
-                className="min-h-80 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 font-mono text-sm text-white"
-                onChange={(event) => setContent(event.target.value)}
+            <div className="space-y-1 lg:col-span-2">
+              <span className="block text-sm text-zinc-300">Nội dung trang</span>
+              <PolicyPageEditor
+                disabled={!capabilities.canEdit}
+                onChange={setContent}
                 value={content}
               />
-            </label>
+            </div>
           </div>
 
           <aside className="space-y-4">

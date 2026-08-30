@@ -32,7 +32,36 @@ export function parseChapterDraftContent(
         : undefined,
     title: typeof content.title === "string" ? content.title : undefined,
     useComposerUi:
-      typeof content.useComposerUi === "boolean" ? content.useComposerUi : undefined
+      typeof content.useComposerUi === "boolean" ? content.useComposerUi : undefined,
+    reelsPromo:
+      content.reelsPromo && typeof content.reelsPromo === "object"
+        ? {
+            body:
+              typeof (content.reelsPromo as { body?: unknown }).body === "string"
+                ? (content.reelsPromo as { body: string }).body
+                : "",
+            enabled: Boolean((content.reelsPromo as { enabled?: unknown }).enabled),
+            hook:
+              typeof (content.reelsPromo as { hook?: unknown }).hook === "string"
+                ? (content.reelsPromo as { hook: string }).hook
+                : "",
+            sourceTextEnd:
+              typeof (content.reelsPromo as { sourceTextEnd?: unknown }).sourceTextEnd ===
+              "number"
+                ? (content.reelsPromo as { sourceTextEnd: number }).sourceTextEnd
+                : null,
+            sourceTextStart:
+              typeof (content.reelsPromo as { sourceTextStart?: unknown }).sourceTextStart ===
+              "number"
+                ? (content.reelsPromo as { sourceTextStart: number }).sourceTextStart
+                : null,
+            sourceType:
+              typeof (content.reelsPromo as { sourceType?: unknown }).sourceType === "string"
+                ? ((content.reelsPromo as { sourceType: string })
+                    .sourceType as import("@/types/reels").ReelsSourceType)
+                : undefined
+          }
+        : undefined
   };
 }
 

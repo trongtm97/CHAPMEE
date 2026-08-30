@@ -1,4 +1,4 @@
-﻿import { isSponsoredContentEnabled } from "@/lib/campaigns/feature";
+import { isSponsoredContentEnabled } from "@/lib/campaigns/feature";
 import {
   campaignMatchesChapterTarget,
   campaignMatchesCreatorStudio,
@@ -8,7 +8,7 @@ import {
   getActiveCampaignForPlacement,
   getCampaignCenterSettings,
   getPublicCampaignForContent
-} from "@/lib/supabase/campaigns";
+} from "@/lib/data/campaigns";
 import { DEFAULT_CAMPAIGN_CENTER_SETTINGS } from "@/types/campaign";
 import type { CampaignCenterSettings, CampaignWithSponsor } from "@/types/campaign";
 
@@ -63,7 +63,7 @@ export function sponsoredBannerProps(campaign: CampaignWithSponsor, challengeId?
     campaignId: campaign.id,
     sponsorId: campaign.sponsor?.id ?? null,
     challengeId: challengeId ?? null,
-    sponsorName: campaign.sponsor?.name ?? "Nhà tài trợ",
+    sponsorName: campaign.sponsor?.name ?? "Nh\u00E0 t\u00E0i tr\u1EE3",
     sponsorLogoUrl: campaign.sponsor?.logoUrl,
     disclosureText: campaign.disclosureText,
     ctaText: campaign.ctaText,

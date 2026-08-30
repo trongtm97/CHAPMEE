@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { publicContentStatuses } from "@/lib/visibility/contentVisibility";
 import type { FeedCandidate, FeedItemKind } from "@/types/feed-mixer";
 import {
@@ -6,6 +6,9 @@ import {
   pickMainGenreFromLabels
 } from "@/lib/taxonomy/story-genre-labels";
 import { loadStoryTaxonomyBatch } from "@/lib/fair-distribution/load-taxonomy-context";
+import {
+  hasSubstantialStoryLongDescription
+} from "@/lib/reels/resolve-story-reels-text";
 
 function firstRelation<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
@@ -24,12 +27,12 @@ type ScoreRow = {
 };
 
 export async function loadLatestScoreMap(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   itemType: "story" | "chapter" | "reel"
 ) {
   const map = new Map<string, ScoreRow>();
 
-  const { data } = await supabase
+  const { data } = await db
     .from("content_score_snapshots")
     .select(
       "item_type, item_id, quality_score, discovery_score, freshness_score, final_reels_score, final_discover_score, final_ranking_score, snapshot_at"
@@ -63,30 +66,42 @@ function scoresFor(
 }
 
 export async function fetchReelCatalogCandidates(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   fetchLimit = 250
 ): Promise<FeedCandidate[]> {
-  const [episodeRes, manualRes, episodeScores, reelScores] = await Promise.all([
-    supabase
+  const [episodeRes, manualRes, storyDescRes, episodeScores, reelScores, storyScores] =
+    await Promise.all([
+    db
       .from("episodes")
       .select(
-        "id, published_at, stories!inner(id, creator_id, status, visibility, creator_profiles(id, user_id))"
+        "id, published_at, stories!inner(id, creator_id, content_origin, rights_status, status, visibility, creator_profiles(id, user_id))"
       )
       .in("status", [...publicContentStatuses])
       .in("stories.status", [...publicContentStatuses])
       .eq("stories.visibility", "public")
       .order("published_at", { ascending: false })
       .limit(fetchLimit),
-    supabase
+    db
       .from("reels_items")
       .select(
-        "id, published_at, stories!inner(id, creator_id, status, visibility, creator_profiles(id, user_id))"
+        "id, chapter_id, published_at, stories!inner(id, creator_id, content_origin, rights_status, status, visibility, creator_profiles(id, user_id))"
       )
       .eq("status", "published")
       .order("published_at", { ascending: false })
       .limit(fetchLimit),
-    loadLatestScoreMap(supabase, "chapter"),
-    loadLatestScoreMap(supabase, "reel")
+    db
+      .from("stories")
+      .select(
+        "id, published_at, updated_at, long_description, content_origin, rights_status, creator_profiles(id, user_id)"
+      )
+      .in("status", [...publicContentStatuses])
+      .eq("visibility", "public")
+      .not("long_description", "is", null)
+      .order("updated_at", { ascending: false })
+      .limit(fetchLimit),
+    loadLatestScoreMap(db, "chapter"),
+    loadLatestScoreMap(db, "reel"),
+    loadLatestScoreMap(db, "story")
   ]);
 
   const candidates: FeedCandidate[] = [];
@@ -106,12 +121,15 @@ export async function fetchReelCatalogCandidates(
     );
     if (story?.id) storyIdsForTaxonomy.push(story.id);
   }
+  for (const story of storyDescRes.data ?? []) {
+    if (story.id) storyIdsForTaxonomy.push(String(story.id));
+  }
 
   const taxonomyByStory = await loadMainGenreLabelsByStoryIds(
-    supabase,
+    db,
     storyIdsForTaxonomy
   );
-  const taxonomyMeta = await loadStoryTaxonomyBatch(supabase, storyIdsForTaxonomy);
+  const taxonomyMeta = await loadStoryTaxonomyBatch(db, storyIdsForTaxonomy);
 
   for (const episode of episodeRes.data ?? []) {
     const story = firstRelation(
@@ -143,7 +161,11 @@ export async function fetchReelCatalogCandidates(
       mixerScore: scores.finalReels,
       qualityScore: scores.qualityScore,
       discoveryScore: scores.discoveryScore,
-      freshnessScore: scores.freshnessScore
+      freshnessScore: scores.freshnessScore,
+      scoreBase: scores.finalReels,
+      boostScore: 0,
+      contentOrigin: (story as { content_origin?: string | null }).content_origin === "translation" ? "translation" : "original",
+      rightsStatus: (story as { rights_status?: string | null }).rights_status ?? null
     });
   }
 
@@ -177,7 +199,64 @@ export async function fetchReelCatalogCandidates(
       mixerScore: scores.finalReels,
       qualityScore: scores.qualityScore,
       discoveryScore: scores.discoveryScore,
-      freshnessScore: scores.freshnessScore
+      freshnessScore: scores.freshnessScore,
+      scoreBase: scores.finalReels,
+      boostScore: 0,
+      contentOrigin: (story as { content_origin?: string | null }).content_origin === "translation" ? "translation" : "original",
+      rightsStatus: (story as { rights_status?: string | null }).rights_status ?? null
+    });
+  }
+
+  const storyIdsWithPublishedStoryReel = new Set<string>();
+  for (const reel of manualRes.data ?? []) {
+    if ((reel as { chapter_id?: string | null }).chapter_id) continue;
+    const story = firstRelation(
+      (reel as { stories: unknown }).stories as { id: string } | null
+    );
+    if (story?.id) storyIdsWithPublishedStoryReel.add(story.id);
+  }
+
+  for (const story of storyDescRes.data ?? []) {
+    const storyId = String(story.id);
+    if (storyIdsWithPublishedStoryReel.has(storyId)) continue;
+    if (!hasSubstantialStoryLongDescription(story.long_description as string | null)) {
+      continue;
+    }
+
+    const genre = pickMainGenreFromLabels(taxonomyByStory.get(storyId));
+    const meta = taxonomyMeta.get(storyId);
+    const creator = firstRelation(
+      story.creator_profiles as { id: string; user_id: string } | null
+    );
+    const scores = scoresFor(storyScores, storyId);
+    candidates.push({
+      pool: "fresh",
+      itemType: "story",
+      itemId: storyId,
+      kind: "story_description",
+      storyId,
+      authorUserId: creator?.user_id ?? "",
+      creatorId: creator?.id ?? null,
+      genreName: genre.genreName,
+      genreSlug: genre.genreSlug,
+      mainGenreTermId: meta?.mainGenreTermId ?? null,
+      taxonomyTermIds: meta?.taxonomyTermIds ?? [],
+      presentationModeSlug: meta?.presentationModeSlug ?? null,
+      publishedAt:
+        (story.published_at as string | null) ??
+        (story.updated_at as string | null) ??
+        null,
+      mixerScore: scores.finalReels || scores.finalDiscover,
+      qualityScore: scores.qualityScore,
+      discoveryScore: scores.discoveryScore,
+      freshnessScore: scores.freshnessScore,
+      scoreBase: scores.finalReels || scores.finalDiscover,
+      boostScore: 0,
+      contentOrigin:
+        (story as { content_origin?: string | null }).content_origin === "translation"
+          ? "translation"
+          : "original",
+      rightsStatus: (story as { rights_status?: string | null }).rights_status ?? null
     });
   }
 
@@ -185,29 +264,29 @@ export async function fetchReelCatalogCandidates(
 }
 
 export async function fetchStoryCatalogCandidates(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   fetchLimit = 200
 ): Promise<FeedCandidate[]> {
   const [storyRes, scoreMap] = await Promise.all([
-    supabase
+    db
       .from("stories")
       .select(
-        "id, published_at, is_completed, creator_profiles(id, user_id)"
+        "id, published_at, is_completed, content_origin, rights_status, creator_profiles(id, user_id)"
       )
       .in("status", [...publicContentStatuses])
       .eq("visibility", "public")
       .order("published_at", { ascending: false })
       .limit(fetchLimit),
-    loadLatestScoreMap(supabase, "story")
+    loadLatestScoreMap(db, "story")
   ]);
 
   const stories = storyRes.data ?? [];
   const taxonomyByStory = await loadMainGenreLabelsByStoryIds(
-    supabase,
+    db,
     stories.map((story) => String(story.id))
   );
   const taxonomyMeta = await loadStoryTaxonomyBatch(
-    supabase,
+    db,
     stories.map((story) => String(story.id))
   );
 
@@ -238,7 +317,14 @@ export async function fetchStoryCatalogCandidates(
       mixerScore: scores.finalDiscover,
       qualityScore: scores.qualityScore,
       discoveryScore: scores.discoveryScore,
-      freshnessScore: scores.freshnessScore
+      freshnessScore: scores.freshnessScore,
+      scoreBase: scores.finalDiscover,
+      boostScore: 0,
+      contentOrigin:
+        (story as { content_origin?: string | null }).content_origin === "translation"
+          ? "translation"
+          : "original",
+      rightsStatus: (story as { rights_status?: string | null }).rights_status ?? null
     };
   });
 }
@@ -263,8 +349,44 @@ export function filterCandidates(
 }
 
 export function candidateKeyFromFeed(c: FeedCandidate) {
-  const kind = c.kind ?? c.itemType;
+  const kind = normalizeReelsCandidateKind(c);
   return `${kind}:${c.itemId}`;
+}
+
+/** Normalize chapter/reel item types to reels kinds for stable keys across mixer → enrich. */
+export function normalizeReelsCandidateKind(
+  candidate: Pick<FeedCandidate, "kind" | "itemType" | "itemId">
+): string {
+  const rawKind = candidate.kind?.trim();
+  if (rawKind === "episode" || rawKind === "manual" || rawKind === "story_description") {
+    return rawKind;
+  }
+  if (rawKind === "chapter" || candidate.itemType === "chapter") {
+    return "episode";
+  }
+  if (rawKind === "reel" || candidate.itemType === "reel") {
+    return "manual";
+  }
+  if (candidate.itemType === "story") {
+    return "story_description";
+  }
+  return rawKind ?? candidate.itemType;
+}
+
+export function normalizeReelsFeedCandidate(candidate: FeedCandidate): FeedCandidate {
+  const kind = normalizeReelsCandidateKind(candidate) as FeedCandidate["kind"];
+  return {
+    ...candidate,
+    kind,
+    itemType:
+      kind === "episode"
+        ? "chapter"
+        : kind === "manual"
+          ? "reel"
+          : kind === "story_description"
+            ? "story"
+            : candidate.itemType
+  };
 }
 
 export function tagPool(

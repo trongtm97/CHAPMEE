@@ -10,7 +10,7 @@ type StoryCoverSize = "small" | "medium" | "featured";
 const SIZE_TO_VARIANT: Record<StoryCoverSize, StoryImageVariant> = {
   small: "portrait",
   medium: "portrait",
-  featured: "landscape"
+  featured: "portrait"
 };
 
 type StoryCoverProps = {
@@ -24,8 +24,8 @@ type StoryCoverProps = {
 
 const sizeClasses: Record<StoryCoverSize, string> = {
   small: "aspect-[3/4] w-16 sm:w-[4.75rem]",
-  medium: "aspect-[4/5] w-full",
-  featured: "aspect-[16/9] w-full"
+  medium: "aspect-[3/4] w-full",
+  featured: "aspect-[3/4] w-full max-w-[12rem] sm:max-w-[14rem]"
 };
 
 const radiusClasses: Record<StoryCoverSize, string> = {

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assertStaffAnyPermission } from "@/lib/auth/staff-guards";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export async function approveCommunityPostAction(formData: FormData) {
   const { userId } = await assertStaffAnyPermission([
@@ -12,8 +12,8 @@ export async function approveCommunityPostAction(formData: FormData) {
   ]);
 
   const postId = String(formData.get("community_post_id") ?? "");
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("community_posts")
     .update({ status: "approved" })
     .eq("id", postId)

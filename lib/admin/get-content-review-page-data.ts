@@ -1,7 +1,7 @@
 import { ADMIN_CREATOR_JOIN, resolveAdminCreatorName } from "@/lib/admin/creator-display";
 import { startOfTodayIso } from "@/lib/admin/messaging-date-range";
 import { queryWithReviewQueueStatuses } from "@/lib/admin/content-review-queue-statuses";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import type {
   ContentReviewPageData,
@@ -50,11 +50,11 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
   };
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const todayStart = startOfTodayIso();
 
     const storiesRes = await queryWithReviewQueueStatuses(async (statuses) =>
-      supabase
+      db
         .from("stories")
         .select(
           `id, title, slug, hook, short_description, cover_url, created_at, status, ${ADMIN_CREATOR_JOIN}`
@@ -65,7 +65,7 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
     );
 
     const episodesRes = await queryWithReviewQueueStatuses(async (statuses) =>
-      supabase
+      db
         .from("episodes")
         .select(
           `id, story_id, episode_number, title, excerpt, word_count, created_at, status, stories(title, slug, ${ADMIN_CREATOR_JOIN})`
@@ -82,7 +82,7 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
       auditTodayRes,
       recentAuditRes
     ] = await Promise.all([
-      supabase
+      db
         .from("community_posts")
         .select(
           "id, title, content, created_at, status, profiles!community_posts_user_id_fkey(display_name, username)"
@@ -90,23 +90,23 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
         .eq("status", "pending")
         .order("created_at", { ascending: true })
         .limit(40),
-      supabase
+      db
         .from("comments")
         .select("id, body, created_at, status, profiles(display_name, username)")
         .eq("status", "pending")
         .order("created_at", { ascending: true })
         .limit(40),
-      supabase
+      db
         .from("reports")
         .select("id", { count: "exact", head: true })
         .eq("target_type", "comment")
         .in("status", ["open", "reviewing", "pending"]),
-      supabase
+      db
         .from("admin_audit_logs")
         .select("id, action, created_at")
         .gte("created_at", todayStart)
         .in("action", CONTENT_AUDIT_ACTIONS),
-      supabase
+      db
         .from("admin_audit_logs")
         .select("id, action, target_type, target_id, metadata, created_at, actor_id")
         .in("action", CONTENT_AUDIT_ACTIONS)
@@ -118,7 +118,7 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
     const episodeStoryIds = (episodesRes.data ?? [])
       .map((episode) => episode.story_id as string)
       .filter(Boolean);
-    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, [
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, [
       ...new Set([...storyIds, ...episodeStoryIds])
     ]);
     const episodeCounts = new Map<string, number>();
@@ -126,8 +126,8 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
 
     if (storyIds.length) {
       const [epCountRes, paidRes] = await Promise.all([
-        supabase.from("episodes").select("story_id").in("story_id", storyIds),
-        supabase
+        db.from("episodes").select("story_id").in("story_id", storyIds),
+        db
           .from("chapter_monetization_settings")
           .select("story_id")
           .eq("is_paid", true)
@@ -296,7 +296,7 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
 
     const actorNames = new Map<string, string>();
     if (actorIds.length) {
-      const { data: actors } = await supabase
+      const { data: actors } = await db
         .from("profiles")
         .select("id, display_name, username")
         .in("id", actorIds);
@@ -316,14 +316,14 @@ export async function getContentReviewPageData(): Promise<ContentReviewPageData>
         let title = targetId.slice(0, 8);
 
         if (targetType === "story") {
-          const { data } = await supabase
+          const { data } = await db
             .from("stories")
             .select("title")
             .eq("id", targetId)
             .maybeSingle();
           title = (data?.title as string) ?? title;
         } else if (targetType === "episode") {
-          const { data } = await supabase
+          const { data } = await db
             .from("episodes")
             .select("title")
             .eq("id", targetId)

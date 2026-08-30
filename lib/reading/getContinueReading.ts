@@ -1,6 +1,7 @@
-import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/postgrest-selects";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
 import { resolveCreatorRowName } from "@/lib/creator/resolve-creator-row-name";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 
 export type ContinueReadingItem = {
@@ -85,8 +86,8 @@ export async function getContinueReading(userId?: string, limit = 3) {
   }
 
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("reading_progress")
       .select(
         `id, progress_percent, stories(id, title, slug, public_code, hook, cover_url, ${CREATOR_PROFILE_STORY_JOIN}), episodes(id, episode_number, title, slug, public_code)`
@@ -107,7 +108,7 @@ export async function getContinueReading(userId?: string, limit = 3) {
           .filter((id): id is string => Boolean(id))
       )
     ];
-    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, storyIds);
 
     const items = rows
       .map((row) => {
@@ -130,7 +131,9 @@ export async function getContinueReading(userId?: string, limit = 3) {
             hook: story.hook,
             genreName: taxonomyByStory.get(story.id)?.mainGenreName ?? null,
             creatorName: resolveCreatorRowName(creator),
-            coverUrl: (story as { cover_url?: string | null }).cover_url ?? null
+            coverUrl: resolveStoryCoverUrl(
+              (story as { cover_url?: string | null }).cover_url
+            )
           },
           episode: {
             id: episode.id,

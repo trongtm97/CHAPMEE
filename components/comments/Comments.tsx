@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CommentForm } from "@/components/comments/CommentForm";
 import { CommentList } from "@/components/comments/CommentList";
+import { CommunityGroupLink } from "@/components/community/CommunityGroupLink";
 import { Card, ErrorState, SectionHeader } from "@/components/ui";
 import { getComments, type CommentTarget } from "@/lib/comments/getComments";
 
@@ -8,18 +9,33 @@ type CommentsProps = {
   target: CommentTarget;
   returnTo: string;
   title?: string;
+  storySlug?: string;
+  aggregateStoryComments?: boolean;
 };
 
 export async function Comments({
+  aggregateStoryComments = false,
   returnTo,
   target,
-  title = "Bình luận"
+  title = "Bình luận",
+  storySlug
 }: CommentsProps) {
-  const { comments, currentUserId, error } = await getComments(target);
+  const { comments, currentUserId, error } = await getComments({
+    ...target,
+    aggregateStoryComments: aggregateStoryComments || target.aggregateStoryComments
+  });
 
   return (
     <section className="space-y-4" id="comments">
-      <SectionHeader title={title} />
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <SectionHeader title={title} />
+        {storySlug ? (
+          <CommunityGroupLink
+            label="Xem thảo luận trong group"
+            storySlug={storySlug}
+          />
+        ) : null}
+      </div>
       {error ? (
         <ErrorState message={error} title="Could not load comments" />
       ) : null}

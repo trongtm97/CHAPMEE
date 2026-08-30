@@ -1,7 +1,7 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export async function searchPublicStoryIdsByFullText(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   query: string,
   limit = 60
 ): Promise<string[] | null> {
@@ -10,7 +10,7 @@ export async function searchPublicStoryIdsByFullText(
     return [];
   }
 
-  const { data, error } = await supabase.rpc("search_public_story_ids", {
+  const { data, error } = await db.rpc("search_public_story_ids", {
     search_query: trimmed,
     result_limit: limit
   });
@@ -23,5 +23,6 @@ export async function searchPublicStoryIdsByFullText(
     return null;
   }
 
-  return (data ?? []).map((row: { story_id: string }) => String(row.story_id));
+  const rows = Array.isArray(data) ? data : [];
+  return rows.map((row: { story_id: string }) => String(row.story_id));
 }

@@ -12,8 +12,8 @@ import {
   listIpDealsForAdmin,
   listStoryOriginalStatusesForAdmin,
   upsertStoryOriginalStatus
-} from "@/lib/supabase/originals";
-import { createTransaction } from "@/lib/supabase/transactions";
+} from "@/lib/data/originals";
+import { createTransaction } from "@/lib/data/transactions";
 import type { IpDealStatus, IpDealType, IpFinancialType, StoryOriginalStatus } from "@/types/originals";
 
 async function isOriginalsEnabled() {

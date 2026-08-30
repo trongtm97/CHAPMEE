@@ -1,4 +1,4 @@
-import { getMyCollections } from "@/lib/supabase/collections";
+import { getMyCollections } from "@/lib/data/collections";
 import { getContinueReadingForLibrary } from "@/lib/library/get-continue-reading";
 import { getFollowingForLibrary } from "@/lib/library/get-following";
 import { getSavedStoriesForLibrary } from "@/lib/library/get-saved-stories";

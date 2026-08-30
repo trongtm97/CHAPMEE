@@ -1,6 +1,6 @@
 import { filterNotificationsByTab } from "@/lib/notifications/filter-notifications";
 import type { NotificationFilterTab, NotificationItem } from "@/types/notification";
-import { getUserNotifications } from "@/lib/supabase/notifications";
+import { getUserNotifications } from "@/lib/data/notifications";
 
 export { filterNotificationsByTab } from "@/lib/notifications/filter-notifications";
 

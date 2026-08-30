@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
+import { ChapMeeCover } from "@/components/common/ChapMeeCover";
 import { TrackedStoryLink } from "@/components/tracking/TrackedStoryLink";
 import { Card, Badge, AvatarFallback } from "@/components/ui";
-import { getProfileUrlOrFallback } from "@/lib/profile/profile-url";
 import { REASON_BADGE_LABELS } from "@/lib/ranking/reason-badges";
+import { StoryAudioBadge } from "@/src/components/story/StoryAudioBadge";
 import type { RankingBoardItem } from "@/types/ranking-board";
 
 type RankingBoardCardProps = {
@@ -40,16 +40,14 @@ export function RankingBoardCard({ item }: RankingBoardCardProps) {
           </span>
         </div>
 
-        {item.coverUrl ? (
-          <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg border border-white/10">
-            <Image
-              alt=""
-              className="object-cover"
-              fill
-              sizes="48px"
-              src={item.coverUrl}
-            />
-          </div>
+        {item.coverUrl && item.itemType !== "author" ? (
+          <ChapMeeCover
+            alt={item.title}
+            className="!w-12 rounded-lg"
+            size="xs"
+            src={item.coverUrl}
+            title={item.title}
+          />
         ) : item.itemType === "author" ? (
           <AvatarFallback
             className="ring-1 ring-white/10"
@@ -63,21 +61,18 @@ export function RankingBoardCard({ item }: RankingBoardCardProps) {
             {item.title}
           </h3>
           <p className="mt-1 truncate text-xs font-medium text-zinc-400">
-            {item.authorDisplayName ? (
-              <Link
-                className="hover:text-cyan-200"
-                href={getProfileUrlOrFallback(item.authorUsername)}
-                onClick={(event) => event.stopPropagation()}
-              >
-                {item.authorDisplayName}
-              </Link>
-            ) : (
-              "ChapMee"
-            )}
+            {item.authorDisplayName ?? "ChapMee"}
             {item.genreName ? ` · ${item.genreName}` : ""}
           </p>
           {item.statsLine ? (
             <p className="mt-1 text-xs text-zinc-500">{item.statsLine}</p>
+          ) : null}
+          {item.itemType === "story" ? (
+            <StoryAudioBadge
+              className="mt-1"
+              hasContinuousPlayback={item.hasContinuousPlayback}
+              hasPublishedAudio={item.hasPublishedAudio}
+            />
           ) : null}
         </div>
 

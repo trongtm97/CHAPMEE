@@ -3,41 +3,41 @@
 import { mapCreatorFeePolicyRow } from "@/lib/admin/creator-fee-policy-shared";
 import { requireCreatorFeeViewAccess } from "@/lib/auth/creator-fee-guards";
 import { buildDefaultSourceRates } from "@/lib/finance/resolve-creator-fee-policy";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CreatorFeePolicyDetail } from "@/types/admin-creator-fee-policy";
 import type { CreatorFeePolicyAuditEntry } from "@/types/creator-fee-policy";
 
 async function loadCreatorSummary(creatorId: string) {
-  const supabase = await createClient();
+  const db = await createClient();
   const since30d = new Date(Date.now() - 30 * 86400000).toISOString();
 
   const [profileRes, studioRes, storyCountRes, chapterCountRes, revenueRes, withdrawalRes, verifyRes] =
     await Promise.all([
-      supabase
+      db
         .from("profiles")
         .select("id, username, display_name, avatar_url")
         .eq("id", creatorId)
         .maybeSingle(),
-      supabase
+      db
         .from("creator_monetization_profiles")
         .select("studio_display_name, monetization_status")
         .eq("user_id", creatorId)
         .maybeSingle(),
-      supabase.from("stories").select("id", { count: "exact", head: true }).eq("author_id", creatorId),
-      supabase
+      db.from("stories").select("id", { count: "exact", head: true }).eq("author_id", creatorId),
+      db
         .from("episodes")
         .select("id", { count: "exact", head: true })
         .eq("author_id", creatorId),
-      supabase
+      db
         .from("creator_earning_transactions")
         .select("creator_net_amount_vnd")
         .eq("creator_user_id", creatorId)
         .gte("created_at", since30d),
-      supabase
+      db
         .from("withdrawal_requests")
         .select("id", { count: "exact", head: true })
         .eq("creator_user_id", creatorId),
-      supabase
+      db
         .from("account_verifications")
         .select("status, verification_type")
         .eq("user_id", creatorId)
@@ -87,8 +87,8 @@ async function loadCreatorSummary(creatorId: string) {
 }
 
 async function loadPolicyAuditHistory(policyId: string): Promise<CreatorFeePolicyAuditEntry[]> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("admin_audit_logs")
     .select("id, actor_id, action, target_id, metadata, created_at")
     .eq("target_type", "creator_fee_policy")
@@ -101,7 +101,7 @@ async function loadPolicyAuditHistory(policyId: string): Promise<CreatorFeePolic
   );
   const actorLabels = new Map<string, string>();
   if (actorIds.length) {
-    const { data: profiles } = await supabase
+    const { data: profiles } = await db
       .from("profiles")
       .select("id, username, display_name")
       .in("id", actorIds);
@@ -136,8 +136,8 @@ export async function loadCreatorFeePolicyDetailAction(policyId: string) {
     return { detail: null, error: guard.error };
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("creator_fee_policies")
     .select("*")
     .eq("id", policyId)

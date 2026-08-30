@@ -1,6 +1,6 @@
 import { createTransaction } from "@/lib/transactions/ledger";
-import { getTransactionById } from "@/lib/supabase/transactions";
-import { findProcessedRefundByOriginalTransaction } from "@/lib/supabase/refunds";
+import { getTransactionById } from "@/lib/data/transactions";
+import { findProcessedRefundByOriginalTransaction } from "@/lib/data/refunds";
 import type { TransactionRow } from "@/types/transaction";
 
 function isAlreadyReversed(original: TransactionRow) {

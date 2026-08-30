@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { runTaxonomyQualityBatchCheck } from "@/lib/content-taxonomy-quality/rule-engine";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -26,8 +26,8 @@ export async function GET(request: Request) {
   try {
     const limit = Number(url.searchParams.get("limit") ?? "200");
     const offset = Number(url.searchParams.get("offset") ?? "0");
-    const supabase = createAdminClient();
-    const result = await runTaxonomyQualityBatchCheck(supabase, {
+    const db = createAdminClient();
+    const result = await runTaxonomyQualityBatchCheck(db, {
       limit: Number.isFinite(limit) ? limit : 200,
       offset: Number.isFinite(offset) ? offset : 0
     });

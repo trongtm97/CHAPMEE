@@ -1,45 +1,54 @@
 import Link from "next/link";
-import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import { notFound } from "next/navigation";
-import { getStoryImageForUsage } from "@/lib/images/get-story-image";
+import { Suspense } from "react";
 import { COMMUNITY_PAGE_SHELL_CLASS } from "@/components/community/community-page-shell";
-import { StoryGroupFeed } from "@/components/community/StoryGroupFeed";
+import { StoryGroupHeader } from "@/components/community/story-group/StoryGroupHeader";
+import {
+  StoryGroupTabsPanel,
+  type StoryGroupTabId
+} from "@/components/community/story-group/StoryGroupTabsPanel";
+import { StoryGroupActivitySkeleton } from "@/components/community/story-group/StoryGroupActivitySkeleton";
 import { ErrorState } from "@/components/ui";
-import { getCommunityFeed } from "@/lib/community/getCommunityFeed";
-import { getStoryGroupBySlug } from "@/lib/community/get-story-group-by-slug";
+import { getStoryGroupPageData } from "@/lib/community/get-story-group-page-data";
+import { getStoryDetailHref } from "@/lib/stories/story-routes";
 
 export const dynamic = "force-dynamic";
 
 type StoryGroupPageProps = {
   params: Promise<{ storyId: string }>;
+  searchParams: Promise<{ tab?: string }>;
 };
 
-export default async function StoryGroupPage({ params }: StoryGroupPageProps) {
+function parseInitialTab(value?: string): StoryGroupTabId {
+  if (value === "discussion") {
+    return "discussion";
+  }
+  return "activity";
+}
+
+function StoryGroupTabsFallback() {
+  return <StoryGroupActivitySkeleton count={4} />;
+}
+
+export default async function StoryGroupPage({ params, searchParams }: StoryGroupPageProps) {
   const { storyId } = await params;
-  const [{ group, story, error }, feed] = await Promise.all([
-    getStoryGroupBySlug(storyId),
-    getCommunityFeed()
-  ]);
+  const { tab } = await searchParams;
+  const { data, error } = await getStoryGroupPageData(storyId);
 
   if (error) {
     return (
-      <section className="page-stack">
+      <section className={`page-stack ${COMMUNITY_PAGE_SHELL_CLASS}`}>
         <ErrorState message={error} title="Không thể tải nhóm truyện" />
       </section>
     );
   }
 
-  if (!group || !story) {
+  if (!data) {
     notFound();
   }
 
-  const storyPosts = feed.posts.filter(
-    (post) => post.storyId === story.id || post.relatedStorySlug === story.slug
-  );
-  const heroCover = getStoryImageForUsage(
-    { title: story.title, coverUrl: story.coverUrl },
-    "communityCard"
-  );
+  const readerChapterNumber = data.readingProgress?.episodeNumber ?? null;
+  const initialTab = parseInitialTab(tab);
 
   return (
     <section className={`page-stack space-y-4 ${COMMUNITY_PAGE_SHELL_CLASS}`}>
@@ -50,47 +59,52 @@ export default async function StoryGroupPage({ params }: StoryGroupPageProps) {
         ← Cộng đồng
       </Link>
 
-      <header className="chap-card overflow-hidden p-0">
-        <div className="relative aspect-video max-h-28 overflow-hidden bg-gradient-to-br from-cyan-500/25 via-indigo-600/20 to-fuchsia-600/25">
-          {heroCover.src ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              alt=""
-              className="h-full w-full object-cover opacity-90"
-              src={heroCover.src}
-              style={{ objectPosition: heroCover.objectPosition }}
-            />
-          ) : null}
-        </div>
-        <div className="space-y-2 p-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-cyan-200">
-            Nhóm truyện
+      <StoryGroupHeader
+        activityCount={data.activityCount}
+        memberCount={data.memberCount}
+        story={data.story}
+      />
+
+      {data.initialActivity.items.length === 0 &&
+      initialTab === "activity" &&
+      data.storyPosts.length === 0 ? (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center">
+          <p className="text-base font-bold text-white">Chưa có hoạt động trong nhóm</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">
+            Hãy đọc truyện, bình luận chương hoặc mở một bài thảo luận để khởi động cộng đồng.
           </p>
-          <h1 className="text-xl font-black text-white">{story.title}</h1>
-          {story.authorName ? (
-            <p className="text-sm text-zinc-400">Tác giả: {story.authorName}</p>
-          ) : null}
-          <p className="text-xs text-zinc-500">
-            {group.memberCount} thành viên · {group.statusLine}
-          </p>
-          <div className="flex flex-wrap gap-2 pt-1">
-            <button
-              className="tap-highlight inline-flex min-h-10 items-center rounded-full bg-cyan-300 px-4 text-xs font-black uppercase text-zinc-950"
-              type="button"
-            >
-              Theo dõi nhóm
-            </button>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
             <Link
-              className="inline-flex min-h-10 items-center rounded-full border border-white/15 px-4 text-xs font-bold text-zinc-200"
-              href={getStoryDetailHref({ slug: story.slug, public_code: story.publicCode })}
+              className="inline-flex min-h-10 items-center rounded-full bg-cyan-300 px-4 text-xs font-black uppercase text-zinc-950"
+              href={getStoryDetailHref({
+                slug: data.story.slug,
+                public_code: data.story.publicCode
+              })}
             >
               Đọc truyện
             </Link>
+            <Link
+              className="inline-flex min-h-10 items-center rounded-full border border-white/15 px-4 text-xs font-bold text-zinc-200"
+              href={`/community/new?story=${data.story.id}`}
+            >
+              Tạo thảo luận
+            </Link>
           </div>
         </div>
-      </header>
+      ) : null}
 
-      <StoryGroupFeed posts={storyPosts} storyGroup={group} />
+      <Suspense fallback={<StoryGroupTabsFallback />}>
+        <StoryGroupTabsPanel
+          filterPresence={data.filterPresence}
+          initialActivity={data.initialActivity}
+          initialTab={initialTab}
+          readerChapterNumber={readerChapterNumber}
+          storyGroup={data.group}
+          storyId={data.story.id}
+          storyPosts={data.storyPosts}
+          storySlug={data.story.slug}
+        />
+      </Suspense>
     </section>
   );
 }

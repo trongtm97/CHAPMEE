@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { resolveAgeRatingTermId } from "@/lib/taxonomy/age-rating";
 import { setStoryTaxonomy } from "@/lib/taxonomy/story-taxonomy";
 import type { TaxonomyType } from "@/types/taxonomy";
@@ -26,24 +26,16 @@ function groupTermIdsByType(
 }
 
 export async function persistStoryTaxonomyFromForm(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   input: PersistStoryTaxonomyInput
 ): Promise<{ ok: boolean; error: string | null; genreId: string | null }> {
   const uniqueIds = [...new Set(input.taxonomyTermIds.filter(Boolean))];
 
-  const ageRatingTermId = await resolveAgeRatingTermId(
-    supabase,
-    input.ageRating
-  );
-  if (ageRatingTermId) {
-    uniqueIds.push(ageRatingTermId);
-  }
-
   let selections: Partial<Record<TaxonomyType, string[]>> = {};
 
   if (uniqueIds.length > 0) {
-    const { data: termRows, error: loadError } = await supabase
+    const { data: termRows, error: loadError } = await db
       .from("taxonomy_terms")
       .select("id, type")
       .in("id", uniqueIds);
@@ -55,6 +47,13 @@ export async function persistStoryTaxonomyFromForm(
     selections = groupTermIdsByType(
       (termRows ?? []) as Array<{ id: string; type: string }>
     );
+  }
+
+  if (!selections.age_rating?.length) {
+    const ageRatingTermId = await resolveAgeRatingTermId(db, input.ageRating);
+    if (ageRatingTermId) {
+      selections.age_rating = [ageRatingTermId];
+    }
   }
 
   const taxonomyResult = await setStoryTaxonomy(

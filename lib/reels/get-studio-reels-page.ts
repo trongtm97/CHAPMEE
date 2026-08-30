@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { mapReelsListRow } from "@/lib/reels/map-reels-row";
 import {
   buildReelsTasks,
@@ -88,14 +88,9 @@ function matchesSource(
 ) {
   switch (filter) {
     case "manual":
-      return !item.sourceType || item.sourceType === "manual";
+      return !item.chapterId;
     case "chapter":
-      return (
-        item.sourceType === "chapter_start" ||
-        item.sourceType === "dialogue" ||
-        item.sourceType === "ending" ||
-        item.sourceType === "manual_selection"
-      );
+      return Boolean(item.chapterId);
     case "import":
       return false;
     case "ai":
@@ -136,17 +131,17 @@ export async function getStudioReelsPage(
   const genreFilter = (options?.genreId ?? "").trim();
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
 
     const [reelsResult, storiesResult] = await Promise.all([
-      supabase
+      db
         .from("reels_items")
         .select(
           "*, stories!inner(id, title, slug), episodes(title, episode_number)"
         )
         .eq("owner_id", ownerId)
         .order("updated_at", { ascending: false }),
-      supabase
+      db
         .from("stories")
         .select("id, title")
         .eq("creator_id", creatorProfileId)
@@ -172,9 +167,9 @@ export async function getStudioReelsPage(
 
     const [mainGenreIndex, taxonomyByStory, genreOptionsFromTaxonomy] =
       await Promise.all([
-        loadStoryMainGenreTermIndex(supabase, storyIds),
-        loadMainGenreLabelsByStoryIds(supabase, storyIds),
-        loadCreatorMainGenreFilterOptions(supabase, creatorProfileId)
+        loadStoryMainGenreTermIndex(db, storyIds),
+        loadMainGenreLabelsByStoryIds(db, storyIds),
+        loadCreatorMainGenreFilterOptions(db, creatorProfileId)
       ]);
 
     const allItems = rawRows.map((row) => {

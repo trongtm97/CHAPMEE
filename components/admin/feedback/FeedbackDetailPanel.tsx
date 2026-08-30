@@ -226,6 +226,16 @@ export function FeedbackDetailPanel({
             {(detail.related_url || detail.user_agent || detail.device_info) && (
               <section className="text-sm">
                 <h3 className="font-semibold text-zinc-300">Thông tin kỹ thuật</h3>
+                {detail.device_info &&
+                typeof detail.device_info.page_path === "string" &&
+                detail.device_info.page_path ? (
+                  <p className="mt-1 text-xs text-cyan-200/90">
+                    Trang gửi:{" "}
+                    <span className="font-mono text-cyan-100">
+                      {String(detail.device_info.page_path)}
+                    </span>
+                  </p>
+                ) : null}
                 {detail.related_url ? (
                   <p className="mt-1 break-all text-xs text-zinc-400">{detail.related_url}</p>
                 ) : null}

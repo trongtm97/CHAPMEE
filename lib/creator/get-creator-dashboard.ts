@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { studioPath } from "@/lib/studio/constants";
 import { analyticsEvents } from "@/lib/analytics/events";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
@@ -6,7 +6,7 @@ import { getAuthorNeedsActionQualityCount } from "@/lib/content-quality/get-auth
 import { getCreatorStatusSafe } from "@/lib/moderation/get-creator-status";
 import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
 import { buildStudioMonetizationConfigView } from "@/lib/studio/monetization-config";
-import { getOrCreateCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
+import { getOrCreateCreatorMonetizationProfile } from "@/lib/data/creator-monetization";
 import { getUserVerificationSummary } from "@/lib/verification/get-user-verification";
 import { getOrCreateCreatorWallet } from "@/lib/wallets/creator-wallet";
 import {
@@ -14,6 +14,7 @@ import {
   getStudioWriteToolLabel,
   normalizeStoryStructureType
 } from "@/lib/stories/story-structure";
+import { getStoryUrl } from "@/lib/urls/paths";
 import type {
   CreatorDashboardAlert,
   CreatorDashboardContinueItem,
@@ -37,6 +38,8 @@ type StoryRow = {
   id: string;
   title: string;
   slug: string;
+  public_code?: string | null;
+  visibility?: string | null;
   status: string;
   cover_url: string | null;
   short_description: string | null;
@@ -133,7 +136,7 @@ function buildAccountStatus(input: {
   }
 
   let verificationLabel: StudioAccountStatus["verificationLabel"] = "unverified";
-  let verificationDisplay = "Chưa xác minh";
+  let verificationDisplay = "Chua xác minh";
 
   if (input.verificationSummary.publicBadge?.type === "blue_tick") {
     verificationLabel = "blue_tick";
@@ -579,7 +582,7 @@ export async function getCreatorStudioDashboard(
       qualityHasWarning: false,
       statusDisplay: "Hoạt động",
       statusLabel: "active",
-      verificationDisplay: "Chưa xác minh",
+      verificationDisplay: "Chua xác minh",
       verificationLabel: "unverified"
     },
     alerts: [],
@@ -622,7 +625,7 @@ export async function getCreatorStudioDashboard(
   };
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const weekAgo = getWeekAgoIso();
     const twoWeeksAgo = getTwoWeeksAgoIso();
     const creatorId = creatorProfile.id;
@@ -635,10 +638,10 @@ export async function getCreatorStudioDashboard(
       verificationSummary,
       monetizationConfig
     ] = await Promise.all([
-      supabase
+      db
         .from("stories")
         .select(
-          "id, title, slug, status, cover_url, short_description, long_description, updated_at, structure_type"
+          "id, title, slug, public_code, visibility, status, cover_url, short_description, long_description, updated_at, structure_type"
         )
         .eq("creator_id", creatorId)
         .order("updated_at", { ascending: false }),
@@ -681,36 +684,40 @@ export async function getCreatorStudioDashboard(
       pendingEpisodeCountResult
     ] = await Promise.all([
       storyIds.length > 0
-        ? supabase
+        ? db
             .from("episodes")
             .select("story_id")
             .eq("status", "draft")
             .in("story_id", storyIds)
         : Promise.resolve({ data: [], error: null }),
-      supabase
-        .from("episodes")
-        .select(
-          "id, story_id, title, episode_number, status, updated_at, stories!inner(id, title, creator_id)"
-        )
-        .eq("stories.creator_id", creatorId)
-        .in("status", ["draft", "pending", "rejected"])
-        .order("updated_at", { ascending: false })
-        .limit(3),
-      supabase
-        .from("episodes")
-        .select("id, stories!inner(creator_id)", { count: "exact", head: true })
-        .eq("stories.creator_id", creatorId)
-        .eq("status", "draft"),
-      supabase
-        .from("episodes")
-        .select("id, stories!inner(creator_id)", { count: "exact", head: true })
-        .eq("stories.creator_id", creatorId)
-        .eq("status", "rejected"),
       storyIds.length > 0
-        ? supabase
+        ? db
             .from("episodes")
-            .select("id, stories!inner(creator_id)", { count: "exact", head: true })
-            .eq("stories.creator_id", creatorId)
+            .select("id, story_id, title, episode_number, status, updated_at")
+            .in("story_id", storyIds)
+            .in("status", ["draft", "pending", "rejected"])
+            .order("updated_at", { ascending: false })
+            .limit(3)
+        : Promise.resolve({ data: [], error: null }),
+      storyIds.length > 0
+        ? db
+            .from("episodes")
+            .select("id, story_id", { count: "exact", head: true })
+            .in("story_id", storyIds)
+            .eq("status", "draft")
+        : Promise.resolve({ count: 0, error: null }),
+      storyIds.length > 0
+        ? db
+            .from("episodes")
+            .select("id, story_id", { count: "exact", head: true })
+            .in("story_id", storyIds)
+            .eq("status", "rejected")
+        : Promise.resolve({ count: 0, error: null }),
+      storyIds.length > 0
+        ? db
+            .from("episodes")
+            .select("id, story_id", { count: "exact", head: true })
+            .in("story_id", storyIds)
             .eq("status", "pending")
         : Promise.resolve({ count: 0, error: null })
     ]);
@@ -730,9 +737,9 @@ export async function getCreatorStudioDashboard(
 
     const draftChapters = draftCountResult.count ?? 0;
 
-    const { data: scheduledRows, count: scheduledUpcomingCount } = await supabase
+    const { data: scheduledRows, count: scheduledUpcomingCount } = await db
       .from("scheduled_publications")
-      .select("id, scheduled_at, story_id, target_id, target_type, stories(title)", {
+      .select("id, scheduled_at, story_id, target_id, target_type", {
         count: "exact"
       })
       .eq("creator_id", creatorProfile.user_id)
@@ -746,13 +753,34 @@ export async function getCreatorStudioDashboard(
       .filter((row) => row.target_type === "chapter")
       .map((row) => row.target_id as string);
 
+    const scheduledStoryIds = [
+      ...new Set(
+        (scheduledRows ?? [])
+          .map((row) => row.story_id as string | null)
+          .filter((id): id is string => Boolean(id))
+      )
+    ];
+
+    const storyTitleById = new Map<string, string>();
+
+    if (scheduledStoryIds.length > 0) {
+      const { data: scheduledStories } = await db
+        .from("stories")
+        .select("id, title")
+        .in("id", scheduledStoryIds);
+
+      for (const story of scheduledStories ?? []) {
+        storyTitleById.set(story.id as string, story.title as string);
+      }
+    }
+
     const episodeMetaById = new Map<
       string,
       { title: string; episode_number: number }
     >();
 
     if (chapterScheduleIds.length > 0) {
-      const { data: episodes } = await supabase
+      const { data: episodes } = await db
         .from("episodes")
         .select("id, title, episode_number")
         .in("id", chapterScheduleIds);
@@ -770,20 +798,20 @@ export async function getCreatorStudioDashboard(
     )
       .filter((row) => row.target_type === "chapter")
       .map((row) => {
-        const story = Array.isArray(row.stories) ? row.stories[0] : row.stories;
         const episode = episodeMetaById.get(row.target_id as string);
+        const storyId = row.story_id as string;
 
         return {
           editHref: studioPath(
-            `/stories/${row.story_id as string}/chapters/${row.target_id as string}/edit`
+            `/stories/${storyId}/chapters/${row.target_id as string}/edit`
           ),
           episodeId: row.target_id as string,
           episodeNumber: episode?.episode_number ?? 0,
           episodeTitle: episode?.title ?? "Chương",
           publishAt: row.scheduled_at as string,
           statusLabel: "Đã lên lịch",
-          storyId: row.story_id as string,
-          storyTitle: (story?.title as string) ?? "Truyện"
+          storyId,
+          storyTitle: storyTitleById.get(storyId) ?? "Truyện"
         };
       });
 
@@ -808,7 +836,7 @@ export async function getCreatorStudioDashboard(
     const missingDescriptionStories: StudioAttentionPreviewItem[] = [];
 
     if (storyIds.length > 0) {
-      const { data: currentImages } = await supabase
+      const { data: currentImages } = await db
         .from("story_images")
         .select("story_id")
         .in("story_id", storyIds)
@@ -854,62 +882,62 @@ export async function getCreatorStudioDashboard(
         storyReadEventsResult,
         chapterReadEventsResult
       ] = await Promise.all([
-        supabase
+        db
           .from("analytics_events")
           .select("id", { count: "exact", head: true })
           .in("target_id", storyIds)
           .in("event_name", [...READ_EVENT_NAMES])
           .gte("created_at", weekAgo),
-        supabase
+        db
           .from("bookshelf_items")
           .select("id", { count: "exact", head: true })
           .in("story_id", storyIds)
           .gte("created_at", weekAgo),
-        supabase
+        db
           .from("comments")
           .select("id", { count: "exact", head: true })
           .in("story_id", storyIds)
           .eq("status", "visible")
           .gte("created_at", weekAgo),
-        supabase
+        db
           .from("follows")
           .select("id", { count: "exact", head: true })
           .eq("creator_id", creatorId)
           .gte("created_at", weekAgo),
-        supabase
+        db
           .from("analytics_events")
           .select("id", { count: "exact", head: true })
           .in("target_id", storyIds)
           .in("event_name", [...READ_EVENT_NAMES])
           .gte("created_at", twoWeeksAgo)
           .lt("created_at", weekAgo),
-        supabase
+        db
           .from("bookshelf_items")
           .select("id", { count: "exact", head: true })
           .in("story_id", storyIds)
           .gte("created_at", twoWeeksAgo)
           .lt("created_at", weekAgo),
-        supabase
+        db
           .from("comments")
           .select("id", { count: "exact", head: true })
           .in("story_id", storyIds)
           .eq("status", "visible")
           .gte("created_at", twoWeeksAgo)
           .lt("created_at", weekAgo),
-        supabase
+        db
           .from("follows")
           .select("id", { count: "exact", head: true })
           .eq("creator_id", creatorId)
           .gte("created_at", twoWeeksAgo)
           .lt("created_at", weekAgo),
-        supabase
+        db
           .from("analytics_events")
           .select("target_id")
           .in("target_id", storyIds)
           .in("event_name", [...READ_EVENT_NAMES])
           .gte("created_at", weekAgo)
           .limit(5000),
-        supabase
+        db
           .from("analytics_events")
           .select("target_id")
           .in("target_id", storyIds)
@@ -946,8 +974,14 @@ export async function getCreatorStudioDashboard(
             return null;
           }
 
+          const isPublicStory =
+            story.visibility === "public" &&
+            (story.status === "published" || story.status === "approved");
+
           return {
-            href: studioPath(`/stories/${story.id}/chapters`),
+            href: isPublicStory
+              ? getStoryUrl({ slug: story.slug, public_code: story.public_code })
+              : studioPath(`/stories/${story.id}/edit`),
             id: story.id,
             reads,
             title: story.title
@@ -964,7 +998,7 @@ export async function getCreatorStudioDashboard(
       let topChapters: StudioPerformanceSnapshot["topChapters"] = [];
 
       if (topChapterIds.length > 0) {
-        const { data: topEpisodeRows } = await supabase
+        const { data: topEpisodeRows } = await db
           .from("episodes")
           .select("id, story_id, title, episode_number, stories(title)")
           .in("id", topChapterIds);
@@ -999,10 +1033,19 @@ export async function getCreatorStudioDashboard(
       };
     }
 
+    const storyById = new Map(stories.map((story) => [story.id, story]));
+
     const continueWriting: CreatorDashboardContinueItem[] = (
-      (recentDraftEpisodesResult.data ?? []) as EpisodeRow[]
+      (recentDraftEpisodesResult.data ?? []) as Array<{
+        id: string;
+        story_id: string;
+        title: string;
+        episode_number: number;
+        status: CreatorDashboardContinueItem["status"];
+        updated_at: string;
+      }>
     ).map((episode) => {
-      const story = firstRelation(episode.stories);
+      const story = storyById.get(episode.story_id);
       const status = episode.status;
 
       return {
@@ -1098,12 +1141,6 @@ export async function getCreatorStudioDashboard(
 
     const alerts = buildLegacyAlerts(attentionGroups);
 
-    const errors = [
-      storiesResult.error,
-      recentDraftEpisodesResult.error,
-      draftCountResult.error
-    ].filter(Boolean);
-
     return {
       accountStatus,
       alerts,
@@ -1112,7 +1149,7 @@ export async function getCreatorStudioDashboard(
       creatorProfile,
       defaultStoryId,
       defaultStorySlug,
-      error: errors[0]?.message ?? null,
+      error: null,
       hasStories,
       heroSummary,
       pendingEpisodes,

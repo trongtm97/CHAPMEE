@@ -1,7 +1,7 @@
 "use server";
 
 import { checkStaffPermission } from "@/lib/auth/staff-guards";
-import { upsertVirtualGift } from "@/lib/supabase/virtual-gifts";
+import { upsertVirtualGift } from "@/lib/data/virtual-gifts";
 import type { GiftRarity } from "@/types/gift";
 
 export async function saveVirtualGiftAction(

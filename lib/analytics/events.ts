@@ -129,7 +129,9 @@ export const analyticsEvents = {
   searchResultImpression: "search_result_impression",
   searchResultClick: "search_result_click",
   reportWrongTag: "report_wrong_tag",
-  reportMissingWarning: "report_missing_warning"
+  reportMissingWarning: "report_missing_warning",
+  contentPostViewed: "content_post_viewed",
+  utilityUsed: "utility_used"
 } as const;
 
 export type AnalyticsEventName = (typeof analyticsEvents)[keyof typeof analyticsEvents];

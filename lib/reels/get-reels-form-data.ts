@@ -9,7 +9,7 @@ export async function getCreatorStoriesForReels(creatorProfile: CreatorProfile) 
   const db = await createClient();
   const { data, error } = await db
     .from("stories")
-    .select("id, title, slug, cover_url, hook, short_description, status, visibility")
+    .select("id, title, slug, cover_url, hook, short_description, long_description, status, visibility")
     .eq("creator_id", creatorProfile.id)
     .order("updated_at", { ascending: false });
 

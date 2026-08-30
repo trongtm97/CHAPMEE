@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { logAdFraudAudit } from "@/lib/ads/fraud-audit";
 import type { AdFraudSignal, AdFraudSignalListItem, AdFraudSignalStatus } from "@/types/ad-fraud";
 
@@ -30,8 +30,8 @@ export async function listAdFraudSignals(filters: {
   limit?: number;
 }): Promise<{ signals: AdFraudSignalListItem[]; error: string | null }> {
   try {
-    const supabase = createAdminClient();
-    let query = supabase
+    const db = createAdminClient();
+    let query = db
       .from("ad_fraud_signals")
       .select(
         `
@@ -53,7 +53,7 @@ export async function listAdFraudSignals(filters: {
     if (error) return { signals: [], error: error.message };
 
     const ruleKeys = [...new Set((data ?? []).map((r) => String((r as { rule_key: string }).rule_key)))];
-    const { data: rules } = await supabase
+    const { data: rules } = await db
       .from("ad_fraud_rules")
       .select("rule_key, name")
       .in("rule_key", ruleKeys.length ? ruleKeys : ["__none__"]);
@@ -84,8 +84,8 @@ export async function updateAdFraudSignalStatus(input: {
   adminNote?: string;
   actorId: string;
 }): Promise<{ signal: AdFraudSignal | null; error: string | null }> {
-  const supabase = createAdminClient();
-  const { data: beforeRow } = await supabase
+  const db = createAdminClient();
+  const { data: beforeRow } = await db
     .from("ad_fraud_signals")
     .select("*")
     .eq("id", input.signalId)
@@ -103,7 +103,7 @@ export async function updateAdFraudSignalStatus(input: {
     patch.resolved_at = new Date().toISOString();
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("ad_fraud_signals")
     .update(patch)
     .eq("id", input.signalId)
@@ -134,9 +134,9 @@ export async function insertAdFraudSignalIfNew(input: {
   event_date?: string | null;
   signal_data?: Record<string, unknown>;
 }): Promise<{ created: boolean; error: string | null }> {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
 
-  let dupQuery = supabase
+  let dupQuery = db
     .from("ad_fraud_signals")
     .select("id")
     .eq("rule_key", input.rule_key)
@@ -160,7 +160,7 @@ export async function insertAdFraudSignalIfNew(input: {
   const { data: existing } = await dupQuery.maybeSingle();
   if (existing) return { created: false, error: null };
 
-  const { error } = await supabase.from("ad_fraud_signals").insert({
+  const { error } = await db.from("ad_fraud_signals").insert({
     rule_key: input.rule_key,
     severity: input.severity,
     author_id: input.author_id ?? null,

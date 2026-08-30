@@ -6,7 +6,12 @@ import { studioPath } from "@/lib/studio/constants";
 
 export const dynamic = "force-dynamic";
 
-export default async function StudioImportPage() {
+export default async function StudioImportPage({
+  searchParams
+}: {
+  searchParams: Promise<{ tab?: string; storyId?: string }>;
+}) {
+  const { tab, storyId: scopedStoryId } = await searchParams;
   const basePath = studioPath("/import");
   const { creatorProfile, error } = await getStudioAccess(basePath);
 
@@ -24,7 +29,7 @@ export default async function StudioImportPage() {
   return (
     <section className="space-y-5 pb-24 sm:space-y-6 sm:pb-6">
       <SectionHeader
-        subtitle="Xuất dữ liệu hiện có, chỉnh sửa hàng loạt rồi nhập lại để cập nhật truyện, chương và Reels nhanh hơn."
+        subtitle="Nhập truyện / chương từ file CSV/XLSX, xuất dữ liệu hiện có để chỉnh sửa hàng loạt. Dùng tab riêng cho truyện và chương."
         title="Nhập / Xuất hàng loạt"
       />
 
@@ -32,7 +37,7 @@ export default async function StudioImportPage() {
         Nội dung nhập hàng loạt sẽ được kiểm tra preview trước khi lưu. Thao tác xóa/ẩn cần xác nhận thêm.
       </div>
 
-      <ImportExportTabs {...pageData} />
+      <ImportExportTabs {...pageData} initialStoryId={scopedStoryId} initialTab={tab} />
     </section>
   );
 }

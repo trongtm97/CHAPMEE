@@ -5,7 +5,7 @@ import { createAdminAuditLog } from "@/lib/admin/create-audit-log";
 import { assignUserRole } from "@/lib/admin/assign-role";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
 import { assertPermission } from "@/lib/auth/require-permission";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { normalizeUsername, validateUsernameFormat } from "@/lib/username/normalize-username";
 import { validateDisplayName } from "@/lib/username/validate-display-name";
 import type { RoleCode } from "@/types/permissions";
@@ -85,7 +85,7 @@ export async function createAdminUserAction(input: CreateAdminUserInput) {
       error:
         error instanceof Error
           ? error.message
-          : "Thiếu SUPABASE_SERVICE_ROLE_KEY trên server."
+          : "Thiếu cấu hình server (DATABASE_URL / BETTER_AUTH_SECRET)."
     };
   }
 
@@ -96,14 +96,15 @@ export async function createAdminUserAction(input: CreateAdminUserInput) {
     user_metadata: { display_name: displayName, created_by_admin: true }
   });
 
-  if (created.error || !created.data.user) {
+  const authUser = created.data?.user;
+  if (created.error || !authUser) {
     return {
       ok: false,
       error: created.error?.message ?? "Không thể tạo user trên Auth."
     };
   }
 
-  const userId = created.data.user.id;
+  const userId = authUser.id;
 
   const { error: profileError } = await admin.from("profiles").upsert({
     id: userId,

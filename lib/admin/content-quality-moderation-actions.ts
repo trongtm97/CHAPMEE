@@ -7,7 +7,7 @@ import {
   restoreStoryQuality
 } from "@/lib/content-quality/apply-low-quality-action";
 import { calculateQualitySignals } from "@/lib/content-quality/calculate-quality-signals";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { ContentQualityReasonCode } from "@/types/content-quality";
 
 async function assertModerator() {
@@ -17,8 +17,8 @@ async function assertModerator() {
     return { error: "Cần đăng nhập.", ok: false as const };
   }
 
-  const supabase = await createClient();
-  const { data: allowed } = await supabase.rpc("user_has_permission", {
+  const db = await createClient();
+  const { data: allowed } = await db.rpc("user_has_permission", {
     input_user_id: profile.id,
     permission_code: "moderation.action.create"
   });
@@ -27,7 +27,7 @@ async function assertModerator() {
     return { error: "Không có quyền moderation.", ok: false as const };
   }
 
-  return { ok: true as const, profileId: profile.id, supabase };
+  return { ok: true as const, profileId: profile.id, db };
 }
 
 export async function confirmStoryLowQualityAction(input: {
@@ -41,7 +41,7 @@ export async function confirmStoryLowQualityAction(input: {
     return { error: actor.error, ok: false as const };
   }
 
-  const { data: story } = await actor.supabase
+  const { data: story } = await actor.db
     .from("stories")
     .select("id, creator_id, creator_profiles(user_id)")
     .eq("id", input.storyId)
@@ -61,7 +61,7 @@ export async function confirmStoryLowQualityAction(input: {
 
   const calculated = await calculateQualitySignals({
     storyId: input.storyId,
-    supabase: actor.supabase,
+    db: actor.db,
     targetId: input.storyId,
     targetType: "story"
   });
@@ -78,7 +78,7 @@ export async function confirmStoryLowQualityAction(input: {
     reasonCodes,
     reviewedBy: actor.profileId,
     storyId: input.storyId,
-    supabase: actor.supabase,
+    db: actor.db,
     targetId: input.storyId,
     targetType: "story"
   });
@@ -104,7 +104,7 @@ export async function restoreStoryQualityAction(input: {
     return { error: actor.error, ok: false as const };
   }
 
-  const { data: story } = await actor.supabase
+  const { data: story } = await actor.db
     .from("stories")
     .select("creator_id")
     .eq("id", input.storyId)
@@ -119,7 +119,7 @@ export async function restoreStoryQualityAction(input: {
     moderatorNote: input.moderatorNote,
     reviewedBy: actor.profileId,
     storyId: input.storyId,
-    supabase: actor.supabase
+    db: actor.db
   });
 
   revalidatePath("/admin/content");

@@ -1,0 +1,99 @@
+# =============================================================================
+# ChapMee — Docker build context exclusions
+# Goal: smaller/faster context, no secrets, no rebuild of artifacts already
+# produced inside the image. See footer for files that MUST reach the builder.
+# =============================================================================
+
+# --- Dependencies & build output (rebuilt inside image) ---
+node_modules
+.next
+out
+dist
+build
+coverage
+.pnpm-store
+
+# --- Version control & CI ---
+.git
+.gitignore
+.gitattributes
+.github
+
+# --- Secrets & env (never send to daemon) ---
+.env
+.env.*
+!.env.example
+
+# --- Logs & debug ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.next-dev*
+.next-start-*
+
+# --- Docker / deploy metadata (not needed for `next build`) ---
+Dockerfile
+docker-compose.yml
+docker-compose.*.yml
+Caddyfile.production
+vercel.json
+
+# --- Docs & operator notes ---
+README.md
+docs
+*.md
+
+# --- Editor / IDE / OS ---
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+.cursor
+.editorconfig
+.prettierrc
+.prettierignore
+*.swp
+*.swo
+*~
+
+# --- Local dev / agent / temp artifacts ---
+.codex-tmp
+.codex-screenshots
+.auth-test-*.txt
+tsconfig.tsbuildinfo
+eslint-one.json
+
+# --- Large or local-only data ---
+chapters.json
+imports.json
+backups
+*.tar
+*.tar.gz
+*.zip
+
+# --- SQL / scratch files at repo root ---
+tmp-*
+_tmp_*
+
+# --- DB migration trees (not imported by Next.js compile; run separately) ---
+drizzle
+db
+drizzle.config.ts
+
+# --- Deploy scripts & ops tooling (not used during image build) ---
+deploy
+scripts/**
+!scripts/next-build.mjs
+
+# =============================================================================
+# MUST NOT be ignored (required for `pnpm|npm|yarn build`):
+#   app/ components/ lib/ public/ src/ hooks/ styles/ types/
+#   proxy.ts (Next.js middleware)
+#   package.json, pnpm-lock.yaml, package-lock.json, yarn.lock
+#   pnpm-workspace.yaml, .npmrc
+#   next.config.ts, next-env.d.ts, tsconfig.json
+#   postcss.config.js, tailwind.config.ts, eslint.config.mjs
+#   scripts/next-build.mjs
+# =============================================================================

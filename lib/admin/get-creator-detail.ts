@@ -3,8 +3,8 @@
 import { assertAnyPermission } from "@/lib/auth/require-permission";
 import { getCreatorAccessStatus } from "@/lib/creator-access";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { getCreatorEligibilityStats } from "@/lib/supabase/creator-stats";
-import { createClient } from "@/lib/supabase/server";
+import { getCreatorEligibilityStats } from "@/lib/data/creator-stats";
+import { createClient } from "@/lib/data/server";
 import type {
   AdminCreatorDetail,
   CreatorAdminOverrides,
@@ -48,7 +48,7 @@ function parseOverrides(raw: unknown): CreatorAdminOverrides {
 
 async function fetchUserEmail(userId: string): Promise<string | null> {
   try {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const { createAdminClient } = await import("@/lib/data/admin");
     const admin = createAdminClient();
     const { data } = await admin.auth.admin.getUserById(userId);
     return data.user?.email ?? null;
@@ -60,14 +60,14 @@ async function fetchUserEmail(userId: string): Promise<string | null> {
 async function buildEligibility(
   userId: string,
   creatorId: string | null,
-  supabase: Awaited<ReturnType<typeof createClient>>
+  db: Awaited<ReturnType<typeof createClient>>
 ): Promise<CreatorMonetizationEligibilityItem[]> {
   const statsResult = await getCreatorEligibilityStats(userId);
   const stats = statsResult.data;
 
   let emailVerified = false;
   try {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const { createAdminClient } = await import("@/lib/data/admin");
     const admin = createAdminClient();
     const { data } = await admin.auth.admin.getUserById(userId);
     emailVerified = Boolean(data.user?.email_confirmed_at);
@@ -81,7 +81,7 @@ async function buildEligibility(
 
   const storyCount = creatorId
     ? (
-        await supabase
+        await db
           .from("stories")
           .select("id", { count: "exact", head: true })
           .eq("creator_id", creatorId)
@@ -139,9 +139,9 @@ export async function getAdminCreatorDetail(
 ): Promise<{ detail: AdminCreatorDetail | null; error: string | null }> {
   await assertAnyPermission(["admin.settings.view", "admin.settings.update", "admin.user.view"]);
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile, error: profileError } = await db
     .from("profiles")
     .select(
       "id, username, display_name, avatar_url, is_verified, verification_type, verification_label, created_at"
@@ -153,7 +153,7 @@ export async function getAdminCreatorDetail(
     return { detail: null, error: profileError?.message ?? "Không tìm thấy tác giả." };
   }
 
-  const { data: creatorProfileRow } = await supabase
+  const { data: creatorProfileRow } = await db
     .from("creator_profiles")
     .select("id, bio, status, created_at")
     .eq("user_id", userId)
@@ -178,30 +178,30 @@ export async function getAdminCreatorDetail(
     payoutRequests,
     monetizationConfig
   ] = await Promise.all([
-    supabase
+    db
       .from("creator_monetization_profiles")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle(),
-    supabase.from("creator_wallets").select("*").eq("user_id", userId).maybeSingle(),
+    db.from("creator_wallets").select("*").eq("user_id", userId).maybeSingle(),
     fetchUserEmail(userId),
     creatorId
-      ? supabase
+      ? db
           .from("follows")
           .select("id", { count: "exact", head: true })
           .eq("following_id", creatorId)
           .eq("following_type", "creator")
       : Promise.resolve({ count: 0 }),
-    supabase
+    db
       .from("comments")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId),
-    supabase
+    db
       .from("story_saves")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId),
     creatorId
-      ? supabase
+      ? db
           .from("stories")
           .select("id, title, slug, status, monetization_status, read_count")
           .eq("creator_id", creatorId)
@@ -209,43 +209,43 @@ export async function getAdminCreatorDetail(
           .limit(20)
       : Promise.resolve({ data: [] }),
     creatorId
-      ? supabase
+      ? db
           .from("content_quality_reviews")
           .select("id, story_id, attempt_number, action, created_at, stories(title)")
           .eq("author_id", creatorId)
           .order("created_at", { ascending: false })
           .limit(15)
       : Promise.resolve({ data: [] }),
-    supabase
+    db
       .from("account_strikes")
       .select("id, reason, created_at, expires_at, is_active")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(20),
-    supabase
+    db
       .from("account_verifications")
       .select("id, verification_type, status, submitted_at, reviewed_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false }),
-    supabase
+    db
       .from("admin_audit_logs")
       .select("id, action, actor_id, created_at, metadata")
       .or(`target_id.eq.${userId},metadata->>target_user_id.eq.${userId}`)
       .order("created_at", { ascending: false })
       .limit(50),
-    supabase
+    db
       .from("creator_wallet_ledger")
       .select("id, type, amount_vnd, direction, created_at, description")
       .eq("creator_user_id", userId)
       .order("created_at", { ascending: false })
       .limit(30),
-    supabase
+    db
       .from("creator_revenue_share_history")
       .select("id, enabled, paid_chapter_percent, tip_percent, fan_club_percent, vip_pool_percent, bonus_pool_percent, reason, created_at, created_by")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(20),
-    supabase
+    db
       .from("payout_requests")
       .select(
         "id, amount_vnd, status, requested_at, reviewed_at, completed_at, admin_note"
@@ -258,7 +258,7 @@ export async function getAdminCreatorDetail(
 
   let chapterCount = 0;
   if (creatorId) {
-    const { count } = await supabase
+    const { count } = await db
       .from("episodes")
       .select("id, stories!inner(creator_id)", { count: "exact", head: true })
       .eq("stories.creator_id", creatorId);
@@ -297,7 +297,7 @@ export async function getAdminCreatorDetail(
   ];
   const allActorIds = [...new Set([...actorIds, ...historyActorIds])];
   const { data: actors } = allActorIds.length
-    ? await supabase
+    ? await db
         .from("profiles")
         .select("id, display_name, username")
         .in("id", allActorIds)
@@ -310,7 +310,7 @@ export async function getAdminCreatorDetail(
   );
 
   const [eligibility, creatorAccess] = await Promise.all([
-    buildEligibility(userId, creatorId ?? null, supabase),
+    buildEligibility(userId, creatorId ?? null, db),
     getCreatorAccessStatus(userId)
   ]);
 

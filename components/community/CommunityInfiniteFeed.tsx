@@ -13,6 +13,7 @@ import type { CommunityFeedTab } from "@/types/community";
 type CommunityInfiniteFeedProps = {
   activeTab: CommunityFeedTab;
   searchQuery?: string;
+  refreshToken?: number;
   onWriteClick?: () => void;
 };
 
@@ -21,6 +22,7 @@ const MemoFeedCard = memo(CommunityFeedCard);
 export function CommunityInfiniteFeed({
   activeTab,
   onWriteClick,
+  refreshToken = 0,
   searchQuery = ""
 }: CommunityInfiniteFeedProps) {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -34,7 +36,12 @@ export function CommunityInfiniteFeed({
     items,
     loadMore,
     retry
-  } = useCommunityInfiniteFeed({ tab: activeTab, searchQuery, limit: 10 });
+  } = useCommunityInfiniteFeed({
+    tab: activeTab,
+    searchQuery,
+    limit: 10,
+    refreshToken
+  });
 
   const tryLoadMore = useCallback(() => {
     loadMore();

@@ -3,6 +3,7 @@ import type { FeedCandidate } from "@/types/feed-mixer";
 
 export type RerankRules = {
   maxConsecutiveSameAuthor?: number;
+  maxConsecutiveSameStory?: number;
   maxSameStoryInWindow?: number;
   storyWindowSize?: number;
   maxConsecutiveSameGenre?: number;
@@ -14,12 +15,14 @@ const DEFAULT_RULES: Required<
   Pick<
     RerankRules,
     | "maxConsecutiveSameAuthor"
+    | "maxConsecutiveSameStory"
     | "maxSameStoryInWindow"
     | "storyWindowSize"
     | "maxConsecutiveSameGenre"
   >
 > = {
   maxConsecutiveSameAuthor: 1,
+  maxConsecutiveSameStory: 2,
   maxSameStoryInWindow: 3,
   storyWindowSize: 30,
   maxConsecutiveSameGenre: 3
@@ -35,6 +38,16 @@ function violatesAuthorStreak(items: FeedCandidate[], candidate: FeedCandidate, 
   let streak = 0;
   for (let i = items.length - 1; i >= 0; i -= 1) {
     if (items[i].authorUserId !== candidate.authorUserId) break;
+    streak += 1;
+  }
+  return streak >= max;
+}
+
+function violatesStoryStreak(items: FeedCandidate[], candidate: FeedCandidate, max: number) {
+  if (max <= 0 || items.length === 0) return false;
+  let streak = 0;
+  for (let i = items.length - 1; i >= 0; i -= 1) {
+    if (items[i].storyId !== candidate.storyId) break;
     streak += 1;
   }
   return streak >= max;
@@ -77,6 +90,11 @@ export function rerankAndDeduplicate(
       candidate,
       mergedRules.maxConsecutiveSameAuthor
     );
+    const storyStreakViolation = violatesStoryStreak(
+      primary,
+      candidate,
+      mergedRules.maxConsecutiveSameStory
+    );
     const storyViolation =
       storyCountInWindow(
         primary,
@@ -89,7 +107,7 @@ export function rerankAndDeduplicate(
       mergedRules.maxConsecutiveSameGenre
     );
 
-    if (authorViolation || storyViolation || genreViolation) {
+    if (authorViolation || storyStreakViolation || storyViolation || genreViolation) {
       deferred.push(candidate);
     } else {
       primary.push(candidate);
@@ -102,6 +120,11 @@ export function rerankAndDeduplicate(
     const key = candidateKeyFromFeed(candidate);
     if (rules.excludeKeys?.has(key)) continue;
 
+    const storyStreakViolation = violatesStoryStreak(
+      [...primary, ...relaxed],
+      candidate,
+      mergedRules.maxConsecutiveSameStory
+    );
     const storyViolation =
       storyCountInWindow(
         [...primary, ...relaxed],
@@ -109,7 +132,7 @@ export function rerankAndDeduplicate(
         mergedRules.storyWindowSize
       ) >= mergedRules.maxSameStoryInWindow;
 
-    if (!storyViolation) {
+    if (!storyStreakViolation && !storyViolation) {
       relaxed.push(candidate);
     }
   }

@@ -105,6 +105,13 @@ export function trackStartReading(context: ReaderAnalyticsContext) {
   );
 
   void trackEvent({
+    eventName: analyticsEvents.chapterOpened,
+    metadata: readerMetadata(context, 0),
+    targetId: context.episodeId,
+    targetType: "episode"
+  });
+
+  void trackEvent({
     eventName: analyticsEvents.startReading,
     metadata: readerMetadata(context, 0),
     targetId: context.episodeId,

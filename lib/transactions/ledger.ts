@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import {
   createTransaction as createTransactionRecord,
   updateTransactionStatus
-} from "@/lib/supabase/transactions";
+} from "@/lib/data/transactions";
 import type {
   TransactionDirection,
   TransactionRow,

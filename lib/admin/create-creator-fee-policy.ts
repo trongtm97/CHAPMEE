@@ -9,17 +9,17 @@ import {
 } from "@/lib/admin/creator-fee-policy-shared";
 import { requireCreatorFeeCreateAccess } from "@/lib/auth/creator-fee-guards";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CreatorFeePolicyInput } from "@/types/creator-fee-policy";
 
 async function findOverlappingPolicy(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   creatorId: string,
   startsAt: string,
   endsAt: string | null,
   excludeId?: string
 ) {
-  let query = supabase
+  let query = db
     .from("creator_fee_policies")
     .select("id, policy_name, starts_at, ends_at")
     .eq("creator_id", creatorId)
@@ -41,23 +41,23 @@ async function findOverlappingPolicy(
 }
 
 async function validateCreatorExists(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   creatorId: string
 ): Promise<string | null> {
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from("profiles")
     .select("id")
     .eq("id", creatorId)
     .maybeSingle();
   if (!profile) return "Tác giả không tồn tại.";
 
-  const { data: studio } = await supabase
+  const { data: studio } = await db
     .from("creator_monetization_profiles")
     .select("user_id")
     .eq("user_id", creatorId)
     .maybeSingle();
 
-  const { data: stories } = await supabase
+  const { data: stories } = await db
     .from("stories")
     .select("id")
     .eq("author_id", creatorId)
@@ -86,15 +86,15 @@ export async function createCreatorFeePolicyAction(input: CreatorFeePolicyInput)
     return { ok: false, error: validationError };
   }
 
-  const supabase = await createClient();
-  const creatorError = await validateCreatorExists(supabase, input.creatorId);
+  const db = await createClient();
+  const creatorError = await validateCreatorExists(db, input.creatorId);
   if (creatorError) {
     return { ok: false, error: creatorError };
   }
 
   const payload = buildPolicyInsertPayload(input, ctx.userId);
   const overlaps = await findOverlappingPolicy(
-    supabase,
+    db,
     input.creatorId,
     payload.starts_at as string,
     (payload.ends_at as string | null) ?? null
@@ -111,14 +111,14 @@ export async function createCreatorFeePolicyAction(input: CreatorFeePolicyInput)
 
   if (overlaps.length > 0 && input.confirmOverlap) {
     const now = new Date().toISOString();
-    await supabase
+    await db
       .from("creator_fee_policies")
       .update({ status: "expired", ends_at: now, updated_at: now, updated_by: ctx.userId })
       .eq("creator_id", input.creatorId)
       .in("status", ["active", "scheduled"]);
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("creator_fee_policies")
     .insert(payload)
     .select("*")

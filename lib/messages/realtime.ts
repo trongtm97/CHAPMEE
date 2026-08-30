@@ -3,8 +3,8 @@
 import type {
   RealtimeChannel,
   RealtimePostgresChangesPayload
-} from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/client";
+} from "@/lib/db/types";
+import { createClient } from "@/lib/data/client";
 import { mapMessageRow, type MessageRow } from "@/lib/messages/map-message-row";
 import type { ConversationMessage } from "@/types/messages";
 
@@ -37,7 +37,7 @@ export function subscribeToConversationMessages(
   filterSensitive: boolean,
   handlers: ConversationMessageHandlers
 ): () => void {
-  const supabase = createClient();
+  const db = createClient();
   const channelName = `messages:${conversationId}`;
 
   const handleRow = (
@@ -55,7 +55,7 @@ export function subscribeToConversationMessages(
     }
   };
 
-  const channel = supabase
+  const channel = db
     .channel(channelName)
     .on(
       "postgres_changes",
@@ -90,7 +90,7 @@ export function subscribeToConversationMessages(
     .subscribe();
 
   return () => {
-    void supabase.removeChannel(channel);
+    void db.removeChannel(channel);
   };
 }
 
@@ -117,9 +117,9 @@ export function subscribeToOtherParticipantRead(
   otherUserId: string,
   onRead: (lastReadAt: string | null) => void
 ): () => void {
-  const supabase = createClient();
+  const db = createClient();
 
-  const channel = supabase
+  const channel = db
     .channel(`read:${conversationId}:${otherUserId}`)
     .on(
       "postgres_changes",
@@ -139,7 +139,7 @@ export function subscribeToOtherParticipantRead(
     .subscribe();
 
   return () => {
-    void supabase.removeChannel(channel);
+    void db.removeChannel(channel);
   };
 }
 
@@ -147,9 +147,9 @@ export function subscribeToInbox(
   userId: string,
   handlers: InboxHandlers
 ): () => void {
-  const supabase = createClient();
+  const db = createClient();
 
-  const channel: RealtimeChannel = supabase
+  const channel: RealtimeChannel = db
     .channel(`inbox:${userId}`)
     .on(
       "postgres_changes",
@@ -212,7 +212,7 @@ export function subscribeToInbox(
     .subscribe();
 
   return () => {
-    void supabase.removeChannel(channel);
+    void db.removeChannel(channel);
   };
 }
 

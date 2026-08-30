@@ -8,8 +8,8 @@ import {
 import { loadFairnessAlertThresholds } from "@/lib/fairness/thresholds";
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
 import { getProfileUrlOrFallback } from "@/lib/profile/profile-url";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createAdminClient } from "@/lib/data/admin";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type {
   EcosystemDashboardData,
   EcosystemGenreRow,
@@ -129,8 +129,8 @@ function buildWarnings(input: {
   return warnings;
 }
 
-async function countUntestedNewStories(supabase: ReturnType<typeof createAdminClient>) {
-  const { data: activeTests } = await supabase
+async function countUntestedNewStories(db: ReturnType<typeof createAdminClient>) {
+  const { data: activeTests } = await db
     .from("cold_start_tests")
     .select("item_id, item_type, target_impressions, delivered_impressions, status")
     .eq("item_type", "story")
@@ -147,13 +147,13 @@ async function countUntestedNewStories(supabase: ReturnType<typeof createAdminCl
 }
 
 async function loadUnderExposedQuality(
-  supabase: ReturnType<typeof createAdminClient>,
+  db: ReturnType<typeof createAdminClient>,
   storyImpressions: Map<string, number>,
   limit = 15
 ): Promise<{ rows: EcosystemUnderExposedRow[]; count: number }> {
   const since = windowStartIso("7d");
 
-  const { data: stories } = await supabase
+  const { data: stories } = await db
     .from("stories")
     .select(
       "id, title, slug, status, creator_profiles(pen_name, profiles(display_name, username))"
@@ -169,7 +169,7 @@ async function loadUnderExposedQuality(
   const impressionValues = storyIds.map((id) => storyImpressions.get(id) ?? 0);
   const medianImp = median(impressionValues);
 
-  const { data: scores } = await supabase
+  const { data: scores } = await db
     .from("content_score_snapshots")
     .select("item_id, quality_score, snapshot_at")
     .eq("item_type", "story")
@@ -184,7 +184,7 @@ async function loadUnderExposedQuality(
     }
   }
 
-  const { data: metrics } = await supabase
+  const { data: metrics } = await db
     .from("story_metrics_daily")
     .select("story_id, completion_rate")
     .in("story_id", storyIds)
@@ -240,11 +240,11 @@ async function loadUnderExposedQuality(
 }
 
 async function loadGenreDistribution(
-  supabase: ReturnType<typeof createAdminClient>,
+  db: ReturnType<typeof createAdminClient>,
   since: string,
   surface: EcosystemSurfaceFilter
 ): Promise<EcosystemGenreRow[]> {
-  let query = supabase
+  let query = db
     .from("exposure_events")
     .select("story_id")
     .gte("created_at", since)
@@ -266,12 +266,12 @@ async function loadGenreDistribution(
   if (storyIds.length === 0) return [];
 
   const { loadStoryMainGenreTermIndex } = await import("@/lib/ranking/story-main-genre-index");
-  const mainGenreIndex = await loadStoryMainGenreTermIndex(supabase, storyIds);
+  const mainGenreIndex = await loadStoryMainGenreTermIndex(db, storyIds);
   const termIds = [...new Set([...mainGenreIndex.values()])];
 
   const termMeta = new Map<string, { name: string; slug: string }>();
   if (termIds.length > 0) {
-    const { data: terms } = await supabase
+    const { data: terms } = await db
       .from("taxonomy_terms")
       .select("id, name, slug")
       .in("id", termIds);
@@ -283,7 +283,7 @@ async function loadGenreDistribution(
     }
   }
 
-  const { data: stories } = await supabase
+  const { data: stories } = await db
     .from("stories")
     .select("id")
     .in("id", storyIds);
@@ -328,7 +328,7 @@ async function loadGenreDistribution(
   const totalImp = [...genreImpressions.values()].reduce((s, g) => s + g.impressions, 0);
   const genreIds = [...genreImpressions.keys()];
 
-  const { data: metrics } = await supabase
+  const { data: metrics } = await db
     .from("story_metrics_daily")
     .select("story_id, chapter_starts, chapter_completes")
     .in(
@@ -379,11 +379,11 @@ async function loadGenreDistribution(
 }
 
 async function loadNewAuthorsTable(
-  supabase: ReturnType<typeof createAdminClient>,
+  db: ReturnType<typeof createAdminClient>,
   authorImpressions: Map<string, number>,
   since: string
 ): Promise<EcosystemNewAuthorRow[]> {
-  const { data: recentStories } = await supabase
+  const { data: recentStories } = await db
     .from("stories")
     .select("id, creator_profiles(user_id, pen_name, profiles(display_name, username))")
     .in("status", ["published", "approved"])
@@ -419,7 +419,7 @@ async function loadNewAuthorsTable(
   const authorIds = [...authorMeta.keys()].slice(0, 25);
   if (authorIds.length === 0) return [];
 
-  const { data: coldTests } = await supabase
+  const { data: coldTests } = await db
     .from("cold_start_tests")
     .select("author_user_id, status")
     .eq("item_type", "author")
@@ -475,7 +475,7 @@ export async function loadEcosystemDashboardData(options: {
   };
 
   try {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
     const [alertThresholds, rawConfig] = await Promise.all([
       loadFairnessAlertThresholds(),
       getAlgorithmConfig()
@@ -492,17 +492,17 @@ export async function loadEcosystemDashboardData(options: {
       untestedStoriesThreshold: 10
     };
 
-    const share = await calculateExposureShareFiltered(supabase, {
+    const share = await calculateExposureShareFiltered(db, {
       surface: surface === "all" ? null : surface,
       window: fairnessWindow
     });
 
     const [underExposedResult, untestedNewStoriesCount, genreRows, adjustmentsRes] =
       await Promise.all([
-        loadUnderExposedQuality(supabase, share.storyImpressions),
-        countUntestedNewStories(supabase),
-        loadGenreDistribution(supabase, since, surface),
-        supabase
+        loadUnderExposedQuality(db, share.storyImpressions),
+        countUntestedNewStories(db),
+        loadGenreDistribution(db, since, surface),
+        db
           .from("fairness_adjustment_logs")
           .select(
             "id, adjustment_type, surface, item_type, reason, old_score, new_score, created_at"
@@ -542,13 +542,13 @@ export async function loadEcosystemDashboardData(options: {
     const [{ data: profiles }, { data: stories }, { data: authorMetrics }] =
       await Promise.all([
         authorIds.length
-          ? supabase
+          ? db
               .from("profiles")
               .select("id, username, display_name")
               .in("id", authorIds)
           : Promise.resolve({ data: [] }),
         storyIds.length
-          ? supabase
+          ? db
               .from("stories")
               .select(
                 "id, title, slug, status, creator_profiles(pen_name, profiles(display_name, username))"
@@ -556,7 +556,7 @@ export async function loadEcosystemDashboardData(options: {
               .in("id", storyIds)
           : Promise.resolve({ data: [] }),
         authorIds.length
-          ? supabase
+          ? db
               .from("author_metrics_daily")
               .select("author_user_id, revenue_coin")
               .in("author_user_id", authorIds)
@@ -566,7 +566,7 @@ export async function loadEcosystemDashboardData(options: {
       ]);
 
     const { data: storyMetrics } = storyIds.length
-      ? await supabase
+      ? await db
           .from("story_metrics_daily")
           .select("story_id, completion_rate, report_rate")
           .in("story_id", storyIds)
@@ -575,7 +575,7 @@ export async function loadEcosystemDashboardData(options: {
       : { data: [] };
 
     const { data: creators } = authorIds.length
-      ? await supabase
+      ? await db
           .from("creator_profiles")
           .select("id, user_id")
           .in("user_id", authorIds)
@@ -586,7 +586,7 @@ export async function loadEcosystemDashboardData(options: {
     );
 
     const { data: creatorStories } = creatorIdToUser.size
-      ? await supabase
+      ? await db
           .from("stories")
           .select("creator_id")
           .in("creator_id", [...creatorIdToUser.keys()])
@@ -666,7 +666,7 @@ export async function loadEcosystemDashboardData(options: {
     });
 
     const newAuthors = await loadNewAuthorsTable(
-      supabase,
+      db,
       share.authorImpressions,
       since
     );

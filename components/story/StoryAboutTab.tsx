@@ -1,5 +1,7 @@
 import { useState } from "react";
 import Link from "next/link";
+import { renderContentPostToSafeHtml } from "@/lib/content-posts/content-post-html";
+import { isLikelyHtmlContent } from "@/lib/content-posts/content-post-editor-html";
 import type { StoryDetail } from "@/lib/stories/getStoryBySlug";
 import { isStandaloneStory } from "@/lib/stories/story-structure";
 
@@ -44,9 +46,20 @@ export function StoryAboutTab({ showOriginalsNote, story }: StoryAboutTabProps) 
         .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null
     );
 
+  const descriptionHtml = isLikelyHtmlContent(description)
+    ? renderContentPostToSafeHtml(description)
+    : null;
+
   return (
     <div className="space-y-4 text-sm leading-7 text-zinc-300">
-      <p className="whitespace-pre-wrap">{description}</p>
+      {descriptionHtml ? (
+        <div
+          className="story-about-body space-y-3 [&_a]:text-cyan-400 [&_a]:underline [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:text-base [&_h3]:font-semibold [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
+          dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+        />
+      ) : (
+        <p className="whitespace-pre-wrap">{description}</p>
+      )}
       <dl className="grid gap-2 rounded-xl border border-white/8 bg-white/[0.02] p-3.5">
         <div className="flex justify-between gap-3">
           <dt className="text-zinc-500">Tác giả</dt>

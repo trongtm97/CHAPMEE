@@ -1,16 +1,18 @@
 "use client";
 
 import { Input } from "@/components/ui";
-import { BULK_IMPORT_MAX_CHAPTERS, type ImportChapterPreview } from "@/types/import";
+import type { ImportChapterPreview } from "@/types/import";
 
 const STATUS_LABELS: Record<string, string> = {
-  content_short: "Nội dung ngắn",
-  duplicate_in_file: "Trùng số chương",
-  duplicate_in_story: "Chương đã tồn tại",
-  missing_content: "Thiếu nội dung",
-  title_too_long: "Tiêu đề quá dài",
-  valid: "Hợp lệ"
+  content_short: "Nội dung ngắn — vẫn nhập",
+  duplicate_in_file: "Trùng — bỏ qua",
+  duplicate_in_story: "Đã có — bỏ qua",
+  missing_content: "Chưa có nội dung — nhập nháp",
+  title_too_long: "Tiêu đề sẽ được cắt",
+  valid: "Sẽ nhập"
 };
+
+const BLOCKING_STATUSES = new Set(["duplicate_in_file", "duplicate_in_story"]);
 
 type BulkImportPreviewProps = {
   previews: ImportChapterPreview[];
@@ -25,6 +27,12 @@ export function BulkImportPreview({ onChange, previews }: BulkImportPreviewProps
   }
 
   const selectedCount = previews.filter((item) => item.selected).length;
+  const importableCount = previews.filter(
+    (item) => item.selected && !BLOCKING_STATUSES.has(item.status)
+  ).length;
+  const skippedCount = previews.filter(
+    (item) => BLOCKING_STATUSES.has(item.status)
+  ).length;
 
   return (
     <div className="space-y-4">
@@ -33,23 +41,23 @@ export function BulkImportPreview({ onChange, previews }: BulkImportPreviewProps
           Xem trước ({previews.length} chương)
         </h2>
         <p className="text-sm text-zinc-500">
-          Đã chọn {selectedCount}/{Math.min(previews.length, BULK_IMPORT_MAX_CHAPTERS)} chương
+          Sẽ nhập {importableCount} · Đã chọn {selectedCount} · Bỏ qua {skippedCount}
         </p>
       </div>
 
+      <p className="text-sm text-zinc-400">
+        Chương trùng số hoặc đã tồn tại sẽ bị bỏ qua. Tiêu đề quá dài được cắt tự động.
+        Chương thiếu nội dung vẫn nhập vào nháp để bạn viết tiếp.
+      </p>
+
       <div className="space-y-3">
         {previews.map((item) => {
-          const blocked = [
-            "missing_content",
-            "duplicate_in_file",
-            "duplicate_in_story",
-            "title_too_long"
-          ].includes(item.status);
+          const blocked = BLOCKING_STATUSES.has(item.status);
 
           return (
             <article
               className={`rounded-2xl border p-4 ${
-                blocked ? "border-rose-400/30 bg-rose-400/5" : "border-white/10 bg-white/[0.02]"
+                blocked ? "border-zinc-600/40 bg-zinc-900/40" : "border-white/10 bg-white/[0.02]"
               }`}
               key={item.id}
             >
@@ -63,9 +71,17 @@ export function BulkImportPreview({ onChange, previews }: BulkImportPreviewProps
                     }
                     type="checkbox"
                   />
-                  Chọn nhập
+                  {blocked ? "Bỏ qua" : "Nhập nháp"}
                 </label>
-                <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-zinc-400">
+                <span
+                  className={`rounded-full border px-2 py-0.5 text-xs ${
+                    blocked
+                      ? "border-zinc-600/50 text-zinc-500"
+                      : item.status === "valid"
+                        ? "border-emerald-400/30 text-emerald-200"
+                        : "border-amber-400/30 text-amber-200"
+                  }`}
+                >
                   {STATUS_LABELS[item.status] ?? item.status}
                 </span>
               </div>
@@ -86,7 +102,7 @@ export function BulkImportPreview({ onChange, previews }: BulkImportPreviewProps
                   />
                 </label>
                 <Input
-                  label="Tiêu đề"
+                  label="Tiêu đề (không bắt buộc)"
                   onChange={(event) => updateItem(item.id, { title: event.target.value })}
                   value={item.title}
                 />
@@ -94,11 +110,11 @@ export function BulkImportPreview({ onChange, previews }: BulkImportPreviewProps
 
               <p className="mt-2 text-xs text-zinc-500">{item.wordCount.toLocaleString("vi-VN")} từ</p>
               <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-zinc-300">
-                {item.previewLines || "—"}
+                {item.previewLines || "— (chưa có nội dung — có thể bổ sung sau)"}
               </p>
 
               {item.warnings.length > 0 ? (
-                <ul className="mt-2 space-y-1 text-xs text-amber-200">
+                <ul className="mt-2 space-y-1 text-xs text-amber-200/90">
                   {item.warnings.map((warning) => (
                     <li key={warning}>• {warning}</li>
                   ))}

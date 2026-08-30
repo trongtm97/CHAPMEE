@@ -1,5 +1,5 @@
 import { unstable_cache } from "next/cache";
-import { fetchAppSettingByKey } from "@/lib/supabase/app-settings";
+import { fetchAppSettingByKey } from "@/lib/data/app-settings";
 import type { ContentQualityConfig } from "@/types/content-quality";
 
 export const CONTENT_QUALITY_SETTINGS_KEY = "content_quality_settings";

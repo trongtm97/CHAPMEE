@@ -13,10 +13,10 @@ import {
 } from "@/lib/stories/story-structure";
 import { getStoryTaxonomy } from "@/lib/taxonomy/story-taxonomy";
 import type { PublishChecklistResult } from "@/types/publish-checklist";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 async function storyHasCover(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   coverUrl: string | null
 ) {
@@ -24,7 +24,7 @@ async function storyHasCover(
     return true;
   }
 
-  const { count } = await supabase
+  const { count } = await db
     .from("story_images")
     .select("id", { count: "exact", head: true })
     .eq("story_id", storyId)
@@ -33,8 +33,8 @@ async function storyHasCover(
   return (count ?? 0) > 0;
 }
 
-async function storyHasReelsPromo(supabase: SupabaseClient, storyId: string) {
-  const { count } = await supabase
+async function storyHasReelsPromo(db: DatabaseClient, storyId: string) {
+  const { count } = await db
     .from("reels_items")
     .select("id", { count: "exact", head: true })
     .eq("story_id", storyId)
@@ -44,11 +44,11 @@ async function storyHasReelsPromo(supabase: SupabaseClient, storyId: string) {
 }
 
 export async function validateStoryBeforePublishFromDb(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   creatorProfileId: string
 ): Promise<PublishChecklistResult> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("stories")
     .select(
       "id, title, hook, short_description, long_description, cover_url, status, visibility, seo_description, creator_id, structure_type, content_format, standalone_content_json, standalone_plain_text, standalone_word_count, validation_status"
@@ -82,31 +82,31 @@ export async function validateStoryBeforePublishFromDb(
     scheduledChapterCountResult,
     invalidEpisodeCountResult
   ] = await Promise.all([
-    supabase
+    db
       .from("taxonomy_terms")
       .select("id", { count: "exact", head: true })
       .eq("is_active", true)
       .limit(1)
       .then((r) => r.count ?? 0),
     getStoryTaxonomy(storyId),
-    supabase
+    db
       .from("story_taxonomy_terms")
       .select("id", { count: "exact", head: true })
       .eq("story_id", storyId)
       .in("type", ["trope_tag", "subgenre"])
       .then((r) => r.count ?? 0),
-    storyHasCover(supabase, storyId, data.cover_url),
-    storyHasReelsPromo(supabase, storyId),
+    storyHasCover(db, storyId, data.cover_url),
+    storyHasReelsPromo(db, storyId),
     isStandaloneStory(structure)
       ? Promise.resolve({ count: 0 })
-      : supabase
+      : db
           .from("episodes")
           .select("id", { count: "exact", head: true })
           .eq("story_id", storyId)
           .in("status", ["approved", "published"]),
     isStandaloneStory(structure)
       ? Promise.resolve({ count: 0 })
-      : supabase
+      : db
           .from("scheduled_publications")
           .select("id", { count: "exact", head: true })
           .eq("story_id", storyId)
@@ -114,7 +114,7 @@ export async function validateStoryBeforePublishFromDb(
           .eq("status", "scheduled"),
     isStandaloneStory(structure)
       ? Promise.resolve({ count: 0 })
-      : supabase
+      : db
           .from("episodes")
           .select("id", { count: "exact", head: true })
           .eq("story_id", storyId)
@@ -161,18 +161,18 @@ export async function validateStoryBeforePublishFromDb(
     return baseResult;
   }
 
-  const taxonomyRules = await getStoryTaxonomyPublishRules(supabase, storyId);
+  const taxonomyRules = await getStoryTaxonomyPublishRules(db, storyId);
 
   return mergeChecklistResults(baseResult, summarizeChecklist(taxonomyRules));
 }
 
 export async function assertStoryCanPublish(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   creatorProfileId: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const result = await validateStoryBeforePublishFromDb(
-    supabase,
+    db,
     storyId,
     creatorProfileId
   );

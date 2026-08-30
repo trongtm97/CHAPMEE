@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { logAdFraudAudit } from "@/lib/ads/fraud-audit";
 import { logAdRevenueReconciliationAudit } from "@/lib/ads/reconciliation-audit";
 import type { AdRevenueCreatorAllocation } from "@/types/ad-revenue-reconciliation";
@@ -26,8 +26,8 @@ function mapAllocation(row: Record<string, unknown>): AdRevenueCreatorAllocation
 }
 
 async function getAllocation(id: string) {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const db = createAdminClient();
+  const { data, error } = await db
     .from("ad_revenue_creator_allocations")
     .select("*")
     .eq("id", id)
@@ -56,8 +56,8 @@ export async function holdCreatorAllocation(input: {
     return { allocation: null, error: "Allocation đã bị hủy." };
   }
 
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const db = createAdminClient();
+  const { data, error } = await db
     .from("ad_revenue_creator_allocations")
     .update({
       status: "held",
@@ -112,8 +112,8 @@ export async function releaseCreatorAllocationHold(input: {
     return { allocation: null, error: "Allocation không ở trạng thái held." };
   }
 
-  const supabase = createAdminClient();
-  const { data: rec } = await supabase
+  const db = createAdminClient();
+  const { data: rec } = await db
     .from("ad_revenue_monthly_reconciliations")
     .select("status")
     .eq("id", before.reconciliation_id)
@@ -126,7 +126,7 @@ export async function releaseCreatorAllocationHold(input: {
     else nextStatus = "estimate";
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("ad_revenue_creator_allocations")
     .update({
       status: nextStatus,
@@ -167,8 +167,8 @@ export async function cancelCreatorAllocation(input: {
     return { allocation: null, error: loadError };
   }
 
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const db = createAdminClient();
+  const { data, error } = await db
     .from("ad_revenue_creator_allocations")
     .update({
       status: "cancelled",
@@ -205,8 +205,8 @@ export async function cancelCreatorAllocation(input: {
 }
 
 export async function findAllocationsForAuthorMonth(authorId: string, month: string) {
-  const supabase = createAdminClient();
-  const { data } = await supabase
+  const db = createAdminClient();
+  const { data } = await db
     .from("ad_revenue_creator_allocations")
     .select("id, status, final_payable_vnd, month, author_id")
     .eq("author_id", authorId)

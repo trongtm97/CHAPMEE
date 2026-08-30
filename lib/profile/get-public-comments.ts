@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { ProfilePrivacySettings, PublicCommentItem } from "@/types/public-profile";
 
 const PAGE_SIZE = 20;
@@ -26,17 +26,17 @@ export async function getPublicCommentsForUser(
     return { items: [], total: 0 };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
-  const { count } = await supabase
+  const { count } = await db
     .from("comments")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .eq("status", "visible");
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("comments")
     .select("id, content, created_at, stories(title, slug, public_code)")
     .eq("user_id", userId)
@@ -52,7 +52,7 @@ export async function getPublicCommentsForUser(
   const likeCounts = new Map<string, number>();
 
   if (commentIds.length > 0) {
-    const { data: reactions } = await supabase
+    const { data: reactions } = await db
       .from("reactions")
       .select("target_id")
       .eq("target_type", "comment")

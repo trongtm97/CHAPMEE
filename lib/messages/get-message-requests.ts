@@ -1,12 +1,13 @@
-import { createClient } from "@/lib/supabase/server";
+import { profileAvatarUrlFromRow } from "@/lib/profile/map-profile-row";
+import { createClient } from "@/lib/data/server";
 import type { MessageRequestItem } from "@/types/messages";
 
 export async function getPendingMessageRequests(
   recipientId: string
 ): Promise<MessageRequestItem[]> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("message_requests")
     .select(
       `id, first_message, created_at, status,
@@ -36,7 +37,7 @@ export async function getPendingMessageRequests(
         displayName:
           requester.display_name ?? requester.username ?? "Người dùng",
         username: requester.username,
-        avatarUrl: requester.avatar_url
+        avatarUrl: profileAvatarUrlFromRow(requester)
       },
       firstMessage: row.first_message as string,
       createdAt: row.created_at as string,

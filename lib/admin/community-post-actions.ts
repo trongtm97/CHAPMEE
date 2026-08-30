@@ -6,8 +6,8 @@ import { createModerationCase } from "@/lib/admin/createModerationCase";
 import { assertStaffAnyPermission } from "@/lib/auth/staff-guards";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { createNotification } from "@/lib/notifications/create-notification";
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type {
   CommunityPostActionInput,
   CommunityRejectReasonCode
@@ -20,8 +20,8 @@ async function requirePostModerator() {
   ]);
 }
 
-async function getPost(supabase: Awaited<ReturnType<typeof createClient>>, postId: string) {
-  const { data, error } = await supabase
+async function getPost(db: Awaited<ReturnType<typeof createClient>>, postId: string) {
+  const { data, error } = await db
     .from("community_posts")
     .select("id, title, status, user_id, story_id")
     .eq("id", postId)
@@ -151,8 +151,8 @@ export async function communityPostAction(
 ): Promise<{ ok: boolean; error: string | null }> {
   try {
     const { userId } = await requirePostModerator();
-    const supabase = await createClient();
-    const post = await getPost(supabase, input.postId);
+    const db = await createClient();
+    const post = await getPost(db, input.postId);
     const oldStatus = post.status as string;
 
     if (input.action === "reject") {
@@ -165,7 +165,7 @@ export async function communityPostAction(
     }
 
     const patch = buildUpdate(input, userId, oldStatus);
-    const { error } = await supabase
+    const { error } = await db
       .from("community_posts")
       .update(patch)
       .eq("id", input.postId);
@@ -180,7 +180,7 @@ export async function communityPostAction(
           minimal.status = oldStatus === "rejected" ? "pending" : "approved";
         }
         if (Object.keys(minimal).length) {
-          const retry = await supabase
+          const retry = await db
             .from("community_posts")
             .update(minimal)
             .eq("id", input.postId);
@@ -203,7 +203,7 @@ export async function communityPostAction(
       });
     }
 
-    const { data: latestDecision } = await supabase
+    const { data: latestDecision } = await db
       .from("community_moderation_decisions")
       .select("id")
       .eq("post_id", input.postId)
@@ -213,7 +213,7 @@ export async function communityPostAction(
       .maybeSingle();
 
     if (latestDecision?.id && input.overrideReason?.trim()) {
-      await supabase
+      await db
         .from("community_moderation_decisions")
         .update({
           overridden_by: userId,
@@ -277,8 +277,8 @@ export async function hideCommunityCommentAction(
 ): Promise<{ ok: boolean; error: string | null }> {
   try {
     const { userId } = await requirePostModerator();
-    const supabase = await createClient();
-    const { error } = await supabase
+    const db = await createClient();
+    const { error } = await db
       .from("comments")
       .update({ status: "hidden" })
       .eq("id", commentId);
@@ -308,8 +308,8 @@ export async function restoreCommunityCommentAction(
 ): Promise<{ ok: boolean; error: string | null }> {
   try {
     const { userId } = await requirePostModerator();
-    const supabase = await createClient();
-    const { error } = await supabase
+    const db = await createClient();
+    const { error } = await db
       .from("comments")
       .update({ status: "visible" })
       .eq("id", commentId);

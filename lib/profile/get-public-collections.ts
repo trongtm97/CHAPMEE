@@ -1,6 +1,9 @@
-import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import { resolveStoredMediaUrl } from "@/lib/media/media-resolver";
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/postgrest-selects";
 import { resolveCreatorRowName } from "@/lib/creator/resolve-creator-row-name";
-import { createClient } from "@/lib/supabase/server";
+import { profileAvatarUrlFromRow } from "@/lib/profile/map-profile-row";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
+import { createClient } from "@/lib/data/server";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import type { CollectionStoryItem, CollectionSummary } from "@/types/collection";
 
@@ -51,7 +54,7 @@ function toStoryItem(
     title: row.stories?.title ?? "Chưa đặt tên",
     slug: row.stories?.slug ?? "",
     publicCode: row.stories?.public_code ?? "",
-    coverUrl: row.stories?.cover_url ?? null,
+    coverUrl: resolveStoryCoverUrl(row.stories?.cover_url ?? null),
     hook: row.stories?.hook ?? null,
     authorName: resolveCreatorRowName(creator),
     genreName: taxonomyByStory.get(row.story_id)?.mainGenreName ?? null,
@@ -68,7 +71,7 @@ function toSummary(row: CollectionRow, items: CollectionStoryItem[]): Collection
     title: row.title,
     description: row.description,
     visibility: row.visibility,
-    coverImageUrl: row.cover_image_url,
+    coverImageUrl: resolveStoredMediaUrl(row.cover_image_url),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     itemCount: items.length,
@@ -77,8 +80,8 @@ function toSummary(row: CollectionRow, items: CollectionStoryItem[]): Collection
 }
 
 async function getCollectionItems(collectionId: string): Promise<CollectionStoryItem[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("collection_items")
     .select(
       `id, collection_id, story_id, sort_order, note, created_at, stories(id, title, slug, public_code, cover_url, hook, ${CREATOR_PROFILE_STORY_JOIN})`
@@ -93,7 +96,7 @@ async function getCollectionItems(collectionId: string): Promise<CollectionStory
 
   const rows = data as unknown as CollectionItemRow[];
   const storyIds = rows.map((row) => row.story_id);
-  const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
+  const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, storyIds);
 
   return rows.map((row) => toStoryItem(row, taxonomyByStory));
 }
@@ -102,17 +105,17 @@ export async function getPublicCollectionsForUser(
   userId: string,
   page = 1
 ): Promise<{ items: CollectionSummary[]; total: number }> {
-  const supabase = await createClient();
+  const db = await createClient();
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
-  const { count, error: countError } = await supabase
+  const { count, error: countError } = await db
     .from("collections")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .eq("visibility", "public");
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("collections")
     .select(
       "id, user_id, title, description, visibility, cover_image_url, created_at, updated_at"
@@ -143,8 +146,8 @@ export async function getPublicCollectionForProfile(
   collection: CollectionSummary & { items: CollectionStoryItem[] };
   owner: { id: string; username: string; displayName: string; avatarUrl: string | null };
 } | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("collections")
     .select(
       "id, user_id, title, description, visibility, cover_image_url, created_at, updated_at, profiles!inner(id, username, display_name, avatar_url)"
@@ -177,7 +180,7 @@ export async function getPublicCollectionForProfile(
       id: profile.id,
       username: profile.username,
       displayName: profile.display_name ?? profile.username,
-      avatarUrl: profile.avatar_url
+      avatarUrl: profileAvatarUrlFromRow(profile)
     }
   };
 }

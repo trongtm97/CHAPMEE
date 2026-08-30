@@ -7,18 +7,19 @@ import { getMonetizationConfig } from "@/lib/monetization/config";
 import { calculateCreatorRevenue } from "@/lib/monetization/creator-revenue";
 import { getPurchaseUiPolicyForRequest } from "@/lib/payments/purchase-mode";
 import { trackServerEvent } from "@/lib/analytics/trackServerEvent";
-import { getChapterMonetizationSetting } from "@/lib/supabase/chapter-monetization";
+import { getChapterMonetizationSetting } from "@/lib/data/chapter-monetization";
 import {
   createChapterUnlock,
   getChapterUnlockByUser
-} from "@/lib/supabase/chapter-unlocks";
-import { getStoryFullAccessUnlock } from "@/lib/supabase/story-monetization";
+} from "@/lib/data/chapter-unlocks";
+import { getStoryFullAccessUnlock } from "@/lib/data/story-monetization";
 import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { recordCreatorNetEarning } from "@/lib/finance/record-creator-net-earning";
 import { calculateWalletBalance, debitUserCoins } from "@/lib/wallets/user-wallet";
 import { addRiskEvent, detectRapidSpendAfterRewardAds, shouldBlockTransaction, shouldHoldCreatorRevenue } from "@/lib/risk/risk-engine";
 import type { CoinLotAllocation } from "@/types/coin-lot";
+import { loadStoryOriginPolicy } from "@/lib/content-origin/load-story-origin-policy";
 
 function toNumber(value: unknown, fallback = 0) {
   const parsed = typeof value === "number" ? value : Number(value);
@@ -47,6 +48,11 @@ export async function getPaidChapterReaderState(input: {
   episodeNumber: number;
   content: string;
 }) {
+  const originPolicy = await loadStoryOriginPolicy(input.storyId);
+  if (!originPolicy.canSellChapters || !originPolicy.canUseCoinUnlock) {
+    return { locked: false as const };
+  }
+
   const config = await getMonetizationConfig({ includePrivate: true });
   const enabled =
     Boolean(config.settings["monetization.enabled"]) &&
@@ -122,6 +128,11 @@ export async function unlockPaidChapterAction(input: {
   storyId: string;
   requestId?: string;
 }) {
+  const originPolicy = await loadStoryOriginPolicy(input.storyId);
+  if (!originPolicy.canSellChapters || !originPolicy.canUseCoinUnlock) {
+    return { ok: false, error: "Story nay khong ho tro mo khoa bang coin." };
+  }
+
   const { user } = await getCurrentUser();
   if (!user) {
     return { ok: false, error: "Bạn cần đăng nhập để mở khóa chương." };
@@ -161,8 +172,8 @@ export async function unlockPaidChapterAction(input: {
     return { ok: true, alreadyUnlocked: true, error: null };
   }
 
-  const supabase = await createClient();
-  const { data: chapter } = await supabase
+  const db = await createClient();
+  const { data: chapter } = await db
     .from("episodes")
     .select("id, story_id, status, episode_number, stories(id, status, visibility, creator_profiles(user_id))")
     .eq("id", input.chapterId)
@@ -286,7 +297,7 @@ export async function unlockPaidChapterAction(input: {
     moduleType: "paid_chapter",
     creatorUserId,
     coinSpent: chapterPrice,
-    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1000),
+    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1),
     paidCoinAmount: debit.data.paid_coin_amount ?? 0,
     bonusCoinAmount: debit.data.bonus_coin_amount ?? 0,
     coinLotAllocations: ((debit.data.metadata?.coin_lot_allocations as CoinLotAllocation[] | undefined) ?? []),
@@ -330,7 +341,7 @@ export async function unlockPaidChapterAction(input: {
     storyId: input.storyId,
     chapterId: input.chapterId,
     coinAmount: chapterPrice,
-    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1000),
+    coinToVndRate: toNumber(config.settings["coin.exchange_rate_vnd"], 1),
     revenue,
     revenueStatus: creditStatus,
     transactionType: "chapter_unlock",
@@ -355,8 +366,8 @@ export async function unlockPaidChapterAction(input: {
   }
 
   const recentUnlocks = await createClient()
-    .then((supabase) =>
-      supabase
+    .then((db) =>
+      db
         .from("chapter_unlocks")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)

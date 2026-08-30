@@ -8,7 +8,7 @@ import {
   notifyBuyerQualityCoinRefund
 } from "@/lib/content-quality/notify-author-monetization";
 import { reverseCreatorEarningForQualityRefund } from "@/lib/finance/create-creator-revenue-adjustment";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { buildTransactionCode } from "@/lib/transactions/ledger";
 import { creditUserCoins } from "@/lib/wallets/user-wallet";
 
@@ -25,7 +25,7 @@ async function processRefundItem(input: {
   adminId: string;
   authorNote?: string | null;
 }) {
-  const supabase = await createClient();
+  const db = await createClient();
   const itemId = input.item.id as string;
   const userId = input.item.user_id as string;
   const batchId = input.batch.id as string;
@@ -35,7 +35,7 @@ async function processRefundItem(input: {
   const refundTotal = toNumber(input.item.refund_coin_amount);
   const originalTxId = input.item.original_transaction_id as string;
 
-  const { data: existingRefund } = await supabase
+  const { data: existingRefund } = await db
     .from("coin_refund_items")
     .select("id")
     .eq("original_transaction_id", originalTxId)
@@ -44,7 +44,7 @@ async function processRefundItem(input: {
     .maybeSingle();
 
   if (existingRefund?.id) {
-    await supabase
+    await db
       .from("coin_refund_items")
       .update({
         status: "skipped",
@@ -108,7 +108,7 @@ async function processRefundItem(input: {
     }
 
     if (unlockId) {
-      const { data: unlock } = await supabase
+      const { data: unlock } = await db
         .from("chapter_unlocks")
         .select("coin_amount, refunded_coin_amount, refund_status")
         .eq("id", unlockId)
@@ -118,7 +118,7 @@ async function processRefundItem(input: {
         const newRefunded =
           toNumber(unlock.refunded_coin_amount) + refundTotal;
         const fullyRefunded = newRefunded >= toNumber(unlock.coin_amount) - 0.01;
-        await supabase
+        await db
           .from("chapter_unlocks")
           .update({
             refunded_coin_amount: newRefunded,
@@ -154,7 +154,7 @@ async function processRefundItem(input: {
       }
     }
 
-    await supabase
+    await db
       .from("coin_refund_items")
       .update({
         status: "completed",
@@ -185,7 +185,7 @@ async function processRefundItem(input: {
     return { ok: true, coinRefunded: refundTotal, skipped: false };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Hoàn coin thất bại.";
-    await supabase
+    await db
       .from("coin_refund_items")
       .update({ status: "failed", error_message: message })
       .eq("id", itemId);
@@ -220,9 +220,9 @@ export async function confirmQualityCoinRefund(input: {
     return { ok: false, error: "Bạn cần xác nhận trước khi hoàn coin." };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: batch, error: batchError } = await supabase
+  const { data: batch, error: batchError } = await db
     .from("coin_refund_batches")
     .select("*")
     .eq("id", input.batchId)
@@ -246,7 +246,7 @@ export async function confirmQualityCoinRefund(input: {
 
   const storyId = (batch.quality_case_id as string) ?? (batch.target_id as string);
 
-  const { data: story } = await supabase
+  const { data: story } = await db
     .from("stories")
     .select("id, title, creator_id, creator_profiles(user_id)")
     .eq("id", storyId)
@@ -256,7 +256,7 @@ export async function confirmQualityCoinRefund(input: {
     return { ok: false, error: "Không tìm thấy truyện liên quan." };
   }
 
-  await supabase
+  await db
     .from("coin_refund_batches")
     .update({
       status: "processing",
@@ -267,7 +267,7 @@ export async function confirmQualityCoinRefund(input: {
     })
     .eq("id", input.batchId);
 
-  let itemQuery = supabase
+  let itemQuery = db
     .from("coin_refund_items")
     .select("*")
     .eq("batch_id", input.batchId);
@@ -312,7 +312,7 @@ export async function confirmQualityCoinRefund(input: {
         ? "failed"
         : "partial_failed";
 
-  await supabase
+  await db
     .from("coin_refund_batches")
     .update({
       status: finalStatus,
@@ -322,7 +322,7 @@ export async function confirmQualityCoinRefund(input: {
     })
     .eq("id", input.batchId);
 
-  await supabase.from("content_quality_reviews").insert({
+  await db.from("content_quality_reviews").insert({
     action_taken: "coin_refund_confirmed",
     attempt_number: 0,
     author_id: story.creator_id,

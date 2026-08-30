@@ -5,10 +5,12 @@ import { isContentStatusEnumError } from "@/lib/admin/content-review-queue-statu
 import { createModerationCase } from "@/lib/admin/createModerationCase";
 import { assertAnyPermission } from "@/lib/auth/require-permission";
 import { requireAdminOrModerator } from "@/lib/auth/requireAdminOrModerator";
-import { awardMilestone } from "@/lib/supabase/milestones";
+import { awardMilestone } from "@/lib/data/milestones";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { createNotification } from "@/lib/notifications/create-notification";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
+import { invalidateStoryCatalogCache } from "@/lib/stories/getPublicStoriesCatalogCached";
+import { ensureStoryPublicUrl } from "@/lib/stories/ensure-story-public-url";
 import type {
   ContentReviewActionKind,
   ContentReviewItemType,
@@ -55,12 +57,12 @@ async function notifyCreator(
 }
 
 async function resolveCreatorUserId(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   type: ContentReviewItemType,
   id: string
 ) {
   if (type === "story") {
-    const { data } = await supabase
+    const { data } = await db
       .from("stories")
       .select("title, creator_profiles(user_id)")
       .eq("id", id)
@@ -71,7 +73,7 @@ async function resolveCreatorUserId(
     return { userId: cp?.user_id as string | undefined, title: data?.title as string };
   }
   if (type === "episode") {
-    const { data } = await supabase
+    const { data } = await db
       .from("episodes")
       .select("title, stories(creator_profiles(user_id))")
       .eq("id", id)
@@ -99,7 +101,7 @@ export async function reviewContentAction(input: ReviewInput) {
     return { ok: false, error: "Vui lòng chọn lý do từ chối." };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date().toISOString();
   const auditMeta = {
     reason_code: input.reasonCode ?? null,
@@ -112,31 +114,38 @@ export async function reviewContentAction(input: ReviewInput) {
       const table = input.type === "story" ? "stories" : "episodes";
 
       if (input.action === "approve") {
-        const { data: current } = await supabase
+        const { data: current } = await db
           .from(table)
           .select("published_at, status")
           .eq("id", input.id)
           .maybeSingle();
 
-        const { error } = await supabase
+        const approvePatch: Record<string, unknown> = {
+          status: "approved",
+          published_at: current?.published_at ?? now,
+          reviewed_by: mod.profile.id,
+          reviewed_at: now,
+          rejection_reason_code: null,
+          rejection_note: null,
+          changes_requested_note: null
+        };
+
+        if (input.type === "story") {
+          approvePatch.visibility = "public";
+        }
+
+        const { error } = await db
           .from(table)
-          .update({
-            status: "approved",
-            published_at: current?.published_at ?? now,
-            reviewed_by: mod.profile.id,
-            reviewed_at: now,
-            rejection_reason_code: null,
-            rejection_note: null,
-            changes_requested_note: null
-          })
+          .update(approvePatch)
           .eq("id", input.id);
 
         if (error) return { ok: false, error: error.message };
 
         if (input.type === "story") {
-          const { userId, title } = await resolveCreatorUserId(supabase, "story", input.id);
+          await ensureStoryPublicUrl(db, input.id);
+          const { userId, title } = await resolveCreatorUserId(db, "story", input.id);
           if (userId) {
-            const { data: storyRow } = await supabase
+            const { data: storyRow } = await db
               .from("stories")
               .select("creator_id, title")
               .eq("id", input.id)
@@ -156,7 +165,7 @@ export async function reviewContentAction(input: ReviewInput) {
             });
           }
         } else {
-          const { userId, title } = await resolveCreatorUserId(supabase, "episode", input.id);
+          const { userId, title } = await resolveCreatorUserId(db, "episode", input.id);
           if (userId) {
             await notifyCreator(userId, "story_approved", {
               title: "Chương đã được duyệt",
@@ -176,7 +185,7 @@ export async function reviewContentAction(input: ReviewInput) {
           metadata: { ...auditMeta, new_status: "approved" }
         });
       } else if (input.action === "reject") {
-        const { error } = await supabase
+        const { error } = await db
           .from(table)
           .update({
             status: "rejected",
@@ -198,7 +207,7 @@ export async function reviewContentAction(input: ReviewInput) {
           targetType: input.type
         });
 
-        const { userId, title } = await resolveCreatorUserId(supabase, input.type, input.id);
+        const { userId, title } = await resolveCreatorUserId(db, input.type, input.id);
         if (userId) {
           await notifyCreator(userId, "story_rejected", {
             title: "Nội dung bị từ chối",
@@ -217,7 +226,7 @@ export async function reviewContentAction(input: ReviewInput) {
           metadata: { ...auditMeta, new_status: "rejected" }
         });
       } else {
-        const { error } = await supabase
+        const { error } = await db
           .from(table)
           .update({
             status: "changes_requested",
@@ -230,7 +239,7 @@ export async function reviewContentAction(input: ReviewInput) {
           .eq("id", input.id);
 
         if (error && isContentStatusEnumError(error.message)) {
-          const fallback = await supabase
+          const fallback = await db
             .from(table)
             .update({
               status: "draft",
@@ -246,7 +255,7 @@ export async function reviewContentAction(input: ReviewInput) {
           return { ok: false, error: error.message };
         }
 
-        const { userId, title } = await resolveCreatorUserId(supabase, input.type, input.id);
+        const { userId, title } = await resolveCreatorUserId(db, input.type, input.id);
         if (userId) {
           await notifyCreator(userId, "content_quality_needs_fix", {
             title: "Nội dung cần chỉnh sửa",
@@ -267,7 +276,7 @@ export async function reviewContentAction(input: ReviewInput) {
       }
     } else if (input.type === "community_post") {
       if (input.action === "approve") {
-        const { error } = await supabase
+        const { error } = await db
           .from("community_posts")
           .update({ status: "approved" })
           .eq("id", input.id)
@@ -281,7 +290,7 @@ export async function reviewContentAction(input: ReviewInput) {
           metadata: auditMeta
         });
       } else {
-        const { error } = await supabase
+        const { error } = await db
           .from("community_posts")
           .update({ status: "rejected" })
           .eq("id", input.id);
@@ -296,7 +305,7 @@ export async function reviewContentAction(input: ReviewInput) {
       }
     } else if (input.type === "comment") {
       const status = input.action === "approve" ? "visible" : "hidden";
-      const { error } = await supabase
+      const { error } = await db
         .from("comments")
         .update({ status })
         .eq("id", input.id);
@@ -313,6 +322,12 @@ export async function reviewContentAction(input: ReviewInput) {
     revalidatePath("/admin/content");
     revalidatePath("/admin");
     revalidatePath("/studio");
+    revalidatePath("/truyen");
+    revalidatePath("/truyen-dich");
+    revalidatePath("/truyen-sang-tac");
+    if (input.type === "story") {
+      invalidateStoryCatalogCache();
+    }
 
     return {
       ok: true,

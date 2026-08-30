@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import type { AdFraudDashboard } from "@/types/ad-fraud";
 
 export async function getAdFraudDashboard(): Promise<{
@@ -6,19 +6,19 @@ export async function getAdFraudDashboard(): Promise<{
   error: string | null;
 }> {
   try {
-    const supabase = createAdminClient();
+    const db = createAdminClient();
 
     const [openRes, criticalRes, heldRes] = await Promise.all([
-      supabase
+      db
         .from("ad_fraud_signals")
         .select("id", { count: "exact", head: true })
         .eq("status", "open"),
-      supabase
+      db
         .from("ad_fraud_signals")
         .select("id", { count: "exact", head: true })
         .eq("status", "open")
         .in("severity", ["critical", "high"]),
-      supabase
+      db
         .from("ad_revenue_creator_allocations")
         .select("author_id, final_payable_vnd")
         .eq("status", "held")

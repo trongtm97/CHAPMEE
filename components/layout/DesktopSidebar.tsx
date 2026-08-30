@@ -1,20 +1,11 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
-import {
-  ArticleNavIcon,
-  CommunityNavIcon,
-  DiscoverNavIcon,
-  LibraryNavIcon,
-  ProfileNavIcon,
-  ReelsNavIcon,
-  StudioNavIcon,
-  WalletNavIcon
-} from "@/components/navigation/AppNavIcons";
+import { StudioNavIcon, WalletNavIcon, ProfileNavIcon } from "@/components/navigation/AppNavIcons";
+import { isNavActive, SIDEBAR_EXPLORE_NAV } from "@/lib/navigation/nav-items";
 
 type SidebarLink = {
   href: string;
@@ -22,25 +13,50 @@ type SidebarLink = {
   icon: (props: { className?: string; active?: boolean }) => ReactNode;
 };
 
-const readerLinks: SidebarLink[] = [
-  { href: "/reels", label: "Reels", icon: ReelsNavIcon },
-  { href: "/discover", label: "Khám phá", icon: DiscoverNavIcon },
-  { href: "/truyen", label: "Danh mục truyện", icon: LibraryNavIcon },
-  { href: "/community", label: "Cộng đồng", icon: CommunityNavIcon },
-  { href: "/bai-viet", label: "Bài viết", icon: ArticleNavIcon },
+const accountLinks: SidebarLink[] = [
   { href: "/studio", label: "Studio", icon: StudioNavIcon },
-  { href: "/wallet", label: "Ví coin", icon: WalletNavIcon },
+  { href: "/wallet", label: "Ví Xu", icon: WalletNavIcon },
   { href: "/me", label: "Hồ sơ", icon: ProfileNavIcon }
 ];
 
-function isActive(pathname: string, href: string) {
-  if (href === "/reels") {
-    return pathname === "/" || pathname.startsWith("/reels");
-  }
-  if (href === "/discover") {
-    return pathname.startsWith("/discover");
-  }
-  return pathname.startsWith(href);
+function SidebarSection({
+  title,
+  links,
+  pathname,
+  tab
+}: {
+  title?: string;
+  links: SidebarLink[];
+  pathname: string;
+  tab: string | null;
+}) {
+  return (
+    <div className="space-y-0.5">
+      {title ? (
+        <p className="px-2 pb-1 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-zinc-500">
+          {title}
+        </p>
+      ) : null}
+      {links.map((link) => {
+        const active = isNavActive(pathname, link.href, tab);
+        const Icon = link.icon;
+        return (
+          <Link
+            className={`flex items-center gap-2 rounded-lg px-2 py-2 text-[0.8125rem] font-semibold transition ${
+              active
+                ? "bg-cyan-300/12 text-cyan-100"
+                : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-100"
+            }`}
+            href={link.href}
+            key={link.href}
+          >
+            <Icon active={active} className="size-[1.125rem] shrink-0" />
+            {link.label}
+          </Link>
+        );
+      })}
+    </div>
+  );
 }
 
 type DesktopSidebarProps = {
@@ -53,51 +69,18 @@ export function DesktopSidebar({ adminMode = false }: DesktopSidebarProps) {
   }
 
   const pathname = usePathname();
-  const [searchValue, setSearchValue] = useState("");
-  const links = readerLinks;
-  const filteredLinks = useMemo(() => {
-    const normalizedSearch = searchValue.trim().toLowerCase();
-    if (!normalizedSearch) {
-      return links;
-    }
-    return links.filter((link) => link.label.toLowerCase().includes(normalizedSearch));
-  }, [links, searchValue]);
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab");
+
+  const exploreLinks: SidebarLink[] = SIDEBAR_EXPLORE_NAV.filter(
+    (item): item is SidebarLink => Boolean(item.icon)
+  );
 
   return (
-    <aside className="sticky top-0 hidden h-dvh w-[260px] shrink-0 border-r border-white/10 bg-[#0a1017]/95 lg:flex lg:flex-col">
-      <div className="border-b border-white/10 px-4 py-4">
-        <label className="sr-only" htmlFor="desktop-nav-search">
-          Tìm kiếm điều hướng
-        </label>
-        <input
-          className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-cyan-300/50 focus:outline-none"
-          id="desktop-nav-search"
-          onChange={(event) => setSearchValue(event.target.value)}
-          placeholder="Tìm kiếm..."
-          type="search"
-          value={searchValue}
-        />
-      </div>
-
-      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-4">
-        {filteredLinks.map((link) => {
-          const active = isActive(pathname, link.href);
-          const Icon = link.icon;
-          return (
-            <Link
-              className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                active
-                  ? "bg-cyan-300/15 text-cyan-200"
-                  : "text-zinc-300 hover:bg-white/5 hover:text-white"
-              }`}
-              href={link.href}
-              key={link.href}
-            >
-              <Icon active={active} className="size-5 shrink-0" />
-              {link.label}
-            </Link>
-          );
-        })}
+    <aside className="sticky top-12 hidden h-[calc(100dvh-3rem)] w-[220px] shrink-0 border-r border-white/10 bg-[#0a1017]/95 lg:flex lg:flex-col">
+      <nav className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-2 py-3">
+        <SidebarSection links={exploreLinks} pathname={pathname} tab={tab} />
+        <SidebarSection links={accountLinks} pathname={pathname} tab={tab} title="Cá nhân" />
       </nav>
     </aside>
   );

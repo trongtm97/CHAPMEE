@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { revalidatePublicProfilePaths } from "@/lib/profile/revalidate-public-profile";
 import type { ProfilePrivacySettings } from "@/types/public-profile";
 import { ensureProfilePrivacySettings } from "@/lib/profile/get-profile-privacy";
@@ -21,11 +21,11 @@ export async function updateProfilePrivacyAction(
   _previous: UpdateProfilePrivacyState,
   formData: FormData
 ): Promise<UpdateProfilePrivacyState> {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user },
     error: authError
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (authError || !user) {
     redirect("/login?next=/me/settings/privacy");
@@ -66,7 +66,7 @@ export async function updateProfilePrivacyAction(
 
   const current = await ensureProfilePrivacySettings(user.id);
 
-  const { error } = await supabase
+  const { error } = await db
     .from("profile_privacy_settings")
     .upsert({
       user_id: user.id,
@@ -91,7 +91,7 @@ export async function updateProfilePrivacyAction(
 
   const allowDm = payload.allow_dm ?? current.allowDm;
   await ensureMessagePrivacySettings(user.id);
-  await supabase
+  await db
     .from("message_privacy_settings")
     .update({
       who_can_message: allowDm ? "followers_only" : "no_one",
@@ -102,7 +102,7 @@ export async function updateProfilePrivacyAction(
 
   revalidatePath("/me/settings/messages");
 
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from("profiles")
     .select("username")
     .eq("id", user.id)

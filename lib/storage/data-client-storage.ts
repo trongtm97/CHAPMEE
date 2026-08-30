@@ -1,7 +1,8 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
-  PutObjectCommand
+  PutObjectCommand,
+  type PutObjectCommandInput
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { StorageClient } from "@/lib/db/types";
@@ -9,9 +10,22 @@ import {
   deleteObject,
   getMediaS3Bucket,
   getPublicMediaUrl,
-  getS3Client
+  getS3Client,
+  getXacminhS3Bucket,
+  isXacminhBucket
 } from "@/lib/storage/s3";
 import { resolveStorageObjectKey } from "@/lib/storage/resolve-storage-key";
+
+function resolveS3Bucket(logicalBucket: string): string {
+  if (isXacminhBucket(logicalBucket)) {
+    return getXacminhS3Bucket();
+  }
+  return getMediaS3Bucket();
+}
+
+function shouldSetPublicAcl(logicalBucket: string): boolean {
+  return !isXacminhBucket(logicalBucket);
+}
 
 async function toBuffer(
   body: ArrayBuffer | Buffer | Blob | File | Uint8Array
@@ -34,14 +48,17 @@ export function createStorageNamespace(): StorageClient {
           try {
             const buffer = await toBuffer(body);
             const objectKey = resolveStorageObjectKey(bucket, path);
-            await getS3Client().send(
-              new PutObjectCommand({
-                Bucket: getMediaS3Bucket(),
-                Key: objectKey,
-                Body: buffer,
-                ContentType: options?.contentType
-              })
-            );
+            const s3Bucket = resolveS3Bucket(bucket);
+            const command: PutObjectCommandInput = {
+              Bucket: s3Bucket,
+              Key: objectKey,
+              Body: buffer,
+              ContentType: options?.contentType
+            };
+            if (shouldSetPublicAcl(bucket)) {
+              command.ACL = "public-read";
+            }
+            await getS3Client().send(new PutObjectCommand(command));
             return { data: { path: objectKey }, error: null };
           } catch (error) {
             return {
@@ -55,10 +72,11 @@ export function createStorageNamespace(): StorageClient {
         async remove(paths) {
           try {
             const objectKeys = paths.map((path) => resolveStorageObjectKey(bucket, path));
+            const s3Bucket = resolveS3Bucket(bucket);
             await Promise.all(
               objectKeys.map((objectKey) =>
                 getS3Client().send(
-                  new DeleteObjectCommand({ Bucket: getMediaS3Bucket(), Key: objectKey })
+                  new DeleteObjectCommand({ Bucket: s3Bucket, Key: objectKey })
                 )
               )
             );
@@ -79,9 +97,10 @@ export function createStorageNamespace(): StorageClient {
         async createSignedUrl(path, expiresIn) {
           try {
             const objectKey = resolveStorageObjectKey(bucket, path);
+            const s3Bucket = resolveS3Bucket(bucket);
             const signedUrl = await getSignedUrl(
               getS3Client(),
-              new GetObjectCommand({ Bucket: getMediaS3Bucket(), Key: objectKey }),
+              new GetObjectCommand({ Bucket: s3Bucket, Key: objectKey }),
               { expiresIn }
             );
             return { data: { signedUrl }, error: null };

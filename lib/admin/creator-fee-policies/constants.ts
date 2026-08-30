@@ -4,42 +4,48 @@ export const CREATOR_FEE_REVENUE_SOURCES = [
     label: "Chương trả phí",
     moduleKey: "paid_chapter",
     creatorConfigKey: "revenue_share.paid_chapter_creator_percent",
-    platformConfigKey: "revenue_share.paid_chapter_platform_percent"
+    platformConfigKey: "revenue_share.paid_chapter_platform_percent",
+    useDefaultConfigKey: "revenue_share.paid_chapter_use_default"
   },
   {
     id: "tip" as const,
     label: "Tip",
     moduleKey: "tip",
     creatorConfigKey: "revenue_share.tip_creator_percent",
-    platformConfigKey: "revenue_share.tip_platform_percent"
+    platformConfigKey: "revenue_share.tip_platform_percent",
+    useDefaultConfigKey: "revenue_share.tip_use_default"
   },
   {
     id: "early_access" as const,
     label: "Truy cập sớm",
     moduleKey: "early_access",
     creatorConfigKey: "revenue_share.early_access_creator_percent",
-    platformConfigKey: "revenue_share.early_access_platform_percent"
+    platformConfigKey: "revenue_share.early_access_platform_percent",
+    useDefaultConfigKey: "revenue_share.early_access_use_default"
   },
   {
     id: "vip_subscription" as const,
     label: "VIP subscription",
     moduleKey: "vip_pool",
     creatorConfigKey: "revenue_share.vip_creator_pool_percent",
-    platformConfigKey: "revenue_share.platform_fee_percent"
+    platformConfigKey: "revenue_share.platform_fee_percent",
+    useDefaultConfigKey: "revenue_share.vip_use_default"
   },
   {
     id: "fan_club_subscription" as const,
     label: "Fan club",
     moduleKey: "fan_club",
     creatorConfigKey: "revenue_share.fan_club_creator_percent",
-    platformConfigKey: "revenue_share.fan_club_platform_percent"
+    platformConfigKey: "revenue_share.fan_club_platform_percent",
+    useDefaultConfigKey: "revenue_share.fan_club_use_default"
   },
   {
     id: "virtual_gift" as const,
     label: "Quà ảo",
     moduleKey: "gift",
     creatorConfigKey: "revenue_share.gift_creator_percent",
-    platformConfigKey: "revenue_share.gift_platform_percent"
+    platformConfigKey: "revenue_share.gift_platform_percent",
+    useDefaultConfigKey: "revenue_share.gift_use_default"
   },
   {
     id: "rewarded_ads" as const,

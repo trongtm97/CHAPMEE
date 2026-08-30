@@ -12,14 +12,14 @@ import {
   updateBankAccount
 } from "@/lib/finance/bank-account-actions";
 import { getCreatorTransactionDetail } from "@/lib/finance/get-creator-transaction-detail";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { PayoutMethod } from "@/types/payout";
 
 async function getCurrentCreatorUserId() {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
   return user?.id ?? null;
 }
 

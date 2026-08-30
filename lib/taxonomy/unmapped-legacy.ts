@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   legacyFieldToTaxonomyType,
   suggestLegacyTaxonomyMapping,
@@ -18,8 +18,8 @@ export type UnmappedLegacyRow = {
 };
 
 async function loadActiveTermKeys(): Promise<Set<string>> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("taxonomy_terms")
     .select("type, slug")
     .eq("is_active", true);
@@ -63,7 +63,7 @@ export async function findUnmappedLegacyTaxonomyValues(): Promise<{
   rows: UnmappedLegacyRow[];
   error: string | null;
 }> {
-  const supabase = await createClient();
+  const db = await createClient();
   const termKeys = await loadActiveTermKeys();
   const aggregates = new Map<string, { field: LegacyField; value: string; count: number }>();
 
@@ -79,7 +79,7 @@ export async function findUnmappedLegacyTaxonomyValues(): Promise<{
     }
   }
 
-  const { data: mainGenreLinks } = await supabase
+  const { data: mainGenreLinks } = await db
     .from("story_taxonomy_terms")
     .select("story_id")
     .eq("type", "main_genre");
@@ -88,7 +88,7 @@ export async function findUnmappedLegacyTaxonomyValues(): Promise<{
     (mainGenreLinks ?? []).map((row) => String(row.story_id))
   );
 
-  const { data: publicStories } = await supabase
+  const { data: publicStories } = await db
     .from("stories")
     .select("id, title")
     .eq("visibility", "public")
@@ -105,7 +105,7 @@ export async function findUnmappedLegacyTaxonomyValues(): Promise<{
     bump("genre", "Thiếu main_genre taxonomy", missingMainGenre);
   }
 
-  const { data: tropeLinks } = await supabase
+  const { data: tropeLinks } = await db
     .from("story_taxonomy_terms")
     .select("story_id")
     .in("type", ["trope_tag", "subgenre"]);
@@ -124,7 +124,7 @@ export async function findUnmappedLegacyTaxonomyValues(): Promise<{
     bump("tag", "Thiếu trope/subgenre taxonomy", missingTags);
   }
 
-  const { data: ageStories } = await supabase
+  const { data: ageStories } = await db
     .from("stories")
     .select("age_rating")
     .not("age_rating", "is", null);

@@ -140,6 +140,13 @@ export function showTitle(item: CommunityFeedItem) {
     return false;
   }
 
+  if (
+    item.sourcePostType === "discussion" &&
+    (item.kind === "user_post" || item.kind === "story_group_post")
+  ) {
+    return false;
+  }
+
   return Boolean(item.title);
 }
 
@@ -150,7 +157,7 @@ export function ctaForItem(item: CommunityFeedItem) {
     case "author_reply":
       return { label: "Xem trả lời →", href: threadHref(item) };
     case "challenge":
-      return { label: "Viết bài dự thi →", href: "/community/new?type=challenge" };
+      return { label: "Viết bài dự thi →", href: "/community" };
     case "story_group_post":
     case "chapter_discussion":
       return { label: "Vào nhóm →", href: storyGroupHref(item) };

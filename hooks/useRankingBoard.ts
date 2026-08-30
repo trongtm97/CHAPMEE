@@ -1,14 +1,20 @@
 "use client";
 
 import { useEffect, useReducer, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type {
   RankingBoardItem,
   RankingBoardResult,
+  RankingTimeWindow,
   RankingUiTab,
   RankingUiTabId
 } from "@/types/ranking-board";
 import { findRankingTabById, RANKING_UI_TABS } from "@/types/ranking-board";
 import { isAbortError, useLatestRequestGuard } from "@/hooks/useLatestRequestGuard";
+import {
+  parseRankingRangeParam,
+  rankingRangeToQueryParam
+} from "@/lib/ranking/parse-ranking-range";
 
 type BoardState = {
   result: RankingBoardResult | null;
@@ -38,18 +44,24 @@ async function fetchBoard(params: {
   tab: RankingUiTab;
   genreSlug: string | null;
   page: number;
+  timeWindow: RankingTimeWindow;
+  useRangeParam: boolean;
   signal?: AbortSignal;
 }) {
   const query = new URLSearchParams({
     type: params.tab.boardType,
-    window: params.tab.timeWindow,
     page: String(params.page)
   });
+  if (params.useRangeParam) {
+    query.set("range", rankingRangeToQueryParam(params.timeWindow));
+  } else {
+    query.set("window", params.timeWindow);
+  }
   if (params.genreSlug) {
     query.set("genre", params.genreSlug);
   }
 
-  const response = await fetch(`/api/rankings/board?${query.toString()}`, {
+  const response = await fetch(`/api/bang-xep-hang/board?${query.toString()}`, {
     signal: params.signal
   });
   if (!response.ok) {
@@ -60,11 +72,26 @@ async function fetchBoard(params: {
 
 export function useRankingBoard(
   initialTabId: RankingUiTabId = "week",
-  initialGenreSlug: string | null = null
+  initialGenreSlug: string | null = null,
+  options?: { syncRangeToUrl?: boolean }
 ) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const syncRangeToUrl =
+    options?.syncRangeToUrl ?? pathname.includes("/bang-xep-hang/duoc-de-cu");
+
+  const initialWindow = syncRangeToUrl
+    ? parseRankingRangeParam(searchParams.get("range"), searchParams.get("window"))
+    : findRankingTabById(initialTabId).timeWindow;
+  const initialPage = syncRangeToUrl
+    ? Math.max(1, Number(searchParams.get("page") ?? "1") || 1)
+    : 1;
+
   const [activeTabId, setActiveTabId] = useState<RankingUiTabId>(initialTabId);
   const [genreSlug, setGenreSlug] = useState<string | null>(initialGenreSlug);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(initialPage);
+  const [timeWindow, setTimeWindow] = useState<RankingTimeWindow>(initialWindow);
   const [state, dispatch] = useReducer(boardReducer, {
     result: null,
     loading: true,
@@ -73,6 +100,21 @@ export function useRankingBoard(
   const requestGuard = useLatestRequestGuard();
 
   const activeTab = findRankingTabById(activeTabId);
+
+  useEffect(() => {
+    setActiveTabId(initialTabId);
+    setGenreSlug(initialGenreSlug);
+    if (!syncRangeToUrl) {
+      setPage(1);
+      setTimeWindow(findRankingTabById(initialTabId).timeWindow);
+    }
+  }, [initialTabId, initialGenreSlug, syncRangeToUrl]);
+
+  useEffect(() => {
+    if (syncRangeToUrl) return;
+    setTimeWindow(activeTab.timeWindow);
+    setPage(1);
+  }, [activeTab.id, activeTab.timeWindow, syncRangeToUrl]);
 
   useEffect(() => {
     const requestId = requestGuard.nextRequestId();
@@ -85,6 +127,8 @@ export function useRankingBoard(
           tab: activeTab,
           genreSlug: activeTab.showGenreFilter ? genreSlug : null,
           page,
+          timeWindow,
+          useRangeParam: syncRangeToUrl,
           signal: controller.signal
         });
         if (!requestGuard.onlyLatest(requestId)) {
@@ -99,14 +143,28 @@ export function useRankingBoard(
         if (isAbortError(error) || !requestGuard.onlyLatest(requestId)) {
           return;
         }
-        dispatch({ type: "error", error: "Khong the tai du lieu xep hang." });
+        dispatch({ type: "error", error: "Không thể tải dữ liệu xếp hạng." });
       }
     })();
 
     return () => {
       controller.abort();
     };
-  }, [activeTab, genreSlug, page, requestGuard]);
+  }, [activeTab, genreSlug, page, timeWindow, requestGuard, syncRangeToUrl]);
+
+  useEffect(() => {
+    if (!syncRangeToUrl) return;
+    const params = new URLSearchParams();
+    params.set("range", rankingRangeToQueryParam(timeWindow));
+    if (page > 1) {
+      params.set("page", String(page));
+    }
+    const next = `${pathname}?${params.toString()}`;
+    const current = `${pathname}?${searchParams.toString()}`;
+    if (next !== current) {
+      router.replace(next, { scroll: false });
+    }
+  }, [syncRangeToUrl, timeWindow, page, pathname, router, searchParams]);
 
   const setActiveTab = (tabId: RankingUiTabId) => {
     setActiveTabId(tabId);
@@ -123,12 +181,19 @@ export function useRankingBoard(
       setGenreSlug(slug);
       setPage(1);
     },
+    timeWindow,
+    setTimeWindow: (window: RankingTimeWindow) => {
+      setTimeWindow(window);
+      setPage(1);
+    },
     page,
     setPage,
     items: (state.result?.items ?? []) as RankingBoardItem[],
     totalPages: state.result?.totalPages ?? 0,
     totalCount: state.result?.totalCount ?? 0,
     snapshotAt: state.result?.snapshotAt ?? null,
+    fallbackNote: state.result?.fallbackNote ?? null,
+    metricsNote: state.result?.metricsNote ?? null,
     loading: state.loading,
     error: state.error
   };

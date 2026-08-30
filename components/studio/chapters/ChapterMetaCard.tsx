@@ -1,10 +1,11 @@
 "use client";
 
 import { Input } from "@/components/ui";
-import { buildChapterUrlPreview } from "@/lib/chapters/chapter-url-preview";
-import { slugifyVietnamese } from "@/lib/seo/slugify-vi";
+import { PublicCodeCopy } from "@/components/studio/import/PublicCodeCopy";
+import { buildChapterUrlPreview } from "@/lib/chapters/chapter-url-preview";import { slugifyVietnamese } from "@/lib/seo/slugify-vi";
 
 type ChapterMetaCardProps = {
+  chapterPublicCode?: string | null;
   disabled?: boolean;
   episodeNumber: number;
   onEpisodeNumberChange: (value: number) => void;
@@ -17,8 +18,8 @@ type ChapterMetaCardProps = {
 };
 
 export function ChapterMetaCard({
-  disabled = false,
-  episodeNumber,
+  chapterPublicCode,
+  disabled = false,  episodeNumber,
   numberError,
   onEpisodeNumberChange,
   onTitleChange,
@@ -69,15 +70,24 @@ export function ChapterMetaCard({
             label="Tiêu đề chương"
             name="title"
             onChange={(event) => onTitleChange(event.target.value)}
-            placeholder="Tiêu đề chương"
-            required
+            placeholder="Tiêu đề chương (tuỳ chọn)"
             value={title}
           />
         </div>
       </div>
 
-      <details className="mt-4 rounded-xl border border-white/10 bg-black/20">
-        <summary className="cursor-pointer px-3 py-2.5 text-sm font-semibold text-zinc-300">
+      {chapterPublicCode ? (
+        <div className="mt-4">
+          <PublicCodeCopy code={chapterPublicCode} label="Mã chương (chapter_code)" />
+        </div>
+      ) : (
+        <p className="mt-4 text-xs leading-5 text-zinc-500">
+          Mã chương (chapter_code) được cấp sau khi lưu lần đầu — dùng cho nhập/cập nhật CSV hàng
+          loạt.
+        </p>
+      )}
+
+      <details className="mt-4 rounded-xl border border-white/10 bg-black/20">        <summary className="cursor-pointer px-3 py-2.5 text-sm font-semibold text-zinc-300">
           Đường dẫn &amp; SEO nâng cao
         </summary>
         <div className="space-y-3 border-t border-white/10 px-3 py-3 text-sm">

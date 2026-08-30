@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getStoryFormData } from "@/lib/creator/getStoryFormData";
 import { getStudioAccess } from "@/lib/creator/getStudioAccess";
 import { updateStandaloneStoryContentAction } from "@/lib/creator/updateStandaloneStoryContent";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { isStandaloneStory, mapStoryStructureFromRow } from "@/lib/stories/story-structure";
 import { studioStoryEditHref } from "@/lib/studio/ownership";
 
@@ -36,8 +36,8 @@ export default async function StandaloneContentPage({
     notFound();
   }
 
-  const supabase = await createClient();
-  const { data: structureRow } = await supabase
+  const db = await createClient();
+  const { data: structureRow } = await db
     .from("stories")
     .select(
       "structure_type, content_format, standalone_content_json, standalone_plain_text, standalone_word_count, standalone_reading_time_minutes, standalone_published_at, standalone_updated_at"

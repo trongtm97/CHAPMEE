@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 
 export type AdminAuditAction =
   | "role_assigned"
@@ -20,6 +20,7 @@ export type AdminAuditAction =
   | "reject_story"
   | "remove_content"
   | "update_app_settings"
+  | "update_footer_settings"
   | "monetization_settings.update"
   | "adjust_wallet"
   | "approve_payout"
@@ -136,8 +137,8 @@ export type LogAdminActionInput = {
 };
 
 export async function logAdminAction(input: LogAdminActionInput) {
-  const supabase = await createClient();
-  const { error } = await supabase.from("admin_audit_logs").insert({
+  const db = await createClient();
+  const { error } = await db.from("admin_audit_logs").insert({
     actor_id: input.actorId,
     action: input.action,
     target_type: input.targetType ?? null,

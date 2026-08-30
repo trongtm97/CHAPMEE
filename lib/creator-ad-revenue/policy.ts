@@ -1,5 +1,5 @@
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/data/admin";
+import { createClient } from "@/lib/data/server";
 import { updateAdRevenueEstimateSettings } from "@/lib/ads/ad-revenue-settings";
 import { DEFAULT_CREATOR_AD_REVENUE_POLICY_TEXT } from "@/lib/creator-ad-revenue/default-policy-text";
 import { logCreatorAdPolicyAudit } from "@/lib/creator-ad-revenue/audit";
@@ -90,8 +90,8 @@ export async function getCreatorAdRevenuePolicy(options?: {
   useAdmin?: boolean;
 }): Promise<CreatorAdRevenuePolicy> {
   try {
-    const supabase = options?.useAdmin ? createAdminClient() : await createClient();
-    const { data, error } = await supabase
+    const db = options?.useAdmin ? createAdminClient() : await createClient();
+    const { data, error } = await db
       .from("creator_ad_revenue_policy")
       .select("*")
       .eq("id", CREATOR_AD_REVENUE_POLICY_ID)
@@ -113,7 +113,7 @@ export async function updateCreatorAdRevenuePolicy(
 ): Promise<{ policy: CreatorAdRevenuePolicy | null; error: string | null }> {
   try {
     const before = await getCreatorAdRevenuePolicy({ useAdmin: true });
-    const supabase = createAdminClient();
+    const db = createAdminClient();
     const patch: Record<string, unknown> = { updated_by: actorId };
 
     const keys: (keyof CreatorAdRevenuePolicyInput)[] = [
@@ -155,7 +155,7 @@ export async function updateCreatorAdRevenuePolicy(
       }
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("creator_ad_revenue_policy")
       .update(patch)
       .eq("id", CREATOR_AD_REVENUE_POLICY_ID)

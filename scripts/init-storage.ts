@@ -180,6 +180,18 @@ async function main() {
     printMcFallback(bucket);
   }
 
+  const xacminhBucket = process.env.S3_XACMINH_BUCKET?.trim();
+  if (xacminhBucket) {
+    const xExists = await bucketExists(client, xacminhBucket);
+    if (!xExists) {
+      console.log(`Creating xacminh bucket: ${xacminhBucket}`);
+      await client.send(new CreateBucketCommand({ Bucket: xacminhBucket }));
+    } else {
+      console.log(`Xacminh bucket exists: ${xacminhBucket}`);
+    }
+    console.log("Xacminh bucket is PRIVATE — no public-read policy applied.");
+  }
+
   console.log("\nNext: npm run storage:check");
   console.log("Never store full public URLs in the database — use media_asset_id / object_key only.");
 }

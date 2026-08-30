@@ -1,6 +1,13 @@
 import type { CollectionSummary } from "@/types/collection";
-import type { ProfileBadge, ProfileStat } from "@/types/profile";
+import type {
+  ProfileAchievement,
+  ProfileBadge,
+  ProfileStat
+} from "@/types/profile";
 import type { BadgeViewItem } from "@/types/badge";
+import type { TopFanPerson } from "@/types/fan";
+import type { MilestoneViewItem } from "@/types/milestone";
+import type { SupporterRankingItem } from "@/types/tip";
 import type { PublicVerificationBadge } from "@/types/verification";
 
 export type ProfilePrivacySettings = {
@@ -19,7 +26,16 @@ export type ProfilePrivacySettings = {
   updatedAt: string;
 };
 
+/** Canonical public profile tabs. */
 export type PublicProfileTab =
+  | "stories"
+  | "reels"
+  | "community"
+  | "achievements"
+  | "about";
+
+/** Legacy query `tab` values still accepted in routes. */
+export type LegacyPublicProfileTab =
   | "collections"
   | "activity"
   | "comments"
@@ -39,10 +55,15 @@ export type PublicProfileUser = {
   verification: PublicVerificationBadge | null;
 };
 
+export type PublicProfileFollowTarget =
+  | { type: "user"; userId: string }
+  | { type: "creator"; creatorId: string };
+
 export type PublicProfileViewer = {
   userId: string | null;
   isOwner: boolean;
   isFollowing: boolean;
+  followTarget: PublicProfileFollowTarget | null;
 };
 
 export type PublicActivityItem = {
@@ -73,10 +94,54 @@ export type PublicWorkItem = {
   coverUrl: string | null;
   chapterCount: number;
   readCount: number | null;
+  readCountLabel: string | null;
+  likeCount: number | null;
+  likeCountLabel: string | null;
   statusLabel: string;
   authorName: string | null;
+  genreName: string | null;
+  updatedAt: string | null;
   structureType: "chaptered" | "standalone";
   standaloneReadingTimeMinutes: number;
+  hasPublishedAudio?: boolean;
+  hasContinuousPlayback?: boolean;
+};
+
+export type PublicWorksSort = "updated" | "published" | "popular";
+
+export type PublicCommunityPostItem = {
+  id: string;
+  type: string;
+  title: string;
+  excerpt: string;
+  storyTitle: string | null;
+  storySlug: string | null;
+  storyPublicCode: string | null;
+  createdAt: string;
+  href: string;
+};
+
+export type PublicReelItem = {
+  id: string;
+  title: string;
+  excerpt: string;
+  coverUrl: string | null;
+  viewCount: number;
+  publishedAt: string | null;
+  href: string;
+};
+
+export type PublicProfileCreatorExtras = {
+  achievements: ProfileAchievement[];
+  milestones: MilestoneViewItem[];
+  topFans: TopFanPerson[];
+  supporters: SupporterRankingItem[];
+  showSupportersSection: boolean;
+  showTopFansSection: boolean;
+  featuredWork: PublicWorkItem | null;
+  totalReads: number;
+  totalLikes: number;
+  storiesCount: number;
 };
 
 export type PublicProfileMessaging = {
@@ -104,12 +169,18 @@ export type PublicProfilePageData = {
   activitiesTotal: number;
   commentsTotal: number;
   worksTotal: number;
+  communityPosts: PublicCommunityPostItem[];
+  communityPostsTotal: number;
+  reels: PublicReelItem[];
+  reelsTotal: number;
+  readerAchievements: ProfileAchievement[];
+  creator: PublicProfileCreatorExtras | null;
 };
 
 export const DEFAULT_PROFILE_PRIVACY: Omit<ProfilePrivacySettings, "userId" | "updatedAt"> = {
-  showPublicCollections: true,
-  showPublicActivities: true,
-  showPublicComments: true,
+  showPublicCollections: false,
+  showPublicActivities: false,
+  showPublicComments: false,
   showBadges: true,
   showCreatorWorks: true,
   showReadingHistory: false,

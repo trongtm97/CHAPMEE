@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { MESSAGE_SAFETY_WARNING } from "@/lib/moderation/message-safety";
 import { runMessageSafetyCheck } from "@/lib/messaging/check-message-safety";
 import { logMessageSafetyDecision } from "@/lib/messaging/log-message-safety-decision";
@@ -31,9 +31,9 @@ async function updateConversationPreview(
   conversationId: string,
   preview: string
 ) {
-  const supabase = await createClient();
+  const db = await createClient();
   const trimmed = preview.length > 120 ? `${preview.slice(0, 117)}...` : preview;
-  await supabase
+  await db
     .from("conversations")
     .update({
       last_message_at: new Date().toISOString(),
@@ -45,15 +45,15 @@ async function updateConversationPreview(
 }
 
 async function areMutualFollowers(userA: string, userB: string): Promise<boolean> {
-  const supabase = await createClient();
+  const db = await createClient();
   const [{ data: aFollowsB }, { data: bFollowsA }] = await Promise.all([
-    supabase
+    db
       .from("user_follows")
       .select("id")
       .eq("follower_id", userA)
       .eq("following_id", userB)
       .maybeSingle(),
-    supabase
+    db
       .from("user_follows")
       .select("id")
       .eq("follower_id", userB)
@@ -112,9 +112,9 @@ export async function sendMessage(input: {
     return { ok: false, error: dup.error };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: otherParticipant } = await supabase
+  const { data: otherParticipant } = await db
     .from("conversation_participants")
     .select("user_id")
     .eq("conversation_id", input.conversationId)
@@ -128,7 +128,7 @@ export async function sendMessage(input: {
   const otherUserId = otherParticipant.user_id as string;
   const mutual = await areMutualFollowers(input.senderId, otherUserId);
 
-  const { data: recipientProfile } = await supabase
+  const { data: recipientProfile } = await db
     .from("profiles")
     .select("role")
     .eq("id", otherUserId)
@@ -200,7 +200,7 @@ export async function sendMessage(input: {
   const bodySafetyStatus =
     safety.status === "warning" ? "warning" : "clean";
 
-  const { data: message, error } = await supabase
+  const { data: message, error } = await db
     .from("messages")
     .insert({
       conversation_id: input.conversationId,
@@ -222,7 +222,7 @@ export async function sendMessage(input: {
     input.senderId
   );
 
-  const { data: senderProfile } = await supabase
+  const { data: senderProfile } = await db
     .from("profiles")
     .select("display_name, username")
     .eq("id", input.senderId)

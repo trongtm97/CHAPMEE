@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateContentScoreSnapshot } from "@/lib/scoring/snapshots";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -23,8 +23,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = createAdminClient();
-    const result = await generateContentScoreSnapshot(supabase, {
+    const db = createAdminClient();
+    const result = await generateContentScoreSnapshot(db, {
       window: "7d",
       storyLimit: Number(new URL(request.url).searchParams.get("story_limit") ?? "150"),
       reelLimit: Number(new URL(request.url).searchParams.get("reel_limit") ?? "150"),
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     const { generateFdsRecommendationSnapshots } = await import(
       "@/lib/fair-distribution/generate-score-snapshots"
     );
-    const fdsResult = await generateFdsRecommendationSnapshots(supabase, {
+    const fdsResult = await generateFdsRecommendationSnapshots(db, {
       storyLimit: Number(new URL(request.url).searchParams.get("story_limit") ?? "120")
     });
 

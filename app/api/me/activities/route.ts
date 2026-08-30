@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getPersonalActivity } from "@/lib/me/getPersonalActivity";
 import { getReaderProfile } from "@/lib/profile/getReaderProfile";
-import { getMyThankYous } from "@/lib/supabase/thank-yous";
+import { getMyThankYous } from "@/lib/data/thank-yous";
 
 export const dynamic = "force-dynamic";
 

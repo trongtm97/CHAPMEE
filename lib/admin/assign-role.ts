@@ -7,7 +7,7 @@ import { isSensitiveRole } from "@/lib/admin/roles";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
 import { assertPermission } from "@/lib/auth/require-permission";
 import { rbacRoleToLegacyProfileRole } from "@/lib/auth/roles";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { RoleCode } from "@/types/permissions";
 
 async function getActorContext() {
@@ -34,8 +34,8 @@ export async function assignUserRole(input: {
     return { ok: false, error: policy.error };
   }
 
-  const supabase = await createClient();
-  const { data: roleRow, error: roleError } = await supabase
+  const db = await createClient();
+  const { data: roleRow, error: roleError } = await db
     .from("roles")
     .select("id, code")
     .eq("code", input.roleCode)
@@ -45,7 +45,7 @@ export async function assignUserRole(input: {
     return { ok: false, error: roleError?.message ?? "Không tìm thấy vai trò." };
   }
 
-  const { data: permMappings } = await supabase
+  const { data: permMappings } = await db
     .from("role_permissions")
     .select("permissions(code)")
     .eq("role_id", roleRow.id);
@@ -74,7 +74,7 @@ export async function assignUserRole(input: {
     upsertPayload.expires_at = input.expiresAt;
   }
 
-  const { error } = await supabase.from("user_roles").upsert(upsertPayload, {
+  const { error } = await db.from("user_roles").upsert(upsertPayload, {
     onConflict: "user_id,role_id"
   });
 
@@ -84,18 +84,18 @@ export async function assignUserRole(input: {
 
   const legacyRole = rbacRoleToLegacyProfileRole(input.roleCode);
   if (legacyRole) {
-    await supabase.from("profiles").update({ role: legacyRole }).eq("id", input.userId);
+    await db.from("profiles").update({ role: legacyRole }).eq("id", input.userId);
   }
 
   if (input.roleCode === "creator") {
-    const { data: existingCreator } = await supabase
+    const { data: existingCreator } = await db
       .from("creator_profiles")
       .select("id")
       .eq("user_id", input.userId)
       .maybeSingle();
 
     if (!existingCreator) {
-      const { data: profile } = await supabase
+      const { data: profile } = await db
         .from("profiles")
         .select("display_name, username")
         .eq("id", input.userId)
@@ -106,7 +106,7 @@ export async function assignUserRole(input: {
         profile?.username?.trim() ||
         "Tác giả mới";
 
-      await supabase.from("creator_profiles").insert({
+      await db.from("creator_profiles").insert({
         user_id: input.userId,
         pen_name: penName.slice(0, 80),
         status: "active"
@@ -129,7 +129,7 @@ export async function assignUserRole(input: {
   });
 
   if (!auditResult.ok && auditResult.error) {
-    await supabase
+    await db
       .from("user_roles")
       .delete()
       .eq("user_id", input.userId)

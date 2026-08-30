@@ -1,5 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
-import { listPayoutRequestsForAdmin } from "@/lib/supabase/payouts";
+import { createClient } from "@/lib/data/server";
+import { listPayoutRequestsForAdmin } from "@/lib/data/payouts";
 import { getOrCreateCreatorWallet } from "@/lib/wallets/creator-wallet";
 import type { AdminWithdrawalQueueItem, AdminWithdrawalTab } from "@/types/admin";
 import type { PayoutRequestStatus } from "@/types/payout";
@@ -28,12 +28,12 @@ export async function getWithdrawalQueue(tab: AdminWithdrawalTab = "pending") {
     return { items: [], counts: emptyCounts(), error: result.error };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const creatorIds = [...new Set(result.data.map((r) => r.creator_user_id))];
 
   const [{ data: profiles }, wallets] = await Promise.all([
     creatorIds.length > 0
-      ? supabase
+      ? db
           .from("profiles")
           .select("id, display_name, username")
           .in("id", creatorIds)

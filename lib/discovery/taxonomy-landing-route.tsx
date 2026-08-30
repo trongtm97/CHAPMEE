@@ -5,11 +5,8 @@ import {
   assertTaxonomyLandingRoute,
   getTaxonomyLandingPageData
 } from "@/lib/discovery/taxonomy-landing";
-import {
-  buildTaxonomyLandingPageMetadata,
-  buildTaxonomyNotFoundMetadata
-} from "@/lib/seo/taxonomy-seo";
-
+import { metadataForTaxonomyLanding } from "@/lib/seo/public-page-metadata";
+import { buildTaxonomyNotFoundMetadata } from "@/lib/seo/taxonomy-seo";
 export async function loadTaxonomyLandingRoute(
   segment: string,
   slug: string,
@@ -38,7 +35,7 @@ export async function buildTaxonomyLandingMetadata(
 
   const { term, canonicalPath, publishedStoryCount } = data.context;
 
-  return buildTaxonomyLandingPageMetadata({
+  return metadataForTaxonomyLanding({
     term,
     canonicalPath,
     filters,

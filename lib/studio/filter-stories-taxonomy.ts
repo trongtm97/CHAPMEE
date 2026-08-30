@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type StudioTaxonomyListFilters = {
   mainGenreTermId?: string;
@@ -10,7 +10,7 @@ export type StudioTaxonomyListFilters = {
 };
 
 export async function loadStoryIdsMatchingTaxonomyFilters(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   creatorStoryIds: string[],
   filters: StudioTaxonomyListFilters
 ): Promise<Set<string>> {
@@ -34,7 +34,7 @@ export async function loadStoryIdsMatchingTaxonomyFilters(
   let matching = new Set(creatorStoryIds);
 
   async function intersectByTerm(termId: string, type?: string) {
-    let query = supabase
+    let query = db
       .from("story_taxonomy_terms")
       .select("story_id")
       .in("story_id", [...matching])
@@ -59,7 +59,7 @@ export async function loadStoryIdsMatchingTaxonomyFilters(
   }
 
   if (filters.presentationMode?.trim()) {
-    const { data } = await supabase
+    const { data } = await db
       .from("story_presentation_settings")
       .select("story_id")
       .in("story_id", [...matching])
@@ -70,7 +70,7 @@ export async function loadStoryIdsMatchingTaxonomyFilters(
   }
 
   if (filters.hasContentWarning === true) {
-    const { data } = await supabase
+    const { data } = await db
       .from("story_taxonomy_terms")
       .select("story_id")
       .in("story_id", [...matching])
@@ -79,7 +79,7 @@ export async function loadStoryIdsMatchingTaxonomyFilters(
     const ids = new Set((data ?? []).map((r) => String(r.story_id)));
     matching = new Set([...matching].filter((id) => ids.has(id)));
   } else if (filters.hasContentWarning === false) {
-    const { data } = await supabase
+    const { data } = await db
       .from("story_taxonomy_terms")
       .select("story_id")
       .in("story_id", [...matching])

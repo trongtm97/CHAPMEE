@@ -1,10 +1,10 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import { buildScoringConfig } from "@/lib/scoring/config";
 import { getAlgorithmConfig } from "@/lib/algorithm/settings";
 import { loadExposureStats } from "@/lib/scoring/metrics-loader";
 import { loadStoryMetricsAggregate } from "@/lib/scoring/metrics-loader";
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type {
   AlgorithmActionSummary,
   AlgorithmColdStartSummary,
@@ -27,11 +27,11 @@ function sinceIso(days: number) {
 }
 
 async function countImpressions(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   filter: { itemId?: string; storyId?: string; authorUserId?: string },
   since: string
 ) {
-  let query = supabase
+  let query = db
     .from("exposure_events")
     .select("id", { count: "exact", head: true })
     .gte("created_at", since);
@@ -45,11 +45,11 @@ async function countImpressions(
 }
 
 async function loadExposureBreakdown(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   filter: { itemId?: string; storyId?: string; authorUserId?: string },
   since: string
 ) {
-  let query = supabase
+  let query = db
     .from("exposure_events")
     .select("surface, candidate_pool")
     .gte("created_at", since)
@@ -74,11 +74,11 @@ async function loadExposureBreakdown(
 }
 
 async function loadActionSummary(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   filter: { storyId?: string; reelId?: string; authorUserId?: string },
   since: string
 ): Promise<AlgorithmActionSummary> {
-  let query = supabase
+  let query = db
     .from("user_action_events")
     .select("action_type")
     .gte("created_at", since)
@@ -108,7 +108,7 @@ async function loadActionSummary(
 }
 
 async function loadLatestScores(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   itemType: string,
   itemId: string
 ): Promise<AlgorithmScoreBreakdown> {
@@ -126,7 +126,7 @@ async function loadLatestScores(
     snapshotAt: null
   };
 
-  const { data } = await supabase
+  const { data } = await db
     .from("content_score_snapshots")
     .select("*")
     .eq("item_type", itemType)
@@ -153,11 +153,11 @@ async function loadLatestScores(
 }
 
 async function loadColdStart(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   itemType: string,
   itemId: string
 ): Promise<AlgorithmColdStartSummary> {
-  const { data } = await supabase
+  const { data } = await db
     .from("cold_start_tests")
     .select("*")
     .eq("item_type", itemType)
@@ -194,10 +194,10 @@ async function loadColdStart(
 }
 
 export async function loadStoryAlgorithmAudit(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string
 ): Promise<AlgorithmItemAuditData> {
-  const { data: story, error } = await supabase
+  const { data: story, error } = await db
     .from("stories")
     .select(
       "id, title, slug, status, cover_url, hook, short_description, creator_profiles(user_id, pen_name, profiles(display_name, username))"
@@ -224,7 +224,7 @@ export async function loadStoryAlgorithmAudit(
   );
   const authorUserId = creatorRow?.user_id ?? "";
 
-  return buildAuditData(supabase, {
+  return buildAuditData(db, {
     itemType: "story",
     itemId: storyId,
     title: story.title as string,
@@ -240,10 +240,10 @@ export async function loadStoryAlgorithmAudit(
 }
 
 export async function loadReelAlgorithmAudit(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   reelId: string
 ): Promise<AlgorithmItemAuditData> {
-  const { data: reel, error } = await supabase
+  const { data: reel, error } = await db
     .from("reels_items")
     .select("id, hook, title, story_id, owner_id, status")
     .eq("id", reelId)
@@ -253,13 +253,13 @@ export async function loadReelAlgorithmAudit(
     return emptyAudit("reel", reelId, error?.message ?? "Không tìm thấy Reels.");
   }
 
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from("profiles")
     .select("display_name, username")
     .eq("id", reel.owner_id)
     .maybeSingle();
 
-  return buildAuditData(supabase, {
+  return buildAuditData(db, {
     itemType: "reel",
     itemId: reelId,
     title: (reel.hook as string) ?? (reel.title as string) ?? "Reels",
@@ -271,16 +271,16 @@ export async function loadReelAlgorithmAudit(
 }
 
 export async function loadAuthorAlgorithmAudit(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   authorUserId: string
 ): Promise<AlgorithmItemAuditData> {
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from("profiles")
     .select("display_name, username")
     .eq("id", authorUserId)
     .maybeSingle();
 
-  return buildAuditData(supabase, {
+  return buildAuditData(db, {
     itemType: "author",
     itemId: authorUserId,
     title: (profile?.display_name as string) ?? "Tác giả",
@@ -292,7 +292,7 @@ export async function loadAuthorAlgorithmAudit(
 }
 
 async function buildAuditData(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   meta: {
     itemType: "story" | "reel" | "author";
     itemId: string;
@@ -329,7 +329,7 @@ async function buildAuditData(
       scoreHistory
     ] = await Promise.all([
       scoreItemType
-        ? loadLatestScores(supabase, scoreItemType, scoreItemId)
+        ? loadLatestScores(db, scoreItemType, scoreItemId)
         : Promise.resolve({
             qualityScore: 0,
             freshnessScore: 0,
@@ -343,12 +343,12 @@ async function buildAuditData(
             finalRankingScore: 0,
             snapshotAt: null
           } satisfies AlgorithmScoreBreakdown),
-      countImpressions(supabase, filter, sinceIso(1)),
-      countImpressions(supabase, filter, sinceIso(7)),
-      countImpressions(supabase, filter, sinceIso(30)),
-      loadExposureBreakdown(supabase, filter, sinceIso(7)),
+      countImpressions(db, filter, sinceIso(1)),
+      countImpressions(db, filter, sinceIso(7)),
+      countImpressions(db, filter, sinceIso(30)),
+      loadExposureBreakdown(db, filter, sinceIso(7)),
       loadActionSummary(
-        supabase,
+        db,
         {
           storyId: meta.storyId ?? (meta.itemType === "story" ? meta.itemId : undefined),
           reelId: meta.itemType === "reel" ? meta.itemId : undefined,
@@ -364,17 +364,17 @@ async function buildAuditData(
             deliveredImpressions: 0,
             qualificationMessage: null
           } satisfies AlgorithmColdStartSummary)
-        : loadColdStart(supabase, meta.itemType, meta.itemId),
+        : loadColdStart(db, meta.itemType, meta.itemId),
       meta.storyId || meta.itemType === "story"
-        ? loadStoryMetricsAggregate(supabase, meta.storyId ?? meta.itemId, "7d")
+        ? loadStoryMetricsAggregate(db, meta.storyId ?? meta.itemId, "7d")
         : Promise.resolve(null),
-      loadExposureStats(supabase, {
+      loadExposureStats(db, {
         authorUserId: meta.authorUserId,
         storyId: meta.storyId ?? (meta.itemType === "story" ? meta.itemId : null),
         itemId: meta.itemId,
         itemType: meta.itemType === "reel" ? "reel" : "story"
       }),
-      supabase
+      db
         .from("fairness_adjustment_logs")
         .select("id, adjustment_type, surface, reason, old_score, new_score, created_at")
         .eq(
@@ -384,7 +384,7 @@ async function buildAuditData(
         .order("created_at", { ascending: false })
         .limit(15),
       scoreItemType
-        ? supabase
+        ? db
             .from("content_score_snapshots")
             .select("snapshot_at, final_discover_score, final_reels_score")
             .eq("item_type", scoreItemType)

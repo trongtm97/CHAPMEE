@@ -11,7 +11,7 @@ import {
   roleHasUserAdminPermissions,
   ROLE_AUDIT_ACTIONS
 } from "@/lib/admin/roles";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type {
   AdminRoleRow,
   RoleAuditLogRow,
@@ -22,12 +22,12 @@ import type {
 import type { RoleCode } from "@/types/permissions";
 
 async function mapAssignerLabels(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   ids: string[]
 ) {
   const map = new Map<string, string>();
   if (!ids.length) return map;
-  const { data } = await supabase
+  const { data } = await db
     .from("profiles")
     .select("id, username, display_name")
     .in("id", ids);
@@ -52,8 +52,8 @@ export async function getRoleCenterData(): Promise<RoleCenterInitialData> {
     actorRoles: (ctx?.roles ?? []) as RoleCode[]
   };
 
-  const supabase = await createClient();
-  const { data: roles, error } = await supabase
+  const db = await createClient();
+  const { data: roles, error } = await db
     .from("roles")
     .select("id, code, name, description, is_system, created_at")
     .order("code");
@@ -70,7 +70,7 @@ export async function getRoleCenterData(): Promise<RoleCenterInitialData> {
 
   const roleRows: AdminRoleRow[] = [];
   for (const role of roles ?? []) {
-    const { data: mappings } = await supabase
+    const { data: mappings } = await db
       .from("role_permissions")
       .select("permissions(code, name, group_key)")
       .eq("role_id", role.id);
@@ -85,7 +85,7 @@ export async function getRoleCenterData(): Promise<RoleCenterInitialData> {
       })
       .filter(Boolean) as AdminRoleRow["permissions"];
 
-    const { count: userCount } = await supabase
+    const { count: userCount } = await db
       .from("user_roles")
       .select("user_id", { count: "exact", head: true })
       .eq("role_id", role.id);
@@ -103,9 +103,9 @@ export async function getRoleCenterData(): Promise<RoleCenterInitialData> {
     });
   }
 
-  const summaryData = await computeSummary(roleRows, supabase);
+  const summaryData = await computeSummary(roleRows, db);
   const auditLogs = capabilities.canViewAudit
-    ? await fetchRoleAuditLogs(supabase, { page: 1, pageSize: 50 })
+    ? await fetchRoleAuditLogs(db, { page: 1, pageSize: 50 })
     : { logs: [], total: 0 };
 
   return {
@@ -132,11 +132,11 @@ function emptySummary(): RoleCenterSummary {
 
 async function computeSummary(
   roles: AdminRoleRow[],
-  supabase: Awaited<ReturnType<typeof createClient>>
+  db: Awaited<ReturnType<typeof createClient>>
 ): Promise<RoleCenterSummary> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { count: changes7d } = await supabase
+  const { count: changes7d } = await db
     .from("admin_audit_logs")
     .select("id", { count: "exact", head: true })
     .in("action", [...ROLE_AUDIT_ACTIONS])
@@ -151,7 +151,7 @@ async function computeSummary(
 
   let adminUsers = 0;
   if (adminRoleIds.length) {
-    const { data: adminUserRows } = await supabase
+    const { data: adminUserRows } = await db
       .from("user_roles")
       .select("user_id")
       .in("role_id", adminRoleIds);
@@ -172,7 +172,7 @@ async function computeSummary(
 }
 
 export async function fetchRoleAuditLogs(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   options: { page?: number; pageSize?: number; roleCode?: string }
 ): Promise<{ logs: RoleAuditLogRow[]; total: number }> {
   const page = Math.max(1, options.page ?? 1);
@@ -180,7 +180,7 @@ export async function fetchRoleAuditLogs(
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase
+  let query = db
     .from("admin_audit_logs")
     .select("id, action, actor_id, target_id, metadata, created_at", { count: "exact" })
     .in("action", [...ROLE_AUDIT_ACTIONS])
@@ -199,7 +199,7 @@ export async function fetchRoleAuditLogs(
   const actorIds = [...new Set((data ?? []).map((r) => r.actor_id).filter(Boolean))] as string[];
   const targetIds = [...new Set((data ?? []).map((r) => r.target_id).filter(Boolean))] as string[];
   const profileIds = [...new Set([...actorIds, ...targetIds])];
-  const labelMap = await mapAssignerLabels(supabase, profileIds);
+  const labelMap = await mapAssignerLabels(db, profileIds);
 
   const logs: RoleAuditLogRow[] = (data ?? []).map((row) => {
     const meta = (row.metadata as Record<string, unknown>) ?? {};
@@ -231,8 +231,8 @@ export async function getRoleAuditLogsAction(options?: {
   roleCode?: string;
 }) {
   await assertPermission("admin.audit.view");
-  const supabase = await createClient();
-  return fetchRoleAuditLogs(supabase, options ?? {});
+  const db = await createClient();
+  return fetchRoleAuditLogs(db, options ?? {});
 }
 
 export async function getUsersByRoleAction(input: {
@@ -252,7 +252,7 @@ export async function getUsersByRoleAction(input: {
     "admin.user.role.assign"
   ]);
 
-  const supabase = await createClient();
+  const db = await createClient();
   const page = Math.max(1, input.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, input.pageSize ?? 25));
   const from = (page - 1) * pageSize;
@@ -260,7 +260,7 @@ export async function getUsersByRoleAction(input: {
 
   let roleId: string | null = null;
   if (input.roleCode) {
-    const { data: roleRow } = await supabase
+    const { data: roleRow } = await db
       .from("roles")
       .select("id, code, name")
       .eq("code", input.roleCode)
@@ -271,7 +271,7 @@ export async function getUsersByRoleAction(input: {
     roleId = roleRow.id;
   }
 
-  let userRoleQuery = supabase
+  let userRoleQuery = db
     .from("user_roles")
     .select("user_id, assigned_at, assigned_by, expires_at, roles(code, name)", {
       count: "exact"
@@ -293,7 +293,7 @@ export async function getUsersByRoleAction(input: {
     return { users: [], total: count ?? 0, page, pageSize, error: null };
   }
 
-  let profileQuery = supabase
+  let profileQuery = db
     .from("profiles")
     .select("id, username, display_name, status, is_verified, role")
     .in("id", userIds);
@@ -317,11 +317,11 @@ export async function getUsersByRoleAction(input: {
   const assignerIds = [
     ...new Set((userRoleRows ?? []).map((r) => r.assigned_by).filter(Boolean))
   ] as string[];
-  const assignerMap = await mapAssignerLabels(supabase, assignerIds);
+  const assignerMap = await mapAssignerLabels(db, assignerIds);
 
   const creatorIds = new Set<string>();
   if (input.creatorOnly) {
-    const { data: creators } = await supabase
+    const { data: creators } = await db
       .from("creator_profiles")
       .select("user_id")
       .in("user_id", userIds);

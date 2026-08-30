@@ -1,13 +1,17 @@
+import { profileAvatarUrlFromRow } from "@/lib/profile/map-profile-row";
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
+import { resolveStoredMediaUrl } from "@/lib/media/media-resolver";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
 import { getProfileUrl } from "@/lib/profile/profile-url";
 import { escapeIlikePattern } from "@/lib/stories/story-catalog-query";
+import { searchPublicEpisodeIdsByFullText } from "@/lib/episodes/search-public-episodes";
 import { searchPublicStoryIdsByFullText } from "@/lib/stories/search-public-stories";
 import { taxonomyTermPublicUrl } from "@/lib/taxonomy/public-url";
 import { getChapterUrl, getStoryUrl } from "@/lib/urls/paths";
 import type { TaxonomyType } from "@/types/taxonomy";
 import { publicContentStatuses } from "@/lib/visibility/contentVisibility";
 import type { SearchResultType } from "@/types/search";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 function firstRelation<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
@@ -35,16 +39,17 @@ export type RawSearchCandidate = {
   genreName?: string | null;
   genreSlug?: string | null;
   publishedAt?: string | null;
+  contentOrigin?: "original" | "translation";
 };
 
-async function loadStoryTags(supabase: SupabaseClient, storyIds: string[]) {
+async function loadStoryTags(db: DatabaseClient, storyIds: string[]) {
   const map = new Map<string, string[]>();
   if (storyIds.length === 0) return map;
 
   const { getStoryTaxonomyLabelsByStoryIds } = await import(
     "@/lib/taxonomy/discover-bridge"
   );
-  const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
+  const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, storyIds);
 
   for (const [storyId, labels] of taxonomyByStory) {
     const names = [...labels.subgenreNames, ...labels.tagNames];
@@ -57,7 +62,7 @@ async function loadStoryTags(supabase: SupabaseClient, storyIds: string[]) {
 }
 
 export async function collectSearchCandidates(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   query: string,
   options?: { genre?: string }
 ): Promise<RawSearchCandidate[]> {
@@ -68,12 +73,15 @@ export async function collectSearchCandidates(
   const pattern = `%${escaped}%`;
   const candidates: RawSearchCandidate[] = [];
 
-  const ftsStoryIds = await searchPublicStoryIdsByFullText(supabase, trimmed, 60);
+  const [ftsStoryIds, ftsEpisodeIds] = await Promise.all([
+    searchPublicStoryIdsByFullText(db, trimmed, 60),
+    searchPublicEpisodeIdsByFullText(db, trimmed, 40)
+  ]);
 
-  let storyQuery = supabase
+  let storyQuery = db
     .from("stories")
     .select(
-      "id, title, slug, public_code, hook, short_description, cover_url, published_at, creator_profiles(id, user_id, pen_name, profiles!creator_profiles_user_id_fkey(display_name, username))"
+      "id, title, slug, public_code, hook, short_description, cover_url, published_at, content_origin, creator_profiles(id, user_id, pen_name, profiles!creator_profiles_user_id_fkey(display_name, username))"
     )
     .eq("visibility", "public")
     .in("status", [...publicContentStatuses])
@@ -92,7 +100,7 @@ export async function collectSearchCandidates(
       "@/lib/taxonomy/public-genres"
     );
     const taxonomyStoryIds = await getPublicStoryIdsForMainGenreSlug(
-      supabase,
+      db,
       options.genre,
       200
     );
@@ -103,33 +111,42 @@ export async function collectSearchCandidates(
     }
   }
 
+  let episodeQuery = db
+    .from("episodes")
+    .select(
+      "id, title, slug, public_code, episode_number, excerpt, plain_text_preview, published_at, stories!inner(id, title, slug, public_code, cover_url, content_origin, status, visibility, creator_profiles(id, user_id, pen_name, profiles!creator_profiles_user_id_fkey(display_name, username)))"
+    )
+    .in("status", [...publicContentStatuses])
+    .in("stories.status", [...publicContentStatuses])
+    .eq("stories.visibility", "public")
+    .limit(40);
+
+  if (ftsEpisodeIds && ftsEpisodeIds.length > 0) {
+    episodeQuery = episodeQuery.in("id", ftsEpisodeIds);
+  } else {
+    episodeQuery = episodeQuery.or(
+      `title.ilike.${pattern},excerpt.ilike.${pattern},plain_text_preview.ilike.${pattern}`
+    );
+  }
+
   const [storyRes, episodeRes, profileRes, postRes, tropeTagRes] = await Promise.all([
     storyQuery,
-    supabase
-      .from("episodes")
-      .select(
-        "id, title, slug, public_code, episode_number, excerpt, published_at, stories!inner(id, title, slug, public_code, cover_url, status, visibility, creator_profiles(id, user_id, pen_name, profiles!creator_profiles_user_id_fkey(display_name, username)))"
-      )
-      .in("status", [...publicContentStatuses])
-      .in("stories.status", [...publicContentStatuses])
-      .eq("stories.visibility", "public")
-      .or(`title.ilike.${pattern},excerpt.ilike.${pattern}`)
-      .limit(40),
-    supabase
+    episodeQuery,
+    db
       .from("profiles")
       .select("id, username, display_name, avatar_url, status")
       .eq("status", "active")
       .not("username", "is", null)
       .or(`username.ilike.${pattern},display_name.ilike.${pattern}`)
       .limit(25),
-    supabase
+    db
       .from("admin_content_posts")
       .select("id, title, slug, excerpt, cover_image_url, status, indexable")
       .eq("status", "published")
       .eq("indexable", true)
       .or(`title.ilike.${pattern},slug.ilike.${pattern},excerpt.ilike.${pattern}`)
       .limit(20),
-    supabase
+    db
       .from("taxonomy_terms")
       .select("id, name, slug")
       .eq("type", "trope_tag")
@@ -146,7 +163,7 @@ export async function collectSearchCandidates(
   const { getStoryTaxonomyLabelsByStoryIds } = await import(
     "@/lib/taxonomy/discover-bridge"
   );
-  const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
+  const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, storyIds);
 
   for (const row of storyRows) {
     const creator = firstRelation(
@@ -180,7 +197,7 @@ export async function collectSearchCandidates(
       subtitle: taxonomy?.mainGenreName ?? null,
       description: (row.hook as string | null) ?? (row.short_description as string | null),
       href: getStoryUrl({ slug: row.slug as string, public_code: row.public_code as string }),
-      imageUrl: row.cover_url as string | null,
+      imageUrl: resolveStoryCoverUrl(row.cover_url as string | null),
       storyId: row.id as string,
       storySlug: row.slug as string,
       storyPublicCode: row.public_code as string,
@@ -197,6 +214,11 @@ export async function collectSearchCandidates(
       genreName: taxonomy?.mainGenreName ?? null,
       genreSlug: taxonomy?.mainGenreSlug ?? null,
       publishedAt: row.published_at as string | null
+      ,
+      contentOrigin:
+        (row as { content_origin?: string | null }).content_origin === "translation"
+          ? "translation"
+          : "original"
     });
   }
 
@@ -213,7 +235,7 @@ export async function collectSearchCandidates(
     )
   ];
   const episodeTaxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(
-    supabase,
+    db,
     episodeStoryIds
   );
 
@@ -282,12 +304,14 @@ export async function collectSearchCandidates(
       title: episode.title as string,
       slug: null,
       subtitle: story.title,
-      description: episode.excerpt as string | null,
+      description:
+        (episode.plain_text_preview as string | null)?.slice(0, 200) ??
+        (episode.excerpt as string | null),
       href: getChapterUrl(
         { slug: story.slug, public_code: story.public_code },
         { slug: episode.slug as string, public_code: episode.public_code as string }
       ),
-      imageUrl: story.cover_url,
+      imageUrl: resolveStoryCoverUrl(story.cover_url),
       storyId: story.id,
       storySlug: story.slug,
       storyPublicCode: story.public_code,
@@ -302,6 +326,11 @@ export async function collectSearchCandidates(
       genreName: taxonomy?.mainGenreName ?? null,
       genreSlug: taxonomy?.mainGenreSlug ?? null,
       publishedAt: episode.published_at as string | null
+      ,
+      contentOrigin:
+        (story as { content_origin?: string | null }).content_origin === "translation"
+          ? "translation"
+          : "original"
     });
   }
 
@@ -317,7 +346,9 @@ export async function collectSearchCandidates(
       subtitle: `@${username}`,
       description: null,
       href: profileUrl,
-      imageUrl: profile.avatar_url as string | null,
+      imageUrl: profileAvatarUrlFromRow({
+        avatar_url: profile.avatar_url as string | null
+      }),
       storyId: null,
       storySlug: null,
       authorUserId: profile.id as string,
@@ -337,7 +368,7 @@ export async function collectSearchCandidates(
       subtitle: "Bài viết",
       description: post.excerpt as string | null,
       href: `/bai-viet/${post.slug}`,
-      imageUrl: post.cover_image_url as string | null,
+      imageUrl: resolveStoredMediaUrl(post.cover_image_url as string | null),
       storyId: null,
       storySlug: null,
       authorUserId: null,
@@ -371,7 +402,7 @@ export async function collectSearchCandidates(
     });
   }
 
-  const { data: taxonomyGenreRes } = await supabase
+  const { data: taxonomyGenreRes } = await db
     .from("taxonomy_terms")
     .select("id, name, slug, description")
     .eq("type", "main_genre")
@@ -421,7 +452,7 @@ export async function collectSearchCandidates(
 
   const taxonomyTermResults = await Promise.all(
     taxonomySearchTypes.map(({ type }) =>
-      supabase
+      db
         .from("taxonomy_terms")
         .select("id, name, slug, description")
         .eq("type", type)

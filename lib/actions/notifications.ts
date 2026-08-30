@@ -6,7 +6,7 @@ import { getCurrentProfile } from "@/lib/auth/getCurrentProfile";
 import {
   markAllNotificationsAsRead,
   markNotificationAsRead
-} from "@/lib/supabase/notifications";
+} from "@/lib/data/notifications";
 
 async function guardNotificationReadAccess() {
   try {

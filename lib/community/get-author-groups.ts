@@ -1,12 +1,25 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCreatorFollowerCountsMap } from "@/lib/community/get-creator-follower-counts";
+import { profileAvatarUrlFromRow } from "@/lib/profile/map-profile-row";
+import { createClient } from "@/lib/data/server";
 import type { AuthorCommunityGroup } from "@/types/community";
 
 type CreatorRow = {
   id: string;
+  user_id: string;
   pen_name: string | null;
   profiles:
-    | { display_name: string | null; username: string | null; avatar_url: string | null }
-    | { display_name: string | null; username: string | null; avatar_url: string | null }[]
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+        default_avatar_id: number | null;
+      }
+    | {
+        display_name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+        default_avatar_id: number | null;
+      }[]
     | null;
   stories: { count: number }[] | { count: number } | null;
 };
@@ -48,11 +61,11 @@ export async function getAuthorGroups(): Promise<{
   error: string | null;
 }> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("creator_profiles")
       .select(
-        "id, pen_name, profiles(display_name, username, avatar_url), stories(count)"
+        "id, user_id, pen_name, profiles(display_name, username, avatar_url, default_avatar_id), stories(count)"
       )
       .eq("status", "active")
       .order("created_at", { ascending: false })
@@ -63,6 +76,7 @@ export async function getAuthorGroups(): Promise<{
     }
 
     const rows = (data ?? []) as unknown as CreatorRow[];
+    const followerCounts = await getCreatorFollowerCountsMap(rows.map((row) => row.id));
 
     const groups: AuthorCommunityGroup[] = rows.map((row, index) => {
       const profile = firstRelation(row.profiles);
@@ -79,9 +93,9 @@ export async function getAuthorGroups(): Promise<{
         authorId: row.id,
         authorUsername: profile?.username?.trim().toLowerCase() ?? null,
         name,
-        avatarUrl: profile?.avatar_url ?? null,
+        avatarUrl: profileAvatarUrlFromRow({ ...profile, id: row.user_id }),
         storyCount,
-        followerCount: 120 + (hashString(row.id) % 800),
+        followerCount: followerCounts.get(row.id) ?? 0,
         statusLine: statusLine(row.id, index),
         isReplying
       };

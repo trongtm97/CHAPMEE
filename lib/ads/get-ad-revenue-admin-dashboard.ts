@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import {
   computeCreatorPoolVnd,
   computeReserveHoldVnd,
@@ -23,7 +23,7 @@ export async function getAdRevenueAdminDashboard(
 ): Promise<{ dashboard: AdRevenueAdminDashboard; error: string | null }> {
   try {
     const settings = await getAdRevenueEstimateSettings({ useAdmin: true });
-    const supabase = createAdminClient();
+    const db = createAdminClient();
 
     let from = filters.from;
     let to = filters.to;
@@ -43,7 +43,7 @@ export async function getAdRevenueAdminDashboard(
       from = start.toISOString().slice(0, 10);
     }
 
-    let dailyQuery = supabase
+    let dailyQuery = db
       .from("ad_daily_author_stats")
       .select("*")
       .gte("stat_date", from)
@@ -112,13 +112,13 @@ export async function getAdRevenueAdminDashboard(
 
     const [{ data: profiles }, { data: stories }] = await Promise.all([
       authorIds.length
-        ? supabase
+        ? db
             .from("profiles")
             .select("id, display_name, username")
             .in("id", authorIds)
         : Promise.resolve({ data: [] }),
       storyIds.length
-        ? supabase.from("stories").select("id, title").in("id", storyIds)
+        ? db.from("stories").select("id, title").in("id", storyIds)
         : Promise.resolve({ data: [] })
     ]);
 
@@ -184,7 +184,7 @@ function emptyDashboard(): AdRevenueAdminDashboard {
 }
 
 export async function listAdDailyStatsForExport(filters: AdRevenueAdminFilters = {}) {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   let from = filters.from;
   let to = filters.to;
   if (filters.month) {
@@ -195,7 +195,7 @@ export async function listAdDailyStatsForExport(filters: AdRevenueAdminFilters =
     }
   }
 
-  let query = supabase.from("ad_daily_author_stats").select("*").order("stat_date", { ascending: false });
+  let query = db.from("ad_daily_author_stats").select("*").order("stat_date", { ascending: false });
   if (from) query = query.gte("stat_date", from);
   if (to) query = query.lte("stat_date", to);
   if (filters.authorId) query = query.eq("author_id", filters.authorId);
@@ -205,5 +205,6 @@ export async function listAdDailyStatsForExport(filters: AdRevenueAdminFilters =
   if (filters.device) query = query.eq("device", filters.device);
 
   const { data, error } = await query.limit(5000);
-  return { rows: data ?? [], error: error?.message ?? null };
+  const rows = Array.isArray(data) ? data : [];
+  return { rows, error: error?.message ?? null };
 }

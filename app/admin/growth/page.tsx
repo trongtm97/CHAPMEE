@@ -1,11 +1,11 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { GrowthDashboard } from "@/components/admin/growth/GrowthDashboard";
 import { ErrorState } from "@/components/ui";
 import { requireAdminOrModerator } from "@/lib/auth/requireAdminOrModerator";
 import {
   getGrowthDashboardData,
   getGrowthRange
-} from "@/lib/supabase/growth-dashboard";
+} from "@/lib/data/growth-dashboard";
 
 type GrowthPageProps = {
   searchParams: Promise<{ range?: string }>;
@@ -50,7 +50,7 @@ export default async function AdminGrowthPage({ searchParams }: GrowthPageProps)
         </p>
         <h1 className="mt-3 text-3xl font-bold tracking-normal">Growth dashboard</h1>
         <p className="mt-3 text-sm leading-6 text-zinc-400">
-          KPI tang truong va suc khoe san pham cho founder/admin.
+          KPI tăng trưởng và sức khỏe sản phẩm cho founder/admin.
         </p>
       </div>
       {data.error ? (

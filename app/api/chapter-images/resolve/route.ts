@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getChapterImagesMap } from "@/lib/images/get-chapter-images-map";
 
 export async function POST(request: Request) {
@@ -11,8 +11,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ images: {} });
     }
 
-    const supabase = await createClient();
-    const images = await getChapterImagesMap(supabase, ids);
+    const db = await createClient();
+    const images = await getChapterImagesMap(db, ids);
 
     return NextResponse.json({ images });
   } catch {

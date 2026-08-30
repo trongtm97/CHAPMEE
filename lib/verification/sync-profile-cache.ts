@@ -1,11 +1,11 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 
 export async function syncProfileVerificationCache(userId: string) {
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("sync_profile_verification_cache", {
+  const db = await createClient();
+  const { error } = await db.rpc("sync_profile_verification_cache", {
     p_user_id: userId
   });
 

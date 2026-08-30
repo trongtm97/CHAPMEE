@@ -5,6 +5,7 @@ import { assertCreatorOwnsStory } from "@/lib/creator/assertCreatorOwnsStory";
 import { createExcerpt } from "@/lib/text/createExcerpt";
 import { countWords } from "@/lib/text/countWords";
 import { resolveStoryDisplayStatus } from "@/lib/studio/status-labels";
+import { normalizeCreatorImportContentStatus } from "@/lib/studio/normalize-import-status";
 import { studioPath } from "@/lib/studio/constants";
 import { slugifyVietnamese } from "@/lib/seo/slugify-vi";
 import { normalizeStoryStructureType } from "@/lib/stories/story-structure";
@@ -15,7 +16,7 @@ import {
   loadMainGenreOptionsForImportExport,
   resolveMainGenreTermFromImportValue
 } from "@/lib/taxonomy/import-export-bridge";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 import type { StudioDisplayStatus } from "@/types/studio";
 import type {
@@ -50,17 +51,17 @@ function storyDisplayStatus(
 export async function getImportExportPageData(
   creatorProfile: CreatorProfile
 ): Promise<ImportExportPageData> {
-  const supabase = await createClient();
+  const db = await createClient();
 
   const [storiesResult, genreOptionsResult, totalResult] = await Promise.all([
-    supabase
+    db
       .from("stories")
-      .select("id, title, status, visibility, is_completed, updated_at, structure_type")
+      .select("id, title, public_code, status, visibility, is_completed, updated_at, structure_type")
       .eq("creator_id", creatorProfile.id)
       .order("updated_at", { ascending: false })
       .limit(QUICK_PICK_LIMIT),
     loadMainGenreOptionsForImportExport(),
-    supabase
+    db
       .from("stories")
       .select("id", { count: "exact", head: true })
       .eq("creator_id", creatorProfile.id)
@@ -70,7 +71,7 @@ export async function getImportExportPageData(
   const episodeCounts = new Map<string, number>();
 
   if (storyIds.length > 0) {
-    const { data: episodes } = await supabase
+    const { data: episodes } = await db
       .from("episodes")
       .select("story_id")
       .in("story_id", storyIds);
@@ -89,6 +90,7 @@ export async function getImportExportPageData(
     ),
     episodeCount: episodeCounts.get(String(row.id)) ?? 0,
     id: String(row.id),
+    publicCode: row.public_code ? String(row.public_code) : null,
     structureType: normalizeStoryStructureType(
       (row as { structure_type?: string }).structure_type
     ),
@@ -111,8 +113,8 @@ export async function getExportScopedStoryIds(
   creatorProfile: CreatorProfile,
   scope: ExportScopeInput
 ): Promise<string[]> {
-  const supabase = await createClient();
-  let query = supabase.from("stories").select("id, status, visibility, is_completed, updated_at").eq(
+  const db = await createClient();
+  let query = db.from("stories").select("id, status, visibility, is_completed, updated_at").eq(
     "creator_id",
     creatorProfile.id
   );
@@ -123,7 +125,7 @@ export async function getExportScopedStoryIds(
 
   if (scope.mode === "by_genre" && scope.genreId) {
     const taxonomyStoryIds = await getStoryIdsForMainGenreTermId(
-      supabase,
+      db,
       scope.genreId,
       creatorProfile.id
     );
@@ -181,12 +183,12 @@ export async function fetchExportRowsAction(input: {
       return { error: "Không có dữ liệu phù hợp để xuất.", rows: [] };
     }
 
-    const supabase = await createClient();
+    const db = await createClient();
     const rows: ImportExportRow[] = [];
     const { dataType } = input;
 
     if (dataType === "stories" || dataType === "stories_chapters" || dataType === "all") {
-      const { data: stories, error } = await supabase
+      const { data: stories, error } = await db
         .from("stories")
         .select("id, title, status, visibility, is_completed")
         .eq("creator_id", creatorState.creatorProfile.id)
@@ -197,7 +199,7 @@ export async function fetchExportRowsAction(input: {
       }
 
       const exportStoryIds = (stories ?? []).map((story) => String(story.id));
-      const genreSlugsByStory = await getMainGenreSlugsByStoryIds(supabase, exportStoryIds);
+      const genreSlugsByStory = await getMainGenreSlugsByStoryIds(db, exportStoryIds);
 
       for (const story of stories ?? []) {
         const row = emptyRow();
@@ -215,7 +217,7 @@ export async function fetchExportRowsAction(input: {
     }
 
     if (dataType === "chapters" || dataType === "stories_chapters" || dataType === "all") {
-      const { data: episodes, error } = await supabase
+      const { data: episodes, error } = await db
         .from("episodes")
         .select(
           "id, story_id, episode_number, title, content, status, stories!inner(id, title, creator_id, status, visibility, is_completed)"
@@ -231,7 +233,7 @@ export async function fetchExportRowsAction(input: {
       const episodeStoryIds = [
         ...new Set((episodes ?? []).map((episode) => String(episode.story_id)))
       ];
-      const genreSlugsByStory = await getMainGenreSlugsByStoryIds(supabase, episodeStoryIds);
+      const genreSlugsByStory = await getMainGenreSlugsByStoryIds(db, episodeStoryIds);
 
       for (const episode of episodes ?? []) {
         const story = Array.isArray(episode.stories) ? episode.stories[0] : episode.stories;
@@ -254,7 +256,7 @@ export async function fetchExportRowsAction(input: {
     }
 
     if (dataType === "reels" || dataType === "all") {
-      const { data: reels, error } = await supabase
+      const { data: reels, error } = await db
         .from("reels_items")
         .select(
           "id, story_id, title, hook, body, status, scheduled_at, stories!inner(id, title, creator_id)"
@@ -303,12 +305,12 @@ export async function fetchExportRowsAction(input: {
 }
 
 async function resolveStoryId(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   creatorId: string,
   row: ImportExportRow
 ): Promise<string | null> {
   if (row.story_id) {
-    const { data } = await supabase
+    const { data } = await db
       .from("stories")
       .select("id")
       .eq("id", row.story_id)
@@ -318,7 +320,7 @@ async function resolveStoryId(
   }
 
   if (row.story_title) {
-    const { data } = await supabase
+    const { data } = await db
       .from("stories")
       .select("id")
       .eq("creator_id", creatorId)
@@ -331,12 +333,12 @@ async function resolveStoryId(
 }
 
 async function resolveChapterId(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   storyId: string,
   row: ImportExportRow
 ): Promise<string | null> {
   if (row.chapter_id) {
-    const { data } = await supabase
+    const { data } = await db
       .from("episodes")
       .select("id")
       .eq("id", row.chapter_id)
@@ -346,7 +348,7 @@ async function resolveChapterId(
   }
 
   if (row.chapter_number) {
-    const { data } = await supabase
+    const { data } = await db
       .from("episodes")
       .select("id")
       .eq("story_id", storyId)
@@ -359,40 +361,45 @@ async function resolveChapterId(
 }
 
 async function resolveMainGenreForImport(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   genreValue: string
 ): Promise<string | null> {
   if (!genreValue.trim()) {
     return null;
   }
-  return resolveMainGenreTermFromImportValue(supabase, genreValue);
+  return resolveMainGenreTermFromImportValue(db, genreValue);
 }
 
 function mapDisplayStatusToDb(status: string): string {
-  const normalized = status.trim().toLowerCase();
-  if (normalized === "published" || normalized === "completed") {
-    return "published";
-  }
-  if (normalized === "scheduled" || normalized === "under_review") {
-    return "pending";
-  }
-  if (normalized === "hidden") {
-    return "archived";
-  }
-  if (normalized === "rejected") {
-    return "rejected";
-  }
-  return "draft";
+  return normalizeCreatorImportContentStatus(status);
+}
+
+async function mapDisplayStatusToDbForExisting(
+  db: Awaited<ReturnType<typeof createClient>>,
+  table: "stories" | "episodes",
+  id: string,
+  status: string
+): Promise<string> {
+  const { data } = await db
+    .from(table)
+    .select("status")
+    .eq("id", id)
+    .maybeSingle();
+
+  return normalizeCreatorImportContentStatus(
+    status,
+    data && "status" in data ? String(data.status) : null
+  );
 }
 
 async function processImportRow(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   creatorProfile: CreatorProfile,
   row: ImportExportRow,
   action: ImportExportAction,
   rowIndex: number
 ): Promise<{ ok: boolean; kind?: "created" | "updated" | "hidden" | "deleted" | "skipped"; message?: string }> {
-  const storyId = await resolveStoryId(supabase, creatorProfile.id, row);
+  const storyId = await resolveStoryId(db, creatorProfile.id, row);
 
   if ((action === "update" || action === "hide" || action === "delete" || action === "schedule") && row.story_id && !storyId) {
     return { kind: "skipped", message: "Truyện không thuộc tài khoản của bạn.", ok: false };
@@ -400,7 +407,7 @@ async function processImportRow(
 
   if (action === "create" && row.story_title && !row.chapter_id && !row.reel_id && !row.chapter_number) {
     const mainGenreTermId = row.story_genre
-      ? await resolveMainGenreForImport(supabase, row.story_genre)
+      ? await resolveMainGenreForImport(db, row.story_genre)
       : null;
     if (row.story_genre && !mainGenreTermId) {
       return {
@@ -411,7 +418,7 @@ async function processImportRow(
     }
     const baseSlug = slugifyVietnamese(row.story_title.trim()) || "truyen-moi";
     const slug = `${baseSlug}-${Date.now().toString(36)}`;
-    const { data: inserted, error } = await supabase
+    const { data: inserted, error } = await db
       .from("stories")
       .insert({
         creator_id: creatorProfile.id,
@@ -429,7 +436,7 @@ async function processImportRow(
 
     if (mainGenreTermId && inserted?.id) {
       const applied = await applyMainGenreTermToStory(
-        supabase,
+        db,
         String(inserted.id),
         mainGenreTermId
       );
@@ -447,11 +454,16 @@ async function processImportRow(
       patch.title = row.story_title.trim();
     }
     if (row.story_status) {
-      patch.status = mapDisplayStatusToDb(row.story_status);
+      patch.status = await mapDisplayStatusToDbForExisting(
+        db,
+        "stories",
+        storyId,
+        row.story_status
+      );
     }
     let taxonomyUpdated = false;
     if (row.story_genre) {
-      const termId = await resolveMainGenreForImport(supabase, row.story_genre);
+      const termId = await resolveMainGenreForImport(db, row.story_genre);
       if (!termId) {
         return {
           kind: "skipped",
@@ -459,7 +471,7 @@ async function processImportRow(
           ok: false
         };
       }
-      const applied = await applyMainGenreTermToStory(supabase, storyId, termId);
+      const applied = await applyMainGenreTermToStory(db, storyId, termId);
       if (!applied.ok) {
         return { kind: "skipped", message: applied.error ?? "Không cập nhật được thể loại.", ok: false };
       }
@@ -473,7 +485,7 @@ async function processImportRow(
       return { kind: "skipped", message: "Không có trường truyện để cập nhật.", ok: false };
     }
 
-    const { error } = await supabase.from("stories").update(patch).eq("id", storyId);
+    const { error } = await db.from("stories").update(patch).eq("id", storyId);
     return error ? { kind: "skipped", message: error.message, ok: false } : { kind: "updated", ok: true };
   }
 
@@ -490,7 +502,7 @@ async function processImportRow(
       return { kind: "skipped", message: "Bạn không có quyền với truyện này.", ok: false };
     }
 
-    const chapterId = await resolveChapterId(supabase, resolvedStoryId, row);
+    const chapterId = await resolveChapterId(db, resolvedStoryId, row);
 
     if (action === "create" && !chapterId) {
       const content = sanitizePlainContent(row.chapter_content || "");
@@ -503,7 +515,7 @@ async function processImportRow(
         return { kind: "skipped", message: "chapter_number không hợp lệ.", ok: false };
       }
 
-      const { error } = await supabase.from("episodes").insert({
+      const { error } = await db.from("episodes").insert({
         content,
         episode_number: episodeNumber,
         excerpt: createExcerpt(content, 40, 80),
@@ -528,21 +540,26 @@ async function processImportRow(
         patch.word_count = countWords(content);
       }
       if (row.chapter_status) {
-        patch.status = mapDisplayStatusToDb(row.chapter_status);
+        patch.status = await mapDisplayStatusToDbForExisting(
+          db,
+          "episodes",
+          chapterId,
+          row.chapter_status
+        );
       }
 
       if (Object.keys(patch).length === 0 && action !== "schedule") {
         return { kind: "skipped", message: "Không có trường chương để cập nhật.", ok: false };
       }
 
-      const { error } = await supabase.from("episodes").update(patch).eq("id", chapterId);
+      const { error } = await db.from("episodes").update(patch).eq("id", chapterId);
 
       if (error) {
         return { kind: "skipped", message: error.message, ok: false };
       }
 
       if (action === "schedule" && row.scheduled_at) {
-        await supabase.from("scheduled_publications").insert({
+        await db.from("scheduled_publications").insert({
           creator_id: creatorProfile.user_id,
           scheduled_at: row.scheduled_at,
           status: "scheduled",
@@ -557,12 +574,12 @@ async function processImportRow(
     }
 
     if (action === "hide" && chapterId) {
-      const { error } = await supabase.from("episodes").update({ status: "archived" }).eq("id", chapterId);
+      const { error } = await db.from("episodes").update({ status: "archived" }).eq("id", chapterId);
       return error ? { kind: "skipped", message: error.message, ok: false } : { kind: "hidden", ok: true };
     }
 
     if (action === "delete" && chapterId) {
-      const { data: episode } = await supabase
+      const { data: episode } = await db
         .from("episodes")
         .select("status")
         .eq("id", chapterId)
@@ -572,14 +589,14 @@ async function processImportRow(
         return { kind: "skipped", message: "Chỉ xóa được chương nháp.", ok: false };
       }
 
-      const { error } = await supabase.from("episodes").delete().eq("id", chapterId);
+      const { error } = await db.from("episodes").delete().eq("id", chapterId);
       return error ? { kind: "skipped", message: error.message, ok: false } : { kind: "deleted", ok: true };
     }
   }
 
   if (row.reel_id || row.reel_title || row.reel_text) {
     if (action === "hide" && row.reel_id) {
-      const { data } = await supabase
+      const { data } = await db
         .from("reels_items")
         .select("id")
         .eq("id", row.reel_id)
@@ -590,12 +607,12 @@ async function processImportRow(
         return { kind: "skipped", message: "Reels không thuộc tài khoản của bạn.", ok: false };
       }
 
-      const { error } = await supabase.from("reels_items").update({ status: "hidden" }).eq("id", row.reel_id);
+      const { error } = await db.from("reels_items").update({ status: "hidden" }).eq("id", row.reel_id);
       return error ? { kind: "skipped", message: error.message, ok: false } : { kind: "hidden", ok: true };
     }
 
     if (action === "delete" && row.reel_id) {
-      const { data } = await supabase
+      const { data } = await db
         .from("reels_items")
         .select("id, status")
         .eq("id", row.reel_id)
@@ -610,13 +627,13 @@ async function processImportRow(
         return { kind: "skipped", message: "Chỉ xóa được Reels nháp.", ok: false };
       }
 
-      const { error } = await supabase.from("reels_items").delete().eq("id", row.reel_id);
+      const { error } = await db.from("reels_items").delete().eq("id", row.reel_id);
       return error ? { kind: "skipped", message: error.message, ok: false } : { kind: "deleted", ok: true };
     }
   }
 
   if (action === "hide" && storyId && row.story_id) {
-    const { error } = await supabase
+    const { error } = await db
       .from("stories")
       .update({ status: "archived", visibility: "private" })
       .eq("id", storyId);
@@ -624,11 +641,14 @@ async function processImportRow(
   }
 
   if (action === "delete" && storyId && row.story_id) {
-    const { data: story } = await supabase.from("stories").select("status").eq("id", storyId).maybeSingle();
-    if (story?.status !== "draft") {
-      return { kind: "skipped", message: "Chỉ xóa được truyện nháp.", ok: false };
-    }
-    const { error } = await supabase.from("stories").delete().eq("id", storyId);
+    const { error } = await db
+      .from("stories")
+      .update({
+        deleted_at: new Date().toISOString(),
+        status: "archived",
+        visibility: "private"
+      })
+      .eq("id", storyId);
     return error ? { kind: "skipped", message: error.message, ok: false } : { kind: "deleted", ok: true };
   }
 
@@ -655,7 +675,7 @@ export async function executeImportAction(input: {
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const result: ImportExecutionResult = {
     created: 0,
     deleted: 0,
@@ -672,7 +692,7 @@ export async function executeImportAction(input: {
     const rowIndex = input.rowIndices[index] ?? index + 2;
 
     const processed = await processImportRow(
-      supabase,
+      db,
       creatorState.creatorProfile,
       row,
       action,
@@ -720,14 +740,14 @@ export async function searchStoriesForQuickPickAction(input: {
     return { stories: [], total: 0 };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const page = input.page ?? 1;
   const from = (page - 1) * QUICK_PICK_LIMIT;
   const to = from + QUICK_PICK_LIMIT - 1;
 
-  let query = supabase
+  let query = db
     .from("stories")
-    .select("id, title, status, visibility, is_completed, structure_type", { count: "exact" })
+    .select("id, title, public_code, status, visibility, is_completed, structure_type", { count: "exact" })
     .eq("creator_id", creatorState.creatorProfile.id)
     .order("updated_at", { ascending: false })
     .range(from, to);
@@ -746,7 +766,7 @@ export async function searchStoriesForQuickPickAction(input: {
   const episodeCounts = new Map<string, number>();
 
   if (storyIds.length > 0) {
-    const { data: episodes } = await supabase.from("episodes").select("story_id").in("story_id", storyIds);
+    const { data: episodes } = await db.from("episodes").select("story_id").in("story_id", storyIds);
     for (const episode of episodes ?? []) {
       const storyId = String((episode as { story_id: string }).story_id);
       episodeCounts.set(storyId, (episodeCounts.get(storyId) ?? 0) + 1);
@@ -758,6 +778,7 @@ export async function searchStoriesForQuickPickAction(input: {
       displayStatus: storyDisplayStatus(String(row.status), String(row.visibility), Boolean(row.is_completed)),
       episodeCount: episodeCounts.get(String(row.id)) ?? 0,
       id: String(row.id),
+      publicCode: row.public_code ? String(row.public_code) : null,
       structureType: normalizeStoryStructureType(
         (row as { structure_type?: string }).structure_type
       ),

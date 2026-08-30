@@ -9,6 +9,7 @@ import { StoryQuickPicker } from "@/components/studio/import/StoryQuickPicker";
 import { Button, EmptyState } from "@/components/ui";
 import { executeImportAction } from "@/lib/studio/import-export-actions";
 import { downloadTextFile, exportRowsToCsv, formatExportFileName, parseCsv } from "@/lib/studio/csv";
+import { readImportTextFile } from "@/lib/encoding/read-import-text-file";
 import { buildImportPreview, rowsFromParsedCsv } from "@/lib/studio/import-export";
 import { studioPath } from "@/lib/studio/constants";
 import type {
@@ -100,28 +101,29 @@ export function ImportPanel({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = String(reader.result ?? "");
-      const parsed = parseCsv(text);
-      const mapped = rowsFromParsedCsv(parsed.headers, parsed.rows);
+    void readImportTextFile(file)
+      .then((text) => {
+        const parsed = parseCsv(text);
+        const mapped = rowsFromParsedCsv(parsed.headers, parsed.rows);
 
-      if (mapped.headerError) {
-        setHeaderError(mapped.headerError);
-        setPreviewRows([]);
-        setStep(2);
-        return;
-      }
+        if (mapped.headerError) {
+          setHeaderError(mapped.headerError);
+          setPreviewRows([]);
+          setStep(2);
+          return;
+        }
 
-      const preview = buildImportPreview(mapped.rows, normalizedImportType);
-      setFileName(file.name);
-      setFileSize(file.size);
-      setPreviewRows(preview.rows);
-      setStats(preview.stats);
-      setHeaderError(preview.headerError);
-      setStep(3);
-    };
-    reader.readAsText(file, "UTF-8");
+        const preview = buildImportPreview(mapped.rows, normalizedImportType);
+        setFileName(file.name);
+        setFileSize(file.size);
+        setPreviewRows(preview.rows);
+        setStats(preview.stats);
+        setHeaderError(preview.headerError);
+        setStep(3);
+      })
+      .catch(() => {
+        setHeaderError("Không đọc được file CSV. Hãy lưu UTF-8 hoặc Excel CSV chuẩn.");
+      });
   }
 
   function handleDrop(event: React.DragEvent<HTMLDivElement>) {
@@ -223,7 +225,7 @@ export function ImportPanel({
             <div className="rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-50/90">
               Loại &quot;
               {IMPORT_TYPES.find((t) => t.value === importType)?.label ?? importType}&quot; — khuyến nghị
-              dùng <strong>Nhập truyện v2</strong> ở đầu trang (CSV/XLSX, taxonomy, mã truyện/chương).
+              dùng tab <strong>Nhập truyện</strong> hoặc <strong>Nhập chương</strong> ở trên (CSV/XLSX, taxonomy, mã truyện/chương).
             </div>
           ) : null}
           <label className="block space-y-2 text-sm">
@@ -242,6 +244,9 @@ export function ImportPanel({
           </label>
           <Button onClick={() => setStep(2)} type="button">
             Tiếp tục
+          </Button>
+          <Button onClick={resetImport} type="button" variant="secondary">
+            Thoát / Làm lại
           </Button>
           <EmptyState
             description="Bạn cũng có thể tải mẫu trống trước ở tab Xuất dữ liệu."
@@ -295,6 +300,9 @@ export function ImportPanel({
             <Button onClick={() => setStep(1)} type="button" variant="secondary">
               Quay lại
             </Button>
+            <Button onClick={resetImport} type="button" variant="secondary">
+              Thoát / Làm lại
+            </Button>
           </div>
         </div>
       ) : null}
@@ -339,6 +347,9 @@ export function ImportPanel({
                 type="button"
               >
                 Xác nhận nhập
+              </Button>
+              <Button disabled={pending} onClick={resetImport} type="button" variant="secondary">
+                Thoát / Làm lại
               </Button>
             </div>
           </div>
@@ -385,6 +396,9 @@ export function ImportPanel({
             </Link>
             <Button onClick={resetImport} type="button" variant="secondary">
               Nhập file khác
+            </Button>
+            <Button onClick={resetImport} type="button" variant="secondary">
+              Thoát / Làm lại
             </Button>
           </div>
         </div>

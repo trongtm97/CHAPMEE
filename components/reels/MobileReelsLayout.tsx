@@ -5,5 +5,7 @@ type MobileReelsLayoutProps = {
 };
 
 export function MobileReelsLayout({ children }: MobileReelsLayoutProps) {
-  return <div className="relative h-full min-h-0 overflow-hidden lg:hidden">{children}</div>;
+  return (
+    <div className="relative h-full min-h-0 w-full overflow-hidden lg:hidden">{children}</div>
+  );
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { fetchTransactionRiskIds } from "@/lib/supabase/admin-finance";
-import { getTransactionsForAdminPaginated } from "@/lib/supabase/transactions";
+import { fetchTransactionRiskIds } from "@/lib/data/admin-finance";
+import { getTransactionsForAdminPaginated } from "@/lib/data/transactions";
 
 export async function GET(request: Request) {
   const context = await getCurrentAuthContext();

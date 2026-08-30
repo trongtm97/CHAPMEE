@@ -26,5 +26,9 @@ export type ContentPostActionResult = {
 export type ContentPostCoverUploadResult = {
   ok: boolean;
   message: string | null;
-  url: string | null;
+  /** storage_assets id — persist on entity, not previewUrl. */
+  mediaAssetId: string | null;
+  objectKey: string | null;
+  /** Display-only preview; do not persist to DB. */
+  previewUrl: string | null;
 };

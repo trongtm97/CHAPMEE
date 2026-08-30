@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { logAdFraudAudit } from "@/lib/ads/fraud-audit";
 import { getThresholdNumber, listAdFraudRules } from "@/lib/ads/fraud-rules";
 import { insertAdFraudSignalIfNew } from "@/lib/ads/fraud-signals";
@@ -38,7 +38,7 @@ async function detectSuddenImpressionSpike(
   rule: AdFraudRule,
   range: { from: string; to: string; month: string | null }
 ): Promise<number> {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   const multiplier = getThresholdNumber(rule.threshold_config, "multiplier", 3);
   const minBaseline = getThresholdNumber(rule.threshold_config, "min_baseline", 50);
 
@@ -46,7 +46,7 @@ async function detectSuddenImpressionSpike(
   fromDate.setDate(fromDate.getDate() - 7);
   const baselineFrom = fromDate.toISOString().slice(0, 10);
 
-  const { data: events } = await supabase
+  const { data: events } = await db
     .from("ad_render_events")
     .select("author_id, created_at")
     .eq("event_type", "rendered")
@@ -100,11 +100,11 @@ async function detectSuddenImpressionSpike(
 
 async function detectHighImpressionLowRead(rule: AdFraudRule, month: string | null): Promise<number> {
   if (!month) return 0;
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   const minImpressions = getThresholdNumber(rule.threshold_config, "min_impressions", 200);
   const maxReadRatio = getThresholdNumber(rule.threshold_config, "max_read_ratio", 0.08);
 
-  const { data: stats } = await supabase
+  const { data: stats } = await db
     .from("ad_monthly_author_stats")
     .select("author_id, rendered_impressions, estimated_reads")
     .eq("month", month);
@@ -133,14 +133,14 @@ async function detectSameSessionManyImpressions(
   rule: AdFraudRule,
   range: { from: string; to: string; month: string | null }
 ): Promise<number> {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   const maxPerSession = getThresholdNumber(
     rule.threshold_config,
     "max_impressions_per_session",
     25
   );
 
-  const { data: events } = await supabase
+  const { data: events } = await db
     .from("ad_render_events")
     .select("session_id, author_id, created_at")
     .eq("event_type", "rendered")
@@ -183,10 +183,10 @@ async function detectSuspiciousSelfTraffic(
   rule: AdFraudRule,
   range: { from: string; to: string; month: string | null }
 ): Promise<number> {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   const minSelf = getThresholdNumber(rule.threshold_config, "min_self_impressions", 15);
 
-  const { data: events } = await supabase
+  const { data: events } = await db
     .from("ad_render_events")
     .select("user_id, author_id, created_at")
     .eq("event_type", "rendered")
@@ -221,10 +221,10 @@ async function detectSuspiciousSelfTraffic(
 }
 
 async function detectReportModerationHold(rule: AdFraudRule): Promise<number> {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
   const minReports = getThresholdNumber(rule.threshold_config, "min_pending_reports", 1);
 
-  const { data: reports } = await supabase
+  const { data: reports } = await db
     .from("reports")
     .select("target_id, target_type, status")
     .in("status", ["pending", "reviewing"])
@@ -233,14 +233,14 @@ async function detectReportModerationHold(rule: AdFraudRule): Promise<number> {
   const storyIds = [...new Set((reports ?? []).map((r) => String(r.target_id)))];
   if (storyIds.length < minReports) return 0;
 
-  const { data: stories } = await supabase
+  const { data: stories } = await db
     .from("stories")
     .select("id, title, creator_id, moderation_status")
     .in("id", storyIds.slice(0, 200));
 
   let created = 0;
   for (const story of stories ?? []) {
-    const { data: cp } = await supabase
+    const { data: cp } = await db
       .from("creator_profiles")
       .select("user_id")
       .eq("id", story.creator_id)
@@ -263,16 +263,16 @@ async function detectReportModerationHold(rule: AdFraudRule): Promise<number> {
 }
 
 async function detectPolicyViolationHold(rule: AdFraudRule): Promise<number> {
-  const supabase = createAdminClient();
+  const db = createAdminClient();
 
-  const { data: stories } = await supabase
+  const { data: stories } = await db
     .from("stories")
     .select("id, title, creator_id, status, moderation_status")
     .or("status.eq.rejected,status.eq.archived,moderation_status.eq.rejected");
 
   let created = 0;
   for (const story of stories ?? []) {
-    const { data: cp } = await supabase
+    const { data: cp } = await db
       .from("creator_profiles")
       .select("user_id")
       .eq("id", story.creator_id)
@@ -291,20 +291,20 @@ async function detectPolicyViolationHold(rule: AdFraudRule): Promise<number> {
     if (res.created) created++;
   }
 
-  const { data: episodes } = await supabase
+  const { data: episodes } = await db
     .from("episodes")
     .select("id, story_id, status, moderation_status")
     .or("status.eq.rejected,status.eq.archived,moderation_status.eq.rejected")
     .limit(100);
 
   for (const ep of episodes ?? []) {
-    const { data: story } = await supabase
+    const { data: story } = await db
       .from("stories")
       .select("creator_id")
       .eq("id", ep.story_id)
       .maybeSingle();
     const { data: cp } = story
-      ? await supabase
+      ? await db
           .from("creator_profiles")
           .select("user_id")
           .eq("id", story.creator_id)

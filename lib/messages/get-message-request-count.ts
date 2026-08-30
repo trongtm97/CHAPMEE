@@ -1,18 +1,18 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export async function getPendingMessageRequestCount(
   recipientId: string
 ): Promise<number> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data, error } = await supabase.rpc("get_pending_message_request_count", {
+  const { data, error } = await db.rpc("get_pending_message_request_count", {
     p_user_id: recipientId
   });
 
   if (error) {
-    const { count } = await supabase
+    const { count } = await db
       .from("message_requests")
       .select("id", { count: "exact", head: true })
       .eq("recipient_id", recipientId)

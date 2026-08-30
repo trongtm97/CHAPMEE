@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { completeCheckoutPayment } from "@/lib/payments/complete-payment";
 import { findCheckoutByCode, parseSePayPayload } from "@/lib/payments/payment-matching";
 import { getSePayRuntimeConfig } from "@/lib/payments/sepay-config";
-import { updateCheckoutSessionStatus } from "@/lib/supabase/checkout-sessions";
-import { createPaymentWebhookEvent } from "@/lib/supabase/payment-webhook-events";
+import { updateCheckoutSessionStatus } from "@/lib/data/checkout-sessions";
+import { createPaymentWebhookEvent } from "@/lib/data/payment-webhook-events";
 
 function safeEqual(a: string, b: string) {
   const left = Buffer.from(a);
@@ -22,6 +22,7 @@ function verifyWebhook(headers: Headers, rawBody: string, config: Awaited<Return
     const received =
       headers.get("x-api-key") ??
       headers.get("x-sepay-api-key") ??
+      headers.get("authorization")?.replace(/^Apikey\s+/i, "") ??
       headers.get("authorization")?.replace(/^Bearer\s+/i, "");
     return received && config.config.apiKey && safeEqual(received.trim(), config.config.apiKey)
       ? "valid"
@@ -33,10 +34,30 @@ function verifyWebhook(headers: Headers, rawBody: string, config: Awaited<Return
     headers.get("x-signature") ??
     headers.get("x-hub-signature-256");
   const signature = received?.replace(/^sha256=/i, "").trim() ?? "";
-  const expected = createHmac("sha256", config.config.webhookSecret)
+  const timestamp = headers.get("x-sepay-timestamp")?.trim() ?? "";
+  const expectedTimestamped =
+    timestamp && /^\d+$/.test(timestamp)
+      ? createHmac("sha256", config.config.webhookSecret)
+          .update(`${timestamp}.${rawBody}`, "utf8")
+          .digest("hex")
+      : "";
+  const expectedRaw = createHmac("sha256", config.config.webhookSecret)
     .update(rawBody, "utf8")
     .digest("hex");
-  return signature && safeEqual(signature, expected) ? "valid" : "invalid";
+
+  if (!signature) {
+    return "invalid";
+  }
+
+  if (expectedTimestamped && safeEqual(signature, expectedTimestamped)) {
+    return "valid";
+  }
+
+  if (safeEqual(signature, expectedRaw)) {
+    return "valid";
+  }
+
+  return "invalid";
 }
 
 export async function POST(request: Request) {

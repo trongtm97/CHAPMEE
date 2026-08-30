@@ -74,7 +74,7 @@ export function RevenueSummaryGrid({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <RevenueMetricCard
           hint="Số dư ví tác giả — chỉ gồm doanh thu đã đối soát (truyện, tip…)."
           label="Có thể rút"

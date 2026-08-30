@@ -6,6 +6,8 @@ import type { PublicVerificationBadge } from "@/types/verification";
 export type CommentTarget = {
   storyId: string;
   episodeId?: string | null;
+  /** Story page: include chapter + reels comments (not community posts). */
+  aggregateStoryComments?: boolean;
 };
 
 export type CommunityPostCommentTarget = {
@@ -24,6 +26,7 @@ export type CommentView = {
   canDelete: boolean;
   isVip: boolean;
   isPinned?: boolean;
+  sourceLabel?: string | null;
 };
 
 type CommentRow = {
@@ -31,6 +34,7 @@ type CommentRow = {
   user_id: string;
   content: string | null;
   created_at: string;
+  episode_id?: string | null;
   content_storage_type?: string | null;
   content_object_key?: string | null;
   content_hash?: string | null;
@@ -148,17 +152,21 @@ export async function getCommunityPostComments(target: CommunityPostCommentTarge
 export async function getComments(target: CommentTarget) {
   const db = await createClient();
   const currentUserId = await getCurrentCommentUserId();
+  const limit = target.aggregateStoryComments ? 50 : 30;
   let query = db
     .from("comments")
     .select(
-      "id, user_id, content, content_storage_type, content_object_key, content_hash, content_preview, created_at, profiles(display_name, username, avatar_url, default_avatar_id)"
+      "id, user_id, episode_id, content, content_storage_type, content_object_key, content_hash, content_preview, created_at, profiles(display_name, username, avatar_url, default_avatar_id)"
     )
     .eq("story_id", target.storyId)
     .eq("status", "visible")
+    .is("parent_id", null)
     .order("created_at", { ascending: false })
-    .limit(30);
+    .limit(limit);
 
-  if (target.episodeId) {
+  if (target.aggregateStoryComments) {
+    query = query.is("community_post_id", null);
+  } else if (target.episodeId) {
     query = query.eq("episode_id", target.episodeId);
   } else {
     query = query.is("episode_id", null);
@@ -175,6 +183,22 @@ export async function getComments(target: CommentTarget) {
   }
 
   const rows = (data ?? []) as unknown as CommentRow[];
+  const episodeIds = [
+    ...new Set(rows.map((row) => row.episode_id).filter((id): id is string => Boolean(id)))
+  ];
+  const episodeNumberById = new Map<string, number>();
+
+  if (episodeIds.length > 0) {
+    const { data: episodeRows } = await db
+      .from("episodes")
+      .select("id, episode_number")
+      .in("id", episodeIds);
+
+    for (const episode of episodeRows ?? []) {
+      episodeNumberById.set(String(episode.id), Number(episode.episode_number));
+    }
+  }
+
   const userIds = rows.map((comment) => comment.user_id);
   const [vipUsers, verificationByUser] = await Promise.all([
     resolveVipUsers(userIds),
@@ -184,6 +208,9 @@ export async function getComments(target: CommentTarget) {
   return {
     comments: rows.map((comment) => {
       const profile = firstRelation(comment.profiles);
+      const episodeNumber = comment.episode_id
+        ? episodeNumberById.get(comment.episode_id)
+        : undefined;
 
       return {
         id: comment.id,
@@ -195,7 +222,9 @@ export async function getComments(target: CommentTarget) {
         avatarUrl: resolveProfileAvatarUrlForUser(comment.user_id, profile),
         verification: verificationByUser.get(comment.user_id) ?? null,
         canDelete: currentUserId === comment.user_id,
-        isVip: vipUsers.has(comment.user_id)
+        isVip: vipUsers.has(comment.user_id),
+        sourceLabel:
+          episodeNumber !== undefined ? `Chương ${episodeNumber}` : null
       };
     }),
     currentUserId,

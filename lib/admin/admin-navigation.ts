@@ -36,7 +36,13 @@ export function buildAdminNavGroups(
         { href: "/admin/content-quality", label: "Chất lượng nội dung" },
         { href: "/admin/content-taxonomy-quality", label: "Phân loại & tag" },
         { href: "/admin/community", label: "Cộng đồng" },
-        { href: "/admin/messaging", label: "Tin nhắn an toàn" }
+        { href: "/admin/messaging", label: "Tin nhắn an toàn" },
+        { href: "/admin/engagement", label: "Tương tác đọc" },
+        { href: "/admin/engagement/reactions", label: "Cảm xúc chương" },
+        { href: "/admin/engagement/reviews", label: "Đánh giá truyện" },
+        { href: "/admin/engagement/inline-comments", label: "Bình luận đoạn" },
+        { href: "/admin/engagement/boosts", label: "Đề cử truyện" },
+        { href: "/admin/security/crawl-protection", label: "Chống crawl" }
       ]
     },
     {
@@ -72,9 +78,12 @@ export function buildAdminNavGroups(
       title: "Nội dung & IP",
       items: [
         { href: "/admin/originals", label: "Originals / IP", disabled: !canFinance },
+        { href: "/admin/content-origins", label: "Content Origins" },
+        { href: "/admin/translations", label: "Translation Rights" },
         { href: "/admin/campaigns", label: "Chiến dịch", disabled: !canCampaigns },
         { href: "/admin/content-hub", label: "Bài viết" },
-        { href: "/admin/policies", label: "Chính sách" },
+        { href: "/admin/content-hub/categories", label: "Danh mục bài viết" },
+        { href: "/admin/pages", label: "Quản lý trang" },
         { href: "/admin/announcements", label: "Thông báo nền tảng" },
         { href: "/admin/notifications", label: "Notification Campaign" },
         { href: "/admin/content-hub/platform", label: "Campaigns & SEO" },
@@ -86,6 +95,7 @@ export function buildAdminNavGroups(
       title: "Hệ thống",
       items: [
         { href: "/admin/monetization-settings", label: "Cấu hình kiếm tiền" },
+        { href: "/admin/monetization-policies", label: "Translation Policies" },
         {
           href: "/admin/ads",
           label: "Quảng cáo & chia sẻ QC",
@@ -101,8 +111,13 @@ export function buildAdminNavGroups(
         { href: "/admin/algorithm/audit", label: "Algorithm Audit" },
         { href: "/admin/algorithm/ecosystem", label: "Ecosystem Fairness" },
         { href: "/admin/algorithm/fairness", label: "Công bằng hiển thị" },
-        { href: "/admin/storage-cleanup", label: "Storage & Cleanup" },
+        { href: "/admin/storage", label: "Storage overview" },
+        { href: "/admin/storage-cleanup", label: "Media cleanup" },
+        { href: "/admin/imports", label: "Import pipeline" },
         { href: "/admin/settings/contact", label: "Liên hệ & góp ý" },
+        { href: "/admin/settings/launch", label: "Coming soon & crawler" },
+        { href: "/admin/settings/footer", label: "Footer" },
+        { href: "/admin/developer/snippets", label: "Mã tuỳ chỉnh (Dev)" },
         { href: "/admin/feedback", label: "Feedback người dùng" },
         { href: "/admin/audit", label: "Nhật ký audit", disabled: !canUsers },
         { href: "/admin/analytics", label: "Phân tích" }
@@ -235,6 +250,7 @@ export function buildAdminShortcutGroups(
       links: [
         { label: "Thuật toán hiển thị", href: "/admin/algorithm" },
         { label: "Liên hệ & góp ý", href: "/admin/settings/contact" },
+        { label: "Footer", href: "/admin/settings/footer" },
         { label: "Feedback người dùng", href: "/admin/feedback" },
         {
           label: "Nhật ký audit",

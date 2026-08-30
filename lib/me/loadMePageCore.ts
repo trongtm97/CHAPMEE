@@ -5,17 +5,22 @@ import { getReaderProfile } from "@/lib/profile/getReaderProfile";
 import { buildReaderStats } from "@/lib/profile/profileIdentity";
 import { getCreatorProfileByUserId } from "@/lib/creator/getCreatorProfile";
 import { getCreatorDashboard } from "@/lib/creator/getCreatorDashboard";
-import { getMyCollections } from "@/lib/supabase/collections";
-import { getMyThankYous } from "@/lib/supabase/thank-yous";
-import { getUnreadNotificationCount } from "@/lib/supabase/notifications";
-import { getLifecycleNudgeForUser } from "@/lib/supabase/lifecycle";
+import { getMyCollections } from "@/lib/data/collections";
+import { getMyThankYous } from "@/lib/data/thank-yous";
+import { getUnreadNotificationCount } from "@/lib/data/notifications";
+import { getUnreadMessageCount } from "@/lib/messages/get-unread-count";
+import { getPublicVerificationBadge } from "@/lib/verification/get-user-verification";
+import { getLifecycleNudgeForUser } from "@/lib/data/lifecycle";
 import { ensureProfileUsername } from "@/lib/profile/ensure-profile-username";
+import { profileAvatarUrlFromRow } from "@/lib/profile/map-profile-row";
 import { getPublicProfileSharePath } from "@/lib/profile/profile-url";
 import { getShareUrl } from "@/lib/share/getShareUrl";
 import { buildAchievementPreview } from "@/lib/me/buildAchievementPreview";
 import { buildProfileHandle } from "@/lib/profile/buildProfileHandle";
 import { getMyCommunityGroups } from "@/lib/community/get-community-groups";
 import { getContactSettings } from "@/lib/settings/get-contact-settings";
+import { humanizeMeError } from "@/lib/me/humanize-me-error";
+import { getContinueListeningAudioForUser } from "@/src/lib/audio/continue-listening";
 import { loadMeMonetizationFlags } from "@/lib/me/loadMeMonetization";
 import type { MePageData } from "@/types/me-page";
 
@@ -57,20 +62,26 @@ export async function loadMePageCore({
     authContext,
     lifecycleNudge,
     unreadNotificationCount,
+    unreadMessagesCount,
+    verificationBadge,
     communityGroups,
     contactSettingsResult,
-    monetization
+    monetization,
+    continueListeningAudio
   ] = await Promise.all([
     getContinueReading(user.id, 5),
     getReaderProfile(profileFallback),
     getCreatorProfileByUserId(user.id),
     getMyCollections(6),
     getCurrentAuthContext(),
-    getLifecycleNudgeForUser(user.id, "me"),
+    getLifecycleNudgeForUser(user.id, "me").catch(() => null),
     getUnreadNotificationCount(user.id),
+    getUnreadMessageCount(user.id).catch(() => 0),
+    getPublicVerificationBadge(user.id).catch(() => null),
     getMyCommunityGroups(user.id),
     getContactSettings(),
-    loadMeMonetizationFlags({ userId: user.id, role: profile?.role })
+    loadMeMonetizationFlags({ userId: user.id, role: profile?.role }),
+    getContinueListeningAudioForUser(user.id, 5)
   ]);
 
   const [thankYous, achievementPreview, creatorDashboard] = await Promise.all([
@@ -113,9 +124,9 @@ export async function loadMePageCore({
     ? [{ label: "VIP", tone: "success" as const }, ...readerProfile.badges]
     : readerProfile.badges;
 
-  const publicSharePath = getPublicProfileSharePath(
-    ensuredUsername ?? profileWithUsername?.username
-  );
+  const username = ensuredUsername ?? profileWithUsername?.username ?? null;
+  const publicSharePath = getPublicProfileSharePath(username);
+  const isVerified = verificationBadge != null;
 
   return {
     user: {
@@ -123,13 +134,17 @@ export async function loadMePageCore({
       email: user.email ?? null,
       displayName,
       handle,
+      username,
       bio: profileWithUsername?.bio ?? null,
-      avatarUrl: profileWithUsername?.avatar_url ?? null,
-      role: profileWithUsername?.role ?? "user"
+      avatarUrl: profileAvatarUrlFromRow(profileWithUsername),
+      role: profileWithUsername?.role ?? "user",
+      isVerified
     },
+    publicProfilePath: publicSharePath,
     stats,
     profileBadges,
     currentlyReading,
+    continueListeningAudio,
     readerProfile,
     creatorProfile,
     creatorStats: creatorDashboard
@@ -137,9 +152,12 @@ export async function loadMePageCore({
           stories: creatorDashboard.stats.totalStories,
           reads: creatorDashboard.stats.reads,
           comments: creatorDashboard.stats.comments,
+          drafts: creatorDashboard.stories.filter((s) => s.status === "draft").length,
           revenue: null
         }
       : null,
+    recentCreatorStories: creatorDashboard?.stories.slice(0, 3) ?? [],
+    unreadMessagesCount,
     collections,
     thankYous,
     communityGroupsCount: communityGroups.groups.length,
@@ -149,7 +167,7 @@ export async function loadMePageCore({
     lifecycleNudge,
     accountNotice,
     permissionFlags,
-    refreshError: refreshError ?? readerProfile.error,
+    refreshError: humanizeMeError(refreshError ?? readerProfile.error),
     shareUrl: publicSharePath ? getShareUrl(publicSharePath) : "",
     contactSettings: contactSettingsResult.settings,
     monetization

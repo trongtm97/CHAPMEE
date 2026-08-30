@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type {
   UsernamePolicyEnforcementLevel,
   UsernamePolicyRuleRow
@@ -35,8 +35,8 @@ function sortRules(rules: UsernamePolicyRuleRow[]) {
 }
 
 export const getActiveUsernamePolicyRules = cache(async () => {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("username_policy_rules")
     .select("*")
     .eq("is_active", true);
@@ -55,8 +55,8 @@ export const getActiveUsernamePolicyRules = cache(async () => {
 });
 
 export async function getAllUsernamePolicyRules(includeInactive = true) {
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("username_policy_rules").select("*");
+  const db = await createClient();
+  const { data, error } = await db.from("username_policy_rules").select("*");
 
   if (error) {
     return { rules: [] as UsernamePolicyRuleRow[], error: error.message };

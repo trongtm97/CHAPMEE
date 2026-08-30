@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export async function recordUsernameChange(input: {
   userId: string;
@@ -13,8 +13,8 @@ export async function recordUsernameChange(input: {
     return { ok: true, error: null };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("username_change_history").insert({
+  const db = await createClient();
+  const { error } = await db.from("username_change_history").insert({
     user_id: input.userId,
     old_username: input.oldUsername,
     new_username: input.newUsername,

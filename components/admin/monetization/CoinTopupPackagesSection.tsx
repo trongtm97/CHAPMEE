@@ -12,6 +12,7 @@ import {
   toggleTopupPackageAction
 } from "@/lib/admin/topup-package-actions";
 import { calculateTopupCoin } from "@/lib/topup-packages/calculate";
+import { formatTicketsForPackage } from "@/lib/recommendations/config";
 import {
   TOPUP_BONUS_RECOMMENDED_MAX,
   TOPUP_MAX_RECOMMENDED_PACKAGES
@@ -133,7 +134,7 @@ function TopupPackageFormModal({
           {form.id ? "Sửa gói nạp" : "Thêm gói nạp"}
         </h3>
         <p className="mt-1 text-sm text-zinc-400">
-          Tỷ giá hiện tại: {exchangeRateVnd.toLocaleString("vi-VN")} ₫/coin
+          Tỷ giá hiện tại: 1 ₫ = 1 Xu
         </p>
 
         <div className="mt-4 space-y-3">
@@ -213,15 +214,15 @@ function TopupPackageFormModal({
 
         <dl className="mt-4 grid gap-2 rounded-xl border border-amber-400/20 bg-amber-500/5 p-3 text-sm">
           <div className="flex justify-between gap-2">
-            <dt className="text-zinc-400">Coin gốc</dt>
+            <dt className="text-zinc-400">Xu gốc</dt>
             <dd className="text-white">{preview.baseCoin.toLocaleString("vi-VN")}</dd>
           </div>
           <div className="flex justify-between gap-2">
-            <dt className="text-zinc-400">Coin thưởng</dt>
+            <dt className="text-zinc-400">Xu thưởng</dt>
             <dd className="text-amber-200">{preview.bonusCoin.toLocaleString("vi-VN")}</dd>
           </div>
           <div className="flex justify-between gap-2">
-            <dt className="text-zinc-400">Tổng coin nhận</dt>
+            <dt className="text-zinc-400">Tổng Xu nhận</dt>
             <dd className="font-semibold text-cyan-300">
               {preview.totalCoin.toLocaleString("vi-VN")}
             </dd>
@@ -247,7 +248,7 @@ function TopupPackageFormModal({
               onChange={(e) => onConfirmHighBonus(e.target.checked)}
               type="checkbox"
             />
-            Bonus Coin vượt mức khuyến nghị ({TOPUP_BONUS_RECOMMENDED_MAX}%). Điều này có thể
+            Bonus Xu vượt mức khuyến nghị ({TOPUP_BONUS_RECOMMENDED_MAX}%). Điều này có thể
             làm giảm doanh thu thực nhận của nền tảng. Tôi xác nhận muốn lưu.
           </label>
         ) : null}
@@ -313,15 +314,18 @@ function UserPreviewPanel({ packages }: { packages: CoinTopupPackage[] }) {
               <p className="mt-1 text-sm text-white">
                 Nhận{" "}
                 <span className="font-bold text-cyan-200">
-                  {pkg.total_coin_amount.toLocaleString("vi-VN")} coin
+                  {pkg.total_coin_amount.toLocaleString("vi-VN")} Xu
                 </span>
               </p>
               {pkg.bonus_coin_amount > 0 ? (
                 <p className="mt-0.5 text-xs text-amber-300">
-                  +{pkg.bonus_coin_amount.toLocaleString("vi-VN")} thưởng (
+                  +{pkg.bonus_coin_amount.toLocaleString("vi-VN")} Xu thưởng (
                   {pkg.bonus_percent}%)
                 </p>
               ) : null}
+              <p className="mt-0.5 text-xs font-semibold text-amber-200">
+                +{formatTicketsForPackage(pkg.amount_vnd).toLocaleString("vi-VN")} Phiếu đề cử
+              </p>
             </div>
           ))
         )}
@@ -418,7 +422,7 @@ export function CoinTopupPackagesSection({
         });
       }
       setFormOpen(false);
-      setToast({ type: "ok", text: "Đã lưu gói nạp coin." });
+      setToast({ type: "ok", text: "Đã lưu gói nạp Xu." });
     });
   }
 
@@ -494,9 +498,9 @@ export function CoinTopupPackagesSection({
   return (
     <MoneySettingCard
       className="lg:col-span-2"
-      description="Quản lý các mốc nạp tiền, số Coin nhận được và bonus từng mốc."
+      description="Quản lý các mốc nạp tiền, số Xu nhận được và bonus từng mốc."
       id="coin-topup-packages"
-      title="Gói nạp Coin"
+      title="Gói nạp Xu"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-zinc-500">
@@ -546,10 +550,10 @@ export function CoinTopupPackagesSection({
               <th className="px-3 py-2">#</th>
               <th className="px-3 py-2">Tên gói</th>
               <th className="px-3 py-2">Số tiền</th>
-              <th className="px-3 py-2">Coin gốc</th>
+              <th className="px-3 py-2">Xu gốc</th>
               <th className="px-3 py-2">Bonus %</th>
-              <th className="px-3 py-2">Coin bonus</th>
-              <th className="px-3 py-2">Tổng coin</th>
+              <th className="px-3 py-2">Xu bonus</th>
+              <th className="px-3 py-2">Tổng Xu</th>
               <th className="px-3 py-2">Nhãn</th>
               <th className="px-3 py-2">Đề xuất</th>
               <th className="px-3 py-2">Trạng thái</th>

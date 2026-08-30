@@ -1,5 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type { MessageSafetyKeywordRule } from "@/types/messaging-safety";
 
 let cachedRules: MessageSafetyKeywordRule[] | null = null;
@@ -23,8 +23,8 @@ export async function getActiveKeywordRules(): Promise<MessageSafetyKeywordRule[
     return cachedRules;
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("message_safety_keyword_rules")
     .select("id, keyword, action, severity, category, is_active, created_at")
     .eq("is_active", true)

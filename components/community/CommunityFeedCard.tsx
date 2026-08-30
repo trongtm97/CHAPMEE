@@ -17,7 +17,7 @@ import {
 import { SpoilerContent } from "@/components/community/SpoilerContent";
 import { AuthorNameLink } from "@/components/profile/AuthorNameLink";
 import { AvatarFallback } from "@/components/ui";
-import { getProfileUrl } from "@/lib/profile/profile-url";
+import { getCreatorPublicHref } from "@/lib/profile/profile-url";
 import type { CommunityFeedItem } from "@/types/community";
 
 type CommunityFeedCardProps = {
@@ -32,24 +32,28 @@ export function CommunityFeedCard({ item, onHide }: CommunityFeedCardProps) {
   const contextLine = buildContextLine(item);
   const href = threadHref(item);
   const showSecondaryComment = shouldShowSecondaryComment(item);
-  const authorProfileHref = getProfileUrl(item.authorUsername);
+  const authorProfileHref = getCreatorPublicHref({
+    username: item.authorUsername,
+    userId: item.authorUserId
+  });
 
   return (
     <article className="chap-card space-y-2 p-3">
       <header className="flex items-start gap-2.5">
         {authorProfileHref ? (
           <Link className="shrink-0" href={authorProfileHref}>
-            <AvatarFallback className="size-9" name={item.authorName} size="sm" />
+            <AvatarFallback className="size-9" name={item.authorName} size="sm" src={item.authorAvatarUrl} />
           </Link>
         ) : (
-          <AvatarFallback className="size-9 shrink-0" name={item.authorName} size="sm" />
+          <AvatarFallback className="size-9 shrink-0" name={item.authorName} size="sm" src={item.authorAvatarUrl} />
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs text-zinc-400">
+          <p className="text-xs text-zinc-400">
             <AuthorNameLink
               className="text-zinc-400"
               name={item.authorName}
               nameClassName="font-medium text-zinc-300"
+              userId={item.authorUserId}
               username={item.authorUsername}
             />
             <span className="text-zinc-500"> · {authorMetaSuffix(item)}</span>

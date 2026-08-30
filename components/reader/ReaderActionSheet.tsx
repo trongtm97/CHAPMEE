@@ -11,6 +11,7 @@ import {
 } from "@/lib/reader/reader-menu-actions";
 import { getStoryDetailHref } from "@/lib/stories/story-routes";
 import { studioEpisodeEditHref } from "@/lib/studio/ownership";
+import { resolvePayloadShareUrl } from "@/lib/share/getShareUrl";
 import type { ShareCardPayload } from "@/types/share";
 
 type ReaderActionSheetProps = {
@@ -95,7 +96,7 @@ export function ReaderActionSheet(props: ReaderActionSheetProps) {
 
   async function handleShare() {
     onClose();
-    const url = sharePayload.url ?? (typeof window !== "undefined" ? window.location.href : "");
+    const url = resolvePayloadShareUrl(sharePayload.url);
     const title = sharePayload.title ?? "ChapMee";
     const text = sharePayload.text ?? sharePayload.excerpt ?? "";
 

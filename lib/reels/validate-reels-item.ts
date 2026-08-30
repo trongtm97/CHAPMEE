@@ -1,4 +1,6 @@
-﻿import { truncateReelsBodyAtBoundary } from "@/lib/reels/clean-reels-source-text";
+﻿import { normalizeReelsBackgroundForStorage } from "@/lib/reels/resolve-reels-background";
+import { truncateReelsBodyAtBoundary } from "@/lib/reels/clean-reels-source-text";
+import { LOCAL_MEDIA_URL_ERROR } from "@/lib/media/content-media-validator";
 import {
   REELS_BODY_MAX,
   REELS_CTA_MAX,
@@ -79,6 +81,13 @@ export function validateReelsContent(
     errors.push("Không được chèn quá nhiều liên kết trong Reels.");
   }
 
+  let backgroundImageUrl: string | null = null;
+  try {
+    backgroundImageUrl = normalizeReelsBackgroundForStorage(values.backgroundImageUrl);
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : LOCAL_MEDIA_URL_ERROR);
+  }
+
   if (errors.length > 0) {
     return { errors, ok: false };
   }
@@ -87,7 +96,7 @@ export function validateReelsContent(
     errors: [],
     ok: true,
     values: {
-      backgroundImageUrl: values.backgroundImageUrl?.trim() || null,
+      backgroundImageUrl,
       body,
       chapterId: values.chapterId?.trim() || null,
       cta: cta || null,

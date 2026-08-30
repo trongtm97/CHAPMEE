@@ -13,7 +13,7 @@ import { logFinanceSecurityEvent } from "@/lib/finance/log-finance-security";
 import {
   getRecentFinanceEmailCodeSentAt,
   insertFinanceEmailCode
-} from "@/lib/supabase/payout-profile";
+} from "@/lib/data/payout-profile";
 import type { FinanceEmailCodePurpose } from "@/types/finance";
 
 const PURPOSE_LABELS: Record<FinanceEmailCodePurpose, string> = {
@@ -95,7 +95,7 @@ export async function verifyFinanceEmailCode(input: {
     return { ok: false, error: "Mã xác nhận phải gồm 6 chữ số." };
   }
 
-  const { getLatestFinanceEmailCode } = await import("@/lib/supabase/payout-profile");
+  const { getLatestFinanceEmailCode } = await import("@/lib/data/payout-profile");
   const latest = await getLatestFinanceEmailCode(profile.id, input.purpose);
   if (!latest.data) {
     return { ok: false, error: "Mã xác nhận không hợp lệ hoặc đã hết hạn." };
@@ -117,7 +117,7 @@ export async function consumeVerifiedFinanceEmailCode(input: {
     return { ok: false, error: verified.error };
   }
 
-  const { consumeFinanceEmailCode } = await import("@/lib/supabase/payout-profile");
+  const { consumeFinanceEmailCode } = await import("@/lib/data/payout-profile");
   const consumed = await consumeFinanceEmailCode(verified.codeId);
   if (!consumed.ok) {
     return { ok: false, error: consumed.error ?? "Không thể xác nhận mã." };

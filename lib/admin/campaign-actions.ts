@@ -27,7 +27,7 @@ import {
   updateCampaignFull,
   updateCampaignStatus,
   updateSponsor
-} from "@/lib/supabase/campaigns";
+} from "@/lib/data/campaigns";
 import { createTransaction } from "@/lib/transactions/ledger";
 import type { CampaignCenterSettings, CampaignStatus } from "@/types/campaign";
 

@@ -1,4 +1,4 @@
-import { allocateCoinSpendFifo } from "@/lib/supabase/coin-lots";
+import { allocateCoinSpendFifo } from "@/lib/data/coin-lots";
 
 export async function allocateCoinSpend(input: {
   userId: string;

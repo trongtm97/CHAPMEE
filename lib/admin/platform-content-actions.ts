@@ -11,7 +11,20 @@ import {
   updateNotificationCampaign,
   updateSeoRule
 } from "@/lib/platform-content";
+import { normalizeMediaFieldForStorage } from "@/lib/media/media-resolver";
 import type { ContentHubActionResult } from "@/types/admin-platform-content";
+
+function normalizeLegacyCoverField(raw: string | undefined): string | null {
+  const value = raw?.trim();
+  if (!value) {
+    return null;
+  }
+  const normalized = normalizeMediaFieldForStorage(value, "cover_image_url");
+  if (normalized.kind === "rejected") {
+    return null;
+  }
+  return normalized.kind === "object_key" ? normalized.objectKey : null;
+}
 
 async function requireContentHubPermission(permission: string) {
   const { checkStaffPermission } = await import("@/lib/auth/staff-guards");
@@ -44,6 +57,7 @@ export async function saveContentPostAction(input: {
   const tags = input.tags
     ? input.tags.split(",").map((t) => t.trim()).filter(Boolean)
     : [];
+  const coverObjectKey = normalizeLegacyCoverField(input.cover_image_url);
 
   if (input.id) {
     const result = await updateContentPost(input.id, {
@@ -51,7 +65,7 @@ export async function saveContentPostAction(input: {
       slug: input.slug,
       excerpt: input.excerpt ?? null,
       content: input.content ?? null,
-      cover_image_url: input.cover_image_url || null,
+      cover_image_url: coverObjectKey,
       category: input.category || null,
       tags,
       post_type: input.post_type as import("@/types/platform-content").ContentPostType,
@@ -77,7 +91,7 @@ export async function saveContentPostAction(input: {
     slug: input.slug,
     excerpt: input.excerpt ?? null,
     content: input.content ?? null,
-    cover_image_url: input.cover_image_url || null,
+    cover_image_url: coverObjectKey,
     category: input.category || null,
     tags,
     post_type: (input.post_type as import("@/types/platform-content").ContentPostType) ?? "article",

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { applyModerationAction } from "@/lib/moderation/apply-action";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { StoryAgeRating } from "@/types/moderation";
 
 const VALID_RATINGS = new Set<StoryAgeRating>([
@@ -34,8 +34,8 @@ export async function correctStoryAgeRatingAction(formData: FormData) {
     throw new Error("Thiếu thông tin cập nhật phân loại.");
   }
 
-  const supabase = await createClient();
-  const { error: updateError } = await supabase
+  const db = await createClient();
+  const { error: updateError } = await db
     .from("stories")
     .update({ age_rating: newRating })
     .eq("id", storyId);
@@ -45,7 +45,7 @@ export async function correctStoryAgeRatingAction(formData: FormData) {
   }
 
   if (reportId) {
-    await supabase
+    await db
       .from("reports")
       .update({
         status: "resolved_action_taken",
@@ -54,7 +54,7 @@ export async function correctStoryAgeRatingAction(formData: FormData) {
       .eq("id", reportId);
   }
 
-  const { count: wrongRatingCount } = await supabase
+  const { count: wrongRatingCount } = await db
     .from("reports")
     .select("id", { count: "exact", head: true })
     .eq("target_type", "story")

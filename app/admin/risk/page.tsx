@@ -1,10 +1,10 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { ErrorState, SectionHeader } from "@/components/ui";
 import { requireFinanceAccess } from "@/lib/auth/require-permission";
-import { listRiskEventsForAdmin } from "@/lib/supabase/risk";
+import { listRiskEventsForAdmin } from "@/lib/data/risk";
 import { RiskDashboard } from "@/components/admin/risk/RiskDashboard";
 import { RiskEventTable } from "@/components/admin/risk/RiskEventTable";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export const dynamic = "force-dynamic";
 
@@ -34,8 +34,8 @@ export default async function AdminRiskPage() {
   ).length;
   const suspiciousTransactions = events.data.filter((event) => event.transaction_id).length;
 
-  const supabase = await createClient();
-  const blockedProfiles = await supabase
+  const db = await createClient();
+  const blockedProfiles = await db
     .from("user_risk_profiles")
     .select("id", { count: "exact", head: true })
     .eq("payout_blocked", true);

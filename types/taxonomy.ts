@@ -54,6 +54,8 @@ export type TaxonomyTermRow = {
   sitemap_priority: number | null;
   sitemap_changefreq: string | null;
   og_image_url: string | null;
+  /** Prefer storage_assets id over og_image_url. */
+  og_image_asset_id?: string | null;
   use_for_pinterest_feed: boolean;
   min_stories_override: number | null;
   sort_order: number;

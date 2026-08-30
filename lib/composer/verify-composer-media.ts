@@ -1,10 +1,10 @@
 import { collectMediaIdsFromComposer } from "@/lib/composer/collect-media-ids";
 import { isComposerStructuredDocument } from "@/lib/composer/serializer";
 import { getChapterImagesMap } from "@/lib/images/get-chapter-images-map";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export async function resolveKnownComposerMediaIds(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   structuredContent: unknown | null,
   storyId: string
 ): Promise<Set<string>> {
@@ -17,14 +17,14 @@ export async function resolveKnownComposerMediaIds(
     return new Set();
   }
 
-  const map = await getChapterImagesMap(supabase, ids);
+  const map = await getChapterImagesMap(db, ids);
   const known = new Set(Object.keys(map));
 
   if (known.size === ids.length) {
     return known;
   }
 
-  const { data: rows } = await supabase
+  const { data: rows } = await db
     .from("chapter_images")
     .select("id")
     .in("id", ids)

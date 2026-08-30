@@ -1,10 +1,10 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/data/admin";
 import { onReelPublished, onStoryPublished } from "@/lib/cold-start/create";
 
 export async function triggerColdStartAfterStoryPublish(storyId: string) {
   try {
-    const supabase = createAdminClient();
-    const { data } = await supabase
+    const db = createAdminClient();
+    const { data } = await db
       .from("stories")
       .select("creator_profiles(user_id)")
       .eq("id", storyId)
@@ -17,7 +17,7 @@ export async function triggerColdStartAfterStoryPublish(storyId: string) {
 
     if (!authorUserId) return;
 
-    await onStoryPublished(supabase, storyId, authorUserId);
+    await onStoryPublished(db, storyId, authorUserId);
   } catch {
     // Cold start is best-effort; publish must not fail.
   }
@@ -25,8 +25,8 @@ export async function triggerColdStartAfterStoryPublish(storyId: string) {
 
 export async function triggerColdStartAfterReelPublish(reelId: string) {
   try {
-    const supabase = createAdminClient();
-    await onReelPublished(supabase, reelId);
+    const db = createAdminClient();
+    await onReelPublished(db, reelId);
   } catch {
     // best-effort
   }

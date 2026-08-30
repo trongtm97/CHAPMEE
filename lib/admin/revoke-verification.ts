@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminAuditLog } from "@/lib/admin/create-audit-log";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { syncProfileVerificationCache } from "@/lib/verification/sync-profile-cache";
 
 function hasPerm(permissions: string[], code: string) {
@@ -31,8 +31,8 @@ export async function revokeVerificationAction(input: {
     return { ok: false, error: "Vui lòng nhập lý do thu hồi." };
   }
 
-  const supabase = await createClient();
-  const { data: before } = await supabase
+  const db = await createClient();
+  const { data: before } = await db
     .from("account_verifications")
     .select("*")
     .eq("id", input.requestId)
@@ -48,7 +48,7 @@ export async function revokeVerificationAction(input: {
 
   const revokeBadge = input.revokePublicBadge ?? true;
   const now = new Date().toISOString();
-  const { error } = await supabase
+  const { error } = await db
     .from("account_verifications")
     .update({
       status: "revoked",
@@ -66,7 +66,7 @@ export async function revokeVerificationAction(input: {
 
   await syncProfileVerificationCache(String(before.user_id));
 
-  const { data: after } = await supabase
+  const { data: after } = await db
     .from("account_verifications")
     .select("*")
     .eq("id", input.requestId)

@@ -38,6 +38,43 @@ export const CREATOR_ASSIGNABLE_TAXONOMY_TYPES: TaxonomyType[] = [
   "story_status"
 ];
 
+export const DEPRECATED_CONTENT_TYPE_SLUGS = [
+  "truyen-mot-chuong",
+  "truyen-nhieu-chuong"
+] as const;
+
+/**
+ * Loại nội dung (content_type) hợp lệ khi tạo/sửa truyện trong Studio.
+ * Các mục editorial (bài viết, thông báo, hướng dẫn, review) và Reels có luồng riêng.
+ */
+export const STORY_FORM_CONTENT_TYPE_SLUGS = [
+  "truyen-dai",
+  "truyen-ngan",
+  "series-truyen-ngan",
+  "tieu-thuyet-web",
+  "doan-van",
+  "tan-van",
+  "nhat-ky-hu-cau",
+  "tho",
+  "kich-ban-hoi-thoai",
+  "chat-story",
+  "truyen-dang-tin-nhan",
+  "truyen-tuong-tac",
+  "truyen-lua-chon-nhanh"
+] as const;
+
+/** content_type không thuộc form truyện — dùng module khác (content-hub, reels, editorial). */
+export const NON_STORY_CONTENT_TYPE_SLUGS = [
+  "reels-truyen",
+  "bai-viet",
+  "thong-bao",
+  "huong-dan-viet-truyen",
+  "review-cam-nhan-truyen"
+] as const;
+
+/** Thể loại chính luôn hiển thị cuối danh sách chọn (sau sắp A–Z). */
+export const MAIN_GENRE_PIN_TO_END_SLUGS = ["the-loai-khac"] as const;
+
 /** Admin/system-only taxonomy groups. */
 export const ADMIN_ONLY_TAXONOMY_TYPES: TaxonomyType[] = [
   "editorial_tag",

@@ -1,19 +1,19 @@
 "use server";
 
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export async function toggleCommentLike(commentId: string) {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) {
     return { loginUrl: "/login?next=/reels", ok: false };
   }
 
-  const { data: existing } = await supabase
+  const { data: existing } = await db
     .from("reactions")
     .select("id")
     .eq("user_id", user.id)
@@ -34,7 +34,7 @@ export async function toggleCommentLike(commentId: string) {
   }
 
   if (existing) {
-    await supabase
+    await db
       .from("reactions")
       .delete()
       .eq("user_id", user.id)
@@ -42,7 +42,7 @@ export async function toggleCommentLike(commentId: string) {
       .eq("target_type", "comment")
       .eq("reaction_type", "like");
   } else {
-    await supabase.from("reactions").upsert(
+    await db.from("reactions").upsert(
       {
         user_id: user.id,
         target_id: commentId,

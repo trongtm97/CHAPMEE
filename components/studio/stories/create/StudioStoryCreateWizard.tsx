@@ -9,22 +9,23 @@ import {
   useState
 } from "react";
 import { AutosaveStatusBar } from "@/components/editor/AutosaveStatus";
-import { GuidelinesAcknowledgementField } from "@/components/creator/GuidelinesSubmitAcknowledgement";
 import { useGuidelinesSubmitGuard } from "@/components/creator/GuidelinesSubmitAcknowledgement";
 import { StoryCreateCoverField } from "@/components/studio/stories/create/StoryCreateCoverField";
-import { StoryCreateComposerStep } from "@/components/studio/stories/create/StoryCreateComposerStep";
 import { StoryCreateSidebar } from "@/components/studio/stories/create/StoryCreateSidebar";
 import { StoryStructureSelector } from "@/components/studio/stories/StoryStructureSelector";
+import { StoryOriginStep } from "@/components/studio/story/StoryOriginStep";
+import { TranslationMetadataForm } from "@/components/studio/story/TranslationMetadataForm";
+import { OriginalStoryDeclaration } from "@/components/studio/story/OriginalStoryDeclaration";
 import type { StoryCreateChecklistItem } from "@/components/studio/stories/create/StoryCreateChecklist";
 import {
+  buildStoryTaxonomySelectionFromBundle,
   StoryTaxonomyFields,
   type StoryTaxonomySelection
 } from "@/components/studio/stories/StoryTaxonomyFields";
 import { SEOAssistantPanel } from "@/components/studio/SEOAssistantPanel";
+import { StoryDescriptionEditor } from "@/components/editor/StoryDescriptionEditor";
 import { Button, Card, Input, Textarea } from "@/components/ui";
 import { useAutosave } from "@/hooks/useAutosave";
-import { COMPOSER_MODE_LABELS } from "@/lib/composer/modes";
-import { presentationModeToComposerMode } from "@/lib/composer/modes";
 import type { StoryFormActionState } from "@/lib/creator/createStory";
 import type { StoryFormIntent } from "@/lib/creator/storyFormValidation";
 import type { StoryFormTaxonomyBundle } from "@/lib/creator/get-story-form-taxonomy";
@@ -35,24 +36,20 @@ import {
   hasBlockingStoryCreateIssues,
   validateStoryCreateClient,
   validateStoryCreateStep,
-  type StoryComposerPath
+  type StoryCreateStepId
 } from "@/lib/studio/story-create-validation";
-import { isPresentationMode } from "@/lib/presentation/constants";
 import {
   collectSelectedTaxonomyTagNames,
   getSelectedMainGenreTerm
 } from "@/lib/creator/taxonomy-form-display";
 import type { StoryStructureType } from "@/types/story-structure";
 import type { StudioDraftRecord } from "@/types/drafts";
+import type { ContentOrigin } from "@/lib/content-origin/content-origin-types";
 
 const STEPS = [
-  { id: "basic", label: "Cơ bản" },
-  { id: "taxonomy", label: "Phân loại" },
-  { id: "composer", label: "Composer" },
-  { id: "publish", label: "SEO & xuất bản" }
-] as const;
-
-type StepId = (typeof STEPS)[number]["id"];
+  { id: "basic", label: "Thông tin" },
+  { id: "taxonomy", label: "Phân loại" }
+] as const satisfies ReadonlyArray<{ id: StoryCreateStepId; label: string }>;
 
 type StudioStoryCreateWizardProps = {
   action: (
@@ -72,7 +69,6 @@ const initialState: StoryFormActionState = { error: null };
 export function StudioStoryCreateWizard({
   action,
   authorDisplayName,
-  authorUsername,
   basePath = "/studio",
   profileId,
   savedDraft,
@@ -80,8 +76,8 @@ export function StudioStoryCreateWizard({
 }: StudioStoryCreateWizardProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState(action, initialState);
-  const [step, setStep] = useState<StepId>("basic");
-  const [submitIntent, setSubmitIntent] = useState<StoryFormIntent>("create");
+  const [step, setStep] = useState<StoryCreateStepId>("basic");
+  const [submitIntent, setSubmitIntent] = useState<StoryFormIntent>("draft");
 
   const draftContent = parseStoryDraftContent(savedDraft?.content);
   const [title, setTitle] = useState(draftContent.title ?? "");
@@ -94,34 +90,25 @@ export function StudioStoryCreateWizard({
   const [longDescription, setLongDescription] = useState(
     draftContent.longDescription ?? ""
   );
-  const [visibility, setVisibility] = useState<"public" | "private">("private");
-  const [composerPath, setComposerPath] = useState<StoryComposerPath>("story_only");
+  const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [structureType, setStructureType] = useState<StoryStructureType>("chaptered");
-  const [standaloneHasContent, setStandaloneHasContent] = useState(false);
-  const [standalonePlainText, setStandalonePlainText] = useState("");
-  const [firstChapterTitle, setFirstChapterTitle] = useState("");
   const [showValidationErrors, setShowValidationErrors] = useState(false);
   const [taxonomySelection, setTaxonomySelection] = useState<StoryTaxonomySelection>(
-    () => ({
-      ageRatingId: taxonomy.selectedByType.age_rating?.[0] ?? "",
-      contentTypeId: taxonomy.selectedByType.content_type?.[0] ?? "",
-      contentWarningIds: taxonomy.selectedByType.content_warning ?? [],
-      contentWarningsConfirmed: taxonomy.contentWarningsConfirmed,
-      formatTemplateId: taxonomy.selectedFormatTemplateId ?? "",
-      mainGenreId: taxonomy.selectedByType.main_genre?.[0] ?? "",
-      optionalTermIds: {},
-      presentationMode: taxonomy.presentationMode ?? "standard_prose",
-      warningMode:
-        (taxonomy.selectedByType.content_warning?.length ?? 0) > 0 ? "has" : "none"
-    })
+    () => buildStoryTaxonomySelectionFromBundle(taxonomy)
   );
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
   const [seoKeywords, setSeoKeywords] = useState<string[]>([]);
-  const [canonicalUrl, setCanonicalUrl] = useState("");
   const [clientError, setClientError] = useState<string | null>(null);
+  const [contentOrigin, setContentOrigin] = useState<ContentOrigin | "">("");
+  const [translationMeta, setTranslationMeta] = useState({
+    sourceTitle: "",
+    sourceAuthorName: "",
+    originalLanguage: "",
+    sourceUrl: ""
+  });
 
   const taxonomyFormState = useMemo(
     () => ({
@@ -133,13 +120,7 @@ export function StudioStoryCreateWizard({
     [taxonomySelection]
   );
 
-  const {
-    acknowledged,
-    ackError,
-    guardSubmit,
-    setAcknowledged,
-    setPendingIntent
-  } = useGuidelinesSubmitGuard();
+  const { setPendingIntent } = useGuidelinesSubmitGuard();
 
   useEffect(() => {
     if (!coverFile) {
@@ -160,12 +141,6 @@ export function StudioStoryCreateWizard({
       setSlug(next);
     }
   }, [title, slugTouched]);
-
-  useEffect(() => {
-    setComposerPath(
-      structureType === "standalone" ? "standalone_composer" : "story_only"
-    );
-  }, [structureType]);
 
   const getPayload = useCallback(
     () => ({
@@ -220,10 +195,6 @@ export function StudioStoryCreateWizard({
     [taxonomy, taxonomySelection.optionalTermIds]
   );
 
-  const composerMode = isPresentationMode(taxonomySelection.presentationMode)
-    ? presentationModeToComposerMode(taxonomySelection.presentationMode)
-    : "standard_prose";
-
   const validationInput = useMemo(
     () => ({
       intent: submitIntent,
@@ -237,31 +208,25 @@ export function StudioStoryCreateWizard({
       hasAgeRating: taxonomyFormState.hasAgeRating,
       presentationMode: taxonomySelection.presentationMode,
       contentWarningsConfirmed: taxonomyFormState.contentWarningsConfirmed,
-      guidelinesAcknowledged: acknowledged,
       hasCoverPreview: Boolean(coverFile || coverPreviewUrl),
-      composerPath,
       structureType,
-      firstChapterTitle,
-      standaloneHasContent,
-      standaloneHasPlainText: Boolean(standalonePlainText.trim())
+      contentOrigin,
+      translationMeta
     }),
     [
-      acknowledged,
-      composerPath,
+      contentOrigin,
       coverFile,
       coverPreviewUrl,
-      firstChapterTitle,
       hook,
       shortDescription,
       slug,
-      standaloneHasContent,
-      standalonePlainText,
       structureType,
       submitIntent,
       taxonomy.enabled,
       taxonomyFormState,
       taxonomySelection.presentationMode,
-      title
+      title,
+      translationMeta
     ]
   );
 
@@ -283,7 +248,8 @@ export function StudioStoryCreateWizard({
       {
         id: "short",
         label: "Có mô tả ngắn",
-        done: Boolean(shortDescription.trim())
+        done: Boolean(shortDescription.trim()),
+        optional: true
       },
       {
         id: "genre",
@@ -301,53 +267,29 @@ export function StudioStoryCreateWizard({
         done: Boolean(taxonomySelection.presentationMode)
       },
       {
-        id: "warning",
-        label: "Xác nhận cảnh báo nội dung",
-        done: taxonomyFormState.contentWarningsConfirmed
-      },
-      {
         id: "ownership",
-        label: "Xác nhận quyền sở hữu",
-        done: acknowledged
+        label: "Chọn loại nội dung & quyền",
+        done: Boolean(contentOrigin),
+        optional: true
       },
       {
         id: "seo",
         label: "SEO cơ bản",
-        done: Boolean(seoTitle.trim() || title.trim()) &&
-          Boolean(seoDescription.trim() || shortDescription.trim())
-      },
-      {
-        id: "chapter",
-        label:
-          structureType === "standalone"
-            ? "Có nội dung truyện một phần"
-            : "Chương đầu (nếu chọn viết ngay)",
         done:
-          structureType === "standalone"
-            ? composerPath === "standalone_draft_only" ||
-              standaloneHasContent ||
-              Boolean(standalonePlainText.trim())
-            : composerPath === "story_only" || Boolean(firstChapterTitle.trim()),
-        optional:
-          structureType === "standalone"
-            ? composerPath === "standalone_draft_only"
-            : composerPath === "story_only"
+          Boolean(seoTitle.trim() || title.trim()) &&
+          Boolean(seoDescription.trim() || shortDescription.trim())
       }
     ],
     [
-      acknowledged,
-      firstChapterTitle,
+      contentOrigin,
       hook,
-      composerPath,
-      taxonomySelection.presentationMode,
       seoDescription,
       seoTitle,
       shortDescription,
       slug,
-      standaloneHasContent,
-      standalonePlainText,
-      structureType,
+      taxonomy.enabled,
       taxonomyFormState,
+      taxonomySelection.presentationMode,
       title
     ]
   );
@@ -367,7 +309,7 @@ export function StudioStoryCreateWizard({
   function goToNextStep() {
     const stepIssues = validateStoryCreateStep(step, {
       ...validationInput,
-      intent: "create"
+      intent: "review"
     });
     if (stepIssues.some((issue) => issue.level === "error")) {
       setShowValidationErrors(true);
@@ -385,14 +327,7 @@ export function StudioStoryCreateWizard({
     setSubmitIntent(intent);
     setClientError(null);
     setShowValidationErrors(true);
-
-    if (intent === "review") {
-      setPendingIntent("review");
-    } else if (intent === "draft") {
-      setPendingIntent("draft");
-    } else {
-      setPendingIntent("draft");
-    }
+    setPendingIntent(intent === "review" ? "review" : "draft");
 
     const issues = validateStoryCreateClient(
       { ...validationInput, intent },
@@ -402,32 +337,16 @@ export function StudioStoryCreateWizard({
     if (hasBlockingStoryCreateIssues(issues, intent)) {
       const first = issues.find((i) => i.level === "error");
       setClientError(first?.message ?? "Vui lòng hoàn thiện các mục bắt buộc.");
-      if (first?.field === "content_type" || first?.field === "main_genre") {
-        setStep("taxonomy");
-      } else if (
-        first?.field === "standalone_content" ||
-        first?.field === "standalone_plain"
+      if (
+        first?.field === "content_type" ||
+        first?.field === "main_genre" ||
+        first?.field === "age_rating" ||
+        first?.field === "presentation_mode"
       ) {
-        setStep("composer");
-      } else if (first?.field === "guidelines_ack") {
-        setStep("publish");
+        setStep("taxonomy");
+      } else {
+        setStep("basic");
       }
-      return;
-    }
-
-    if (intent === "review" && !acknowledged) {
-      setClientError("Vui lòng xác nhận quyền sở hữu trước khi gửi duyệt.");
-      setStep("publish");
-      return;
-    }
-
-    if (
-      intent === "create_and_chapter" &&
-      structureType === "chaptered" &&
-      composerPath === "story_only"
-    ) {
-      setClientError("Chọn «Tạo truyện & viết chương đầu» ở bước Composer.");
-      setStep("composer");
       return;
     }
 
@@ -438,7 +357,10 @@ export function StudioStoryCreateWizard({
 
     const fd = new FormData(form);
     fd.set("intent", intent);
-    fd.set("post_create_path", composerPath);
+    fd.set(
+      "post_create_path",
+      structureType === "standalone" ? "standalone_draft_only" : "story_only"
+    );
     if (coverFile) {
       fd.set("cover_file", coverFile);
     }
@@ -489,11 +411,8 @@ export function StudioStoryCreateWizard({
               action={formAction}
               className="space-y-6"
               onSubmit={(event) => {
-                guardSubmit(event);
-                if (!event.defaultPrevented) {
-                  event.preventDefault();
-                  submitWithIntent(submitIntent);
-                }
+                event.preventDefault();
+                submitWithIntent(submitIntent);
               }}
               ref={formRef}
             >
@@ -502,183 +421,150 @@ export function StudioStoryCreateWizard({
               <input name="intent" type="hidden" value={submitIntent} />
 
               <div className={step === "basic" ? "space-y-5" : "hidden"}>
-                  <StoryStructureSelector
-                    onChange={setStructureType}
-                    value={structureType}
+                <StoryStructureSelector
+                  onChange={setStructureType}
+                  value={structureType}
+                />
+                <StoryOriginStep
+                  disabled={pending}
+                  onChange={(value) => {
+                    setContentOrigin(value);
+                    markDirty();
+                  }}
+                  value={contentOrigin}
+                />
+                {contentOrigin === "translation" ? (
+                  <TranslationMetadataForm
+                    disabled={pending}
+                    onChange={(next) => {
+                      setTranslationMeta(next);
+                      markDirty();
+                    }}
+                    value={translationMeta}
                   />
-                  <div>
-                    <h2 className="text-lg font-bold text-white">Thông tin cơ bản</h2>
-                    <p className="mt-1 text-sm text-zinc-500">
-                      Tiêu đề, mô tả và ảnh bìa — lưu nháp bất cứ lúc nào.
-                    </p>
-                  </div>
+                ) : contentOrigin === "original" ? (
+                  <OriginalStoryDeclaration />
+                ) : null}
+                <div>
+                  <h2 className="text-lg font-bold text-white">Thông tin cơ bản</h2>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    Tiêu đề, mô tả và ảnh bìa — lưu nháp bất cứ lúc nào.
+                  </p>
+                </div>
+                <Input
+                  disabled={pending}
+                  label="Tiêu đề truyện"
+                  labelRequired
+                  name="title"
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    markDirty();
+                  }}
+                  placeholder="Tên truyện"
+                  required
+                  value={title}
+                />
+                <div className="space-y-1">
                   <Input
                     disabled={pending}
-                    label="Tiêu đề truyện"
-                    name="title"
+                    label="Đường dẫn (slug)"
+                    name="slug"
                     onChange={(e) => {
-                      setTitle(e.target.value);
+                      setSlugTouched(true);
+                      setSlug(e.target.value);
                       markDirty();
                     }}
-                    placeholder="Tên truyện"
-                    required
-                    value={title}
+                    placeholder="banh-cuon-nho"
+                    value={slug}
                   />
-                  <div className="space-y-1">
-                    <Input
-                      disabled={pending}
-                      label="Đường dẫn (slug)"
-                      name="slug"
-                      onChange={(e) => {
-                        setSlugTouched(true);
-                        setSlug(e.target.value);
-                        markDirty();
-                      }}
-                      placeholder="banh-cuon-nho"
-                      value={slug}
-                    />
-                    <p className="text-xs text-zinc-500">
-                      Xem trước: /truyen/{slug.trim() || "…"}-t.[mã]
-                    </p>
-                  </div>
-                  <Textarea
-                    disabled={pending}
-                    label="Hook"
-                    name="hook"
-                    onChange={(e) => {
-                      setHook(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Một câu thu hút độc giả."
-                    rows={3}
-                    value={hook}
-                  />
-                  <Textarea
-                    disabled={pending}
-                    label="Mô tả ngắn"
-                    name="short_description"
-                    onChange={(e) => {
-                      setShortDescription(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Giới thiệu nhanh."
-                    rows={4}
-                    value={shortDescription}
-                  />
-                  <Textarea
-                    disabled={pending}
-                    label="Mô tả dài"
-                    name="long_description"
-                    onChange={(e) => {
-                      setLongDescription(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Bối cảnh, nhân vật…"
-                    rows={5}
-                    value={longDescription}
-                  />
-                  <StoryCreateCoverField
-                    disabled={pending}
-                    file={coverFile}
-                    onFileChange={(file) => {
-                      setCoverFile(file);
-                      markDirty();
-                    }}
-                  />
-                  <label className="block space-y-2">
-                    <span className="text-sm font-bold text-zinc-200">Hiển thị</span>
-                    <select
-                      className="min-h-12 w-full max-w-xs rounded-xl border border-white/10 bg-zinc-950/70 px-4 py-3 text-base text-white outline-none focus:border-cyan-300"
-                      disabled={pending}
-                      name="visibility"
-                      onChange={(e) =>
-                        setVisibility(e.target.value as "public" | "private")
-                      }
-                      value={visibility}
-                    >
-                      <option value="private">Riêng tư (nháp)</option>
-                      <option value="public">Công khai (sau duyệt)</option>
-                    </select>
-                  </label>
-              </div>
-
-              <div className={step === "taxonomy" ? "space-y-5" : "hidden"}>
-                  <div>
-                    <h2 className="text-lg font-bold text-white">Phân loại</h2>
-                    <p className="mt-1 text-sm text-zinc-500">
-                      Chọn loại nội dung, thể loại và cách trình bày — dùng tìm kiếm
-                      trong từng mục.
-                    </p>
-                  </div>
-                  {taxonomy.enabled ? (
-                    <StoryTaxonomyFields
-                      bundle={taxonomy}
-                      collapsibleAdvanced
-                      disabled={pending}
-                      onPresentationModeChange={(mode) => {
-                        setTaxonomySelection((prev) => ({ ...prev, presentationMode: mode }));
-                      }}
-                      onSelectionChange={setTaxonomySelection}
-                    />
-                  ) : (
-                    <p className="text-sm text-zinc-500">
-                      Taxonomy chưa được cấu hình — liên hệ quản trị trước khi tạo
-                      truyện.
-                    </p>
-                  )}
-              </div>
-
-              <div className={step === "composer" ? "space-y-5" : "hidden"}>
-                <StoryCreateComposerStep
-                  composerModeLabel={COMPOSER_MODE_LABELS[composerMode]}
-                  composerPath={composerPath}
+                  <p className="text-xs text-zinc-500">
+                    Xem trước: /truyen/{slug.trim() || "…"}-s.[mã]
+                  </p>
+                </div>
+                <Textarea
                   disabled={pending}
-                  firstChapterTitle={firstChapterTitle}
-                  onComposerPathChange={setComposerPath}
-                  onFirstChapterTitleChange={setFirstChapterTitle}
-                  onStandaloneContentChange={setStandaloneHasContent}
-                  onStandalonePlainChange={setStandalonePlainText}
-                  presentationMode={taxonomySelection.presentationMode}
-                  standalonePlainText={standalonePlainText}
-                  structureType={structureType}
+                  label="Hook"
+                  name="hook"
+                  onChange={(e) => {
+                    setHook(e.target.value);
+                    markDirty();
+                  }}
+                  placeholder="Một câu thu hút độc giả."
+                  rows={3}
+                  value={hook}
                 />
-              </div>
+                <Textarea
+                  disabled={pending}
+                  label="Mô tả ngắn"
+                  name="short_description"
+                  onChange={(e) => {
+                    setShortDescription(e.target.value);
+                    markDirty();
+                  }}
+                  placeholder="Giới thiệu nhanh."
+                  rows={4}
+                  value={shortDescription}
+                />
+                <StoryDescriptionEditor
+                  disabled={pending}
+                  label="Mô tả dài"
+                  name="long_description"
+                  onChange={(next) => {
+                    setLongDescription(next);
+                    markDirty();
+                  }}
+                  value={longDescription}
+                />
+                <StoryCreateCoverField
+                  disabled={pending}
+                  file={coverFile}
+                  onFileChange={(file) => {
+                    setCoverFile(file);
+                    markDirty();
+                  }}
+                />
+                <label className="block space-y-2">
+                  <span className="text-sm font-bold text-zinc-200">Hiển thị</span>
+                  <select
+                    className="min-h-12 w-full max-w-xs rounded-xl border border-white/10 bg-zinc-950/70 px-4 py-3 text-base text-white outline-none focus:border-cyan-300"
+                    disabled={pending}
+                    name="visibility"
+                    onChange={(e) =>
+                      setVisibility(e.target.value as "public" | "private")
+                    }
+                    value={visibility}
+                  >
+                    <option value="private">Riêng tư (nháp)</option>
+                    <option value="public">Công khai</option>
+                  </select>
+                </label>
 
-              <div className={step === "publish" ? "space-y-8" : "hidden"}>
-                  <div>
-                    <h2 className="text-lg font-bold text-white">SEO & xuất bản</h2>
-                    <p className="mt-1 text-sm text-zinc-500">
-                      Trang Studio không được index. Truyện public tuân theo quy tắc
-                      SEO hệ thống.
-                    </p>
-                    <p className="mt-2 text-xs text-zinc-600">
-                      Index khi public:{" "}
-                      {isIndexable ? (
-                        <span className="text-emerald-400">có thể index</span>
-                      ) : (
-                        <span className="text-zinc-500">noindex (nháp/riêng tư)</span>
-                      )}
-                    </p>
-                  </div>
-
+                <div className="border-t border-white/10 pt-5">
+                  <p className="mb-3 text-xs text-zinc-600">
+                    Index khi public:{" "}
+                    {isIndexable ? (
+                      <span className="text-emerald-400">có thể index</span>
+                    ) : (
+                      <span className="text-zinc-500">noindex (nháp/riêng tư)</span>
+                    )}
+                  </p>
                   <SEOAssistantPanel
-                    canonicalUrl={canonicalUrl}
                     compact
                     disabled={pending}
-                    hasCover={Boolean(coverFile)}
+                    hasCover={Boolean(coverFile || coverPreviewUrl)}
                     hasGenre={Boolean(genreName)}
                     hasTags={tagNames.length > 0}
                     isIndexable={isIndexable}
-                    isPublishedStory={false}
                     keywords={seoKeywords}
                     mode="story"
-                    onCanonicalUrlChange={setCanonicalUrl}
                     onKeywordsChange={setSeoKeywords}
-                    onSeoDescriptionChange={setSeoDescription}
-                    onSeoTitleChange={setSeoTitle}
-                    onSlugChange={(value) => {
-                      setSlugTouched(true);
-                      setSlug(value);
+                    onSeoDescriptionChange={(value) => {
+                      setSeoDescription(value);
+                      markDirty();
+                    }}
+                    onSeoTitleChange={(value) => {
+                      setSeoTitle(value);
+                      markDirty();
                     }}
                     seoDescription={seoDescription}
                     seoTitle={seoTitle}
@@ -693,24 +579,33 @@ export function StudioStoryCreateWizard({
                       title
                     }}
                   />
+                </div>
+              </div>
 
-                  <section className="space-y-4 border-t border-white/10 pt-8">
-                    <div>
-                      <h3 className="text-base font-bold text-white">Xuất bản</h3>
-                      <p className="mt-1 text-sm text-zinc-500">
-                        Xác nhận quyền sở hữu trước khi gửi duyệt. Lưu nháp không cần
-                        tick.
-                      </p>
-                    </div>
-                    <GuidelinesAcknowledgementField
-                      acknowledged={acknowledged}
-                      bare
-                      disabled={pending}
-                      error={ackError}
-                      onAckChange={setAcknowledged}
-                      variant="story"
-                    />
-                  </section>
+              <div className={step === "taxonomy" ? "space-y-5" : "hidden"}>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Phân loại</h2>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    Chọn loại nội dung, thể loại và cách trình bày — dùng tìm kiếm
+                    trong từng mục.
+                  </p>
+                </div>
+                {taxonomy.enabled ? (
+                  <StoryTaxonomyFields
+                    bundle={taxonomy}
+                    collapsibleAdvanced
+                    disabled={pending}
+                    onPresentationModeChange={(mode) => {
+                      setTaxonomySelection((prev) => ({ ...prev, presentationMode: mode }));
+                    }}
+                    onSelectionChange={setTaxonomySelection}
+                  />
+                ) : (
+                  <p className="text-sm text-zinc-500">
+                    Taxonomy chưa được cấu hình — liên hệ quản trị trước khi tạo
+                    truyện.
+                  </p>
+                )}
               </div>
 
               {state.error || clientError ? (
@@ -733,15 +628,11 @@ export function StudioStoryCreateWizard({
                   </Button>
                 ) : null}
                 {stepIndex < STEPS.length - 1 ? (
-                  <Button
-                    className="ml-auto"
-                    onClick={goToNextStep}
-                    type="button"
-                  >
+                  <Button className="ml-auto" onClick={goToNextStep} type="button">
                     Tiếp tục
                   </Button>
                 ) : (
-                  <div className="ml-auto flex flex-wrap gap-2 xl:hidden">
+                  <div className="ml-auto flex flex-wrap gap-2">
                     <Button
                       disabled={pending}
                       loading={pending}
@@ -752,32 +643,14 @@ export function StudioStoryCreateWizard({
                       Lưu nháp
                     </Button>
                     <Button
-                      disabled={pending}
-                      loading={pending}
-                      onClick={() => submitWithIntent("create")}
-                      type="button"
-                    >
-                      Tạo truyện
-                    </Button>
-                    {structureType !== "standalone" ? (
-                      <Button
-                        disabled={pending}
-                        loading={pending}
-                        onClick={() => submitWithIntent("create_and_chapter")}
-                        type="button"
-                        variant="secondary"
-                      >
-                        Tạo & chương đầu
-                      </Button>
-                    ) : null}
-                    <Button
+                      className="border border-amber-400/30 bg-amber-400/10 text-amber-50"
                       disabled={pending}
                       loading={pending}
                       onClick={() => submitWithIntent("review")}
                       type="button"
                       variant="secondary"
                     >
-                      Gửi duyệt
+                      Đăng truyện
                     </Button>
                   </div>
                 )}
@@ -796,7 +669,6 @@ export function StudioStoryCreateWizard({
               pending={pending}
               showValidationErrors={showValidationErrors}
               step={step}
-              structureType={structureType}
               visibility={visibility}
             />
           </div>
@@ -813,7 +685,6 @@ export function StudioStoryCreateWizard({
             pending={pending}
             showValidationErrors={showValidationErrors}
             step={step}
-            structureType={structureType}
             visibility={visibility}
           />
         </div>
@@ -836,13 +707,14 @@ export function StudioStoryCreateWizard({
           </Button>
         ) : (
           <Button
-            className="flex-1"
+            className="flex-1 border border-amber-400/30 bg-amber-400/10 text-amber-50"
             disabled={pending}
             loading={pending}
-            onClick={() => submitWithIntent("create")}
+            onClick={() => submitWithIntent("review")}
             type="button"
+            variant="secondary"
           >
-            Tạo truyện
+            Đăng truyện
           </Button>
         )}
       </div>

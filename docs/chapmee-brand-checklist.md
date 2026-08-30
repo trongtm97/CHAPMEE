@@ -99,7 +99,7 @@ Liên quan: [brand-rename-chapmee.md](./brand-rename-chapmee.md), [studio-naming
 - [ ] **Domain** — cập nhật `NEXT_PUBLIC_SITE_URL` khi có domain ChapMee production
 - [ ] **Ảnh OG/Social** — nếu marketing có banner riêng (file hiện tại `og-default.svg` đã ChapMee; có thể thay design sau)
 - [ ] **Supabase Auth email templates** — welcome / reset password trên dashboard Supabase (không nằm trong repo)
-- [ ] **Email transactional** — nếu bật Resend/SendGrid sau này, dùng template ChapMee
+- [x] **Email transactional** — Postfix + OpenDKIM VPS; `docs/EMAIL_PRODUCTION_SETUP.md`, `scripts/deploy/setup-postfix-mail.sh`
 - [ ] **Google Play / App Store** — listing `com.chapchap.app` → đổi khi publish app mới
 - [ ] **ASO docs** — `docs/aso/chapchap-aso-v1.md` → bản ChapMee
 - [ ] **Admin UI** — Việt hóa nhãn finance/growth còn "Creator …" (tùy chọn)

@@ -31,7 +31,7 @@ export function CombinedEmptyState({
           {variant === "default" ? (
             <Link
               className="inline-flex min-h-9 items-center justify-center rounded-full border border-white/12 bg-white/[0.03] px-4 text-xs font-semibold text-zinc-200 transition hover:border-cyan-300/25"
-              href="/studio/setup"
+              href="/studio"
             >
               Bắt đầu viết
             </Link>

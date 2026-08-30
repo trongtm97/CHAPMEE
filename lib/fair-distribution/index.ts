@@ -23,7 +23,7 @@ export { rollupFairDistributionDaily } from "@/lib/fair-distribution/rollup-dail
 export { generateFdsRecommendationSnapshots } from "@/lib/fair-distribution/generate-score-snapshots";
 
 export async function buildCandidatePool(
-  supabase: import("@supabase/supabase-js").SupabaseClient,
+  db: import("@/lib/db/types").DatabaseClient,
   surface: import("@/types/feed-mixer").FeedSurface,
   userId: string | null,
   context: {
@@ -35,15 +35,15 @@ export async function buildCandidatePool(
   }
 ) {
   const { getCandidatesForSurface } = await import("@/lib/feed/pools");
-  return getCandidatesForSurface(supabase, surface, userId, context);
+  return getCandidatesForSurface(db, surface, userId, context);
 }
 
 export async function runSimulation(
-  supabase: import("@supabase/supabase-js").SupabaseClient,
+  db: import("@/lib/db/types").DatabaseClient,
   surface: import("@/types/feed-mixer").FeedSurface,
   userId: string | null,
   limit = 30
 ) {
   const { simulateRanking } = await import("@/lib/fair-distribution/rank-candidates");
-  return simulateRanking(supabase, { surface, userId, limit, simulation: true });
+  return simulateRanking(db, { surface, userId, limit, simulation: true });
 }

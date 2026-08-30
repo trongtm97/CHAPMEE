@@ -1,19 +1,22 @@
+import { profileAvatarUrlFromRow } from "@/lib/profile/map-profile-row";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
 import { mapStoryStructureFromRow } from "@/lib/stories/story-structure";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
-import { getPublicStoryEarlyFanStats } from "@/lib/supabase/early-fans";
-import { getAuthorTopFans } from "@/lib/supabase/fan-scores";
+import { getPublicStoryEarlyFanStats } from "@/lib/data/early-fans";
+import { getAuthorTopFans } from "@/lib/data/fan-scores";
 import {
   getUserMilestones,
   syncAuthorMilestones,
   syncStoryReadMilestones,
   toMilestoneViewItems
-} from "@/lib/supabase/milestones";
+} from "@/lib/data/milestones";
 import {
   getUserBadges,
   toBadgeViewItems,
   toProfileBadgeChips
-} from "@/lib/supabase/badges";
+} from "@/lib/data/badges";
 import {
   buildAuthorAchievements,
   buildAuthorStats
@@ -154,12 +157,12 @@ export async function getPublicCreatorProfile(
       return { creator: null, notFound: true, error: null };
     }
 
-    const supabase = await createClient();
+    const db = await createClient();
     const {
       data: { user }
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
-    const { data: creatorRow, error: creatorError } = await supabase
+    const { data: creatorRow, error: creatorError } = await db
       .from("creator_profiles")
       .select(
         "id, user_id, pen_name, bio, created_at, profiles!creator_profiles_user_id_fkey(avatar_url, username, display_name)"
@@ -184,18 +187,18 @@ export async function getPublicCreatorProfile(
       metricsResult,
       followingResult
     ] = await Promise.all([
-      supabase
+      db
         .from("stories")
         .select("id, title, slug, public_code, hook, cover_url, published_at, structure_type, standalone_reading_time_minutes")
         .eq("creator_id", creator.id)
         .eq("visibility", "public")
         .in("status", ["approved", "published"])
         .order("published_at", { ascending: false }),
-      supabase.rpc("get_public_creator_profile_metrics", {
+      db.rpc("get_public_creator_profile_metrics", {
         input_creator_id: creator.id
       }),
       user
-        ? supabase
+        ? db
             .from("follows")
             .select("id")
             .eq("creator_id", creator.id)
@@ -210,17 +213,53 @@ export async function getPublicCreatorProfile(
 
     const storiesRaw = (storyRows ?? []) as unknown as StoryRow[];
     const storyIds = storiesRaw.map((story) => story.id);
-    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(supabase, storyIds);
+    const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(db, storyIds);
     const episodeCountByStory = new Map<string, number>();
     const metrics = Array.isArray(metricsResult.data)
       ? metricsResult.data[0]
       : metricsResult.data;
 
-    const followerCount = Number(metrics?.follower_count ?? 0);
-    const followingCount = Number(metrics?.following_count ?? 0);
-    const storiesCount = Number(metrics?.story_count ?? storiesRaw.length);
-    const totalLikes = Number(metrics?.total_like_count ?? 0);
-    const totalReads = Number(metrics?.total_read_count ?? 0);
+    let followerCount = Number(metrics?.follower_count ?? 0);
+    let followingCount = Number(metrics?.following_count ?? 0);
+    let storiesCount = Number(metrics?.story_count ?? storiesRaw.length);
+    let totalLikes = Number(metrics?.total_like_count ?? 0);
+    let totalReads = Number(metrics?.total_read_count ?? 0);
+
+    if (metricsResult.error && isMissingSchemaError(metricsResult.error)) {
+      const [followersResult, followingCountsResult, likesResult, readsResult] =
+        await Promise.all([
+          db
+            .from("follows")
+            .select("id", { count: "exact", head: true })
+            .eq("following_id", creator.id)
+            .eq("following_type", "creator"),
+          db
+            .from("follows")
+            .select("id", { count: "exact", head: true })
+            .eq("follower_id", creator.user_id)
+            .eq("following_type", "creator"),
+          storyIds.length
+            ? db
+                .from("reactions")
+                .select("id", { count: "exact", head: true })
+                .eq("target_type", "story")
+                .in("target_id", storyIds)
+            : Promise.resolve({ count: 0 }),
+          storyIds.length
+            ? db
+                .from("analytics_events")
+                .select("id", { count: "exact", head: true })
+                .eq("event_name", "open_story")
+                .in("target_id", storyIds)
+            : Promise.resolve({ count: 0 })
+        ]);
+
+      followerCount = Number(followersResult.count ?? 0);
+      followingCount = Number(followingCountsResult.count ?? 0);
+      storiesCount = storiesRaw.length;
+      totalLikes = Number(likesResult.count ?? 0);
+      totalReads = Number(readsResult.count ?? 0);
+    }
 
     if (user?.id === creator.user_id) {
       await syncAuthorMilestones({
@@ -273,7 +312,7 @@ export async function getPublicCreatorProfile(
           displayName: resolvePublicDisplayName(profile, creator),
           handle: profile?.username ?? null,
           bio: creator.bio,
-          avatarUrl: profile?.avatar_url ?? null,
+          avatarUrl: profileAvatarUrlFromRow(profile),
           followerCount,
           followingCount,
           storiesCount,
@@ -307,12 +346,12 @@ export async function getPublicCreatorProfile(
 
     const [{ data: episodeCountRows }, { data: creatorEpisodeRows }] =
       await Promise.all([
-        supabase
+        db
           .from("episodes")
           .select("story_id")
           .in("story_id", storyIds)
           .in("status", ["approved", "published"]),
-        supabase
+        db
           .from("episodes")
           .select("id, story_id, slug, public_code, episode_number, title, excerpt, content, stories!inner(slug, public_code, title)")
           .in("story_id", storyIds)
@@ -339,7 +378,7 @@ export async function getPublicCreatorProfile(
         displayName: resolvePublicDisplayName(profile, creator),
         handle: profile?.username ?? null,
         bio: creator.bio,
-        avatarUrl: profile?.avatar_url ?? null,
+        avatarUrl: profileAvatarUrlFromRow(profile),
         followerCount,
         followingCount,
         storiesCount,
@@ -368,7 +407,7 @@ export async function getPublicCreatorProfile(
 
           return {
             id: story.id,
-            coverUrl: story.cover_url,
+            coverUrl: resolveStoryCoverUrl(story.cover_url),
             title: story.title,
             slug: story.slug,
             publicCode: story.public_code,

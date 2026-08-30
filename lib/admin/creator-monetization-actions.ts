@@ -8,9 +8,9 @@ import {
   validateRevenueSharePercents
 } from "@/lib/admin/creator-revenue-share-utils";
 import { checkStaffPermission } from "@/lib/auth/staff-guards";
-import { upsertCreatorAccessOverride } from "@/lib/supabase/creator-access-overrides";
-import { updateCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
-import { createClient } from "@/lib/supabase/server";
+import { upsertCreatorAccessOverride } from "@/lib/data/creator-access-overrides";
+import { updateCreatorMonetizationProfile } from "@/lib/data/creator-monetization";
+import { createClient } from "@/lib/data/server";
 
 const REVALIDATE = "/admin/creators";
 const STUDIO_MONETIZATION_PATHS = [
@@ -41,8 +41,8 @@ function resolveFormData(
 }
 
 async function loadProfileBefore(profileId: string) {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("creator_monetization_profiles")
     .select("*")
     .eq("id", profileId)
@@ -329,8 +329,8 @@ export async function updateCreatorRevenueShareAction(
   });
 
   if (updated.data) {
-    const supabase = await createClient();
-    await supabase.from("creator_revenue_share_history").insert({
+    const db = await createClient();
+    await db.from("creator_revenue_share_history").insert({
       user_id: userId || updated.data.user_id,
       monetization_profile_id: profileId,
       enabled,
@@ -414,14 +414,14 @@ export async function updateCreatorStudioStatusAction(
   const reason = String(formData.get("reason") ?? "").trim();
   if (!reason) return { ok: false, error: "Vui lòng nhập lý do." };
 
-  const supabase = await createClient();
-  const { data: before } = await supabase
+  const db = await createClient();
+  const { data: before } = await db
     .from("creator_profiles")
     .select("*")
     .eq("id", creatorProfileId)
     .maybeSingle();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("creator_profiles")
     .update({ status })
     .eq("id", creatorProfileId)

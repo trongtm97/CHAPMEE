@@ -3,16 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { analyticsEvents } from "@/lib/analytics/events";
-import { awardBadge } from "@/lib/supabase/badges";
+import { awardBadge } from "@/lib/data/badges";
 import {
   appendMilestoneToastParams,
   awardMilestone,
   buildMilestoneToastNotice
-} from "@/lib/supabase/milestones";
-import { safeRecordFanScoreAction } from "@/lib/supabase/fan-scores";
+} from "@/lib/data/milestones";
+import { safeRecordFanScoreAction } from "@/lib/data/fan-scores";
 import { trackServerEvent } from "@/lib/analytics/trackServerEvent";
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { createNotification } from "@/lib/notifications/create-notification";
 
 type FollowCreatorInput = {
@@ -23,11 +23,11 @@ type FollowCreatorInput = {
 };
 
 async function getUserId() {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user },
     error
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (error || !user) {
     return null;
@@ -54,12 +54,12 @@ export async function followCreatorAction(input: FollowCreatorInput) {
     throw error;
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   let actionSucceeded = false;
   let milestoneRedirect: string | null = null;
 
   if (input.following) {
-    const { data: existing } = await supabase
+    const { data: existing } = await db
       .from("follows")
       .select("id")
       .eq("follower_id", userId)
@@ -67,7 +67,7 @@ export async function followCreatorAction(input: FollowCreatorInput) {
       .maybeSingle();
 
     if (!existing) {
-      const { error } = await supabase.from("follows").insert({
+      const { error } = await db.from("follows").insert({
         follower_id: userId,
         creator_id: input.creatorId,
         story_id: null
@@ -77,7 +77,7 @@ export async function followCreatorAction(input: FollowCreatorInput) {
       actionSucceeded = true;
     }
   } else {
-    const { error } = await supabase
+    const { error } = await db
       .from("follows")
       .delete()
       .eq("follower_id", userId)
@@ -87,7 +87,7 @@ export async function followCreatorAction(input: FollowCreatorInput) {
 
   if (actionSucceeded) {
     if (input.following) {
-      const { data: creatorOwner } = await supabase
+      const { data: creatorOwner } = await db
         .from("creator_profiles")
         .select("user_id, pen_name")
         .eq("id", input.creatorId)

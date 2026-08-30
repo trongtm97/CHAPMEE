@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getCreatorAccessStatus } from "@/lib/creator-access";
 import { getCreatorFinanceConfig } from "@/lib/finance/get-creator-finance-config";
 import { calculateCreatorBalance } from "@/lib/finance/calculate-creator-balance";
@@ -10,12 +10,12 @@ import {
   listCreatorWalletLedger,
   listFinanceSecurityLogs,
   getCreatorWithdrawalSecurity
-} from "@/lib/supabase/creator-finance";
+} from "@/lib/data/creator-finance";
 import {
   mapPayoutStatusToUi,
   withdrawalStatusLabel
 } from "@/lib/finance/withdrawal-status";
-import { listCreatorPayoutAccounts, listPayoutRequestsForCreator } from "@/lib/supabase/payouts";
+import { listCreatorPayoutAccounts, listPayoutRequestsForCreator } from "@/lib/data/payouts";
 import { getOrCreateCreatorWallet } from "@/lib/wallets/creator-wallet";
 import type {
   CreatorEarningSourceType,
@@ -102,15 +102,15 @@ export async function getCreatorFinanceSummary(input: {
     getFinanceIdentityStatus(input.creatorUserId)
   ]);
 
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user: authUser }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
   const userEmail = authUser?.email ?? null;
 
   const fromIso = periodStart(earningsFilter);
 
-  let earningsQuery = supabase
+  let earningsQuery = db
     .from("creator_earning_transactions")
     .select(
       "id, created_at, story_id, chapter_id, source_type, status, gross_amount_vnd, platform_fee_vnd, payment_processing_fee_vnd, tax_or_adjustment_vnd, creator_net_amount_vnd, coin_amount"
@@ -134,10 +134,10 @@ export async function getCreatorFinanceSummary(input: {
 
   const [{ data: stories }, { data: chapters }] = await Promise.all([
     storyIds.length > 0
-      ? supabase.from("stories").select("id, title").in("id", storyIds)
+      ? db.from("stories").select("id, title").in("id", storyIds)
       : Promise.resolve({ data: [] }),
     chapterIds.length > 0
-      ? supabase.from("episodes").select("id, title, episode_number").in("id", chapterIds)
+      ? db.from("episodes").select("id, title, episode_number").in("id", chapterIds)
       : Promise.resolve({ data: [] })
   ]);
 
@@ -185,7 +185,7 @@ export async function getCreatorFinanceSummary(input: {
   let txError: string | null = earningError?.message ?? null;
 
   if (earningsRows.length === 0) {
-    let legacyQuery = supabase
+    let legacyQuery = db
       .from("transactions")
       .select(
         "id, created_at, story_id, chapter_id, type, source, status, creator_gross_vnd, platform_fee_vnd, creator_net_vnd, net_amount_vnd, metadata"
@@ -220,10 +220,10 @@ export async function getCreatorFinanceSummary(input: {
 
     const [{ data: legacyStories }, { data: legacyChapters }] = await Promise.all([
       legacyStoryIds.length > 0
-        ? supabase.from("stories").select("id, title").in("id", legacyStoryIds)
+        ? db.from("stories").select("id, title").in("id", legacyStoryIds)
         : Promise.resolve({ data: [] }),
       legacyChapterIds.length > 0
-        ? supabase.from("episodes").select("id, title, episode_number").in("id", legacyChapterIds)
+        ? db.from("episodes").select("id, title, episode_number").in("id", legacyChapterIds)
         : Promise.resolve({ data: [] })
     ]);
 

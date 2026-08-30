@@ -27,7 +27,7 @@ export {
   validateTopupPackageId
 } from "@/lib/topup-packages/validation";
 
-export { getCoinPacksForAdmin as getTopupPackagesForAdmin } from "@/lib/supabase/coin-packs";
+export { getCoinPacksForAdmin as getTopupPackagesForAdmin } from "@/lib/data/coin-packs";
 
 export async function validateTopupPackage(
   packageId: string

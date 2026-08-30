@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { startOfTodayIso } from "@/lib/admin/messaging-date-range";
 import type { MessagingRiskOverview } from "@/types/admin-messaging";
 
@@ -14,7 +14,7 @@ const MESSAGE_RESTRICTION_TYPES = [
 const CREATOR_ROLES = new Set(["creator", "admin", "moderator", "founder"]);
 
 export async function getMessagingRiskOverview(): Promise<MessagingRiskOverview> {
-  const supabase = await createClient();
+  const db = await createClient();
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const todayStart = startOfTodayIso();
   const now = new Date().toISOString();
@@ -29,41 +29,41 @@ export async function getMessagingRiskOverview(): Promise<MessagingRiskOverview>
     newProfilesRes,
     reports24hRes
   ] = await Promise.all([
-    supabase
+    db
       .from("message_reports")
       .select("id", { count: "exact", head: true })
       .in("status", ["open", "reviewing"]),
-    supabase
+    db
       .from("message_safety_logs")
       .select("id", { count: "exact", head: true })
       .eq("status", "blocked")
       .gte("created_at", since24h),
-    supabase
+    db
       .from("message_requests")
       .select("id", { count: "exact", head: true })
       .gte("created_at", todayStart),
-    supabase
+    db
       .from("account_restrictions")
       .select("id", { count: "exact", head: true })
       .eq("is_active", true)
       .in("restriction_type", MESSAGE_RESTRICTION_TYPES)
       .lte("starts_at", now)
       .or(`ends_at.is.null,ends_at.gt.${now}`),
-    supabase
+    db
       .from("messaging_restrictions")
       .select("id", { count: "exact", head: true })
       .eq("is_active", true)
       .lte("starts_at", now)
       .or(`ends_at.is.null,ends_at.gt.${now}`),
-    supabase
+    db
       .from("message_safety_logs")
       .select("user_id, reasons, status")
       .gte("created_at", since24h),
-    supabase
+    db
       .from("profiles")
       .select("id")
       .gte("created_at", since24h),
-    supabase
+    db
       .from("message_reports")
       .select("reported_user_id, reported:profiles!message_reports_reported_user_id_fkey(role)")
       .gte("created_at", since24h)
@@ -96,7 +96,7 @@ export async function getMessagingRiskOverview(): Promise<MessagingRiskOverview>
     }
   }
 
-  const { count: openOnNewReports } = await supabase
+  const { count: openOnNewReports } = await db
     .from("message_reports")
     .select("reported_user_id", { count: "exact", head: true })
     .in("status", ["open", "reviewing"])

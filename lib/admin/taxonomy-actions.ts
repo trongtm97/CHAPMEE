@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { checkStaffAnyPermission } from "@/lib/auth/staff-guards";
 import {
@@ -586,13 +586,13 @@ export async function recalculateTaxonomyUsageCountsAction() {
   const actor = await requireTaxonomyAdmin();
   if (!actor.ok) return { ok: false, error: actor.error };
 
-  const supabase = await createClient();
+  const db = await createClient();
   const { recalculateTaxonomyUsageCounts } = await import(
     "@/lib/taxonomy/usage-count"
   );
   const { invalidateTaxonomyCache } = await import("@/lib/taxonomy/cache");
 
-  const result = await recalculateTaxonomyUsageCounts(supabase);
+  const result = await recalculateTaxonomyUsageCounts(db);
   if (result.ok) {
     invalidateTaxonomyCache();
     await logAdminAction({

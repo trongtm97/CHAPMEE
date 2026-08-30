@@ -5,6 +5,7 @@ import { ErrorState } from "@/components/ui";
 import { buildAdminContentPostCapabilities } from "@/types/admin-content-posts";
 
 import { getContentPostById } from "@/lib/platform-content/content-posts";
+import { getCategoryIdsForPost, listContentPostCategories } from "@/lib/platform-content/content-post-categories";
 
 import { requireAnyPermission } from "@/lib/auth/require-permission";
 
@@ -68,6 +69,11 @@ export default async function AdminContentPostEditRoute({ params }: PageProps) {
 
   const capabilities = buildAdminContentPostCapabilities(guard.context.permissions);
 
+  const [{ items: categories }, { ids: initialCategoryIds }] = await Promise.all([
+    listContentPostCategories({ includeHidden: true }),
+    getCategoryIdsForPost(item.id)
+  ]);
+
 
 
   return (
@@ -76,7 +82,13 @@ export default async function AdminContentPostEditRoute({ params }: PageProps) {
 
       <h1 className="sr-only">Sửa bài viết: {item.title}</h1>
 
-      <ContentPostForm capabilities={capabilities} mode="edit" post={item} />
+      <ContentPostForm
+        capabilities={capabilities}
+        categories={categories}
+        initialCategoryIds={initialCategoryIds}
+        mode="edit"
+        post={item}
+      />
 
     </section>
 

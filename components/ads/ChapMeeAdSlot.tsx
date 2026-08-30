@@ -34,10 +34,13 @@ function shouldShowTestPlaceholder(placement: AdPlacementPublic, forcePreview?: 
 
 async function fetchPlacement(
   placementKey: string,
-  route: string
+  route: string,
+  signal?: AbortSignal
 ): Promise<AdPlacementPublic | null> {
   const params = new URLSearchParams({ route });
-  const res = await fetch(`/api/ads/placements/${encodeURIComponent(placementKey)}?${params}`);
+  const res = await fetch(`/api/ads/placements/${encodeURIComponent(placementKey)}?${params}`, {
+    signal
+  });
   if (!res.ok) {
     return null;
   }
@@ -100,17 +103,26 @@ export function ChapMeeAdSlot({
     }
 
     let cancelled = false;
+    const controller = new AbortController();
     setLoaded(false);
     void (async () => {
-      const data = await fetchPlacement(placementKey, pathname);
-      if (!cancelled) {
-        setPlacement(data);
-        setLoaded(true);
+      try {
+        const data = await fetchPlacement(placementKey, pathname, controller.signal);
+        if (!cancelled) {
+          setPlacement(data);
+          setLoaded(true);
+        }
+      } catch (error) {
+        if (!cancelled && !(error instanceof DOMException && error.name === "AbortError")) {
+          setPlacement(null);
+          setLoaded(true);
+        }
       }
     })();
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [placementKey, pathname, routeAllowed]);
 

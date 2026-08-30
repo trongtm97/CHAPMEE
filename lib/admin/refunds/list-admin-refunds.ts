@@ -2,8 +2,8 @@
 
 import { computeSlaHours, formatRefundId, refundTypeLabel } from "@/lib/admin/refunds/refund-labels";
 import { checkStaffAnyPermission } from "@/lib/auth/staff-guards";
-import { createClient } from "@/lib/supabase/server";
-import { mapRefund, queryRefundsForAdmin } from "@/lib/supabase/refunds";
+import { createClient } from "@/lib/data/server";
+import { mapRefund, queryRefundsForAdmin } from "@/lib/data/refunds";
 import type { AdminRefundListRow, RefundDashboardFilters } from "@/types/admin-refund";
 
 function toNumber(v: unknown) {
@@ -48,14 +48,14 @@ function matchesSearch(row: AdminRefundListRow, search: string) {
 }
 
 async function loadProfileMaps(userIds: string[]) {
-  const supabase = await createClient();
+  const db = await createClient();
   const unique = Array.from(new Set(userIds.filter(Boolean)));
   const profileById = new Map<string, { username: string | null; display_name: string | null }>();
   const emailById = new Map<string, string>();
 
   if (unique.length === 0) return { profileById, emailById };
 
-  const { data: profiles } = await supabase
+  const { data: profiles } = await db
     .from("profiles")
     .select("id, username, display_name")
     .in("id", unique);
@@ -70,16 +70,16 @@ async function loadProfileMaps(userIds: string[]) {
 }
 
 async function loadContentLabels(storyIds: string[], chapterIds: string[]) {
-  const supabase = await createClient();
+  const db = await createClient();
   const storyById = new Map<string, string>();
   const chapterById = new Map<string, string>();
 
   if (storyIds.length > 0) {
-    const { data } = await supabase.from("stories").select("id, title").in("id", storyIds);
+    const { data } = await db.from("stories").select("id, title").in("id", storyIds);
     for (const s of data ?? []) storyById.set(s.id as string, s.title as string);
   }
   if (chapterIds.length > 0) {
-    const { data } = await supabase.from("episodes").select("id, title").in("id", chapterIds);
+    const { data } = await db.from("episodes").select("id, title").in("id", chapterIds);
     for (const c of data ?? []) chapterById.set(c.id as string, c.title as string);
   }
 
@@ -144,8 +144,8 @@ async function loadQualityBatchRows(filters: RefundDashboardFilters): Promise<Ad
     return [];
   }
 
-  const supabase = await createClient();
-  let query = supabase
+  const db = await createClient();
+  let query = db
     .from("coin_refund_batches")
     .select("*")
     .neq("status", "preview")

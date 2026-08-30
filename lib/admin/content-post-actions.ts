@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import {
   hasCriticalPublishBlockers,
-  validateHeadingStructure,
-  validateInternalLinksOnly
+  validateHeadingStructure
 } from "@/lib/content-posts/seo-validation";
 import {
   bulkSoftDeleteContentPosts,
@@ -19,12 +18,14 @@ import {
   updateContentPost,
   updateContentPostStatus
 } from "@/lib/platform-content/content-posts";
+import { setCategoriesForPost } from "@/lib/platform-content/content-post-categories";
 import type { ContentPostListFilters } from "@/lib/platform-content/parse-post-filters";
 import {
   buildUniqueContentPostSlug,
   slugifyVietnameseTitle,
   validateContentPostSlug
 } from "@/lib/platform-content/slug";
+import { normalizeMediaFieldForStorage } from "@/lib/media/media-resolver";
 import type { ContentPostActionResult } from "@/types/admin-content-posts";
 import type {
   ContentPostRobots,
@@ -65,8 +66,10 @@ export type SaveContentPostInput = {
   slug: string;
   excerpt?: string;
   content?: string;
+  cover_media_asset_id?: string;
   cover_image_url?: string;
   category?: string;
+  category_ids?: string[];
   tags?: string;
   post_type?: string;
   status?: string;
@@ -79,10 +82,30 @@ export type SaveContentPostInput = {
   robots?: string;
   og_title?: string;
   og_description?: string;
+  og_image_media_asset_id?: string;
   og_image_url?: string;
   auto_slug?: boolean;
   force_publish?: boolean;
 };
+
+function legacyObjectKeyFromInput(
+  mediaAssetId: string | undefined,
+  legacyUrl: string | undefined,
+  context: string
+): string | null {
+  if (mediaAssetId?.trim()) {
+    return null;
+  }
+  const raw = legacyUrl?.trim();
+  if (!raw) {
+    return null;
+  }
+  const normalized = normalizeMediaFieldForStorage(raw, context);
+  if (normalized.kind === "rejected") {
+    throw new Error(normalized.reason);
+  }
+  return normalized.kind === "object_key" ? normalized.objectKey : null;
+}
 
 export async function getContentPostStatsAction() {
   const { checkStaffPermission } = await import("@/lib/auth/staff-guards");
@@ -144,10 +167,6 @@ export async function saveAdminContentPostAction(
     if (headingErrors.length > 0) {
       return { ok: false, message: headingErrors[0] };
     }
-    const linkErrors = validateInternalLinksOnly(content);
-    if (linkErrors.length > 0 && !input.force_publish) {
-      return { ok: false, message: linkErrors[0] };
-    }
     if (
       hasCriticalPublishBlockers({
         title,
@@ -155,7 +174,7 @@ export async function saveAdminContentPostAction(
         excerpt: input.excerpt ?? "",
         content,
         postType,
-        coverImageUrl: input.cover_image_url ?? "",
+        coverImageUrl: input.cover_media_asset_id ?? input.cover_image_url ?? "",
         seoTitle: input.seo_title ?? "",
         seoDescription: input.seo_description ?? "",
         canonicalUrl: input.canonical_url ?? "",
@@ -168,12 +187,37 @@ export async function saveAdminContentPostAction(
     }
   }
 
+  let coverLegacyKey: string | null = null;
+  let ogLegacyKey: string | null = null;
+  try {
+    coverLegacyKey = legacyObjectKeyFromInput(
+      input.cover_media_asset_id,
+      input.cover_image_url,
+      "cover_image_url"
+    );
+    ogLegacyKey = legacyObjectKeyFromInput(
+      input.og_image_media_asset_id ?? input.cover_media_asset_id,
+      input.og_image_url,
+      "og_image_url"
+    );
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Ảnh bìa không hợp lệ."
+    };
+  }
+
+  const coverMediaAssetId = input.cover_media_asset_id?.trim() || null;
+  const ogMediaAssetId =
+    input.og_image_media_asset_id?.trim() || coverMediaAssetId || null;
+
   const payload = {
     title,
     slug,
     excerpt: input.excerpt?.trim() || null,
     content,
-    cover_image_url: input.cover_image_url?.trim() || null,
+    cover_media_asset_id: coverMediaAssetId,
+    cover_image_url: coverLegacyKey,
     category: input.category?.trim() || null,
     tags: parseTags(input.tags),
     post_type: postType,
@@ -187,7 +231,8 @@ export async function saveAdminContentPostAction(
     robots: (input.robots as ContentPostRobots) ?? (indexable ? "index,follow" : "noindex,follow"),
     og_title: input.og_title?.trim() || null,
     og_description: input.og_description?.trim() || null,
-    og_image_url: input.og_image_url?.trim() || input.cover_image_url?.trim() || null,
+    og_image_media_asset_id: ogMediaAssetId,
+    og_image_url: ogLegacyKey,
     updated_by: staff.ok ? staff.userId : null
   };
 
@@ -200,6 +245,13 @@ export async function saveAdminContentPostAction(
       return { ok: false, message: result.error ?? "Không thể cập nhật bài viết." };
     }
 
+    if (Array.isArray(input.category_ids)) {
+      const setResult = await setCategoriesForPost(result.item.id, input.category_ids);
+      if (!setResult.ok) {
+        return { ok: false, message: setResult.error ?? "Không thể cập nhật chuyên mục bài viết." };
+      }
+    }
+
     revalidateAdminAndPublic(result.item.slug, existing.item.slug);
     return { ok: true, message: "Đã cập nhật bài viết.", id: result.item.id, slug: result.item.slug };
   }
@@ -207,6 +259,13 @@ export async function saveAdminContentPostAction(
   const result = await createContentPost({ ...payload, author_admin_id: staff.ok ? staff.userId : null });
   if (result.error || !result.item) {
     return { ok: false, message: result.error ?? "Không thể tạo bài viết." };
+  }
+
+  if (Array.isArray(input.category_ids)) {
+    const setResult = await setCategoriesForPost(result.item.id, input.category_ids);
+    if (!setResult.ok) {
+      return { ok: false, message: setResult.error ?? "Không thể gán chuyên mục cho bài viết." };
+    }
   }
 
   revalidateAdminAndPublic(result.item.slug);

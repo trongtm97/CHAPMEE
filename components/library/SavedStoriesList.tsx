@@ -9,11 +9,7 @@ import { LibrarySortFilter } from "@/components/library/LibrarySortFilter";
 import { saveStoryAction } from "@/lib/actions/saveStory";
 import { getStoryCardMeta, isStandaloneStory } from "@/lib/stories/story-structure";
 import { getStoryChapterHref, getStoryDetailHref } from "@/lib/stories/story-routes";
-import { getStoryImageForUsage } from "@/lib/images/get-story-image";
-import {
-  STORY_IMAGE_PLACEHOLDER_GRADIENT_CLASS,
-  getStoryPlaceholderInitial
-} from "@/lib/images/placeholders";
+import { ChapMeeStoryCover } from "@/components/common/ChapMeeCover";
 import type {
   LibraryFilterOption,
   LibrarySavedStory,
@@ -94,31 +90,17 @@ function SavedStoryRow({
   const metaLine = cardMeta.secondaryLabel
     ? `${cardMeta.primaryLabel} · ${cardMeta.secondaryLabel}`
     : cardMeta.primaryLabel;
-  const cover = getStoryImageForUsage(item, "catalogRow");
-
   return (
     <>
       <article className="rounded-xl border border-white/6 bg-white/[0.02] p-2">
         <div className="flex gap-2.5">
-          <Link
-            className="relative h-[3.1rem] w-[2.2rem] shrink-0 overflow-hidden rounded-md bg-white/5"
-            href={getStoryDetailHref(storyFields)}
-          >
-            {cover.src ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                alt={cover.alt}
-                className="h-full w-full object-cover"
-                src={cover.src}
-                style={{ objectPosition: cover.objectPosition }}
-              />
-            ) : (
-              <span
-                className={`flex h-full w-full items-center justify-center text-xs font-black text-white/85 ${STORY_IMAGE_PLACEHOLDER_GRADIENT_CLASS}`}
-              >
-                {getStoryPlaceholderInitial(item.title)}
-              </span>
-            )}
+          <Link className="shrink-0" href={getStoryDetailHref(storyFields)}>
+            <ChapMeeStoryCover
+              className="!w-[2.625rem] rounded-md"
+              size="xs"
+              story={item}
+              usage="catalogRow"
+            />
           </Link>
           <div className="min-w-0 flex-1">
             <Link href={getStoryDetailHref(storyFields)}>

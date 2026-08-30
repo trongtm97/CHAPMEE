@@ -2,7 +2,7 @@
 
 import { inferEventCategory } from "@/lib/analytics/infer-event-category";
 import { sanitizeAnalyticsMetadata } from "@/lib/analytics/sanitizeMetadata";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { TrackEventInput } from "@/types/analytics";
 
 function logAnalyticsError(error: unknown) {
@@ -18,10 +18,10 @@ function logAnalyticsError(error: unknown) {
  */
 export async function trackServerEvent(input: TrackEventInput) {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const {
       data: { user }
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
     const eventName = input.eventName ?? input.event_name;
     if (!eventName) {
       return;
@@ -34,7 +34,7 @@ export async function trackServerEvent(input: TrackEventInput) {
     const category =
       input.category ?? input.category_name ?? inferEventCategory(eventName);
 
-    const { error } = await supabase.from("analytics_events").insert({
+    const { error } = await db.from("analytics_events").insert({
       event_category: category,
       event_name: eventName,
       metadata: payload,

@@ -19,7 +19,7 @@ type ReelsDesktopMainProps = {
   itemRefs: MutableRefObject<(HTMLElement | null)[]>;
   containerRef: RefObject<HTMLDivElement | null>;
   onClosePanel: () => void;
-  onOpenComments: () => void;
+  onCommentCreated: () => void;
   onOpenPanel: (tab: ReelsRightPanelTab) => void;
   onShare: () => void;
   onToggleFollow: () => void;
@@ -36,7 +36,7 @@ export function ReelsDesktopMain({
   itemRefs,
   containerRef,
   onClosePanel,
-  onOpenComments,
+  onCommentCreated,
   onOpenPanel,
   onShare,
   onToggleFollow,
@@ -74,7 +74,7 @@ export function ReelsDesktopMain({
             context={context}
             isFollowBusy={isBusy.follow}
             onClose={onClosePanel}
-            onOpenComments={onOpenComments}
+            onCommentCreated={onCommentCreated}
             onToggleFollow={onToggleFollow}
           />
         ) : null}

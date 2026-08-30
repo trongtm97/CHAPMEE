@@ -1,5 +1,5 @@
 import { ADMIN_CREATOR_JOIN, resolveAdminCreatorName } from "@/lib/admin/creator-display";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { loadStoryCatalogDisplayLabels } from "@/lib/taxonomy/story-genre-labels";
 
 export type StoryForReview = {
@@ -50,8 +50,8 @@ export async function getStoryForReview(
   storyId: string
 ): Promise<StoryForReviewResult> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("stories")
       .select(
         `id, title, slug, public_code, hook, short_description, long_description, status, visibility, created_at, updated_at, published_at, ${ADMIN_CREATOR_JOIN}`
@@ -69,7 +69,7 @@ export async function getStoryForReview(
 
     const story = data as unknown as StoryRow;
     const creator = firstRelation(story.creator_profiles);
-    const catalogDisplay = await loadStoryCatalogDisplayLabels(supabase, story.id);
+    const catalogDisplay = await loadStoryCatalogDisplayLabels(db, story.id);
 
     return {
       error: null,

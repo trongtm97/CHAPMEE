@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { containsExternalLink } from "@/lib/moderation/message-safety";
 import { getActiveMessagingRestrictions } from "@/lib/messaging/get-active-messaging-restriction";
 import type { MessageReportCaseDetail } from "@/types/messaging-safety";
@@ -11,9 +11,9 @@ export async function getMessageReportCase(
   reportId: string,
   options: { includeMessageContent: boolean }
 ): Promise<MessageReportCaseDetail | null> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: row } = await supabase
+  const { data: row } = await db
     .from("message_reports")
     .select(
       `id, reason_code, detail, status, risk_level, created_at, conversation_id, message_id,
@@ -63,14 +63,14 @@ export async function getMessageReportCase(
     const createdAt = messageRow.created_at;
 
     const [{ data: before }, { data: after }] = await Promise.all([
-      supabase
+      db
         .from("messages")
         .select("id, sender_id, body, created_at")
         .eq("conversation_id", conversationId)
         .lt("created_at", createdAt)
         .order("created_at", { ascending: false })
         .limit(CONTEXT_LIMIT),
-      supabase
+      db
         .from("messages")
         .select("id, sender_id, body, created_at")
         .eq("conversation_id", conversationId)
@@ -132,26 +132,26 @@ export async function getMessageReportCase(
     priorReportsRes,
     activeRestrictions
   ] = await Promise.all([
-    supabase
+    db
       .from("message_reports")
       .select("id", { count: "exact", head: true })
       .eq("reported_user_id", reported.id)
       .gte("created_at", since30d),
-    supabase
+    db
       .from("violations")
       .select("id", { count: "exact", head: true })
       .eq("user_id", reported.id)
       .eq("severity", "warning"),
-    supabase
+    db
       .from("messaging_restrictions")
       .select("id", { count: "exact", head: true })
       .eq("user_id", reported.id),
-    supabase
+    db
       .from("messages")
       .select("conversation_id")
       .eq("sender_id", reported.id)
       .gte("created_at", since24h),
-    supabase
+    db
       .from("message_reports")
       .select("id", { count: "exact", head: true })
       .eq("reported_user_id", reported.id),

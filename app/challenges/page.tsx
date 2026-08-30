@@ -3,8 +3,8 @@ import { ChallengeCard } from "@/components/challenges";
 import { EmptyState } from "@/components/ui";
 import { isSponsoredContentEnabled } from "@/lib/campaigns/feature";
 import { buildCanonicalUrl } from "@/lib/seo/metadata";
-import { getChallenges } from "@/lib/supabase/challenges";
-import { getChallengeCampaignMap } from "@/lib/supabase/campaigns";
+import { getChallenges } from "@/lib/data/challenges";
+import { getChallengeCampaignMap } from "@/lib/data/campaigns";
 
 export const dynamic = "force-dynamic";
 

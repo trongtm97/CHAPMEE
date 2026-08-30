@@ -12,7 +12,7 @@ type StoryPageSizeSelectorProps = {
   genre: string;
 };
 
-const options = [20, 40, 60];
+const options = [24, 48];
 
 export function StoryPageSizeSelector({
   filters,

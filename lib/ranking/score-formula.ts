@@ -97,11 +97,14 @@ export function reasonFromBoard(
   breakdown: RankingScoreBreakdown
 ): RankingScoreBreakdown["reason"] {
   if (boardType === "new_stories") return "Truyện mới";
+  if (boardType === "original_stories") return "Truyện sáng tác";
+  if (boardType === "translation_stories") return "Truyện dịch";
   if (boardType === "new_authors") return "Tác giả mới";
   if (boardType === "rising_stories") return "Đang lên";
   if (boardType === "reels_read_through") return "Reels kéo đọc";
   if (boardType === "most_saved") return "Lưu nhiều";
   if (boardType === "long_tail_quality") return "Giữ chân tốt";
+  if (boardType === "boosted_stories") return "Được đề cử";
   if (boardType === "chapter_next_rate" || breakdown.next_chapter_rate >= 0.55) {
     return "Đọc tiếp cao";
   }

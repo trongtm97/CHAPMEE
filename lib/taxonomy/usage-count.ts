@@ -1,10 +1,10 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export async function getStoryTaxonomyTermIds(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string
 ): Promise<string[]> {
-  const { data } = await supabase
+  const { data } = await db
     .from("story_taxonomy_terms")
     .select("term_id")
     .eq("story_id", storyId);
@@ -14,7 +14,7 @@ export async function getStoryTaxonomyTermIds(
 
 /** Increment/decrement usage_count by term delta instead of full table scan. */
 export async function updateTaxonomyUsageForStory(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   oldTermIds: string[],
   newTermIds: string[]
@@ -28,7 +28,7 @@ export async function updateTaxonomyUsageForStory(
     return { ok: true, error: null };
   }
 
-  const { error } = await supabase.rpc("apply_taxonomy_usage_count_delta", {
+  const { error } = await db.rpc("apply_taxonomy_usage_count_delta", {
     removed_term_ids: removed,
     added_term_ids: added
   });
@@ -42,9 +42,9 @@ export async function updateTaxonomyUsageForStory(
 
 /** Full recount — admin/cron only; avoid on hot paths. */
 export async function recalculateTaxonomyUsageCounts(
-  supabase: SupabaseClient
+  db: DatabaseClient
 ): Promise<{ ok: boolean; error: string | null }> {
-  const { error } = await supabase.rpc("refresh_taxonomy_usage_counts");
+  const { error } = await db.rpc("refresh_taxonomy_usage_counts");
   if (error) {
     return { ok: false, error: error.message };
   }

@@ -1,7 +1,7 @@
 import { getCurrentCreatorProfile } from "@/lib/creator/getCreatorProfile";
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
 import { getCurrentProfile, isAdminOrModerator } from "@/lib/auth/getCurrentProfile";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export class ChapterImageUploadAccessError extends Error {
   constructor(message: string) {
@@ -15,11 +15,11 @@ export async function assertChapterImageUploadAccess(input: {
   episodeId?: string | null;
   draftId?: string | null;
 }) {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user },
     error: userError
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (userError || !user) {
     throw new ChapterImageUploadAccessError("Bạn cần đăng nhập để chèn ảnh.");
@@ -28,7 +28,7 @@ export async function assertChapterImageUploadAccess(input: {
   const { profile } = await getCurrentProfile();
 
   if (isAdminOrModerator(profile)) {
-    const { data: story, error } = await supabase
+    const { data: story, error } = await db
       .from("stories")
       .select("id")
       .eq("id", input.storyId)
@@ -62,7 +62,7 @@ export async function assertChapterImageUploadAccess(input: {
     throw error;
   }
 
-  const { data: ownedStory, error: ownedError } = await supabase
+  const { data: ownedStory, error: ownedError } = await db
     .from("stories")
     .select("id")
     .eq("id", input.storyId)
@@ -80,7 +80,7 @@ export async function assertChapterImageUploadAccess(input: {
   }
 
   if (input.episodeId) {
-    const { data: episode, error: episodeError } = await supabase
+    const { data: episode, error: episodeError } = await db
       .from("episodes")
       .select("id")
       .eq("id", input.episodeId)
@@ -97,7 +97,7 @@ export async function assertChapterImageUploadAccess(input: {
   }
 
   if (input.draftId) {
-    const { data: draft, error: draftError } = await supabase
+    const { data: draft, error: draftError } = await db
       .from("creator_drafts")
       .select("id, owner_id, story_id")
       .eq("id", input.draftId)

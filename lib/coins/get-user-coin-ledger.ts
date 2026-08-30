@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { UserCoinLedgerEntry, UserCoinLedgerType } from "@/types/coins";
 
 function mapRow(row: Record<string, unknown>): UserCoinLedgerEntry {
@@ -23,10 +23,10 @@ export async function getUserCoinLedger(input: {
   limit?: number;
   type?: UserCoinLedgerType | "all";
 }) {
-  const supabase = await createClient();
+  const db = await createClient();
   const limit = Math.min(200, Math.max(1, input.limit ?? 50));
 
-  let query = supabase
+  let query = db
     .from("user_coin_ledger")
     .select("*")
     .eq("user_id", input.userId)

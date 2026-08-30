@@ -1,6 +1,6 @@
 import { calculateGini, topPercentShare } from "@/lib/fairness/gini";
 import type { ExposureShareBreakdown, FairnessExposureWindow } from "@/types/fairness";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 const WINDOW_MS: Record<FairnessExposureWindow, number> = {
   "24h": 24 * 60 * 60 * 1000,
@@ -26,15 +26,15 @@ export function windowStartIso(window: FairnessExposureWindow) {
 }
 
 export async function calculateExposureShare(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   surface: string,
   window: FairnessExposureWindow = "7d"
 ): Promise<ExposureShareBreakdown> {
-  return calculateExposureShareFiltered(supabase, { surface, window });
+  return calculateExposureShareFiltered(db, { surface, window });
 }
 
 export async function calculateExposureShareFiltered(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   options: {
     surface?: string | null;
     window?: FairnessExposureWindow;
@@ -43,7 +43,7 @@ export async function calculateExposureShareFiltered(
   const window = options.window ?? "7d";
   const since = windowStartIso(window);
 
-  let query = supabase
+  let query = db
     .from("exposure_events")
     .select("author_user_id, story_id, candidate_pool, surface")
     .gte("created_at", since)

@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { sinceForRange } from "@/lib/admin/messaging-date-range";
 import type { MessagingDateRange } from "@/types/admin-messaging";
 
@@ -32,10 +32,10 @@ export async function getMessagingAuditLogs(input: {
   range: MessagingDateRange;
   limit?: number;
 }): Promise<MessagingAuditLogRow[]> {
-  const supabase = await createClient();
+  const db = await createClient();
   const since = sinceForRange(input.range);
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("admin_audit_logs")
     .select(
       `id, action, target_type, target_id, metadata, created_at,

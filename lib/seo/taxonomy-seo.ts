@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 
 import { catalogHasDeepFilters, type StoryCatalogFilterParams } from "@/lib/discovery/catalog-url";
-import { buildCanonicalUrl, resolvePublicUrl } from "@/lib/seo/metadata";
+import { buildCanonicalUrl } from "@/lib/seo/metadata";
+import { resolveStoredMediaUrl } from "@/lib/media/media-resolver";
 import { taxonomyLandingPath, taxonomyTermPublicUrl } from "@/lib/taxonomy/public-url";
 import type { TaxonomyTerm, TaxonomyTermRow, TaxonomyType } from "@/types/taxonomy";
 
@@ -130,7 +131,7 @@ export function buildTaxonomyLandingPageMetadata(input: {
   const title = getTaxonomySeoTitle(term);
   const description = getTaxonomySeoDescription(term);
   const canonical = buildCanonicalUrl(canonicalPath);
-  const ogImage = resolvePublicUrl(term.og_image_url ?? null);
+  const ogImage = resolveStoredMediaUrl(term.og_image_url ?? null);
 
   return {
     title,

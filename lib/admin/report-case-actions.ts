@@ -10,7 +10,7 @@ import { assertStaffPermission } from "@/lib/auth/staff-guards";
 import { requireAdminOrModerator } from "@/lib/auth/requireAdminOrModerator";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { createNotification } from "@/lib/notifications/create-notification";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type {
   ReportCaseActionKind,
   ReportResolutionCode,
@@ -34,11 +34,11 @@ async function requireModerator(canWrite = true) {
   return { ok: true as const, profile: guard.profile };
 }
 
-async function getCaseReports(supabase: Awaited<ReturnType<typeof createClient>>, input: CaseInput) {
+async function getCaseReports(db: Awaited<ReturnType<typeof createClient>>, input: CaseInput) {
   const types = [input.targetType];
   if (input.targetType === "chapter") types.push("episode");
 
-  const { data } = await supabase
+  const { data } = await db
     .from("reports")
     .select("id, reporter_id, status")
     .eq("target_id", input.targetId)
@@ -48,20 +48,20 @@ async function getCaseReports(supabase: Awaited<ReturnType<typeof createClient>>
 }
 
 async function hideReportedContent(targetType: string, targetId: string) {
-  const supabase = await createClient();
+  const db = await createClient();
   const type = normalizeTargetType(targetType);
 
   if (type === "comment") {
-    return supabase.from("comments").update({ status: "hidden" }).eq("id", targetId);
+    return db.from("comments").update({ status: "hidden" }).eq("id", targetId);
   }
   if (type === "community_post") {
-    return supabase.from("community_posts").update({ status: "hidden" }).eq("id", targetId);
+    return db.from("community_posts").update({ status: "hidden" }).eq("id", targetId);
   }
   if (type === "story") {
-    return supabase.from("stories").update({ status: "hidden" }).eq("id", targetId);
+    return db.from("stories").update({ status: "hidden" }).eq("id", targetId);
   }
   if (type === "chapter") {
-    return supabase.from("episodes").update({ status: "hidden" }).eq("id", targetId);
+    return db.from("episodes").update({ status: "hidden" }).eq("id", targetId);
   }
   return { error: null };
 }
@@ -88,15 +88,15 @@ export async function reportCaseAction(
     return { ok: false, error: "Vui lòng chọn lý do từ chối báo cáo." };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date().toISOString();
   const targetType = normalizeTargetType(input.targetType);
-  const reports = await getCaseReports(supabase, { ...input, targetType });
+  const reports = await getCaseReports(db, { ...input, targetType });
   const reportIds = reports.map((r) => r.id as string);
 
   try {
     if (input.action === "assign") {
-      await supabase
+      await db
         .from("reports")
         .update({ status: "reviewing", assigned_to: mod.profile.id })
         .eq("target_id", input.targetId)
@@ -111,7 +111,7 @@ export async function reportCaseAction(
       });
 
       if (caseId) {
-        await supabase
+        await db
           .from("moderation_cases")
           .update({
             status: "reviewing",
@@ -135,7 +135,7 @@ export async function reportCaseAction(
     }
 
     if (input.action === "dismiss") {
-      await supabase
+      await db
         .from("reports")
         .update({
           status: "rejected",
@@ -147,7 +147,7 @@ export async function reportCaseAction(
         .eq("target_id", input.targetId)
         .in("target_type", targetType === "chapter" ? ["chapter", "episode"] : [targetType]);
 
-      await supabase
+      await db
         .from("moderation_cases")
         .update({
           status: "rejected",
@@ -182,7 +182,7 @@ export async function reportCaseAction(
         return { ok: false, error: hideResult.error.message };
       }
 
-      await supabase
+      await db
         .from("reports")
         .update({
           status: "resolved_action_taken",
@@ -215,7 +215,7 @@ export async function reportCaseAction(
         metadata: { moderator_note: note, report_ids: reportIds }
       });
 
-      await supabase
+      await db
         .from("reports")
         .update({
           status: "resolved_action_taken",
@@ -232,7 +232,7 @@ export async function reportCaseAction(
     }
 
     if (input.action === "escalate") {
-      await supabase
+      await db
         .from("reports")
         .update({ status: "escalated", moderator_note: note })
         .eq("target_id", input.targetId)
@@ -262,7 +262,7 @@ export async function reportCaseAction(
         return { ok: false as const, error: ("error" in res ? res.error : null) ?? "Không gửi được." };
       }
 
-      await supabase
+      await db
         .from("reports")
         .update({
           status: "resolved_action_taken",
@@ -279,7 +279,7 @@ export async function reportCaseAction(
     }
 
     // resolve default
-    await supabase
+    await db
       .from("reports")
       .update({
         status: "resolved",
@@ -291,7 +291,7 @@ export async function reportCaseAction(
       .eq("target_id", input.targetId)
       .in("target_type", targetType === "chapter" ? ["chapter", "episode"] : [targetType]);
 
-    await supabase
+    await db
       .from("moderation_cases")
       .update({
         status: "resolved",
@@ -347,11 +347,11 @@ export async function updateReportCaseSeverityAction(input: {
   const mod = await requireModerator();
   if (!mod.ok) return { ok: false, error: mod.error };
 
-  const supabase = await createClient();
+  const db = await createClient();
   const priority = severityToPriority(input.severity);
   const targetType = normalizeTargetType(input.targetType);
 
-  await supabase
+  await db
     .from("reports")
     .update({ priority })
     .eq("target_id", input.targetId)

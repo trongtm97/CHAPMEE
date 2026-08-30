@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { ContentPostCoverUploader } from "@/components/admin/content-posts/ContentPostCoverUploader";
-import { ContentPostMarkdownToolbar } from "@/components/admin/content-posts/ContentPostMarkdownToolbar";
+import { ContentPostCoverUploader, type ContentPostCoverValue } from "@/components/admin/content-posts/ContentPostCoverUploader";
+import { getMediaAssetPreviewAction } from "@/lib/admin/seo-center-actions";
+import { resolveStoredMediaUrl } from "@/lib/media/media-url";
+import { ContentPostEditor } from "@/components/admin/content-posts/ContentPostEditor";
 import { ContentPostPreview } from "@/components/admin/content-posts/ContentPostPreview";
 import { ContentPostSeoChecklist } from "@/components/admin/content-posts/ContentPostSeoChecklist";
 import {
@@ -14,22 +16,34 @@ import {
   estimateReadingMinutes
 } from "@/lib/content-posts/seo-validation";
 import { saveAdminContentPostAction, suggestContentPostSlugAction } from "@/lib/admin/content-post-actions";
+import {
+  mergeTagsWithFeatured,
+  parseFeaturedFromTags
+} from "@/lib/content-posts/featured";
 import { slugifyVietnameseTitle, validateContentPostSlug } from "@/lib/platform-content/slug";
+import { getContentPostUrl } from "@/lib/urls/paths";
 import type { AdminContentPostCapabilities } from "@/types/admin-content-posts";
-import type { AdminContentPost, ContentPostRobots } from "@/types/platform-content";
+import type { AdminContentPost, ContentPostCategory, ContentPostRobots } from "@/types/platform-content";
 
 type Props = {
   mode: "create" | "edit";
   post?: AdminContentPost | null;
   capabilities: AdminContentPostCapabilities;
+  categories?: ContentPostCategory[];
+  initialCategoryIds?: string[];
 };
 
 const inputClassName =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white placeholder:text-zinc-500";
 
-export function ContentPostForm({ mode, post, capabilities }: Props) {
+export function ContentPostForm({
+  mode,
+  post,
+  capabilities,
+  categories = [],
+  initialCategoryIds = []
+}: Props) {
   const router = useRouter();
-  const contentRef = useRef<HTMLTextAreaElement>(null);
   const [pending, startTransition] = useTransition();
   const [toast, setToast] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -39,9 +53,15 @@ export function ContentPostForm({ mode, post, capabilities }: Props) {
   const [slug, setSlug] = useState(post?.slug ?? "");
   const [excerpt, setExcerpt] = useState(post?.excerpt ?? "");
   const [content, setContent] = useState(post?.content ?? "");
-  const [coverUrl, setCoverUrl] = useState(post?.cover_image_url ?? "");
-  const [category, setCategory] = useState(post?.category ?? "");
+  const [cover, setCover] = useState<ContentPostCoverValue>({
+    mediaAssetId: post?.cover_media_asset_id ?? null,
+    previewUrl: resolveStoredMediaUrl(post?.cover_image_url) ?? null
+  });
+  const [categoryIds, setCategoryIds] = useState<string[]>(initialCategoryIds);
   const [tags, setTags] = useState(post?.tags.join(", ") ?? "");
+  const [hubFeatured, setHubFeatured] = useState(() =>
+    parseFeaturedFromTags(post?.tags.join(", ") ?? "")
+  );
   const [postType, setPostType] = useState(post?.post_type ?? "article");
   const [status, setStatus] = useState(post?.status ?? "draft");
   const [publishedAt, setPublishedAt] = useState(toLocalInputValue(post?.published_at));
@@ -56,6 +76,21 @@ export function ContentPostForm({ mode, post, capabilities }: Props) {
   const [ogTitle, setOgTitle] = useState(post?.og_title ?? "");
   const [ogDescription, setOgDescription] = useState(post?.og_description ?? "");
   const [slugError, setSlugError] = useState<string | null>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const assetId = post?.cover_media_asset_id?.trim();
+    if (!assetId) {
+      return;
+    }
+    void getMediaAssetPreviewAction(assetId).then((result) => {
+      if (result.url) {
+        setCover((prev) =>
+          prev.mediaAssetId === assetId ? { ...prev, previewUrl: result.url } : prev
+        );
+      }
+    });
+  }, [post?.cover_media_asset_id]);
 
   useEffect(() => {
     if (slugManual || !title.trim()) return;
@@ -78,14 +113,28 @@ export function ContentPostForm({ mode, post, capabilities }: Props) {
       excerpt,
       content,
       postType,
-      coverImageUrl: coverUrl,
+      coverImageUrl: cover.previewUrl ?? "",
       seoTitle,
       seoDescription,
       canonicalUrl,
       indexable
     }),
-    [title, slug, excerpt, content, postType, coverUrl, seoTitle, seoDescription, canonicalUrl, indexable]
+    [title, slug, excerpt, content, postType, cover.previewUrl, seoTitle, seoDescription, canonicalUrl, indexable]
   );
+
+  const categorySlugById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const item of categories) {
+      map.set(item.id, item.slug);
+    }
+    return map;
+  }, [categories]);
+
+  const legacyCategorySlug = useMemo(() => {
+    const first = categoryIds[0];
+    if (!first) return "";
+    return categorySlugById.get(first) ?? "";
+  }, [categoryIds, categorySlugById]);
 
   const wordCount = countWords(content);
   const readingMin = estimateReadingMinutes(content);
@@ -100,22 +149,6 @@ export function ContentPostForm({ mode, post, capabilities }: Props) {
     if (!canonicalUrl || canonicalUrl.startsWith("/bai-viet/")) {
       setCanonicalUrl(normalized ? `/bai-viet/${normalized}` : "");
     }
-  }
-
-  function insertMarkdown(snippet: string) {
-    const el = contentRef.current;
-    if (!el) {
-      setContent((prev) => `${prev}${snippet}`);
-      return;
-    }
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const next = content.slice(0, start) + snippet + content.slice(end);
-    setContent(next);
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(start + snippet.length, start + snippet.length);
-    });
   }
 
   function submit(nextStatus?: AdminContentPost["status"]) {
@@ -134,9 +167,10 @@ export function ContentPostForm({ mode, post, capabilities }: Props) {
         slug,
         excerpt,
         content,
-        cover_image_url: coverUrl,
-        category,
-        tags,
+        cover_media_asset_id: cover.mediaAssetId ?? undefined,
+        category: legacyCategorySlug,
+        category_ids: categoryIds,
+        tags: mergeTagsWithFeatured(tags, hubFeatured).join(", "),
         post_type: postType,
         status: finalStatus,
         published_at: publishedAt,
@@ -148,12 +182,17 @@ export function ContentPostForm({ mode, post, capabilities }: Props) {
         robots,
         og_title: ogTitle,
         og_description: ogDescription,
-        og_image_url: coverUrl,
+        og_image_media_asset_id: cover.mediaAssetId ?? undefined,
         auto_slug: !slugManual
       });
 
-      setToast(result.message);
-      if (!result.ok) return;
+      if (!result.ok) {
+        setToast(result.message);
+        return;
+      }
+
+      setStatus(finalStatus);
+      setToast(statusToast(finalStatus, result.message));
 
       if (mode === "create" && result.id) {
         router.push(`/admin/content-hub/${result.id}`);
@@ -172,10 +211,39 @@ export function ContentPostForm({ mode, post, capabilities }: Props) {
         <Link className="text-sm text-zinc-400 hover:text-zinc-200" href="/admin/content-hub">
           ← Quay lại
         </Link>
+        {post && status === "published" ? (
+          <a
+            className="rounded-xl border border-cyan-400/20 px-3 py-2 text-sm text-cyan-100 hover:bg-cyan-400/10"
+            href={
+              post.public_code
+                ? getContentPostUrl({ slug: post.slug, public_code: post.public_code })
+                : `/bai-viet/${post.slug}`
+            }
+            rel="noreferrer"
+            target="_blank"
+          >
+            Xem bài viết thực tế ↗
+          </a>
+        ) : null}
+        {mode === "edit" && post ? (
+          <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-300">
+            {(post.view_count ?? 0).toLocaleString("vi-VN")} lượt xem
+          </span>
+        ) : null}
         <div className="ml-auto flex flex-wrap gap-2">
           <button
             className="rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5"
-            onClick={() => setShowPreview((v) => !v)}
+            onClick={() => {
+              setShowPreview((v) => {
+                const next = !v;
+                if (next) {
+                  window.setTimeout(() => {
+                    previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }, 50);
+                }
+                return next;
+              });
+            }}
             type="button"
           >
             {showPreview ? "Ẩn preview" : "Xem trước"}
@@ -196,7 +264,13 @@ export function ContentPostForm({ mode, post, capabilities }: Props) {
                 onClick={() => submit(status === "scheduled" ? "scheduled" : "published")}
                 type="button"
               >
-                {status === "scheduled" ? "Lên lịch" : "Đăng"}
+                {pending
+                  ? "Đang lưu…"
+                  : status === "scheduled"
+                    ? "Lên lịch"
+                    : status === "published"
+                      ? "Cập nhật"
+                      : "Đăng"}
               </button>
             </>
           ) : null}
@@ -242,10 +316,44 @@ export function ContentPostForm({ mode, post, capabilities }: Props) {
                   ))}
                 </select>
               </label>
-              <label className="block space-y-1">
-                <span className="text-sm text-zinc-300">Category</span>
-                <input className={inputClassName} onChange={(e) => setCategory(e.target.value)} value={category} />
-              </label>
+              <div className="space-y-1">
+                <span className="text-sm text-zinc-300">Chuyên mục</span>
+                <div className="max-h-40 space-y-1 overflow-auto rounded-xl border border-white/10 bg-zinc-950 px-3 py-2">
+                  {categories.length === 0 ? (
+                    <p className="text-xs text-zinc-500">Chưa có chuyên mục nào. Tạo trong Admin → Bài viết → Danh mục bài viết.</p>
+                  ) : (
+                    categories.map((cat) => {
+                      const checked = categoryIds.includes(cat.id);
+                      return (
+                        <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-200" key={cat.id}>
+                          <input
+                            checked={checked}
+                            className="h-4 w-4 rounded border-white/20 bg-zinc-900 text-cyan-500 focus-visible:ring-2 focus-visible:ring-cyan-400"
+                            disabled={pending || !canSave}
+                            onChange={(e) => {
+                              setCategoryIds((prev) => {
+                                if (e.target.checked) {
+                                  return prev.includes(cat.id) ? prev : [...prev, cat.id];
+                                }
+                                return prev.filter((id) => id !== cat.id);
+                              });
+                            }}
+                            type="checkbox"
+                          />
+                          <span className="min-w-0 truncate">
+                            {cat.name} <span className="text-xs text-zinc-500">({cat.slug})</span>
+                          </span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                {legacyCategorySlug ? (
+                  <p className="text-xs text-zinc-500">
+                    Đồng bộ tương thích ngược: <code className="text-zinc-400">{legacyCategorySlug}</code>
+                  </p>
+                ) : null}
+              </div>
             </div>
             <label className="block space-y-1">
               <span className="text-sm text-zinc-300">Excerpt</span>
@@ -257,13 +365,7 @@ export function ContentPostForm({ mode, post, capabilities }: Props) {
             </label>
             <div className="space-y-2">
               <span className="text-sm text-zinc-300">Nội dung *</span>
-              <ContentPostMarkdownToolbar onInsert={insertMarkdown} />
-              <textarea
-                className={`${inputClassName} min-h-[320px] font-mono text-[13px]`}
-                onChange={(e) => setContent(e.target.value)}
-                ref={contentRef}
-                value={content}
-              />
+              <ContentPostEditor disabled={pending || !canSave} onChange={setContent} value={content} />
               <p className="text-xs text-zinc-500">
                 {wordCount} từ · ~{readingMin} phút đọc · {headings.total} heading · {internalLinks} link nội bộ
               </p>
@@ -277,7 +379,22 @@ export function ContentPostForm({ mode, post, capabilities }: Props) {
                 value={tags}
               />
             </label>
-            <ContentPostCoverUploader disabled={!canSave} onChange={setCoverUrl} value={coverUrl} />
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5">
+              <input
+                checked={hubFeatured}
+                className="mt-0.5 h-4 w-4 rounded border-white/20 bg-zinc-900 text-cyan-500 focus-visible:ring-2 focus-visible:ring-cyan-400"
+                onChange={(e) => setHubFeatured(e.target.checked)}
+                type="checkbox"
+              />
+              <span className="space-y-0.5">
+                <span className="text-sm font-medium text-zinc-200">Nên đọc trước (hub /bai-viet)</span>
+                <span className="block text-xs text-zinc-500">
+                  Ghim bài lên mục nổi bật trang Bài viết. Tự thêm tag{" "}
+                  <code className="text-zinc-400">featured</code>.
+                </span>
+              </span>
+            </label>
+            <ContentPostCoverUploader disabled={!canSave} onChange={setCover} value={cover} />
           </section>
         </div>
 
@@ -393,8 +510,9 @@ export function ContentPostForm({ mode, post, capabilities }: Props) {
 
           {showPreview ? (
             <ContentPostPreview
+              ref={previewRef}
               content={content}
-              coverUrl={coverUrl}
+              coverUrl={cover.previewUrl ?? ""}
               excerpt={excerpt}
               seoDescription={seoDescription}
               seoTitle={seoTitle}
@@ -419,4 +537,21 @@ function toLocalInputValue(iso: string | null | undefined) {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString("vi-VN");
+}
+
+function statusToast(status: AdminContentPost["status"], fallback: string | null) {
+  switch (status) {
+    case "published":
+      return "Đã đăng bài viết. Bài viết đang hiển thị công khai.";
+    case "scheduled":
+      return "Đã lên lịch đăng bài viết.";
+    case "draft":
+      return "Đã lưu nháp.";
+    case "hidden":
+      return "Đã ẩn bài viết.";
+    case "archived":
+      return "Đã lưu trữ bài viết.";
+    default:
+      return fallback;
+  }
 }

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { generateNumericPublicCode } from "@/lib/urls/public-code";
 import { getContentPostUrl } from "@/lib/urls/paths";
 import {
@@ -23,6 +23,7 @@ import type {
   ListContentPostsOptions,
   UpdateContentPostInput
 } from "@/types/platform-content";
+import { enrichContentPostCoverDisplay, enrichContentPostsCoverDisplay } from "@/lib/platform-content/enrich-content-post-media";
 
 export type ContentPostStats = {
   total: number;
@@ -43,6 +44,10 @@ function mapContentPost(row: Record<string, unknown>): AdminContentPost {
     excerpt: row.excerpt ? String(row.excerpt) : null,
     content: row.content ? String(row.content) : null,
     cover_image_url: row.cover_image_url ? String(row.cover_image_url) : null,
+    cover_media_asset_id: row.cover_media_asset_id ? String(row.cover_media_asset_id) : null,
+    og_image_media_asset_id: row.og_image_media_asset_id
+      ? String(row.og_image_media_asset_id)
+      : null,
     category: row.category ? String(row.category) : null,
     tags: Array.isArray(row.tags) ? row.tags.map(String) : [],
     post_type: row.post_type as AdminContentPost["post_type"],
@@ -74,7 +79,7 @@ function toSeoCheckInput(item: AdminContentPost) {
     excerpt: item.excerpt ?? "",
     content: item.content ?? "",
     postType: item.post_type,
-    coverImageUrl: item.cover_image_url ?? "",
+    coverImageUrl: item.cover_media_asset_id || item.cover_image_url || "",
     seoTitle: item.seo_title ?? "",
     seoDescription: item.seo_description ?? "",
     canonicalUrl: item.canonical_url ?? "",
@@ -145,8 +150,8 @@ function sortBySeoScore(items: AdminContentPost[]) {
 export async function listContentPosts(
   options: ListInput = {}
 ): Promise<{ items: AdminContentPost[]; total: number; error: string | null }> {
-  const supabase = await createClient();
-  const extended = await hasExtendedContentPostSchema(supabase);
+  const db = await createClient();
+  const extended = await hasExtendedContentPostSchema(db);
   const isAdminFilters = "indexFilter" in options && "page" in options;
   const adminFilters = isAdminFilters ? (options as ContentPostListFilters) : null;
   const isPublicPaginated = "publicOnly" in options && options.publicOnly && "page" in options;
@@ -167,7 +172,7 @@ export async function listContentPosts(
   const seoFilter = adminFilters && adminFilters.seoFilter !== "all" ? adminFilters.seoFilter : null;
   const needsClientSeo = Boolean(seoFilter) || adminFilters?.sort === "seo_score";
 
-  let query = supabase.from("admin_content_posts").select("*", { count: "exact" });
+  let query = db.from("admin_content_posts").select("*", { count: "exact" });
 
   if ("publicOnly" in options && options.publicOnly) {
     query = applyPublicAppContentPostFilters(query, extended);
@@ -176,6 +181,9 @@ export async function listContentPosts(
     }
     if (options.category) {
       query = query.eq("category", options.category);
+    }
+    if (options.tag?.trim()) {
+      query = query.contains("tags", [options.tag.trim()]);
     }
   } else if (isAdminFilters && adminFilters) {
     query = applyAdminFilters(query, adminFilters, extended);
@@ -213,7 +221,7 @@ export async function listContentPosts(
     if (adminFilters?.sort === "seo_score") items = sortBySeoScore(items);
 
     return {
-      items: items.slice(offset, offset + limit),
+      items: await enrichContentPostsCoverDisplay(items.slice(offset, offset + limit)),
       total: items.length,
       error: null
     };
@@ -223,7 +231,9 @@ export async function listContentPosts(
   if (error) return { items: [], total: 0, error: error.message };
 
   return {
-    items: (data ?? []).map((row) => mapContentPost(row as Record<string, unknown>)),
+    items: await enrichContentPostsCoverDisplay(
+      (data ?? []).map((row) => mapContentPost(row as Record<string, unknown>))
+    ),
     total: count ?? 0,
     error: null
   };
@@ -233,10 +243,10 @@ export async function getContentPostStats(): Promise<{
   stats: ContentPostStats;
   error: string | null;
 }> {
-  const supabase = await createClient();
-  const extended = await hasExtendedContentPostSchema(supabase);
+  const db = await createClient();
+  const extended = await hasExtendedContentPostSchema(db);
 
-  let query = supabase.from("admin_content_posts").select("*");
+  let query = db.from("admin_content_posts").select("*");
   query = applyActiveContentPostFilter(query, extended);
 
   const { data, error } = await query;
@@ -287,22 +297,23 @@ export async function listContentPostIdsByFilters(
 export async function getContentPostById(
   id: string
 ): Promise<{ item: AdminContentPost | null; error: string | null }> {
-  const supabase = await createClient();
-  const extended = await hasExtendedContentPostSchema(supabase);
+  const db = await createClient();
+  const extended = await hasExtendedContentPostSchema(db);
 
-  let query = supabase.from("admin_content_posts").select("*").eq("id", id);
+  let query = db.from("admin_content_posts").select("*").eq("id", id);
   query = applyActiveContentPostFilter(query, extended);
 
   const { data, error } = await query.maybeSingle();
   if (error) return { item: null, error: error.message };
-  return { item: data ? mapContentPost(data as Record<string, unknown>) : null, error: null };
+  const item = data ? mapContentPost(data as Record<string, unknown>) : null;
+  return { item: item ? await enrichContentPostCoverDisplay(item) : null, error: null };
 }
 
 export async function isContentPostSlugTaken(slug: string, excludeId?: string): Promise<boolean> {
-  const supabase = await createClient();
-  const extended = await hasExtendedContentPostSchema(supabase);
+  const db = await createClient();
+  const extended = await hasExtendedContentPostSchema(db);
 
-  let query = supabase.from("admin_content_posts").select("id").eq("slug", slug);
+  let query = db.from("admin_content_posts").select("id").eq("slug", slug);
   query = applyActiveContentPostFilter(query, extended);
 
   if (excludeId) query = query.neq("id", excludeId);
@@ -315,10 +326,10 @@ export async function getContentPostBySlug(
   slug: string,
   options: { publicOnly?: boolean } = {}
 ): Promise<{ item: AdminContentPost | null; error: string | null }> {
-  const supabase = await createClient();
-  const extended = await hasExtendedContentPostSchema(supabase);
+  const db = await createClient();
+  const extended = await hasExtendedContentPostSchema(db);
 
-  let query = supabase.from("admin_content_posts").select("*").eq("slug", slug);
+  let query = db.from("admin_content_posts").select("*").eq("slug", slug);
   if (!options.publicOnly) {
     query = applyActiveContentPostFilter(query, extended);
   } else {
@@ -327,17 +338,18 @@ export async function getContentPostBySlug(
 
   const { data, error } = await query.maybeSingle();
   if (error) return { item: null, error: error.message };
-  return { item: data ? mapContentPost(data as Record<string, unknown>) : null, error: null };
+  const item = data ? mapContentPost(data as Record<string, unknown>) : null;
+  return { item: item ? await enrichContentPostCoverDisplay(item) : null, error: null };
 }
 
 export async function getContentPostByPublicCode(
   publicCode: string,
   options: { publicOnly?: boolean } = {}
 ): Promise<{ item: AdminContentPost | null; error: string | null }> {
-  const supabase = await createClient();
-  const extended = await hasExtendedContentPostSchema(supabase);
+  const db = await createClient();
+  const extended = await hasExtendedContentPostSchema(db);
 
-  let query = supabase
+  let query = db
     .from("admin_content_posts")
     .select("*")
     .eq("public_code", publicCode);
@@ -349,19 +361,20 @@ export async function getContentPostByPublicCode(
 
   const { data, error } = await query.maybeSingle();
   if (error) return { item: null, error: error.message };
-  return { item: data ? mapContentPost(data as Record<string, unknown>) : null, error: null };
+  const item = data ? mapContentPost(data as Record<string, unknown>) : null;
+  return { item: item ? await enrichContentPostCoverDisplay(item) : null, error: null };
 }
 
 export async function createContentPost(
   input: CreateContentPostInput
 ): Promise<{ item: AdminContentPost | null; error: string | null }> {
-  const supabase = await createClient();
-  const extended = await hasExtendedContentPostSchema(supabase);
+  const db = await createClient();
+  const extended = await hasExtendedContentPostSchema(db);
   const now = new Date().toISOString();
   const status = input.status ?? "draft";
   const publishedAt = input.published_at ?? (status === "published" ? now : null);
 
-  const publicCode = await generateNumericPublicCode(supabase, "content_post");
+  const publicCode = await generateNumericPublicCode(db, "content_post");
   const payload = {
     ...buildContentPostInsertPayload({ ...input, published_at: publishedAt }, extended),
     public_code: publicCode,
@@ -371,26 +384,27 @@ export async function createContentPost(
     })
   } as Record<string, unknown>;
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("admin_content_posts")
     .insert(payload)
     .select("*")
     .single();
 
   if (error) return { item: null, error: error.message };
-  return { item: mapContentPost(data as Record<string, unknown>), error: null };
+  const item = mapContentPost(data as Record<string, unknown>);
+  return { item: await enrichContentPostCoverDisplay(item), error: null };
 }
 
 export async function updateContentPost(
   id: string,
   input: UpdateContentPostInput
 ): Promise<{ item: AdminContentPost | null; error: string | null }> {
-  const supabase = await createClient();
-  const extended = await hasExtendedContentPostSchema(supabase);
+  const db = await createClient();
+  const extended = await hasExtendedContentPostSchema(db);
   const patch: Record<string, unknown> = { ...input };
 
   if (input.status === "published" && input.published_at === undefined) {
-    const { data: existing } = await supabase
+    const { data: existing } = await db
       .from("admin_content_posts")
       .select("published_at")
       .eq("id", id)
@@ -404,12 +418,13 @@ export async function updateContentPost(
 
   const safePatch = buildContentPostUpdatePayload(patch, extended);
 
-  let query = supabase.from("admin_content_posts").update(safePatch).eq("id", id);
+  let query = db.from("admin_content_posts").update(safePatch).eq("id", id);
   query = applyActiveContentPostFilter(query, extended);
 
   const { data, error } = await query.select("*").single();
   if (error) return { item: null, error: error.message };
-  return { item: mapContentPost(data as Record<string, unknown>), error: null };
+  const item = mapContentPost(data as Record<string, unknown>);
+  return { item: await enrichContentPostCoverDisplay(item), error: null };
 }
 
 export async function updateContentPostStatus(
@@ -424,9 +439,9 @@ export async function updateContentPostStatus(
 }
 
 export async function softDeleteContentPost(id: string): Promise<{ ok: boolean; error: string | null }> {
-  const supabase = await createClient();
-  const extended = await hasExtendedContentPostSchema(supabase);
-  const { error } = await supabase
+  const db = await createClient();
+  const extended = await hasExtendedContentPostSchema(db);
+  const { error } = await db
     .from("admin_content_posts")
     .update(buildSoftDeletePayload(extended))
     .eq("id", id);
@@ -439,11 +454,11 @@ export async function bulkUpdateContentPosts(
 ): Promise<{ updated: number; error: string | null }> {
   if (ids.length === 0) return { updated: 0, error: null };
 
-  const supabase = await createClient();
-  const extended = await hasExtendedContentPostSchema(supabase);
+  const db = await createClient();
+  const extended = await hasExtendedContentPostSchema(db);
   const safePatch = buildContentPostUpdatePayload({ ...patch }, extended);
 
-  let query = supabase.from("admin_content_posts").update(safePatch).in("id", ids);
+  let query = db.from("admin_content_posts").update(safePatch).in("id", ids);
   query = applyActiveContentPostFilter(query, extended);
 
   const { data, error } = await query.select("id");
@@ -456,10 +471,10 @@ export async function bulkSoftDeleteContentPosts(
 ): Promise<{ deleted: number; error: string | null }> {
   if (ids.length === 0) return { deleted: 0, error: null };
 
-  const supabase = await createClient();
-  const extended = await hasExtendedContentPostSchema(supabase);
+  const db = await createClient();
+  const extended = await hasExtendedContentPostSchema(db);
 
-  let query = supabase
+  let query = db
     .from("admin_content_posts")
     .update(buildSoftDeletePayload(extended))
     .in("id", ids);

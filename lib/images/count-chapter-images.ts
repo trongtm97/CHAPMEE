@@ -1,9 +1,9 @@
 import { CHAPTER_IMAGE_MAX_PER_CHAPTER } from "@/types/chapter-images";
 import { countImageBlocksInContent } from "@/lib/editor/chapter-image-block";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export async function countChapterImagesForScope(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     storyId: string;
     episodeId?: string | null;
@@ -11,7 +11,7 @@ export async function countChapterImagesForScope(
     contentImageCount?: number;
   }
 ) {
-  let query = supabase
+  let query = db
     .from("chapter_images")
     .select("id", { count: "exact", head: true })
     .eq("story_id", input.storyId);
@@ -37,7 +37,7 @@ export async function countChapterImagesForScope(
 }
 
 export async function assertChapterImageLimit(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     storyId: string;
     episodeId?: string | null;
@@ -53,7 +53,7 @@ export async function assertChapterImageLimit(
     return false;
   }
 
-  const dbCount = await countChapterImagesForScope(supabase, {
+  const dbCount = await countChapterImagesForScope(db, {
     draftId: input.draftId,
     episodeId: input.episodeId,
     storyId: input.storyId

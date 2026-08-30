@@ -119,7 +119,7 @@ export function parseTaxonomyAdminTab(raw: string | undefined): TaxonomyAdminTab
   if (raw && raw in LEGACY_TAB_TO_SEGMENT) {
     return LEGACY_TAB_TO_SEGMENT[raw]!;
   }
-  return "overview";
+  return "manage";
 }
 
 export function legacyTabDefaultGroup(raw: string | undefined): TaxonomyType | "all" {

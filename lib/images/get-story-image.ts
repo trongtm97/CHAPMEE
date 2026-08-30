@@ -1,3 +1,5 @@
+import { resolveReelsBackgroundUrl } from "@/lib/reels/resolve-reels-background";
+import { resolveStoredMediaUrl } from "@/lib/media/media-url";
 import { focalToObjectPosition } from "@/lib/images/parse-focal-point";
 import {
   STORY_IMAGE_PLACEHOLDER_BLUR_CLASS,
@@ -53,9 +55,22 @@ type NormalizedStory = {
 };
 
 function normalizeStory(story: StoryWithImages): NormalizedStory {
+  const raw = story as StoryWithImages & Record<string, unknown>;
+  const legacyCover =
+    story.coverUrl ??
+    story.cover_url ??
+    (typeof raw.coverImageUrl === "string" ? raw.coverImageUrl : null) ??
+    (typeof raw.cover_image_url === "string" ? raw.cover_image_url : null) ??
+    (typeof raw.coverAsset === "string" ? raw.coverAsset : null) ??
+    (typeof raw.thumbnailUrl === "string" ? raw.thumbnailUrl : null) ??
+    (typeof raw.thumbnail_url === "string" ? raw.thumbnail_url : null) ??
+    (typeof raw.imageUrl === "string" ? raw.imageUrl : null) ??
+    (typeof raw.image_url === "string" ? raw.image_url : null) ??
+    null;
+
   return {
     title: story.title,
-    coverUrl: story.coverUrl ?? story.cover_url ?? null,
+    coverUrl: legacyCover,
     currentImage: story.currentImage ?? story.current_image ?? null
   };
 }
@@ -82,7 +97,9 @@ function resolveVariantUrl(
     }
   }
 
-  const legacyCover = normalized.coverUrl?.trim() ? normalized.coverUrl : null;
+  const legacyCover = normalized.coverUrl?.trim()
+    ? resolveStoredMediaUrl(normalized.coverUrl)
+    : null;
   if (legacyCover && requested !== "blur") {
     return { url: legacyCover, resolvedVariant: requested };
   }
@@ -174,7 +191,7 @@ export function getStoryImageSet(
 }
 
 /**
- * Reels full-bleed background: story landscape → episode bg → blur (never original).
+ * Reels full-bleed background: episode/chapter bg → story cover variants → blur (never original).
  */
 export function getReelsBackgroundSrc(item: {
   title: string;
@@ -182,6 +199,11 @@ export function getReelsBackgroundSrc(item: {
   episodeBackgroundUrl?: string | null;
   currentImage?: StoryImage | null;
 }): string | null {
+  const episodeUrl = resolveReelsBackgroundUrl(item.episodeBackgroundUrl);
+  if (episodeUrl) {
+    return episodeUrl;
+  }
+
   const story: StoryWithImages = {
     title: item.title,
     coverUrl: item.storyCoverUrl ?? null,
@@ -193,9 +215,9 @@ export function getReelsBackgroundSrc(item: {
     return landscape;
   }
 
-  const episodeUrl = item.episodeBackgroundUrl?.trim();
-  if (episodeUrl) {
-    return episodeUrl;
+  const coverOnly = resolveStoredMediaUrl(item.storyCoverUrl);
+  if (coverOnly) {
+    return coverOnly;
   }
 
   return getStoryImageSrc(story, "blur");

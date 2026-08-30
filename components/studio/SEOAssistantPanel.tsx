@@ -29,9 +29,9 @@ type SEOAssistantPanelProps = {
   keywords: string[];
   mode: "story" | "chapter";
   onCanonicalUrlChange?: (value: string) => void;
-  onKeywordsChange: (keywords: string[]) => void;
-  onSeoDescriptionChange: (value: string) => void;
-  onSeoTitleChange: (value: string) => void;
+  onKeywordsChange?: (keywords: string[]) => void;
+  onSeoDescriptionChange?: (value: string) => void;
+  onSeoTitleChange?: (value: string) => void;
   onSlugChange?: (value: string) => void;
   originalSlug?: string;
   seoDescription: string;
@@ -41,6 +41,8 @@ type SEOAssistantPanelProps = {
   storySlug?: string;
   /** Thu gọn preview và canonical — dùng trên wizard tạo truyện (không bọc Card, không lặp tiêu đề). */
   compact?: boolean;
+  /** Chỉ hiển thị đường dẫn cố định — slug chỉnh ở form chính. */
+  slugOnly?: boolean;
 };
 
 function SEOAutofillBanner({
@@ -95,6 +97,7 @@ export function SEOAssistantPanel({
   seoTitle,
   slug,
   compact = false,
+  slugOnly = false,
   storyContext,
   storySlug
 }: SEOAssistantPanelProps) {
@@ -154,9 +157,9 @@ export function SEOAssistantPanel({
         title: storyContext.title
       });
 
-      onSeoTitleChange(generated.title);
-      onSeoDescriptionChange(generated.description);
-      onKeywordsChange(generated.keywords);
+      onSeoTitleChange?.(generated.title);
+      onSeoDescriptionChange?.(generated.description);
+      onKeywordsChange?.(generated.keywords);
       setKeywordInput(formatKeywordsInput(generated.keywords));
       return;
     }
@@ -169,9 +172,9 @@ export function SEOAssistantPanel({
       isIndexable
     });
 
-    onSeoTitleChange(generated.title);
-    onSeoDescriptionChange(generated.description);
-    onKeywordsChange(generated.keywords);
+    onSeoTitleChange?.(generated.title);
+    onSeoDescriptionChange?.(generated.description);
+    onKeywordsChange?.(generated.keywords);
     setKeywordInput(formatKeywordsInput(generated.keywords));
 
     if (onSlugChange && !isPublishedStory) {
@@ -181,8 +184,27 @@ export function SEOAssistantPanel({
 
   function handleKeywordsBlur() {
     const parsed = parseKeywordsInput(keywordInput);
-    onKeywordsChange(parsed);
+    onKeywordsChange?.(parsed);
     setKeywordInput(formatKeywordsInput(parsed));
+  }
+
+  if (slugOnly) {
+    return (
+      <section className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+        <p className="text-sm font-bold text-zinc-200">Đường dẫn công khai</p>
+        <p className="text-sm text-zinc-400">
+          Bạn chỉ tùy chỉnh <span className="text-zinc-200">slug</span> ở trên. Phần còn lại
+          do hệ thống cố định:
+        </p>
+        <p className="rounded-lg border border-white/10 bg-zinc-950/60 px-3 py-2 font-mono text-sm text-cyan-100">
+          chapmee.com/truyen/{slug?.trim() || "..."}-s.[mã hệ thống]
+        </p>
+        <input name="seo_title" type="hidden" value={seoTitle} />
+        <input name="seo_description" type="hidden" value={seoDescription} />
+        <input name="seo_keywords" type="hidden" value={formatKeywordsInput(keywords)} />
+        <input name="canonical_url" type="hidden" value="" />
+      </section>
+    );
   }
 
   const fields = (
@@ -193,7 +215,7 @@ export function SEOAssistantPanel({
         disabled={disabled}
         label="Tiêu đề SEO"
         name="seo_title"
-        onChange={(event) => onSeoTitleChange(event.target.value)}
+        onChange={(event) => onSeoTitleChange?.(event.target.value)}
         value={seoTitle}
       />
 
@@ -202,7 +224,7 @@ export function SEOAssistantPanel({
           disabled={disabled}
           label="Mô tả SEO"
           name="seo_description"
-          onChange={(event) => onSeoDescriptionChange(event.target.value)}
+          onChange={(event) => onSeoDescriptionChange?.(event.target.value)}
           rows={4}
           value={seoDescription}
         />
@@ -231,8 +253,8 @@ export function SEOAssistantPanel({
           </p>
           {slugChanged ? (
             <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100">
-              Bạn đang đổi đường dẫn truyện đã public. Liên kết cũ có thể không còn
-              hoạt động.
+              Bạn đang đổi đường dẫn truyện đã public. Hệ thống sẽ tự chuyển hướng từ
+              đường dẫn cũ sang mới.
             </p>
           ) : null}
           {!slug || !isUrlSafeSlug(slug) ? (

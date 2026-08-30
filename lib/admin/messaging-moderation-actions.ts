@@ -5,7 +5,7 @@ import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { notifyMessageRestriction } from "@/lib/notifications/create-message-notification";
 import { restrictionEndsAt } from "@/lib/messaging/labels";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { MessagingRestrictionType } from "@/types/messaging-safety";
 import type { RestrictionType } from "@/types/moderation";
 
@@ -49,13 +49,13 @@ export async function restrictUserMessagingAction(input: {
     return { ok: false, error: guard.error };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const restriction = restrictionForDuration(input.duration);
   const endsAt = restriction.hours
     ? new Date(Date.now() + restriction.hours * 60 * 60 * 1000).toISOString()
     : null;
 
-  const { error } = await supabase.from("account_restrictions").insert({
+  const { error } = await db.from("account_restrictions").insert({
     user_id: input.userId,
     restriction_type: restriction.type,
     reason: input.note ?? "Hạn chế nhắn tin (admin)",
@@ -76,7 +76,7 @@ export async function restrictUserMessagingAction(input: {
   };
   const messagingType = messagingTypeMap[restriction.type];
   if (messagingType) {
-    await supabase.from("messaging_restrictions").insert({
+    await db.from("messaging_restrictions").insert({
       user_id: input.userId,
       restriction_type: messagingType,
       reason_code: "other",
@@ -115,8 +115,8 @@ export async function liftUserMessagingRestrictionAction(input: {
     return { ok: false, error: guard.error };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("account_restrictions")
     .update({ is_active: false })
     .eq("user_id", input.userId)
@@ -127,7 +127,7 @@ export async function liftUserMessagingRestrictionAction(input: {
     return { ok: false, error: "Không gỡ được hạn chế." };
   }
 
-  await supabase
+  await db
     .from("messaging_restrictions")
     .update({
       is_active: false,
@@ -163,8 +163,8 @@ export async function warnMessagingUserAction(input: {
     return { ok: false, error: guard.error };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("violations").insert({
+  const db = await createClient();
+  const { error } = await db.from("violations").insert({
     user_id: input.userId,
     target_type: "message",
     target_id: input.userId,

@@ -1,17 +1,17 @@
 import { calculateExposureShare } from "@/lib/fairness/exposure-share";
 import { loadFairnessAlertThresholds, resolveWarningLevel } from "@/lib/fairness/thresholds";
 import type { FairnessExposureWindow } from "@/types/fairness";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 const SNAPSHOT_SURFACES = ["reels", "discover", "search", "ranking"] as const;
 
 export async function persistExposureDistributionSnapshot(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   surface: string,
   window: FairnessExposureWindow = "7d",
   snapshotDate = new Date().toISOString().slice(0, 10)
 ) {
-  const share = await calculateExposureShare(supabase, surface, window);
+  const share = await calculateExposureShare(db, surface, window);
   const thresholds = await loadFairnessAlertThresholds();
   const warningLevel = resolveWarningLevel(share, thresholds);
 
@@ -37,7 +37,7 @@ export async function persistExposureDistributionSnapshot(
     }
   };
 
-  const { error } = await supabase
+  const { error } = await db
     .from("exposure_distribution_snapshots")
     .upsert(row, { onConflict: "snapshot_date,surface" });
 
@@ -46,13 +46,13 @@ export async function persistExposureDistributionSnapshot(
 }
 
 export async function generateAllExposureSnapshots(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   window: FairnessExposureWindow = "7d"
 ) {
   const results = [];
   for (const surface of SNAPSHOT_SURFACES) {
     try {
-      const result = await persistExposureDistributionSnapshot(supabase, surface, window);
+      const result = await persistExposureDistributionSnapshot(db, surface, window);
       results.push({ ...result, ok: true });
     } catch (error) {
       results.push({

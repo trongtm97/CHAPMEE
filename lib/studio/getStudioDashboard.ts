@@ -1,5 +1,5 @@
 import { mapStoryStructureFromRow } from "@/lib/stories/story-structure";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 
 export type StudioDashboardStory = {
@@ -82,7 +82,7 @@ function firstRelation<T>(relation: T | T[] | null | undefined) {
 
 async function countOrZero(
   promiseLike: PromiseLike<{
-    count: number | null;
+    count?: number | null;
     error: { message: string } | null;
   }>
 ) {
@@ -98,7 +98,7 @@ export async function getStudioDashboard(
   creatorProfile: CreatorProfile
 ): Promise<StudioDashboardData> {
   try {
-    const supabase = await createClient();
+    const db = await createClient();
     const recentWindow = new Date(
       Date.now() - 7 * 24 * 60 * 60 * 1000
     ).toISOString();
@@ -113,46 +113,46 @@ export async function getStudioDashboard(
       publishedStoriesResult,
       recentCommentsResult
     ] = await Promise.all([
-      supabase
+      db
         .from("stories")
         .select("id, title, slug, status, updated_at, structure_type, standalone_reading_time_minutes")
         .eq("creator_id", creatorProfile.id)
         .order("updated_at", { ascending: false })
         .limit(5),
-      supabase
+      db
         .from("episodes")
         .select("id, story_id, title, status, updated_at, episode_number, stories!inner(id, title, slug)")
         .eq("stories.creator_id", creatorProfile.id)
         .order("updated_at", { ascending: false })
         .limit(5),
       countOrZero(
-        supabase
+        db
           .from("stories")
           .select("id", { count: "exact", head: true })
           .eq("creator_id", creatorProfile.id)
       ),
       countOrZero(
-        supabase
+        db
           .from("episodes")
           .select("id, stories!inner(creator_id)", { count: "exact", head: true })
           .eq("stories.creator_id", creatorProfile.id)
       ),
       countOrZero(
-        supabase
+        db
           .from("episodes")
           .select("id, stories!inner(creator_id)", { count: "exact", head: true })
           .eq("stories.creator_id", creatorProfile.id)
           .eq("status", "draft")
       ),
       countOrZero(
-        supabase
+        db
           .from("episodes")
           .select("id, stories!inner(creator_id)", { count: "exact", head: true })
           .eq("stories.creator_id", creatorProfile.id)
           .eq("status", "pending")
       ),
       countOrZero(
-        supabase
+        db
           .from("stories")
           .select("id", { count: "exact", head: true })
           .eq("creator_id", creatorProfile.id)
@@ -160,7 +160,7 @@ export async function getStudioDashboard(
           .eq("visibility", "public")
       ),
       countOrZero(
-        supabase
+        db
           .from("comments")
           .select("id, stories!inner(creator_id)", { count: "exact", head: true })
           .eq("stories.creator_id", creatorProfile.id)
@@ -176,7 +176,7 @@ export async function getStudioDashboard(
 
     if (storyIds.length > 0) {
       const { data: storyEpisodeRows, error: storyEpisodeError } =
-        await supabase
+        await db
           .from("episodes")
           .select("story_id, stories!inner(creator_id)")
           .eq("stories.creator_id", creatorProfile.id)

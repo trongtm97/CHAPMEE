@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assertStaffAnyPermission } from "@/lib/auth/staff-guards";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CommunityAutoModerationSettings } from "@/types/community-auto-moderation";
 
 export async function updateAutoModerationSettingsAction(
@@ -11,7 +11,7 @@ export async function updateAutoModerationSettingsAction(
 ): Promise<{ ok: boolean; error: string | null }> {
   try {
     const { userId } = await assertStaffAnyPermission(["admin.settings.update"]);
-    const supabase = await createClient();
+    const db = await createClient();
 
     const row = {
       enabled: settings.enabled,
@@ -36,18 +36,18 @@ export async function updateAutoModerationSettingsAction(
       updated_at: new Date().toISOString()
     };
 
-    const { data: existing } = await supabase
+    const { data: existing } = await db
       .from("community_auto_moderation_settings")
       .select("id")
       .limit(1)
       .maybeSingle();
 
     const { error } = existing?.id
-      ? await supabase
+      ? await db
           .from("community_auto_moderation_settings")
           .update(row)
           .eq("id", existing.id as string)
-      : await supabase.from("community_auto_moderation_settings").insert(row);
+      : await db.from("community_auto_moderation_settings").insert(row);
 
     if (error) return { ok: false, error: error.message };
 

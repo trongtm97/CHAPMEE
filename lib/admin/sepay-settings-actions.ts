@@ -7,7 +7,7 @@ import { encryptServerSecret, decryptServerSecret } from "@/lib/security/encrypt
 import {
   getPaymentProviderSettings,
   upsertPaymentProviderSetting
-} from "@/lib/supabase/payment-provider-settings";
+} from "@/lib/data/payment-provider-settings";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();

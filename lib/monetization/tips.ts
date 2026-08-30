@@ -5,16 +5,17 @@ import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getMonetizationConfig } from "@/lib/monetization/config";
 import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
-import { getVirtualGiftById } from "@/lib/supabase/virtual-gifts";
+import { getVirtualGiftById } from "@/lib/data/virtual-gifts";
 import { debitUserCoins } from "@/lib/wallets/user-wallet";
 import { recordCreatorNetEarning } from "@/lib/finance/record-creator-net-earning";
-import { createSupportTipRecord, getSupportTipByRequestId } from "@/lib/supabase/tips";
+import { createSupportTipRecord, getSupportTipByRequestId } from "@/lib/data/tips";
 import { calculateCreatorRevenue } from "@/lib/monetization/creator-revenue";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { createNotification } from "@/lib/notifications/create-notification";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { addRiskEvent, detectRapidSpendAfterRewardAds, shouldBlockTransaction, shouldHoldCreatorRevenue } from "@/lib/risk/risk-engine";
 import type { CoinLotAllocation } from "@/types/coin-lot";
+import { loadStoryOriginPolicy } from "@/lib/content-origin/load-story-origin-policy";
 
 type SendSupportInput = {
   toCreatorUserId: string;
@@ -36,9 +37,14 @@ async function validateContentMonetizable(input: {
   storyId?: string | null;
   chapterId?: string | null;
 }) {
-  const supabase = await createClient();
+  const db = await createClient();
   if (input.storyId) {
-    const { data: story } = await supabase
+    const originPolicy = await loadStoryOriginPolicy(input.storyId);
+    if (!originPolicy.canReceiveTips) {
+      return { ok: false, error: "Story nay chua du dieu kien nhan tips." };
+    }
+
+    const { data: story } = await db
       .from("stories")
       .select("status")
       .eq("id", input.storyId)
@@ -48,7 +54,19 @@ async function validateContentMonetizable(input: {
     }
   }
   if (input.chapterId) {
-    const { data: chapter } = await supabase
+    const { data: chapterStory } = await db
+      .from("episodes")
+      .select("story_id")
+      .eq("id", input.chapterId)
+      .maybeSingle();
+    if (chapterStory?.story_id) {
+      const originPolicy = await loadStoryOriginPolicy(String(chapterStory.story_id));
+      if (!originPolicy.canReceiveTips) {
+        return { ok: false, error: "Chapter nay khong ho tro tips." };
+      }
+    }
+
+    const { data: chapter } = await db
       .from("episodes")
       .select("status")
       .eq("id", input.chapterId)
@@ -124,10 +142,10 @@ export async function sendSupportAction(input: SendSupportInput) {
 
   const maxDaily = toSafeNumber(config.settings["fraud.max_daily_tip_amount_per_user"]);
   if (maxDaily > 0) {
-    const supabase = await createClient();
+    const db = await createClient();
     const startToday = new Date();
     startToday.setHours(0, 0, 0, 0);
-    const { data } = await supabase
+    const { data } = await db
       .from("support_tips")
       .select("coin_amount")
       .eq("from_user_id", user.id)
@@ -191,8 +209,8 @@ export async function sendSupportAction(input: SendSupportInput) {
   }
 
   const recentTipsToCreator = await createClient()
-    .then((supabase) =>
-      supabase
+    .then((db) =>
+      db
         .from("support_tips")
         .select("id", { count: "exact", head: true })
         .eq("from_user_id", user.id)

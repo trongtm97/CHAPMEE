@@ -16,7 +16,7 @@ type SettingsQuickCardProps = {
 
 export function SettingsQuickCard({
   coinBalance,
-  coinDisplayName = "Coin",
+  coinDisplayName = "Xu",
   unreadNotificationCount
 }: SettingsQuickCardProps) {
   const [accountOpen, setAccountOpen] = useState(false);
@@ -44,7 +44,7 @@ export function SettingsQuickCard({
             className="flex min-h-9 items-center justify-between border-t border-white/5 px-3.5 py-2 text-sm text-zinc-400"
             id="vi-coin"
           >
-            <span>Ví coin</span>
+            <span>Ví Xu</span>
             <span className="font-semibold text-zinc-200">
               {coinBalance} {coinDisplayName}
             </span>

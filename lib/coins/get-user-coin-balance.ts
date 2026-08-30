@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
-import { getOrCreateUserWalletRecord } from "@/lib/supabase/wallets";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
+import { getOrCreateUserWalletRecord } from "@/lib/data/wallets";
 import type { UserCoinBalanceSummary } from "@/types/coins";
 
 function toNumber(value: unknown) {
@@ -10,11 +11,11 @@ function toNumber(value: unknown) {
 export async function getUserCoinBalance(
   userId: string
 ): Promise<{ data: UserCoinBalanceSummary | null; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
 
   const [walletResult, ledgerResult] = await Promise.all([
     getOrCreateUserWalletRecord(userId),
-    supabase.rpc("get_user_coin_ledger_balance", { input_user_id: userId })
+    db.rpc("get_user_coin_ledger_balance", { input_user_id: userId })
   ]);
 
   const wallet = walletResult.data;
@@ -22,7 +23,7 @@ export async function getUserCoinBalance(
     ? ledgerResult.data[0]
     : ledgerResult.data;
 
-  if (ledgerResult.error && !ledgerRow) {
+  if (ledgerResult.error && !ledgerRow && !isMissingSchemaError(ledgerResult.error)) {
     if (!wallet) {
       return {
         data: null,

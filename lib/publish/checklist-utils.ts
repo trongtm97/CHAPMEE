@@ -109,7 +109,7 @@ export function isStoryStatusBlockedForPublish(status: string | null | undefined
 }
 
 export function isEpisodeStatusBlockedForPublish(status: string | null | undefined) {
-  return status === "rejected" || status === "pending";
+  return status === "rejected";
 }
 
 export function isStoryHiddenForPublish(

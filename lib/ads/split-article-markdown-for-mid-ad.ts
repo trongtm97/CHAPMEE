@@ -62,6 +62,10 @@ function serializeBlocksToMarkdown(blocks: ParsedBlock[]): string {
       lines.push("");
     } else if (block.type === "hr") {
       lines.push("---", "");
+    } else if (block.type === "img") {
+      lines.push(`![${block.alt}](${block.url})`, "");
+    } else if (block.type === "html") {
+      lines.push(block.text, "");
     } else {
       lines.push(block.text, "");
     }

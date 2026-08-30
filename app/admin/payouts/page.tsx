@@ -1,8 +1,8 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { ErrorState, SectionHeader } from "@/components/ui";
 import { PayoutReviewTable } from "@/components/admin/payouts/PayoutReviewTable";
 import { requirePayoutViewAccess } from "@/lib/auth/require-permission";
-import { listPayoutRequestsForAdmin } from "@/lib/supabase/payouts";
+import { listPayoutRequestsForAdmin } from "@/lib/data/payouts";
 import { getOrCreateCreatorWallet } from "@/lib/wallets/creator-wallet";
 import type { CreatorWallet } from "@/types/wallet";
 

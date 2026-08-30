@@ -17,11 +17,17 @@ export async function getPoolWeightsForSurface(surface: FeedSurface): Promise<Po
   if (surface === "reels") {
     return {
       personalized: scoring.reels.weightPersonalized,
-      trending_quality: scoring.reels.weightTrendingQuality,
+      trending_quality: scoring.reels.weightTrendingQuality * 0.85,
+      fresh: 0.14,
+      new_author: 0.1,
+      growing: 0.08,
       under_exposed: scoring.reels.weightNewUnderExposed,
       followed_author: scoring.reels.weightFollowedAuthor,
-      long_tail_quality: scoring.reels.weightLongTailQuality,
-      cold_start: coldStart.reelsPoolWeight
+      long_tail_quality: scoring.reels.weightLongTailQuality * 0.75,
+      cold_start: coldStart.reelsPoolWeight,
+      original_pool: 0.12,
+      translation_pool: 0.08,
+      mixed_pool: 0.1
     };
   }
 
@@ -33,7 +39,10 @@ export async function getPoolWeightsForSurface(surface: FeedSurface): Promise<Po
       completed_story: scoring.discover.weightCompletedStory,
       new_author: scoring.discover.weightNewAuthor,
       long_tail_quality: scoring.discover.weightLongTail,
-      cold_start: coldStart.discoverPoolWeight
+      cold_start: coldStart.discoverPoolWeight,
+      original_pool: 0.25,
+      translation_pool: 0.1,
+      mixed_pool: 0.15
     };
   }
 

@@ -1,78 +1,60 @@
 import Link from "next/link";
-import { DiscoverArticlesQuickLink } from "@/components/discover/DiscoverArticlesBlock";
+import { HotBadge } from "@/components/common/HotBadge";
+import { ArticleNavIcon } from "@/components/navigation/AppNavIcons";
+import { UtilityStarIcon } from "@/components/utilities/UtilityStarIcon";
+import { DISCOVER_SHORTCUT_ITEMS } from "@/lib/discover/discover-shortcuts";
 
-const items = [
-  {
-    href: "/truyen",
-    title: "Danh mục truyện",
-    subtitle: "Xem toàn bộ kho truyện",
-    icon: "📚"
-  },
-  {
-    href: "/the-loai",
-    title: "Thể loại",
-    subtitle: "Drama, ngôn tình, kinh dị…",
-    icon: "🎭"
-  },
-  {
-    href: "/cam-giac",
-    title: "Cảm giác đọc",
-    subtitle: "Mood & trải nghiệm",
-    icon: "💫"
-  },
-  {
-    href: "/kham-pha",
-    title: "Taxonomy",
-    subtitle: "Tất cả nhóm nhãn",
-    icon: "🧭"
-  },
-  {
-    href: "/bang-xep-hang",
-    title: "Bảng xếp hạng",
-    subtitle: "Top truyện hôm nay",
-    icon: "🏆"
-  },
-  {
-    href: "/truyen?sort=new&page=1",
-    title: "Truyện mới",
-    subtitle: "Vừa đăng / vừa cập nhật",
-    icon: "✨"
-  },
-  {
-    href: "/truyen?status=completed&sort=completed&page=1",
-    title: "Truyện hoàn thành",
-    subtitle: "Đọc trọn bộ một lèo",
-    icon: "✅"
-  },
-  {
-    href: "/bai-viet",
-    title: "Bài viết",
-    subtitle: "Tin & hướng dẫn đọc",
-    icon: "📰"
-  }
-] as const;
+type DiscoverQuickAccessGridProps = {
+  hideHeading?: boolean;
+};
 
-export function DiscoverQuickAccessGrid() {
+export function DiscoverQuickAccessGrid({ hideHeading = false }: DiscoverQuickAccessGridProps) {
   return (
-    <section className="space-y-2.5">
-      <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-zinc-400">Khám phá nhanh</h2>
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-8 md:gap-3">
-        {items.map((item) => (
+    <section aria-labelledby="discover-shortcuts" className="space-y-2.5">
+      {hideHeading ? null : (
+        <h2 className="text-base font-bold text-white md:text-lg" id="discover-shortcuts">
+          Lối tắt nhanh
+        </h2>
+      )}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-2.5">
+        {DISCOVER_SHORTCUT_ITEMS.map((item) => (
           <Link
-            className="tap-highlight flex min-h-[4.5rem] flex-col justify-between rounded-xl border border-white/10 bg-[var(--surface-soft)] p-2.5 transition hover:border-cyan-300/30"
+            className={`tap-highlight flex min-h-[4.5rem] flex-col justify-between rounded-xl border p-2.5 transition ${
+              item.highlight
+                ? "border-orange-400/45 bg-gradient-to-br from-orange-500/12 via-orange-500/8 to-amber-500/5 hover:border-orange-300/55 hover:from-orange-500/18"
+                : "border-white/10 bg-[var(--surface-soft)] hover:border-cyan-300/30"
+            }`}
             href={item.href}
             key={item.href}
           >
-            <span aria-hidden="true" className="text-base">
-              {item.icon}
-            </span>
-            <div className="min-w-0">
-              <p className="text-[13px] font-black leading-tight text-zinc-50">{item.title}</p>
-              <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-zinc-400">{item.subtitle}</p>
+            {item.icon === "article" ? (
+              <span aria-hidden="true" className="text-cyan-300">
+                <ArticleNavIcon className="size-4" />
+              </span>
+            ) : item.icon === "utility-star" ? (
+              <span aria-hidden="true" className="text-emerald-400">
+                <UtilityStarIcon className="size-4" />
+              </span>
+            ) : (
+              <span aria-hidden="true" className="text-base leading-none">
+                {item.icon}
+              </span>
+            )}
+            <div className="min-w-0 pt-1">
+              <div className="inline-flex max-w-full items-center gap-2">
+                <p
+                  className={`text-[13px] font-black leading-tight ${
+                    item.highlight ? "text-orange-50" : "text-zinc-50"
+                  }`}
+                >
+                  {item.title}
+                </p>
+                {item.hot ? <HotBadge variant="corner" /> : null}
+              </div>
+              <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-zinc-400">{item.subtitle}</p>
             </div>
           </Link>
         ))}
-        <DiscoverArticlesQuickLink />
       </div>
     </section>
   );

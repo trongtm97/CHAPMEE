@@ -267,7 +267,7 @@ export function SeoRuleForm({ rule, capabilities }: Props) {
           ) : null}
           <Link
             className="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-zinc-300 hover:bg-white/5"
-            href="/admin/seo?tab=rules"
+            href="/admin/seo/control?tab=rules"
           >
             Quay lại
           </Link>

@@ -4,10 +4,13 @@ import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui";
 import {
-  messageActionEmptyState,
-  startMessageFromProfileAction,
-  type MessageActionState
+  openDirectConversationFromProfileAction,
+  startMessageFromProfileAction
 } from "@/lib/actions/messages";
+import {
+  messageActionEmptyState,
+  type MessageActionState
+} from "@/lib/actions/message-action-state";
 
 const CLOSED_LABEL = "Người dùng này chưa mở nhận tin nhắn.";
 
@@ -19,9 +22,14 @@ type StartMessageButtonProps = {
   reason: string | null;
   loginRequired: boolean;
   returnTo: string;
+  buttonClassName?: string;
 };
 
+const defaultButtonClass =
+  "inline-flex h-9 min-w-0 flex-1 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] px-4 text-sm font-semibold text-zinc-100 transition hover:border-white/20";
+
 export function StartMessageButton({
+  buttonClassName = defaultButtonClass,
   recipientId,
   canShowButton,
   canMessage,
@@ -38,6 +46,10 @@ export function StartMessageButton({
     startMessageFromProfileAction,
     messageActionEmptyState
   );
+  const [openState, openFormAction, openPending] = useActionState<
+    MessageActionState,
+    FormData
+  >(openDirectConversationFromProfileAction, messageActionEmptyState);
 
   useEffect(() => {
     if (state.ok && !open) return;
@@ -48,10 +60,7 @@ export function StartMessageButton({
 
   if (loginRequired) {
     return (
-      <Link
-        className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-400/10 px-4 text-sm font-semibold text-cyan-100"
-        href={`/login?next=${encodeURIComponent(returnTo)}`}
-      >
+      <Link className={buttonClassName} href={`/login?next=${encodeURIComponent(returnTo)}`}>
         Nhắn tin
       </Link>
     );
@@ -62,11 +71,8 @@ export function StartMessageButton({
       reason === CLOSED_LABEL || reason?.includes("chưa mở nhận tin nhắn");
     if (closed || reason) {
       return (
-        <span
-          className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] px-3 text-center text-xs text-zinc-500"
-          title={reason ?? CLOSED_LABEL}
-        >
-          {reason ?? CLOSED_LABEL}
+        <span className="px-1 text-xs text-zinc-500" title={reason ?? CLOSED_LABEL}>
+          Chưa mở nhắn tin
         </span>
       );
     }
@@ -75,20 +81,41 @@ export function StartMessageButton({
 
   if (!canMessage && reason) {
     return (
-      <span className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full border border-amber-400/20 bg-amber-400/8 px-3 text-center text-xs text-amber-200/90">
+      <span className="px-1 text-xs text-amber-200/90" title={reason}>
         {reason}
       </span>
+    );
+  }
+
+  if (mode === "direct") {
+    return (
+      <form action={openFormAction} className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-none">
+        <input name="recipientId" type="hidden" value={recipientId} />
+        <Button
+          className={`h-9 w-full normal-case tracking-normal ${buttonClassName}`}
+          loading={openPending}
+          type="submit"
+          variant="secondary"
+        >
+          <MessageIcon />
+          Nhắn tin
+        </Button>
+        {openState.error ? (
+          <p className="text-center text-xs text-red-400">{openState.error}</p>
+        ) : null}
+      </form>
     );
   }
 
   return (
     <>
       <Button
-        className="min-h-11 flex-1 normal-case tracking-normal"
+        className={`h-9 flex-1 normal-case tracking-normal sm:flex-none ${buttonClassName}`}
         onClick={() => setOpen(true)}
         type="button"
         variant="secondary"
       >
+        <MessageIcon />
         Nhắn tin
       </Button>
       {open ? (
@@ -164,5 +191,23 @@ export function StartMessageButton({
         </div>
       ) : null}
     </>
+  );
+}
+
+function MessageIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="mr-1.5 size-4 shrink-0"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <path
+        d="M4 6.5h16a1.5 1.5 0 0 1 1.5 1.5v7.5a1.5 1.5 0 0 1-1.5 1.5H8l-4 3v-3.5"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+    </svg>
   );
 }

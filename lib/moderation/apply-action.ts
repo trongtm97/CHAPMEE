@@ -11,8 +11,8 @@ import {
   strikePointsForSeverity
 } from "@/lib/moderation/moderation-rules";
 import { recordReportOutcome } from "@/lib/moderation/reporter-quality";
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import type {
   ModerationActionType,
   PolicyArea,
@@ -37,7 +37,7 @@ export async function applyModerationAction(
   input: ApplyModerationActionInput
 ): Promise<{ ok: boolean; violationId?: string; error?: string }> {
   const severity = input.severity ?? defaultSeverityForAction(input.action);
-  const supabase = await createClient();
+  const db = await createClient();
 
   if (input.action === "no_action") {
     return { ok: true };
@@ -45,7 +45,7 @@ export async function applyModerationAction(
 
   let violationId: string | undefined;
 
-  const { data: violation, error: violationError } = await supabase
+  const { data: violation, error: violationError } = await db
     .from("violations")
     .insert({
       user_id: input.userId,
@@ -66,11 +66,14 @@ export async function applyModerationAction(
     .select("id")
     .single();
 
-  if (violationError) {
-    if (isMissingSchemaError(violationError)) {
+  if (violationError || !violation) {
+    if (violationError && isMissingSchemaError(violationError)) {
       return { ok: false, error: "Hệ thống moderation chưa được migrate." };
     }
-    return { ok: false, error: violationError.message };
+    return {
+      ok: false,
+      error: violationError?.message ?? "Không tạo được violation."
+    };
   }
 
   violationId = violation.id;
@@ -80,7 +83,7 @@ export async function applyModerationAction(
     const expiresAt = new Date(
       Date.now() + STRIKE_EXPIRY_DAYS * 24 * 60 * 60 * 1000
     ).toISOString();
-    await supabase.from("account_strikes").insert({
+    await db.from("account_strikes").insert({
       user_id: input.userId,
       violation_id: violationId,
       policy_area: input.policyArea,
@@ -98,7 +101,7 @@ export async function applyModerationAction(
         ? null
         : new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
 
-    await supabase.from("account_restrictions").insert({
+    await db.from("account_restrictions").insert({
       user_id: input.userId,
       restriction_type: restrictionType,
       reason: input.note ?? `Vi phạm: ${input.policyArea}`,
@@ -112,7 +115,7 @@ export async function applyModerationAction(
       restrictionType === "account_suspended" ||
       restrictionType === "account_banned"
     ) {
-      await supabase
+      await db
         .from("profiles")
         .update({
           status: restrictionType === "account_banned" ? "banned" : "suspended"
@@ -121,7 +124,7 @@ export async function applyModerationAction(
     }
   }
 
-  await applyContentAction(supabase, input.action, input.targetType, input.targetId);
+  await applyContentAction(db, input.action, input.targetType, input.targetId);
   await sendModerationNotification(input.userId, input.action, input.note);
 
   await logAdminAction({
@@ -146,7 +149,7 @@ export async function applyModerationAction(
 }
 
 async function applyContentAction(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   action: ModerationActionType,
   targetType?: string | null,
   targetId?: string | null
@@ -156,7 +159,7 @@ async function applyContentAction(
   }
 
   if (action === "age_restrict" && targetType === "story") {
-    await supabase
+    await db
       .from("stories")
       .update({ age_rating: "mature_18" })
       .eq("id", targetId);
@@ -168,7 +171,7 @@ async function applyContentAction(
   }
 
   if (targetType === "comment") {
-    await supabase
+    await db
       .from("comments")
       .update({
         status: action === "hide_content" ? "hidden" : "deleted",
@@ -176,12 +179,12 @@ async function applyContentAction(
       })
       .eq("id", targetId);
   } else if (targetType === "community_post") {
-    await supabase
+    await db
       .from("community_posts")
       .update({ status: "hidden" })
       .eq("id", targetId);
   } else if (targetType === "story") {
-    await supabase
+    await db
       .from("stories")
       .update({
         status: "archived",
@@ -189,7 +192,7 @@ async function applyContentAction(
       })
       .eq("id", targetId);
   } else if (targetType === "chapter") {
-    await supabase
+    await db
       .from("episodes")
       .update({
         status: "archived",
@@ -241,9 +244,9 @@ export async function processReportModerationAction(formData: FormData) {
   }
 
   const reportId = String(formData.get("report_id") ?? "");
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: reportRow } = await supabase
+  const { data: reportRow } = await db
     .from("reports")
     .select("reporter_id, status")
     .eq("id", reportId)
@@ -251,7 +254,7 @@ export async function processReportModerationAction(formData: FormData) {
 
   const rawAction = String(formData.get("action") ?? "");
   if (rawAction === "escalate") {
-    await supabase
+    await db
       .from("reports")
       .update({
         status: "escalated",
@@ -292,7 +295,7 @@ export async function processReportModerationAction(formData: FormData) {
   const reportStatus =
     action === "no_action" ? "resolved_no_violation" : "resolved_action_taken";
 
-  await supabase
+  await db
     .from("reports")
     .update({
       status: reportStatus,

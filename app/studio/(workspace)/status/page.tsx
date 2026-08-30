@@ -14,7 +14,7 @@ export default async function StudioStatusPage() {
   }
 
   if (!creatorProfile) {
-    redirect("/studio/setup");
+    redirect("/studio");
   }
 
   const status = await getCreatorStatusSafe(user.id, creatorProfile.id);

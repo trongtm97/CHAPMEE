@@ -9,6 +9,7 @@ import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getPublicProfileByUsername } from "@/lib/profile/get-public-profile";
 import {
   getProfileTabUrl,
+  getProfileUrl,
   getPublicProfileSharePath
 } from "@/lib/profile/profile-url";
 import { buildProfileHandle } from "@/lib/profile/buildProfileHandle";
@@ -16,23 +17,14 @@ import { getReaderProfile } from "@/lib/profile/getReaderProfile";
 import { buildReaderStats } from "@/lib/profile/profileIdentity";
 import { buildReaderProfileSharePayload } from "@/lib/share/profileShare";
 import { getShareUrl } from "@/lib/share/getShareUrl";
-import { createClient } from "@/lib/supabase/server";
-import type { PublicProfileTab } from "@/types/public-profile";
-
+import { createClient } from "@/lib/data/server";
+import { resolveProfileAvatarUrl } from "@/lib/profile/resolve-profile-avatar";
 export const dynamic = "force-dynamic";
 
 type MeHandlePageProps = {
   params: Promise<{ handle: string }>;
   searchParams: Promise<{ tab?: string; page?: string }>;
 };
-
-const validTabs = new Set<PublicProfileTab>([
-  "collections",
-  "activity",
-  "comments",
-  "badges",
-  "works"
-]);
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -59,8 +51,8 @@ export async function generateMetadata({ params }: MeHandlePageProps): Promise<M
     };
   }
 
-  const supabase = await createClient();
-  const { data: profile } = await supabase
+  const db = await createClient();
+  const { data: profile } = await db
     .from("profiles")
     .select("display_name, username, bio, avatar_url")
     .eq("id", handle)
@@ -77,10 +69,10 @@ export async function generateMetadata({ params }: MeHandlePageProps): Promise<M
 }
 
 async function LegacyMeProfilePage({ userId }: { userId: string }) {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("profiles")
-    .select("id, display_name, username, bio, avatar_url, created_at")
+    .select("id, display_name, username, bio, avatar_url, default_avatar_id, created_at")
     .eq("id", userId)
     .maybeSingle();
 
@@ -99,6 +91,7 @@ async function LegacyMeProfilePage({ userId }: { userId: string }) {
     }
   );
   const displayName = data.display_name ?? data.username ?? "Độc giả ChapMee";
+  const avatarUrl = resolveProfileAvatarUrl(data);
   const profileHandle = buildProfileHandle({
     username: data.username,
     displayName: data.display_name,
@@ -125,7 +118,7 @@ async function LegacyMeProfilePage({ userId }: { userId: string }) {
             <ShareButton
               label="Chia sẻ profile"
               payload={buildReaderProfileSharePayload({
-                avatarUrl: data.avatar_url,
+                avatarUrl,
                 bio: data.bio,
                 stats,
                 title: displayName,
@@ -135,7 +128,7 @@ async function LegacyMeProfilePage({ userId }: { userId: string }) {
           ) : undefined
         }
         avatarName={displayName}
-        avatarUrl={data.avatar_url}
+        avatarUrl={avatarUrl}
         bio={data.bio}
         eyebrow="Reader Profile"
         handle={profileHandle}
@@ -161,24 +154,24 @@ async function LegacyMeProfilePage({ userId }: { userId: string }) {
 export default async function MeHandlePage({ params, searchParams }: MeHandlePageProps) {
   const { handle } = await params;
   const query = await searchParams;
-  const tab = validTabs.has(query.tab as PublicProfileTab)
-    ? (query.tab as PublicProfileTab)
-    : "collections";
   const page = Math.max(1, Number.parseInt(query.page ?? "1", 10) || 1);
 
-  const data = await getPublicProfileByUsername(handle, { tab, page });
+  const data = await getPublicProfileByUsername(handle, {
+    tab: query.tab,
+    page
+  });
   if (data) {
     const dest =
-      getProfileTabUrl(data.user.username, tab, page) ??
-      getProfileTabUrl(data.user.username, "collections");
+      getProfileTabUrl(data.user.username, query.tab ?? "stories", page) ??
+      getProfileUrl(data.user.username);
     if (dest) {
       redirect(dest);
     }
   }
 
   if (isUuid(handle)) {
-    const supabase = await createClient();
-    const { data: profile } = await supabase
+    const db = await createClient();
+    const { data: profile } = await db
       .from("profiles")
       .select("username")
       .eq("id", handle)
@@ -192,9 +185,7 @@ export default async function MeHandlePage({ params, searchParams }: MeHandlePag
       const dest =
         getProfileTabUrl(
           profile.username,
-          validTabs.has(query.tab as PublicProfileTab)
-            ? (query.tab as PublicProfileTab)
-            : "collections",
+          query.tab ?? "stories",
           Math.max(1, Number.parseInt(query.page ?? "1", 10) || 1)
         ) ?? `/@${profile.username}`;
       redirect(dest);

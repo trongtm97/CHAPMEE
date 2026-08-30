@@ -3,13 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentCreatorProfile } from "@/lib/creator/getCreatorProfile";
+import { requireCreatorProfile } from "@/lib/creator/require-creator-profile";
 import { validateUsername } from "@/lib/profile/buildProfileHandle";
 import { validateStudioSettingsForm } from "@/lib/studio/settings-validation";
 import { ensureProfileUsername } from "@/lib/profile/ensure-profile-username";
 import { validateDisplayName } from "@/lib/username/validate-display-name";
 import { validateUsername as validateUsernamePolicy } from "@/lib/username/validate-username";
 import { recordUsernameChange } from "@/lib/username/record-username-change";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { revalidatePublicProfilePaths } from "@/lib/profile/revalidate-public-profile";
 import type { StudioSettingsFormValues, StudioSettingsSaveResult } from "@/types/studio-settings";
 
@@ -25,15 +26,7 @@ export async function updateStudioSettingsAction(
     };
   }
 
-  const { creatorProfile, user } = await getCurrentCreatorProfile();
-
-  if (!user) {
-    redirect("/login?next=/studio/settings");
-  }
-
-  if (!creatorProfile) {
-    redirect("/studio/setup");
-  }
+  const { creatorProfile, user } = await requireCreatorProfile("/studio/settings");
 
   const displayName = values.displayName.trim();
   const bio = values.bio.trim() || null;
@@ -87,15 +80,15 @@ export async function updateStudioSettingsAction(
     }
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: currentProfile } = await supabase
+  const { data: currentProfile } = await db
     .from("profiles")
     .select("username, avatar_url")
     .eq("id", user.id)
     .maybeSingle();
 
-  const { error: profileError } = await supabase
+  const { error: profileError } = await db
     .from("profiles")
     .update({
       bio,
@@ -127,7 +120,7 @@ export async function updateStudioSettingsAction(
 
   const p = values.privacy;
 
-  await supabase.from("profile_privacy_settings").upsert({
+  await db.from("profile_privacy_settings").upsert({
     allow_dm: p.allowDm,
     allow_follow: p.allowFollow,
     show_badges: p.showBadges,
@@ -143,7 +136,7 @@ export async function updateStudioSettingsAction(
     user_id: user.id
   });
 
-  await supabase
+  await db
     .from("message_privacy_settings")
     .update({
       allow_message_requests: p.allowDm,

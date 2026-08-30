@@ -45,7 +45,7 @@ export function MonetizationSettingsShell(props: MonetizationSettingsShellProps)
       <header className="space-y-1">
         <h1 className="text-2xl font-bold text-white sm:text-3xl">Cấu hình kiếm tiền</h1>
         <p className="text-sm text-zinc-400">
-          Coin, thanh toán, chia doanh thu, rút tiền và quảng cáo — một trang quản trị tập trung.
+          Xu, thanh toán, chia doanh thu, rút tiền và quảng cáo — một trang quản trị tập trung.
         </p>
       </header>
 
@@ -62,7 +62,7 @@ export function MonetizationSettingsShell(props: MonetizationSettingsShellProps)
           onClick={() => setMainTab("coin")}
           type="button"
         >
-          Coin & nền tảng
+          Xu & nền tảng
         </button>
         <button
           className={`flex-1 min-w-[140px] rounded-xl px-4 py-2.5 text-sm font-semibold transition ${

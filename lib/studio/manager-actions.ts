@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { publishCreatorStory } from "@/lib/creator/publish-creator-story";
+import { createClient } from "@/lib/data/server";
+import { normalizeStoryCoverForStorage } from "@/lib/media/media-url";
 import { copyStoryTaxonomyFromStory } from "@/lib/taxonomy/story-taxonomy";
 import { getStudioAccess } from "@/lib/creator/getStudioAccess";
 import { studioPath } from "@/lib/studio/constants";
@@ -12,12 +14,13 @@ type ActionResult = {
 };
 
 async function getOwnedStory(storyId: string, creatorId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("stories")
     .select("id, status, creator_id, title, slug")
     .eq("id", storyId)
     .eq("creator_id", creatorId)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (error) {
@@ -28,14 +31,15 @@ async function getOwnedStory(storyId: string, creatorId: string) {
 }
 
 async function getOwnedStoryForDuplicate(storyId: string, creatorId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("stories")
     .select(
       "id, title, slug, hook, short_description, long_description, cover_url, visibility, is_completed, age_rating, sensitive_flags, canonical_url, seo_description, seo_keywords, seo_title"
     )
     .eq("id", storyId)
     .eq("creator_id", creatorId)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (error) {
@@ -46,24 +50,24 @@ async function getOwnedStoryForDuplicate(storyId: string, creatorId: string) {
 }
 
 async function storyHasEngagement(storyId: string) {
-  const supabase = await createClient();
+  const db = await createClient();
 
   const [reads, comments, reactions, progress] = await Promise.all([
-    supabase
+    db
       .from("analytics_events")
       .select("id", { count: "exact", head: true })
       .eq("target_id", storyId)
       .eq("event_name", "open_story"),
-    supabase
+    db
       .from("comments")
       .select("id", { count: "exact", head: true })
       .eq("story_id", storyId),
-    supabase
+    db
       .from("reactions")
       .select("id", { count: "exact", head: true })
       .eq("target_id", storyId)
       .eq("target_type", "story"),
-    supabase
+    db
       .from("reading_progress")
       .select("id", { count: "exact", head: true })
       .eq("story_id", storyId)
@@ -79,19 +83,19 @@ async function storyHasEngagement(storyId: string) {
 }
 
 async function episodeHasEngagement(episodeId: string) {
-  const supabase = await createClient();
+  const db = await createClient();
 
   const [reads, comments, reactions] = await Promise.all([
-    supabase
+    db
       .from("analytics_events")
       .select("id", { count: "exact", head: true })
       .eq("target_id", episodeId)
       .in("event_name", ["chapter_opened", "complete_chap"]),
-    supabase
+    db
       .from("comments")
       .select("id", { count: "exact", head: true })
       .eq("episode_id", episodeId),
-    supabase
+    db
       .from("reactions")
       .select("id", { count: "exact", head: true })
       .eq("target_id", episodeId)
@@ -118,8 +122,8 @@ export async function hideStudioStoryAction(storyId: string): Promise<ActionResu
       return { ok: false, error: "Không tìm thấy truyện." };
     }
 
-    const supabase = await createClient();
-    const { error: updateError } = await supabase
+    const db = await createClient();
+    const { error: updateError } = await db
       .from("stories")
       .update({ status: "archived", visibility: "private" })
       .eq("id", storyId);
@@ -155,8 +159,8 @@ export async function unhideStudioStoryAction(storyId: string): Promise<ActionRe
       return { ok: false, error: "Không tìm thấy truyện." };
     }
 
-    const supabase = await createClient();
-    const { error: updateError } = await supabase
+    const db = await createClient();
+    const { error: updateError } = await db
       .from("stories")
       .update({ status: "draft", visibility: "private" })
       .eq("id", storyId);
@@ -192,8 +196,8 @@ export async function markCompleteStudioStoryAction(storyId: string): Promise<Ac
       return { ok: false, error: "Không tìm thấy truyện." };
     }
 
-    const supabase = await createClient();
-    const { error: updateError } = await supabase
+    const db = await createClient();
+    const { error: updateError } = await db
       .from("stories")
       .update({ is_completed: true })
       .eq("id", storyId);
@@ -229,8 +233,8 @@ export async function moveToDraftStudioStoryAction(storyId: string): Promise<Act
       return { ok: false, error: "Không tìm thấy truyện." };
     }
 
-    const supabase = await createClient();
-    const { error: updateError } = await supabase
+    const db = await createClient();
+    const { error: updateError } = await db
       .from("stories")
       .update({ status: "draft", visibility: "private" })
       .eq("id", storyId);
@@ -253,34 +257,31 @@ export async function moveToDraftStudioStoryAction(storyId: string): Promise<Act
 }
 
 export async function submitForReviewStudioStoryAction(storyId: string): Promise<ActionResult> {
-  const { creatorProfile, error } = await getStudioAccess(studioPath("/stories"));
+  const { creatorProfile, error, user } = await getStudioAccess(studioPath("/stories"));
 
   if (error || !creatorProfile) {
     return { ok: false, error: error ?? "Không có quyền truy cập Studio." };
   }
 
   try {
-    const story = await getOwnedStory(storyId, creatorProfile.id);
+    const db = await createClient();
+    const result = await publishCreatorStory(db, {
+      authorDisplayName: creatorProfile.display_name,
+      creatorId: creatorProfile.id,
+      notify: Boolean(user?.id),
+      storyId,
+      userId: user?.id
+    });
 
-    if (!story) {
-      return { ok: false, error: "Không tìm thấy truyện." };
+    if (!result.ok) {
+      return result;
     }
 
-    if (story.status !== "rejected" && story.status !== "draft") {
-      return { ok: false, error: "Chỉ có thể gửi duyệt lại truyện nháp hoặc cần sửa." };
+    if (!user?.id) {
+      revalidatePath(studioPath("/stories"));
+      revalidatePath("/admin/content");
     }
 
-    const supabase = await createClient();
-    const { error: updateError } = await supabase
-      .from("stories")
-      .update({ status: "pending" })
-      .eq("id", storyId);
-
-    if (updateError) {
-      throw new Error(updateError.message);
-    }
-
-    revalidatePath(studioPath("/stories"));
     return { ok: true };
   } catch (actionError) {
     return {
@@ -288,7 +289,7 @@ export async function submitForReviewStudioStoryAction(storyId: string): Promise
       error:
         actionError instanceof Error
           ? actionError.message
-          : "Không thể gửi duyệt lại."
+          : "Không thể đăng lại."
     };
   }
 }
@@ -316,13 +317,17 @@ export async function duplicateStudioStoryAction(storyId: string): Promise<
     const newSlug = `${baseSlug}-copy-${suffix}`;
     const newTitle = `${String(source.title)} (Bản sao)`;
 
-    const supabase = await createClient();
-    const { data: created, error: insertError } = await supabase
+    const duplicateCover = normalizeStoryCoverForStorage(source.cover_url);
+    const duplicateCoverKey =
+      duplicateCover.kind === "object_key" ? duplicateCover.objectKey : null;
+
+    const db = await createClient();
+    const { data: created, error: insertError } = await db
       .from("stories")
       .insert({
         age_rating: source.age_rating,
         canonical_url: null,
-        cover_url: source.cover_url,
+        cover_url: duplicateCoverKey,
         creator_id: creatorProfile.id,
         hook: source.hook,
         is_completed: false,
@@ -340,12 +345,12 @@ export async function duplicateStudioStoryAction(storyId: string): Promise<
       .select("id")
       .single();
 
-    if (insertError) {
-      throw new Error(insertError.message);
+    if (insertError || !created) {
+      throw new Error(insertError?.message ?? "Không nhân bản được truyện.");
     }
 
     const copyTaxonomy = await copyStoryTaxonomyFromStory(
-      supabase,
+      db,
       storyId,
       created.id as string
     );
@@ -369,51 +374,10 @@ export async function duplicateStudioStoryAction(storyId: string): Promise<
 export async function deleteDraftStudioStoryAction(
   storyId: string
 ): Promise<ActionResult> {
-  const { creatorProfile, error } = await getStudioAccess(studioPath("/stories"));
-
-  if (error || !creatorProfile) {
-    return { ok: false, error: error ?? "Không có quyền truy cập Studio." };
-  }
-
-  try {
-    const story = await getOwnedStory(storyId, creatorProfile.id);
-
-    if (!story) {
-      return { ok: false, error: "Không tìm thấy truyện." };
-    }
-
-    if (story.status !== "draft") {
-      return { ok: false, error: "Chỉ có thể xóa truyện ở trạng thái nháp." };
-    }
-
-    if (await storyHasEngagement(storyId)) {
-      return {
-        ok: false,
-        error: "Truyện đã có tương tác — hãy ẩn thay vì xóa."
-      };
-    }
-
-    const supabase = await createClient();
-    const { error: deleteError } = await supabase
-      .from("stories")
-      .delete()
-      .eq("id", storyId);
-
-    if (deleteError) {
-      throw new Error(deleteError.message);
-    }
-
-    revalidatePath(studioPath("/stories"));
-    return { ok: true };
-  } catch (actionError) {
-    return {
-      ok: false,
-      error:
-        actionError instanceof Error
-          ? actionError.message
-          : "Không thể xóa truyện nháp."
-    };
-  }
+  const { softDeleteStudioStoryAction } = await import(
+    "@/lib/studio/soft-delete-actions"
+  );
+  return softDeleteStudioStoryAction(storyId);
 }
 
 export async function hideStudioChapterAction(
@@ -429,8 +393,8 @@ export async function hideStudioChapterAction(
   }
 
   try {
-    const supabase = await createClient();
-    const { data: episode, error: fetchError } = await supabase
+    const db = await createClient();
+    const { data: episode, error: fetchError } = await db
       .from("episodes")
       .select("id, status, stories!inner(creator_id)")
       .eq("id", episodeId)
@@ -446,7 +410,7 @@ export async function hideStudioChapterAction(
       return { ok: false, error: "Không tìm thấy chương." };
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await db
       .from("episodes")
       .update({ status: "archived" })
       .eq("id", episodeId);
@@ -472,61 +436,8 @@ export async function deleteDraftStudioChapterAction(
   storyId: string,
   episodeId: string
 ): Promise<ActionResult> {
-  const { creatorProfile, error } = await getStudioAccess(
-    studioPath(`/stories/${storyId}/chapters`)
+  const { softDeleteStudioChapterAction } = await import(
+    "@/lib/studio/soft-delete-actions"
   );
-
-  if (error || !creatorProfile) {
-    return { ok: false, error: error ?? "Không có quyền truy cập Studio." };
-  }
-
-  try {
-    const supabase = await createClient();
-    const { data: episode, error: fetchError } = await supabase
-      .from("episodes")
-      .select("id, status, stories!inner(creator_id)")
-      .eq("id", episodeId)
-      .eq("story_id", storyId)
-      .eq("stories.creator_id", creatorProfile.id)
-      .maybeSingle();
-
-    if (fetchError) {
-      throw new Error(fetchError.message);
-    }
-
-    if (!episode) {
-      return { ok: false, error: "Không tìm thấy chương." };
-    }
-
-    if (episode.status !== "draft") {
-      return { ok: false, error: "Chỉ có thể xóa chương ở trạng thái nháp." };
-    }
-
-    if (await episodeHasEngagement(episodeId)) {
-      return {
-        ok: false,
-        error: "Chương đã có tương tác — hãy ẩn thay vì xóa."
-      };
-    }
-
-    const { error: deleteError } = await supabase
-      .from("episodes")
-      .delete()
-      .eq("id", episodeId);
-
-    if (deleteError) {
-      throw new Error(deleteError.message);
-    }
-
-    revalidatePath(studioPath(`/stories/${storyId}/chapters`));
-    return { ok: true };
-  } catch (actionError) {
-    return {
-      ok: false,
-      error:
-        actionError instanceof Error
-          ? actionError.message
-          : "Không thể xóa chương nháp."
-    };
-  }
+  return softDeleteStudioChapterAction(storyId, episodeId);
 }

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { revalidatePublicProfilePaths } from "@/lib/profile/revalidate-public-profile";
 import { getProfilePrivacySettings } from "@/lib/profile/get-profile-privacy";
 
@@ -14,11 +14,11 @@ type FollowUserInput = {
 };
 
 export async function followUserAction(input: FollowUserInput) {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user },
     error
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (error || !user) {
     redirect(`/login?next=${encodeURIComponent(input.returnTo)}`);
@@ -36,7 +36,7 @@ export async function followUserAction(input: FollowUserInput) {
   }
 
   if (input.following) {
-    const { error: insertError } = await supabase.from("user_follows").insert({
+    const { error: insertError } = await db.from("user_follows").insert({
       follower_id: user.id,
       following_id: input.followingId
     });
@@ -46,7 +46,7 @@ export async function followUserAction(input: FollowUserInput) {
       );
     }
   } else {
-    await supabase
+    await db
       .from("user_follows")
       .delete()
       .eq("follower_id", user.id)

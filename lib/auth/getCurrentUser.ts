@@ -1,9 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
+import { getSessionUser } from "@/lib/auth/get-session-user";
 import type { OnboardingGoal, OnboardingRolePreference } from "@/types/onboarding";
 
 const PROFILE_BASE_SELECT =
-  "id, username, display_name, avatar_url, bio, role, status, created_at";
+  "id, username, display_name, avatar_url, default_avatar_id, bio, role, status, created_at";
 const PROFILE_FULL_SELECT = `${PROFILE_BASE_SELECT}, onboarding_completed, onboarding_completed_at, user_role_preference, favorite_genres, onboarding_goals`;
 
 export type CurrentUserProfile = {
@@ -11,6 +12,7 @@ export type CurrentUserProfile = {
   username: string | null;
   display_name: string | null;
   avatar_url: string | null;
+  default_avatar_id?: number | null;
   bio: string | null;
   role: "user" | "admin" | "moderator" | "founder";
   status?: string;
@@ -33,18 +35,8 @@ export type CurrentUserState = {
 
 export async function getCurrentUser(): Promise<CurrentUserState> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: userError
-    } = await supabase.auth.getUser();
-
-    if (userError) {
-      if (process.env.NODE_ENV === "development") {
-        console.warn("[auth] getUser:", userError.message);
-      }
-      return { user: null, profile: null, error: null };
-    }
+    const db = await createClient();
+    const user = await getSessionUser();
 
     if (!user) {
       return { user: null, profile: null, error: null };
@@ -53,7 +45,7 @@ export async function getCurrentUser(): Promise<CurrentUserState> {
     let profileData: CurrentUserProfile | null = null;
     let profileError = null as { message: string } | null;
 
-    const profileResult = await supabase
+    const profileResult = await db
       .from("profiles")
       .select(PROFILE_FULL_SELECT)
       .eq("id", user.id)
@@ -63,7 +55,7 @@ export async function getCurrentUser(): Promise<CurrentUserState> {
     profileError = profileResult.error;
 
     if (profileError && isMissingSchemaError(profileError)) {
-      const fallback = await supabase
+      const fallback = await db
         .from("profiles")
         .select(PROFILE_BASE_SELECT)
         .eq("id", user.id)

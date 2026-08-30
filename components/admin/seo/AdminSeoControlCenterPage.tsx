@@ -37,7 +37,7 @@ export function AdminSeoControlCenterPage({ initialTab, initialData, capabilitie
       if (next === "overview") params.delete("tab");
       else params.set("tab", next);
       const query = params.toString();
-      router.push(query ? `/admin/seo?${query}` : "/admin/seo");
+      router.push(query ? `/admin/seo/control?${query}` : "/admin/seo/control");
     },
     [router, searchParams]
   );

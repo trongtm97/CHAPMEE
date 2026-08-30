@@ -15,9 +15,9 @@ import {
   updateCreatorBonusAllocation,
   updateCreatorBonusPoolStatus,
   upsertCreatorBonusAllocations
-} from "@/lib/supabase/creator-bonus";
-import { listOpenHighRiskEventsByCreator } from "@/lib/supabase/risk";
-import { getCreatorMonetizationProfile } from "@/lib/supabase/creator-monetization";
+} from "@/lib/data/creator-bonus";
+import { listOpenHighRiskEventsByCreator } from "@/lib/data/risk";
+import { getCreatorMonetizationProfile } from "@/lib/data/creator-monetization";
 import { buildAdminBonusRevenue } from "@/lib/finance/calculate-creator-earning-breakdown";
 import { recordCreatorNetEarning } from "@/lib/finance/record-creator-net-earning";
 
@@ -174,7 +174,7 @@ export async function creditCreatorBonusPoolAction(poolId: string) {
     if (allocation.transaction_id) continue;
     const txCode = `CRBONUS-${poolId}-${allocation.creator_user_id}-${randomUUID()}`;
     const { settings } = await getMonetizationConfig({ includePrivate: true });
-    const coinToVndRate = num(settings["coin.exchange_rate_vnd"] ?? 1000);
+    const coinToVndRate = num(settings["coin.exchange_rate_vnd"] ?? 1);
     const bonusRevenue = buildAdminBonusRevenue(allocation.amount_vnd);
     const credit = await recordCreatorNetEarning({
       creatorUserId: allocation.creator_user_id,

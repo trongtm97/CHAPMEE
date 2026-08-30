@@ -1,5 +1,5 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/supabase-selects";
+import type { DatabaseClient } from "@/lib/db/types";
+import { CREATOR_PROFILE_STORY_JOIN } from "@/lib/creator/postgrest-selects";
 import { resolvePublicDisplayName } from "@/lib/profile/resolve-public-display-name";
 import { getProfileUrl } from "@/lib/profile/profile-url";
 import { getChapterUrl, getStoryUrl } from "@/lib/urls/paths";
@@ -7,6 +7,7 @@ import {
   getStoryCardMeta,
   normalizeStoryStructureType
 } from "@/lib/stories/story-structure";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
 import {
   reasonBadgeFromBoard
 } from "@/lib/ranking/reason-badges";
@@ -60,7 +61,7 @@ function buildStoryStructureStatsLine(
 }
 
 export async function hydrateRankingSnapshots(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   rows: RankingSnapshotRow[],
   boardType: RankingBoardType
 ): Promise<RankingBoardItem[]> {
@@ -83,7 +84,7 @@ export async function hydrateRankingSnapshots(
   const [storiesRes, authorsRes, reelsRes, chaptersRes, episodeCountsRes] =
     await Promise.all([
     storyIds.size
-      ? supabase
+      ? db
           .from("stories")
           .select(
             `id, title, slug, public_code, hook, short_description, cover_url, structure_type, standalone_reading_time_minutes, ${CREATOR_PROFILE_STORY_JOIN}`
@@ -93,7 +94,7 @@ export async function hydrateRankingSnapshots(
           .in("status", ["published", "approved"])
       : Promise.resolve({ data: [] }),
     authorIds.size
-      ? supabase
+      ? db
           .from("creator_profiles")
           .select(
             "id, user_id, pen_name, profiles!creator_profiles_user_id_fkey(display_name, username, avatar_url)"
@@ -102,14 +103,14 @@ export async function hydrateRankingSnapshots(
           .eq("status", "active")
       : Promise.resolve({ data: [] }),
     reelIds.size
-      ? supabase
+      ? db
           .from("reels_items")
           .select("id, hook, body, background_image_url, story_id, stories(title, slug, public_code, cover_url)")
           .in("id", [...reelIds])
           .eq("status", "published")
       : Promise.resolve({ data: [] }),
     chapterIds.size
-      ? supabase
+      ? db
           .from("episodes")
           .select(
             "id, title, slug, public_code, episode_number, story_id, stories!inner(id, title, slug, public_code, cover_url, creator_profiles(id, user_id, pen_name, profiles(display_name, username)))"
@@ -118,7 +119,7 @@ export async function hydrateRankingSnapshots(
           .in("status", ["published", "approved"])
       : Promise.resolve({ data: [] }),
     storyIds.size
-      ? supabase
+      ? db
           .from("episodes")
           .select("story_id")
           .in("story_id", [...storyIds])
@@ -160,7 +161,7 @@ export async function hydrateRankingSnapshots(
     "@/lib/taxonomy/discover-bridge"
   );
   const taxonomyByStory = await getStoryTaxonomyLabelsByStoryIds(
-    supabase,
+    db,
     [...storyIds]
   );
 
@@ -241,7 +242,7 @@ export async function hydrateRankingSnapshots(
         slug: story.slug,
         publicCode: story.public_code,
         href: getStoryUrl({ slug: story.slug, public_code: story.public_code }),
-        coverUrl: story.cover_url,
+        coverUrl: resolveStoryCoverUrl(story.cover_url),
         subtitle: story.hook,
         description: story.short_description,
         genreName: taxonomy?.mainGenreName ?? null,
@@ -256,11 +257,18 @@ export async function hydrateRankingSnapshots(
         scoreBreakdown: breakdown,
         reasonBadge: badge,
         statsLine: (() => {
+          if (
+            boardType === "boosted_stories" &&
+            breakdown.reason?.includes("lượt đề cử")
+          ) {
+            return breakdown.reason;
+          }
           const structureLine = buildStoryStructureStatsLine(story, episodeCountByStory);
           const engagementLine = buildStatsLine(breakdown);
           const merged = [structureLine, engagementLine].filter(Boolean).join(" · ");
           return merged || null;
-        })()
+        })(),
+        ownerUserId: row.author_user_id ?? creator?.user_id ?? null
       });
       continue;
     }
@@ -284,7 +292,8 @@ export async function hydrateRankingSnapshots(
         score: Number(row.score),
         scoreBreakdown: breakdown,
         reasonBadge: badge ?? "new_author",
-        statsLine: buildStatsLine(breakdown)
+        statsLine: buildStatsLine(breakdown),
+        ownerUserId: row.item_id
       });
       continue;
     }
@@ -302,7 +311,10 @@ export async function hydrateRankingSnapshots(
         href: linkedStory
           ? getStoryUrl({ slug: linkedStory.slug, public_code: linkedStory.public_code })
           : "/reels",
-        coverUrl: reel.background_image_url ?? linkedStory?.cover_url ?? null,
+        coverUrl:
+          resolveStoryCoverUrl(reel.background_image_url) ??
+          resolveStoryCoverUrl(linkedStory?.cover_url) ??
+          null,
         subtitle: reel.body,
         description: null,
         genreName: null,
@@ -311,7 +323,8 @@ export async function hydrateRankingSnapshots(
         score: Number(row.score),
         scoreBreakdown: breakdown,
         reasonBadge: badge ?? "reels_pull",
-        statsLine: buildStatsLine(breakdown)
+        statsLine: buildStatsLine(breakdown),
+        ownerUserId: row.author_user_id ?? null
       });
       continue;
     }
@@ -333,7 +346,7 @@ export async function hydrateRankingSnapshots(
           { slug: story.slug, public_code: story.public_code },
           { slug: chapter.slug, public_code: chapter.public_code }
         ),
-        coverUrl: story.cover_url,
+        coverUrl: resolveStoryCoverUrl(story.cover_url),
         subtitle: story.title,
         description: null,
         genreName: taxonomyByStory.get(story.id)?.mainGenreName ?? null,
@@ -344,7 +357,8 @@ export async function hydrateRankingSnapshots(
         score: Number(row.score),
         scoreBreakdown: breakdown,
         reasonBadge: badge ?? "high_next_chapter",
-        statsLine: buildStatsLine(breakdown)
+        statsLine: buildStatsLine(breakdown),
+        ownerUserId: row.author_user_id ?? creator?.user_id ?? null
       });
     }
   }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { VerificationConsentNotice } from "@/components/legal/ImplicitConsentNotice";
 import { Button } from "@/components/ui";
 import { STUDIO_VERIFICATION_TYPES, type StudioVerificationType } from "@/lib/verification/config";
 import {
@@ -22,9 +23,8 @@ type StudioVerificationCenterProps = {
 export function StudioVerificationCenter({ displayName, summary }: StudioVerificationCenterProps) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
-  const [verificationType, setVerificationType] = useState<StudioVerificationType>("official_creator");
+  const [verificationType, setVerificationType] = useState<StudioVerificationType>("payout_individual");
   const [requestReason, setRequestReason] = useState("");
-  const [consent, setConsent] = useState(false);
   const [documents, setDocuments] = useState<VerificationDocumentRow[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,10 +34,7 @@ export function StudioVerificationCenter({ displayName, summary }: StudioVerific
   const supplementRequestId = summary.latestNeedsMoreInfo?.id ?? null;
   const formDisabled = Boolean(summary.latestPending) || !summary.requestsEnabled;
   const canSubmitForm =
-    !formDisabled &&
-    consent &&
-    requestReason.trim().length >= 20 &&
-    showForm;
+    !formDisabled && requestReason.trim().length >= 20 && showForm;
 
   useEffect(() => {
     if (!showForm && !supplementRequestId) {
@@ -65,7 +62,7 @@ export function StudioVerificationCenter({ displayName, summary }: StudioVerific
           summary.latestNeedsMoreInfo.verification_type as StudioVerificationType
         )
           ? (summary.latestNeedsMoreInfo.verification_type as StudioVerificationType)
-          : "official_creator"
+          : "payout_individual"
       );
       setRequestReason(summary.latestNeedsMoreInfo.request_reason ?? "");
     }
@@ -80,7 +77,7 @@ export function StudioVerificationCenter({ displayName, summary }: StudioVerific
     setMessage(null);
     startTransition(async () => {
       const result = await submitVerificationRequestAction({
-        consent,
+        consent: true,
         requestId: supplementRequestId,
         requestReason,
         uploadSessionId,
@@ -94,7 +91,6 @@ export function StudioVerificationCenter({ displayName, summary }: StudioVerific
 
       setMessage("Yêu cầu xác thực đã được gửi. ChapMee sẽ xét duyệt thủ công.");
       setShowForm(false);
-      setConsent(false);
       router.refresh();
     });
   }
@@ -150,23 +146,11 @@ export function StudioVerificationCenter({ displayName, summary }: StudioVerific
                   value={requestReason}
                 />
               </label>
-              <label className="flex items-start gap-3 text-sm text-zinc-300">
-                <input
-                  checked={consent}
-                  className="mt-1 size-4 accent-cyan-300"
-                  disabled={formDisabled || pending}
-                  onChange={(event) => setConsent(event.target.checked)}
-                  type="checkbox"
-                />
-                <span>
-                  Tôi xác nhận các thông tin đã gửi là chính xác và đồng ý để ChapMee sử dụng hồ
-                  sơ này cho mục đích xét duyệt xác thực tài khoản.
-                </span>
-              </label>
             </div>
 
             <div className="border-t border-white/5 pt-5">
               <p className="mb-3 text-sm font-semibold text-white">Bước 4 · Gửi yêu cầu</p>
+              <VerificationConsentNotice className="mb-3 text-sm leading-relaxed text-zinc-400" />
               <Button
                 className="min-h-10 w-full sm:w-auto"
                 disabled={!canSubmitForm || pending}

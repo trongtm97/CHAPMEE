@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import type {
   ColdStartItemType,
   ColdStartQualificationMetrics,
@@ -19,18 +19,18 @@ function impressionFilter(test: ColdStartTestRow) {
 }
 
 export async function computeTestMetrics(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   test: ColdStartTestRow
 ): Promise<ColdStartQualificationMetrics> {
   const filter = impressionFilter(test);
 
-  const { count: impressions } = await supabase
+  const { count: impressions } = await db
     .from("exposure_events")
     .select("id", { count: "exact", head: true })
     .eq(filter.column === "author_user_id" ? "author_user_id" : "item_id", filter.value)
     .gte("created_at", test.started_at);
 
-  let actionQuery = supabase
+  let actionQuery = db
     .from("user_action_events")
     .select("action_type")
     .gte("created_at", test.started_at);
@@ -83,10 +83,10 @@ export async function computeTestMetrics(
 }
 
 export async function countDeliveredImpressions(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   test: Pick<ColdStartTestRow, "item_type" | "item_id" | "author_user_id" | "started_at">
 ) {
-  let query = supabase
+  let query = db
     .from("exposure_events")
     .select("id", { count: "exact", head: true })
     .gte("created_at", test.started_at);

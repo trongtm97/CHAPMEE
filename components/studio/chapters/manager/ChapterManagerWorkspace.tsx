@@ -14,15 +14,18 @@ import {
   batchDeleteDraftChaptersAction,
   batchHideStudioChaptersAction,
   batchMoveChaptersToDraftAction,
+  batchPublishStudioChaptersAction,
   batchSetChaptersFreeAction,
   exportChaptersCsvAction
 } from "@/lib/studio/chapter-manager-actions";
+import { downloadTextFile } from "@/lib/studio/csv";
 import {
   deleteDraftStudioChapterAction,
   hideStudioChapterAction
 } from "@/lib/studio/manager-actions";
 import { buildStudioManagerHref } from "@/lib/studio/manager-url";
 import { studioPath } from "@/lib/studio/constants";
+import { copyToClipboard, COPY_FEEDBACK_MS } from "@/lib/utilities/copy-to-clipboard";
 import { getStoryChapterHref } from "@/lib/stories/story-routes";
 import type {
   StudioChapter,
@@ -117,6 +120,27 @@ function MonetizationBadge({ chapter }: { chapter: StudioChapter }) {
   );
 }
 
+function ChapterCodeCell({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <button
+      className="max-w-[7rem] truncate font-mono text-xs text-cyan-200/90 hover:text-cyan-100"
+      onClick={() => {
+        void copyToClipboard(code).then((ok) => {
+          if (!ok) return;
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
+        });
+      }}
+      title={copied ? "Đã sao chép chapter_code" : `Sao chép: ${code}`}
+      type="button"
+    >
+      {copied ? "Đã chép" : code}
+    </button>
+  );
+}
+
 function ChapterRowActions({
   chapter,
   onChanged,
@@ -142,6 +166,7 @@ function ChapterRowActions({
   return (
     <StudioRowActionMenu
       ariaLabel={`Tùy chọn chương ${chapter.episodeNumber}`}
+      preferOpenUpward
       items={[
         { href: editHref, label: "Sửa", type: "link" },
         { href: previewHref, label: "Xem trước", type: "link" },
@@ -233,7 +258,7 @@ export function ChapterManagerWorkspace({
     });
   }
 
-  function runBatch(action: "hide" | "draft" | "delete" | "free" | "export") {
+  function runBatch(action: "hide" | "draft" | "publish" | "delete" | "free" | "export") {
     if (action === "export") {
       startTransition(async () => {
         const result = await exportChaptersCsvAction(storyId);
@@ -241,13 +266,7 @@ export function ChapterManagerWorkspace({
           setBatchMessage(result.error ?? "Không xuất được CSV.");
           return;
         }
-        const blob = new Blob([result.csv], { type: "text/csv;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = `chapters-${story.slug}.csv`;
-        anchor.click();
-        URL.revokeObjectURL(url);
+        downloadTextFile(result.csv, `chapters-${story.slug}.csv`);
       });
       return;
     }
@@ -271,9 +290,11 @@ export function ChapterManagerWorkspace({
           ? await batchHideStudioChaptersAction(storyId, selectedIds)
           : action === "draft"
             ? await batchMoveChaptersToDraftAction(storyId, selectedIds)
-            : action === "free"
-              ? await batchSetChaptersFreeAction(storyId, selectedIds)
-              : await batchDeleteDraftChaptersAction(storyId, selectedIds);
+            : action === "publish"
+              ? await batchPublishStudioChaptersAction(storyId, selectedIds)
+              : action === "free"
+                ? await batchSetChaptersFreeAction(storyId, selectedIds)
+                : await batchDeleteDraftChaptersAction(storyId, selectedIds);
 
       if (result.skipped.length > 0) {
         setBatchMessage(
@@ -386,6 +407,14 @@ export function ChapterManagerWorkspace({
             Đã chọn {selectedIds.length} chương
           </span>
           <button
+            className="rounded-lg bg-cyan-400 px-3 py-1.5 text-xs font-semibold text-zinc-950"
+            disabled={pending}
+            onClick={() => runBatch("publish")}
+            type="button"
+          >
+            Đăng
+          </button>
+          <button
             className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-zinc-200"
             disabled={pending}
             onClick={() => runBatch("hide")}
@@ -456,7 +485,7 @@ export function ChapterManagerWorkspace({
         />
       ) : (
         <>
-          <div className="hidden overflow-x-auto rounded-2xl border border-white/10 lg:block">
+          <div className="hidden overflow-x-auto overflow-y-visible rounded-2xl border border-white/10 lg:block">
             <table className="min-w-full text-sm">
               <thead className="bg-white/[0.03] text-left text-xs uppercase tracking-wide text-zinc-500">
                 <tr>
@@ -469,6 +498,7 @@ export function ChapterManagerWorkspace({
                     />
                   </th>
                   <th className="px-3 py-3">#</th>
+                  <th className="px-3 py-3">Mã chương</th>
                   <th className="px-3 py-3">Tiêu đề</th>
                   <th className="px-3 py-3">Trạng thái</th>
                   <th className="px-3 py-3">Loại</th>
@@ -495,6 +525,9 @@ export function ChapterManagerWorkspace({
                     </td>
                     <td className="px-3 py-3 font-semibold text-zinc-300">
                       {chapter.episodeNumber}
+                    </td>
+                    <td className="px-3 py-3">
+                      <ChapterCodeCell code={chapter.publicCode} />
                     </td>
                     <td className="max-w-xs px-3 py-3">
                       <Link
@@ -565,6 +598,13 @@ export function ChapterManagerWorkspace({
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold uppercase tracking-wide text-zinc-500">
                       Chương {chapter.episodeNumber}
+                      {chapter.publicCode ? (
+                        <>
+                          {" "}
+                          ·{" "}
+                          <ChapterCodeCell code={chapter.publicCode} />
+                        </>
+                      ) : null}
                     </p>
                     <h3 className="mt-1 line-clamp-2 font-semibold text-white">{chapter.title}</h3>
                     <div className="mt-2 flex flex-wrap gap-2">

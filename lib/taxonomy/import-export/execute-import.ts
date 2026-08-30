@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   createTaxonomyTermAdmin,
   updateTaxonomyTermAdmin
@@ -222,10 +222,10 @@ export async function executeTaxonomyImport(input: {
   if (input.mode === "disable_missing_in_file" && input.confirmDisableMissing) {
     const typesInFile = [...new Set(input.rows.map((r) => r.type))];
     const keysInFile = new Set(input.rows.map((r) => termKey(r.type, r.slug)));
-    const supabase = await createClient();
+    const db = await createClient();
 
     for (const type of typesInFile) {
-      const { data: activeTerms } = await supabase
+      const { data: activeTerms } = await db
         .from("taxonomy_terms")
         .select("id, slug, usage_count")
         .eq("type", type)
@@ -246,7 +246,7 @@ export async function executeTaxonomyImport(input: {
           });
         }
 
-        const { error } = await supabase
+        const { error } = await db
           .from("taxonomy_terms")
           .update({ is_active: false, updated_by: input.actorId })
           .eq("id", term.id);

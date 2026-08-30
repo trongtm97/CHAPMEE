@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { isMissingSchemaError } from "@/lib/supabase/schema-errors";
+import { createClient } from "@/lib/data/server";
+import { isMissingSchemaError } from "@/lib/data/schema-errors";
 import { getReporterQuality } from "@/lib/moderation/reporter-quality";
 import type {
   AppealStatus,
@@ -42,8 +42,8 @@ export type ModerationAppealRow = {
 export async function getModerationReports(
   statusFilter?: ReportStatus | "all"
 ): Promise<ModerationReportRow[]> {
-  const supabase = await createClient();
-  let query = supabase
+  const db = await createClient();
+  let query = db
     .from("reports")
     .select(
       `
@@ -87,12 +87,12 @@ export async function getModerationReports(
   for (const row of data ?? []) {
     const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
     const preview = await getTargetPreview(
-      supabase,
+      db,
       row.target_type,
       row.target_id
     );
     const reportedUserId = await resolveReportedUserId(
-      supabase,
+      db,
       row.target_type,
       row.target_id
     );
@@ -122,8 +122,8 @@ export async function getModerationReports(
 }
 
 export async function getModerationAppeals(): Promise<ModerationAppealRow[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("moderation_appeals")
     .select(
       `
@@ -162,12 +162,12 @@ export async function getModerationAppeals(): Promise<ModerationAppealRow[]> {
 }
 
 async function getTargetPreview(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   targetType: string,
   targetId: string
 ): Promise<string | null> {
   if (targetType === "story") {
-    const { data } = await supabase
+    const { data } = await db
       .from("stories")
       .select("title")
       .eq("id", targetId)
@@ -175,7 +175,7 @@ async function getTargetPreview(
     return data?.title ?? null;
   }
   if (targetType === "chapter") {
-    const { data } = await supabase
+    const { data } = await db
       .from("episodes")
       .select("title")
       .eq("id", targetId)
@@ -183,7 +183,7 @@ async function getTargetPreview(
     return data?.title ?? null;
   }
   if (targetType === "comment") {
-    const { data } = await supabase
+    const { data } = await db
       .from("comments")
       .select("content")
       .eq("id", targetId)
@@ -191,7 +191,7 @@ async function getTargetPreview(
     return data?.content?.slice(0, 120) ?? null;
   }
   if (targetType === "community_post") {
-    const { data } = await supabase
+    const { data } = await db
       .from("community_posts")
       .select("title, content")
       .eq("id", targetId)
@@ -199,7 +199,7 @@ async function getTargetPreview(
     return data?.title ?? data?.content?.slice(0, 120) ?? null;
   }
   if (targetType === "user" || targetType === "creator") {
-    const { data } = await supabase
+    const { data } = await db
       .from("profiles")
       .select("display_name, username")
       .eq("id", targetId)
@@ -210,7 +210,7 @@ async function getTargetPreview(
 }
 
 async function resolveReportedUserId(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   targetType: string,
   targetId: string
 ): Promise<string | null> {
@@ -218,7 +218,7 @@ async function resolveReportedUserId(
     return targetId;
   }
   if (targetType === "creator") {
-    const { data } = await supabase
+    const { data } = await db
       .from("creator_profiles")
       .select("user_id")
       .eq("id", targetId)
@@ -226,7 +226,7 @@ async function resolveReportedUserId(
     return data?.user_id ?? null;
   }
   if (targetType === "comment") {
-    const { data } = await supabase
+    const { data } = await db
       .from("comments")
       .select("user_id")
       .eq("id", targetId)
@@ -234,7 +234,7 @@ async function resolveReportedUserId(
     return data?.user_id ?? null;
   }
   if (targetType === "community_post") {
-    const { data } = await supabase
+    const { data } = await db
       .from("community_posts")
       .select("user_id")
       .eq("id", targetId)
@@ -242,7 +242,7 @@ async function resolveReportedUserId(
     return data?.user_id ?? null;
   }
   if (targetType === "story") {
-    const { data } = await supabase
+    const { data } = await db
       .from("stories")
       .select("creator_profiles!inner(user_id)")
       .eq("id", targetId)
@@ -252,7 +252,7 @@ async function resolveReportedUserId(
     return cp?.user_id ?? null;
   }
   if (targetType === "chapter") {
-    const { data } = await supabase
+    const { data } = await db
       .from("episodes")
       .select("stories!inner(creator_profiles!inner(user_id))")
       .eq("id", targetId)

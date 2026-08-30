@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { StudioDraftRecord, StudioDraftType } from "@/types/drafts";
 
 type DraftRow = {
@@ -39,9 +39,9 @@ export async function getStudioDraftForEditor(
   storyId?: string | null,
   chapterId?: string | null
 ): Promise<StudioDraftRecord | null> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  let query = supabase
+  let query = db
     .from("creator_drafts")
     .select(
       "id, owner_id, story_id, chapter_id, draft_type, title, content, plain_text, status, last_saved_at, created_at, updated_at"

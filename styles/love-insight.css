@@ -1,0 +1,65 @@
+.love-insight-shell {
+  --font-display: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  color: #f5f0ff;
+  font-family: var(--font-sans, Inter, system-ui, sans-serif);
+  background-color: #0e0526;
+  background-image:
+    radial-gradient(ellipse at top, rgba(167, 139, 250, 0.18), transparent 60%),
+    radial-gradient(ellipse at bottom right, rgba(244, 63, 116, 0.18), transparent 55%),
+    linear-gradient(180deg, #0e0526 0%, #1a0b3d 50%, #2c1a5c 100%);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.love-insight-shell ::selection {
+  background: rgba(244, 63, 116, 0.35);
+  color: #fff;
+}
+
+.love-insight-shell .text-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+.love-insight-shell .card-mystic {
+  @apply rounded-2xl border border-white/10 bg-love-card-glass p-6 shadow-love-card backdrop-blur-md;
+}
+
+.love-insight-shell .btn-primary {
+  @apply inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-love-rose-500 to-love-rose-700 px-6 py-3 font-semibold text-white shadow-love-glow transition hover:from-love-rose-400 hover:to-love-rose-600 focus:outline-none focus:ring-2 focus:ring-love-rose-400 focus:ring-offset-2 focus:ring-offset-midnight-950 disabled:opacity-50;
+}
+
+.love-insight-shell .btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 rounded-full border border-lavender-400/50 bg-white/5 px-6 py-3 font-semibold text-lavender-100 transition hover:border-lavender-300 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-lavender-400 focus:ring-offset-2 focus:ring-offset-midnight-950;
+}
+
+.love-insight-shell .input-mystic {
+  @apply w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-lavender-300/60 focus:border-love-rose-400 focus:outline-none focus:ring-2 focus:ring-love-rose-400/40;
+}
+
+.love-insight-shell .select-mystic {
+  @apply w-full appearance-none rounded-xl border border-white/10 bg-midnight-900/80 px-4 py-3 pr-10 text-white focus:border-love-rose-400 focus:outline-none focus:ring-2 focus:ring-love-rose-400/40;
+  color-scheme: dark;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23cdbcec'><path fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z' clip-rule='evenodd'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1.25rem 1.25rem;
+}
+
+.love-insight-shell .label-mystic {
+  @apply mb-2 block text-sm font-medium text-lavender-200;
+}
+
+.love-insight-shell .text-gradient-gold {
+  background: linear-gradient(135deg, #fde68a 0%, #fbbf24 50%, #fcd34d 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.love-insight-shell .text-gradient-rose {
+  background: linear-gradient(135deg, #fecdd9 0%, #f43f74 50%, #c4a5f7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}

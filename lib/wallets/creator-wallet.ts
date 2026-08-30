@@ -1,7 +1,7 @@
 import {
   applyCreatorRevenueLedgerRecord,
   getOrCreateCreatorWalletRecord
-} from "@/lib/supabase/wallets";
+} from "@/lib/data/wallets";
 import { buildTransactionCode } from "@/lib/transactions/ledger";
 import type { TransactionSource, TransactionType } from "@/types/transaction";
 import type { CreatorRevenueStatus, CreatorWallet } from "@/types/wallet";

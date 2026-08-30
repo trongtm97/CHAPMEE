@@ -1,15 +1,17 @@
 import { diagnoseChapterOrder } from "@/lib/studio/chapter-order-diagnostics";
+import { CHAPTER_VIEW_EVENT_NAMES } from "@/lib/analytics/read-view-events";
 import { normalizeStoryStructureType } from "@/lib/stories/story-structure";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { resolveEffectivePresentationMode } from "@/lib/presentation/resolve-mode";
 import { parseStudioPage } from "@/lib/studio/pagination";
 import { shouldIndexEpisode } from "@/lib/seo/should-index";
+import { canViewPublicEpisode } from "@/lib/visibility/contentVisibility";
 import {
   resolveChapterDisplayStatus,
   resolveStoryDisplayStatus
 } from "@/lib/studio/status-labels";
 import { getStoryPresentationSettings } from "@/lib/taxonomy/presentation";
-import { getStoryMonetizationSettings } from "@/lib/supabase/story-monetization";
+import { getStoryMonetizationSettings } from "@/lib/data/story-monetization";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 import type { ContentFormat, PresentationMode } from "@/types/presentation";
 import type {
@@ -52,6 +54,7 @@ export type StudioChapter = {
   isIndexable: boolean;
   isPaid: boolean;
   coinPrice: number | null;
+  readerVisible: boolean;
 };
 
 export type StudioStoryHeader = {
@@ -247,7 +250,7 @@ function applySort<T extends { order: Function }>(query: T, sort: StudioChapterS
 }
 
 async function countEpisodesByStatus(storyId: string) {
-  const supabase = await createClient();
+  const db = await createClient();
   const statuses: StudioDbContentStatus[] = [
     "draft",
     "pending",
@@ -259,7 +262,7 @@ async function countEpisodesByStatus(storyId: string) {
 
   const results = await Promise.all(
     statuses.map(async (status) => {
-      const { count, error } = await supabase
+      const { count, error } = await db
         .from("episodes")
         .select("id", { count: "exact", head: true })
         .eq("story_id", storyId)
@@ -318,9 +321,9 @@ export async function getStudioChaptersPage(
   };
 
   try {
-    const supabase = await createClient();
+    const db = await createClient();
 
-    const { data: story, error: storyError } = await supabase
+    const { data: story, error: storyError } = await db
       .from("stories")
       .select("id, title, slug, public_code, status, visibility, is_completed, structure_type")
       .eq("id", storyId)
@@ -352,7 +355,7 @@ export async function getStudioChaptersPage(
         getStoryPresentationSettings(storyRow.id),
         getStoryMonetizationSettings(storyRow.id),
         countEpisodesByStatus(storyRow.id),
-        supabase
+        db
           .from("episodes")
           .select("episode_number")
           .eq("story_id", storyRow.id)
@@ -404,7 +407,7 @@ export async function getStudioChaptersPage(
     let commentEpisodeIds = new Set<string>();
 
     if (activeFilter === "paid" || activeFilter === "free") {
-      const { data: monetizationRows } = await supabase
+      const { data: monetizationRows } = await db
         .from("chapter_monetization_settings")
         .select("chapter_id, is_paid")
         .eq("story_id", storyRow.id);
@@ -419,7 +422,7 @@ export async function getStudioChaptersPage(
     }
 
     if (activeFilter === "has_comments") {
-      const { data: commentRows } = await supabase
+      const { data: commentRows } = await db
         .from("comments")
         .select("episode_id")
         .eq("story_id", storyRow.id)
@@ -432,7 +435,7 @@ export async function getStudioChaptersPage(
       );
     }
 
-    let query = supabase
+    let query = db
       .from("episodes")
       .select(
         "id, slug, public_code, episode_number, title, excerpt, status, content_format, validation_status, word_count, updated_at, published_at, seo_title, seo_description",
@@ -495,22 +498,22 @@ export async function getStudioChaptersPage(
     if (episodeIds.length > 0) {
       const [readsResult, commentsResult, monetizationResult, scheduleResult] =
         await Promise.all([
-          supabase
+          db
             .from("analytics_events")
             .select("target_id")
             .in("target_id", episodeIds)
-            .eq("event_name", "chapter_opened"),
-          supabase
+            .in("event_name", [...CHAPTER_VIEW_EVENT_NAMES]),
+          db
             .from("comments")
             .select("episode_id")
             .in("episode_id", episodeIds)
             .eq("status", "visible"),
-          supabase
+          db
             .from("chapter_monetization_settings")
             .select("chapter_id, is_paid, coin_price")
             .eq("story_id", storyRow.id)
             .in("chapter_id", episodeIds),
-          supabase
+          db
             .from("scheduled_publications")
             .select("target_id, scheduled_at, status")
             .eq("story_id", storyRow.id)
@@ -554,7 +557,11 @@ export async function getStudioChaptersPage(
         coinPrice: monetization?.coinPrice ?? null,
         commentCount: comments > 0 ? comments : null,
         contentFormat: episode.content_format,
-        displayStatus: resolveChapterDisplayStatus({ status: episode.status }),
+        displayStatus: resolveChapterDisplayStatus({
+          status: episode.status,
+          storyStatus: storyRow.status,
+          storyVisibility: storyRow.visibility
+        }),
         episodeNumber: episode.episode_number,
         excerpt: episode.excerpt,
         id: episode.id,
@@ -566,6 +573,11 @@ export async function getStudioChaptersPage(
         isPaid: monetization?.isPaid ?? false,
         publicCode: episode.public_code,
         publishedAt: episode.published_at,
+        readerVisible: canViewPublicEpisode(
+          episode.status,
+          storyRow.status,
+          storyRow.visibility
+        ),
         readCount: reads > 0 ? reads : null,
         readingMinutes: estimateReadingMinutes(episode.word_count),
         scheduledAt: scheduledByEpisode.get(episode.id) ?? null,
@@ -599,24 +611,24 @@ export async function getStudioChaptersPage(
 
     const [{ data: seoRows }, { data: invalidComposerRows }, { data: allEpisodeIdRows }, commentsTotal, lastUpdated] =
       await Promise.all([
-        supabase
+        db
           .from("episodes")
           .select("id")
           .eq("story_id", storyRow.id)
           .or("seo_title.is.null,seo_title.eq.,seo_description.is.null,seo_description.eq."),
-        supabase
+        db
           .from("episodes")
           .select("id")
           .eq("story_id", storyRow.id)
           .eq("content_format", "structured_blocks")
           .in("validation_status", ["invalid", "warning"]),
-        supabase.from("episodes").select("id").eq("story_id", storyRow.id),
-        supabase
+        db.from("episodes").select("id").eq("story_id", storyRow.id),
+        db
           .from("comments")
           .select("id", { count: "exact", head: true })
           .eq("story_id", storyRow.id)
           .eq("status", "visible"),
-        supabase
+        db
           .from("episodes")
           .select("updated_at")
           .eq("story_id", storyRow.id)
@@ -629,10 +641,10 @@ export async function getStudioChaptersPage(
     let totalReads = 0;
 
     if (allEpisodeIds.length > 0) {
-      const { count: readsCount } = await supabase
+      const { count: readsCount } = await db
         .from("analytics_events")
         .select("id", { count: "exact", head: true })
-        .eq("event_name", "chapter_opened")
+        .in("event_name", [...CHAPTER_VIEW_EVENT_NAMES])
         .in("target_id", allEpisodeIds.slice(0, 500));
 
       totalReads = readsCount ?? 0;
@@ -654,7 +666,7 @@ export async function getStudioChaptersPage(
     };
 
     if (activeFilter === "has_comments" && counts.has_comments === 0) {
-      const { count: commentEpisodeCount } = await supabase
+      const { count: commentEpisodeCount } = await db
         .from("comments")
         .select("episode_id", { count: "exact", head: true })
         .eq("story_id", storyRow.id)
@@ -664,7 +676,7 @@ export async function getStudioChaptersPage(
     }
 
     if (counts.paid === 0 && storyHeader.monetizationEnabled) {
-      const { count: paidCountExact } = await supabase
+      const { count: paidCountExact } = await db
         .from("chapter_monetization_settings")
         .select("chapter_id", { count: "exact", head: true })
         .eq("story_id", storyRow.id)

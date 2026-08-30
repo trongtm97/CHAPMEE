@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { MessageReportReasonCode } from "@/types/messages";
 
 export async function reportMessage(input: {
@@ -17,10 +17,10 @@ export async function reportMessage(input: {
     return { ok: false, error: "Thiếu thông tin báo cáo." };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
   if (input.conversationId) {
-    const { data: participant } = await supabase
+    const { data: participant } = await db
       .from("conversation_participants")
       .select("conversation_id")
       .eq("conversation_id", input.conversationId)
@@ -33,7 +33,7 @@ export async function reportMessage(input: {
   }
 
   if (input.messageId && input.conversationId) {
-    const { data: message } = await supabase
+    const { data: message } = await db
       .from("messages")
       .select("conversation_id")
       .eq("id", input.messageId)
@@ -44,7 +44,7 @@ export async function reportMessage(input: {
     }
   }
 
-  const { error } = await supabase.from("message_reports").insert({
+  const { error } = await db.from("message_reports").insert({
     reporter_id: input.reporterId,
     reported_user_id: input.reportedUserId,
     conversation_id: input.conversationId ?? null,

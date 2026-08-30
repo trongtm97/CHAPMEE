@@ -11,11 +11,11 @@ import {
 import { parseBulkImportTemplate } from "@/lib/import/parse-bulk-import-template";
 import {
   buildImportChapterPreviews,
-  validateImportInputSize,
-  validatePreviewForImport
+  prepareChaptersForImport,
+  validateImportInputSize
 } from "@/lib/import/validate-import-chapters";
 import { studioPath } from "@/lib/studio/constants";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { BULK_IMPORT_MAX_CHAPTERS, type ImportChapterPreview } from "@/types/import";
 
 async function getActor() {
@@ -71,8 +71,8 @@ export async function previewBulkImportAction(input: {
     };
   }
 
-  const supabase = await createClient();
-  const existing = await getExistingEpisodeNumbers(supabase, input.storyId);
+  const db = await createClient();
+  const existing = await getExistingEpisodeNumbers(db, input.storyId);
   const previews = buildImportChapterPreviews(parsed.chapters, existing);
 
   return {
@@ -116,17 +116,17 @@ export async function confirmBulkImportAction(input: {
     wordCount: 0
   }));
 
-  const validation = validatePreviewForImport(previews);
+  const prepared = prepareChaptersForImport(previews);
 
-  if (!validation.ok || !validation.selected) {
-    return { error: validation.error, ok: false as const };
+  if (!prepared.ok || !prepared.selected) {
+    return { error: prepared.error, ok: false as const };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const result = await importChaptersAsDrafts(
-    supabase,
+    db,
     input.storyId,
-    validation.selected.map((chapter) => ({
+    prepared.selected.map((chapter) => ({
       chapterNumber: chapter.chapterNumber,
       content: chapter.content,
       title: chapter.title
@@ -142,7 +142,7 @@ export async function confirmBulkImportAction(input: {
 
   const query = new URLSearchParams({
     imported: String(result.importedCount),
-    skipped: String(result.skippedCount)
+    skipped: String(result.skippedCount + prepared.skippedBlocked)
   });
 
   redirect(`${studioPath(`/stories/${input.storyId}/chapters`)}?${query.toString()}`);

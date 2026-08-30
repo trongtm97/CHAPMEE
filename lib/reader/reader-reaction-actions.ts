@@ -1,13 +1,21 @@
 "use server";
 
-import { reactToChapter } from "@/lib/supabase/reactions";
-import type { ChapterReactionKey } from "@/types/reaction";
+import { toggleChapterReactionAction } from "@/lib/reactions/chapter-reaction-actions";
 
+/** @deprecated Use toggleChapterReactionAction from client components. */
 export async function readerReactToChapterAction(formData: FormData) {
-  await reactToChapter({
-    chapterId: String(formData.get("chapterId") ?? ""),
-    storyId: String(formData.get("storyId") ?? ""),
-    reactionKey: String(formData.get("reactionKey") ?? "") as ChapterReactionKey,
-    returnTo: String(formData.get("returnTo") ?? "")
-  });
+  const chapterId = String(formData.get("chapterId") ?? "");
+  const reactionKey = String(formData.get("reactionKey") ?? "");
+  const returnTo = String(formData.get("returnTo") ?? "");
+
+  const result = await toggleChapterReactionAction(chapterId, reactionKey, returnTo);
+
+  if (result.loginRequired && returnTo) {
+    const { redirect } = await import("next/navigation");
+    redirect(`/login?next=${encodeURIComponent(returnTo)}`);
+  }
+
+  if (!result.ok) {
+    throw new Error(result.error ?? "Không thể lưu cảm xúc.");
+  }
 }

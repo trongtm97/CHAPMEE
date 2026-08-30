@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export type AppealFormState = {
   error: string | null;
@@ -27,16 +27,16 @@ export async function createAppealAction(
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) {
     redirect("/login?next=/me/account-status");
   }
 
-  const { data: violation } = await supabase
+  const { data: violation } = await db
     .from("violations")
     .select("id, user_id")
     .eq("id", violationId)
@@ -46,7 +46,7 @@ export async function createAppealAction(
     return { error: "Không tìm thấy vi phạm để khiếu nại.", success: null };
   }
 
-  const { data: existing } = await supabase
+  const { data: existing } = await db
     .from("moderation_appeals")
     .select("id")
     .eq("violation_id", violationId)
@@ -61,7 +61,7 @@ export async function createAppealAction(
     };
   }
 
-  const { error } = await supabase.from("moderation_appeals").insert({
+  const { error } = await db.from("moderation_appeals").insert({
     user_id: user.id,
     violation_id: violationId,
     message

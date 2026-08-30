@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { validateComposerContent } from "@/lib/composer/validate-composer-content";
 import { presentationModeToComposerMode } from "@/lib/composer/modes";
 import type { ComposerStructuredContent, ComposerValidationReport } from "@/lib/composer/types";
 import type { PresentationMode } from "@/types/presentation";
+import { ComposerWarningsConsentNotice } from "@/components/legal/ImplicitConsentNotice";
 import { Button } from "@/components/ui";
 
 type ComposerPublishingCheckProps = {
@@ -14,6 +15,7 @@ type ComposerPublishingCheckProps = {
   previewViewed?: boolean;
   knownMediaIds?: string[];
   onAckWarningsChange?: (acknowledged: boolean) => void;
+  /** @deprecated Warnings no longer require a checkbox — publish implies consent. */
   onScrollToBlock?: (blockId: string) => void;
   disabled?: boolean;
 };
@@ -76,7 +78,6 @@ export function ComposerPublishingCheck({
   previewViewed = false,
   presentationMode
 }: ComposerPublishingCheckProps) {
-  const [warningsAck, setWarningsAck] = useState(false);
   const mode = presentationModeToComposerMode(presentationMode);
 
   const report = useMemo(
@@ -97,14 +98,8 @@ export function ComposerPublishingCheck({
   );
 
   useEffect(() => {
-    onAckWarningsChange?.(warningsAck);
-  }, [onAckWarningsChange, warningsAck]);
-
-  useEffect(() => {
-    if (report.warnings.length === 0) {
-      setWarningsAck(false);
-    }
-  }, [report.warnings.length]);
+    onAckWarningsChange?.(true);
+  }, [onAckWarningsChange]);
 
   const checklist = useMemo((): ChecklistRow[] => {
     const rows: ChecklistRow[] = [
@@ -155,24 +150,15 @@ export function ComposerPublishingCheck({
       rows.push({
         id: "composer-warnings",
         label: "Cảnh báo Composer",
-        status: warningsAck ? "ok" : "warning",
-        detail: `${report.warnings.length} cảnh báo`
+        status: "warning",
+        detail: `${report.warnings.length} cảnh báo — xem trước khi đăng`
       });
     }
 
     return rows;
-  }, [contentWarningsConfirmed, previewViewed, report, warningsAck]);
+  }, [contentWarningsConfirmed, previewViewed, report]);
 
-  const canPublishWithWarnings = report.valid && report.warnings.length > 0 && warningsAck;
-  const ready = report.valid && (report.warnings.length === 0 || canPublishWithWarnings);
-
-  const handleAck = useCallback(
-    (checked: boolean) => {
-      setWarningsAck(checked);
-      onAckWarningsChange?.(checked);
-    },
-    [onAckWarningsChange]
-  );
+  const ready = report.valid;
 
   return (
     <div className="space-y-4 rounded-2xl border border-cyan-400/25 bg-cyan-950/20 p-4">
@@ -220,16 +206,7 @@ export function ComposerPublishingCheck({
       <IssueList issues={report.info} tone="info" />
 
       {report.valid && report.warnings.length > 0 ? (
-        <label className="flex cursor-pointer items-start gap-2 text-sm text-amber-100">
-          <input
-            checked={warningsAck}
-            className="mt-1"
-            disabled={disabled}
-            onChange={(e) => handleAck(e.target.checked)}
-            type="checkbox"
-          />
-          <span>Tôi đã xem các cảnh báo và vẫn muốn xuất bản / gửi duyệt.</span>
-        </label>
+        <ComposerWarningsConsentNotice />
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
@@ -238,11 +215,7 @@ export function ComposerPublishingCheck({
             ready ? "text-emerald-300" : report.valid ? "text-amber-300" : "text-rose-300"
           }`}
         >
-          {ready
-            ? "Sẵn sàng gửi duyệt"
-            : report.valid
-              ? "Cần xác nhận cảnh báo"
-              : "Chưa thể gửi duyệt — sửa lỗi trước"}
+          {ready ? "Sẵn sàng gửi duyệt" : "Chưa thể gửi duyệt — sửa lỗi trước"}
         </p>
         <Button
           disabled={disabled}
@@ -260,13 +233,9 @@ export function ComposerPublishingCheck({
   );
 }
 
-export function useComposerPublishGate(
-  report: ComposerValidationReport,
-  warningsAck: boolean
-) {
+export function useComposerPublishGate(report: ComposerValidationReport) {
   return {
-    canSubmitReview:
-      report.valid && (report.warnings.length === 0 || warningsAck),
+    canSubmitReview: report.valid,
     hasErrors: !report.valid,
     hasWarnings: report.warnings.length > 0
   };

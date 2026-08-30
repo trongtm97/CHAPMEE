@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/data/client";
 
 type LogoutButtonProps = {
   variant?: "default" | "subtle";
@@ -19,8 +19,8 @@ export function LogoutButton({ variant = "default" }: LogoutButtonProps) {
     setLoading(true);
     setError(null);
 
-    const supabase = createClient();
-    const { error: logoutError } = await supabase.auth.signOut();
+    const db = createClient();
+    const { error: logoutError } = await db.auth.signOut();
 
     if (logoutError) {
       setError(logoutError.message);

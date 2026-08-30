@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getStoryUrl } from "@/lib/urls/paths";
 import type { PublicActivityItem } from "@/types/public-profile";
 import type { ProfilePrivacySettings } from "@/types/public-profile";
@@ -42,19 +42,19 @@ export async function getPublicActivitiesForUser(
     return { items: [], total: 0 };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const items: PublicActivityItem[] = [];
 
   let creatorStoryRows: StoryRow[] = [];
-  if (privacy.showCreatorWorks) {
-    const { data: creatorProfile } = await supabase
+  if (privacy.showCreatorWorks && privacy.showPublicActivities) {
+    const { data: creatorProfile } = await db
       .from("creator_profiles")
       .select("id")
       .eq("user_id", userId)
       .eq("status", "active")
       .maybeSingle();
     if (creatorProfile?.id) {
-      const { data: stories } = await supabase
+      const { data: stories } = await db
         .from("stories")
         .select("id, title, slug, public_code, created_at")
         .eq("creator_id", creatorProfile.id)
@@ -68,7 +68,7 @@ export async function getPublicActivitiesForUser(
 
   const [commentsResult, collectionsResult] = await Promise.all([
     privacy.showPublicComments
-      ? supabase
+      ? db
           .from("comments")
           .select("id, content, created_at, stories(title, slug, public_code)")
           .eq("user_id", userId)
@@ -77,7 +77,7 @@ export async function getPublicActivitiesForUser(
           .limit(8)
       : Promise.resolve({ data: [] }),
     privacy.showPublicCollections
-      ? supabase
+      ? db
           .from("collections")
           .select("id, title, created_at")
           .eq("user_id", userId)

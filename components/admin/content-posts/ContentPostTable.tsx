@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ContentPostEmptyState } from "@/components/admin/content-posts/ContentPostEmptyState";
 import {
   ContentPostIndexBadge,
@@ -12,6 +12,7 @@ import {
 } from "@/components/admin/content-posts/ContentPostStatusBadge";
 import { ConfirmActionModal } from "@/components/admin/campaigns/ConfirmActionModal";
 import { contentPostHasSeoIssue, getContentPostSeoScoreForItem } from "@/lib/content-posts/post-seo";
+import { getContentPostUrl } from "@/lib/urls/paths";
 import {
   duplicateContentPostAction,
   softDeleteContentPostAction,
@@ -29,6 +30,17 @@ type Props = {
   onClearFilters: () => void;
   onRefresh?: () => void;
   onToast?: (message: string) => void;
+};
+
+type ActionTone = "default" | "success" | "warning" | "muted" | "danger";
+
+type ActionMenuItem = {
+  key: string;
+  label: string;
+  onClick?: () => void;
+  href?: string;
+  external?: boolean;
+  tone?: ActionTone;
 };
 
 export function ContentPostTable({
@@ -120,9 +132,10 @@ export function ContentPostTable({
               <th className="px-3 py-3">Trạng thái</th>
               <th className="px-3 py-3">Index</th>
               <th className="px-3 py-3">SEO</th>
+              <th className="px-3 py-3">Lượt xem</th>
               <th className="px-3 py-3">Cập nhật</th>
               <th className="px-3 py-3">Đăng</th>
-              <th className="px-3 py-3">Thao tác</th>
+              <th className="w-[1%] whitespace-nowrap px-3 py-3">Thao tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5 bg-zinc-950/40 text-zinc-200">
@@ -155,14 +168,19 @@ export function ContentPostTable({
                 <td className="px-3 py-3">
                   <ContentPostSeoScoreBadge score={getContentPostSeoScoreForItem(item)} />
                 </td>
+                <td className="px-3 py-3 text-xs tabular-nums text-zinc-300">
+                  {(item.view_count ?? 0).toLocaleString("vi-VN")}
+                </td>
                 <td className="px-3 py-3 text-xs text-zinc-400">{formatContentPostDate(item.updated_at)}</td>
                 <td className="px-3 py-3 text-xs text-zinc-400">{formatContentPostDate(item.published_at)}</td>
                 <td className="px-3 py-3">
                   <RowActions
                     capabilities={capabilities}
                     item={item}
+                    menuOpen={menuId === item.id}
                     onDelete={() => setDeleteId(item.id)}
                     onDuplicate={() => handleDuplicate(item)}
+                    onMenuToggle={() => setMenuId(menuId === item.id ? null : item.id)}
                     onToggle={handleToggle}
                     pending={pending}
                   />
@@ -199,14 +217,19 @@ export function ContentPostTable({
                   <ContentPostTypeBadge type={item.post_type} />
                   <ContentPostStatusBadge status={item.status} />
                   <ContentPostSeoScoreBadge score={getContentPostSeoScoreForItem(item)} />
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-xs text-zinc-300">
+                    {(item.view_count ?? 0).toLocaleString("vi-VN")} lượt xem
+                  </span>
                 </div>
                 {menuId === item.id ? (
                   <div className="mt-3">
                     <RowActions
                       capabilities={capabilities}
                       item={item}
+                      menuOpen
                       onDelete={() => setDeleteId(item.id)}
                       onDuplicate={() => handleDuplicate(item)}
+                      onMenuToggle={() => setMenuId(null)}
                       onToggle={handleToggle}
                       pending={pending}
                       stacked
@@ -235,11 +258,94 @@ export function ContentPostTable({
   );
 }
 
+function buildMenuItems(
+  item: AdminContentPost,
+  capabilities: AdminContentPostCapabilities,
+  liveUrl: string,
+  canPreview: boolean,
+  handlers: {
+    onDuplicate: () => void;
+    onToggle: (item: AdminContentPost, status: AdminContentPost["status"]) => void;
+    onDelete: () => void;
+    onMenuToggle?: () => void;
+  }
+): ActionMenuItem[] {
+  const close = () => handlers.onMenuToggle?.();
+  const items: ActionMenuItem[] = [];
+
+  if (canPreview) {
+    items.push({
+      key: "preview",
+      label: "Xem bài viết ↗",
+      href: liveUrl,
+      external: true
+    });
+  }
+  if (capabilities.canCreate) {
+    items.push({
+      key: "duplicate",
+      label: "Nhân bản",
+      onClick: () => {
+        handlers.onDuplicate();
+        close();
+      }
+    });
+  }
+  if (capabilities.canUpdate && item.status !== "published") {
+    items.push({
+      key: "publish",
+      label: "Đăng",
+      tone: "success",
+      onClick: () => {
+        handlers.onToggle(item, "published");
+        close();
+      }
+    });
+  }
+  if (capabilities.canUpdate && item.status === "published") {
+    items.push({
+      key: "hide",
+      label: "Ẩn",
+      tone: "warning",
+      onClick: () => {
+        handlers.onToggle(item, "hidden");
+        close();
+      }
+    });
+  }
+  if (capabilities.canUpdate && item.status !== "archived") {
+    items.push({
+      key: "archive",
+      label: "Archive",
+      tone: "muted",
+      onClick: () => {
+        handlers.onToggle(item, "archived");
+        close();
+      }
+    });
+  }
+  if (capabilities.canUpdate) {
+    items.push({
+      key: "delete",
+      label: "Xóa mềm",
+      tone: "danger",
+      onClick: () => {
+        handlers.onDelete();
+        close();
+      }
+    });
+  }
+
+  return items;
+}
+
 function RowActions({
   item,
   capabilities,
   pending,
   stacked,
+  menuOpen,
+  onMenuToggle,
   onToggle,
   onDuplicate,
   onDelete
@@ -248,80 +354,145 @@ function RowActions({
   capabilities: AdminContentPostCapabilities;
   pending: boolean;
   stacked?: boolean;
+  menuOpen?: boolean;
+  onMenuToggle?: () => void;
   onToggle: (item: AdminContentPost, status: AdminContentPost["status"]) => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
+  const menuRef = useRef<HTMLDivElement>(null);
   const canPreview = item.status === "published";
+  const liveUrl = item.public_code
+    ? getContentPostUrl({ slug: item.slug, public_code: item.public_code })
+    : `/bai-viet/${item.slug}`;
+
+  useEffect(() => {
+    if (!menuOpen || stacked) return;
+    function handleClick(event: MouseEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        onMenuToggle?.();
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [menuOpen, onMenuToggle, stacked]);
+
+  const menuItems = buildMenuItems(item, capabilities, liveUrl, canPreview, {
+    onDelete,
+    onDuplicate,
+    onMenuToggle,
+    onToggle
+  });
+
+  if (stacked) {
+    return (
+      <div className="flex flex-col gap-1.5 pt-1">
+        {capabilities.canUpdate ? (
+          <Link
+            className="rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-200 hover:bg-white/5"
+            href={`/admin/content-hub/${item.id}`}
+          >
+            Sửa
+          </Link>
+        ) : null}
+        {menuItems.map((entry) =>
+          entry.href ? (
+            <a
+              className="rounded-lg border border-cyan-400/20 px-3 py-2 text-xs text-cyan-100 hover:bg-cyan-400/10"
+              href={entry.href}
+              key={entry.key}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {entry.label}
+            </a>
+          ) : (
+            <button
+              className="rounded-lg border border-white/10 px-3 py-2 text-left text-xs text-zinc-200 hover:bg-white/5 disabled:opacity-50"
+              disabled={pending}
+              key={entry.key}
+              onClick={entry.onClick}
+              type="button"
+            >
+              {entry.label}
+            </button>
+          )
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div className={`flex flex-wrap gap-2 ${stacked ? "pt-1" : ""}`}>
+    <div className="relative flex items-center gap-1" ref={menuRef}>
       {capabilities.canUpdate ? (
         <Link
-          className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-200 hover:bg-white/5"
+          className="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-zinc-200 hover:bg-white/5"
           href={`/admin/content-hub/${item.id}`}
         >
           Sửa
         </Link>
       ) : null}
-      {canPreview ? (
-        <Link
-          className="rounded-lg border border-cyan-400/20 px-3 py-1.5 text-xs text-cyan-100 hover:bg-cyan-400/10"
-          href={`/bai-viet/${item.slug}`}
-          target="_blank"
-        >
-          Xem trước
-        </Link>
-      ) : null}
-      {capabilities.canCreate ? (
-        <button
-          className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-200 hover:bg-white/5 disabled:opacity-50"
-          disabled={pending}
-          onClick={onDuplicate}
-          type="button"
-        >
-          Nhân bản
-        </button>
-      ) : null}
-      {capabilities.canUpdate && item.status !== "published" ? (
-        <button
-          className="rounded-lg border border-emerald-400/20 px-3 py-1.5 text-xs text-emerald-100 hover:bg-emerald-400/10 disabled:opacity-50"
-          disabled={pending}
-          onClick={() => onToggle(item, "published")}
-          type="button"
-        >
-          Đăng
-        </button>
-      ) : null}
-      {capabilities.canUpdate && item.status === "published" ? (
-        <button
-          className="rounded-lg border border-amber-400/20 px-3 py-1.5 text-xs text-amber-100 hover:bg-amber-400/10 disabled:opacity-50"
-          disabled={pending}
-          onClick={() => onToggle(item, "hidden")}
-          type="button"
-        >
-          Ẩn
-        </button>
-      ) : null}
-      {capabilities.canUpdate && item.status !== "archived" ? (
-        <button
-          className="rounded-lg border border-zinc-500/30 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5 disabled:opacity-50"
-          disabled={pending}
-          onClick={() => onToggle(item, "archived")}
-          type="button"
-        >
-          Archive
-        </button>
-      ) : null}
-      {capabilities.canUpdate ? (
-        <button
-          className="rounded-lg border border-red-400/20 px-3 py-1.5 text-xs text-red-200 hover:bg-red-400/10 disabled:opacity-50"
-          disabled={pending}
-          onClick={onDelete}
-          type="button"
-        >
-          Xóa mềm
-        </button>
+      {menuItems.length > 0 ? (
+        <>
+          <button
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            aria-label="Thêm thao tác"
+            className="rounded-lg border border-white/10 px-2 py-1 text-xs text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+            disabled={pending}
+            onClick={onMenuToggle}
+            type="button"
+          >
+            ···
+          </button>
+          {menuOpen ? (
+            <div
+              className="absolute right-0 top-full z-20 mt-1 min-w-[9.5rem] rounded-xl border border-white/10 bg-zinc-950 py-1 shadow-xl"
+              role="menu"
+            >
+              {menuItems.map((entry) => {
+                const toneClass =
+                  entry.tone === "success"
+                    ? "text-emerald-100 hover:bg-emerald-400/10"
+                    : entry.tone === "warning"
+                      ? "text-amber-100 hover:bg-amber-400/10"
+                      : entry.tone === "danger"
+                        ? "text-red-200 hover:bg-red-400/10"
+                        : entry.tone === "muted"
+                          ? "text-zinc-300 hover:bg-white/5"
+                          : "text-zinc-200 hover:bg-white/5";
+
+                if (entry.href) {
+                  return (
+                    <a
+                      className={`block px-3 py-2 text-xs ${toneClass}`}
+                      href={entry.href}
+                      key={entry.key}
+                      rel="noreferrer"
+                      role="menuitem"
+                      target="_blank"
+                    >
+                      {entry.label}
+                    </a>
+                  );
+                }
+
+                return (
+                  <button
+                    className={`block w-full px-3 py-2 text-left text-xs disabled:opacity-50 ${toneClass}`}
+                    disabled={pending}
+                    key={entry.key}
+                    onClick={entry.onClick}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {entry.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+        </>
       ) : null}
     </div>
   );

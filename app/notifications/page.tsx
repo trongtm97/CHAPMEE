@@ -5,7 +5,7 @@ import { ErrorState } from "@/components/ui";
 import { getCurrentProfile } from "@/lib/auth/getCurrentProfile";
 import { resolveInitialNotifications } from "@/lib/notifications/resolve-initial-notifications";
 import { STUDIO_NOINDEX_ROBOTS } from "@/lib/seo/should-index";
-import { getUnreadNotificationCount, getUserNotifications } from "@/lib/supabase/notifications";
+import { getUnreadNotificationCount, getUserNotifications } from "@/lib/data/notifications";
 
 export const metadata: Metadata = {
   robots: STUDIO_NOINDEX_ROBOTS

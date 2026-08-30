@@ -1,7 +1,7 @@
 import { TAXONOMY_INDEX_CONFIG } from "@/lib/discovery/taxonomy-index-config";
 import { KHAM_PHA_HUB_SECTIONS } from "@/lib/discovery/kham-pha-hub";
 import { getPublicMainGenresWithStoryCounts } from "@/lib/taxonomy/public-genres";
-import { createPublicClient } from "@/lib/supabase/public-client";
+import { createPublicClient } from "@/lib/data/public-client";
 
 export type KhamPhaHubSectionStats = {
   termCount: number;
@@ -12,10 +12,10 @@ export type KhamPhaHubSectionStats = {
 export async function getKhamPhaHubSectionStats(): Promise<
   Record<string, KhamPhaHubSectionStats>
 > {
-  const supabase = createPublicClient();
+  const db = createPublicClient();
   const stats: Record<string, KhamPhaHubSectionStats> = {};
 
-  const mainGenres = await getPublicMainGenresWithStoryCounts(supabase);
+  const mainGenres = await getPublicMainGenresWithStoryCounts(db);
   const activeMain = mainGenres.filter((genre) => genre.story_count > 0);
   stats["/the-loai"] = {
     termCount: activeMain.length,
@@ -23,7 +23,7 @@ export async function getKhamPhaHubSectionStats(): Promise<
   };
 
   for (const config of Object.values(TAXONOMY_INDEX_CONFIG)) {
-    const { data } = await supabase
+    const { data } = await db
       .from("taxonomy_terms")
       .select("usage_count")
       .eq("type", config.type)

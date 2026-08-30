@@ -207,6 +207,12 @@ export function AdminCommunityPage({ data }: AdminCommunityPageProps) {
         >
           Cấu hình duyệt tự động →
         </Link>
+        <Link
+          className="mt-2 block text-sm font-semibold text-cyan-300 hover:text-cyan-200"
+          href="/admin/community/story-sync"
+        >
+          Đồng bộ nhóm truyện (Story Community Sync) →
+        </Link>
       </div>
 
       {loadError ? (

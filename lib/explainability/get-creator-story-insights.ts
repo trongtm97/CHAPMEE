@@ -1,5 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/data/server";
+import { createAdminClient } from "@/lib/data/admin";
 import { loadStoryAlgorithmAudit } from "@/lib/explainability/load-item-audit";
 import type { CreatorAlgorithmInsight } from "@/types/algorithm-explanation";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
@@ -8,9 +8,9 @@ export async function getCreatorStoryAlgorithmInsights(
   creatorProfile: CreatorProfile,
   storyId: string
 ): Promise<CreatorAlgorithmInsight | null> {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: story } = await supabase
+  const { data: story } = await db
     .from("stories")
     .select("id, title, creator_id")
     .eq("id", storyId)

@@ -4,7 +4,7 @@
  */
 import type { CoinPack } from "@/types/payment";
 import type { TopupPackagePublic } from "@/types/topup-package";
-import { getActiveCoinPacks, getCoinPackById } from "@/lib/supabase/coin-packs";
+import { getActiveCoinPacks, getCoinPackById } from "@/lib/data/coin-packs";
 
 export function mapCoinPackToTopupPackagePublic(pack: CoinPack): TopupPackagePublic {
   return {

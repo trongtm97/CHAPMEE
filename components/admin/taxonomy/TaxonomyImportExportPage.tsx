@@ -15,6 +15,7 @@ import {
   listTaxonomyImportExportJobsAction,
   previewTaxonomyCatalogImportAction
 } from "@/lib/admin/taxonomy-import-export-actions";
+import { readImportTextFile } from "@/lib/encoding/read-import-text-file";
 import { TAXONOMY_TYPES } from "@/types/taxonomy";
 import type {
   TaxonomyImportExportJobRow,
@@ -155,9 +156,9 @@ export function TaxonomyImportExportPage({
     const isXlsx = file.name.endsWith(".xlsx") || file.name.endsWith(".xls");
     setFileFormat(isXlsx ? "xlsx" : "csv");
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (isXlsx) {
+    if (isXlsx) {
+      const reader = new FileReader();
+      reader.onload = () => {
         const buffer = reader.result as ArrayBuffer;
         const bytes = new Uint8Array(buffer);
         let binary = "";
@@ -165,12 +166,19 @@ export function TaxonomyImportExportPage({
           binary += String.fromCharCode(bytes[i]);
         }
         setFileContent(btoa(binary));
-      } else {
-        setFileContent(String(reader.result ?? ""));
-      }
-    };
-    if (isXlsx) reader.readAsArrayBuffer(file);
-    else reader.readAsText(file, "UTF-8");
+      };
+      reader.readAsArrayBuffer(file);
+      return;
+    }
+
+    void readImportTextFile(file)
+      .then(setFileContent)
+      .catch(() => {
+        showToast(
+          "File CSV không phải UTF-8 hợp lệ hoặc được lưu từ Excel ở định dạng cũ. " +
+            "Vui lòng tải template CSV UTF-8 từ hệ thống, hoặc upload file .xlsx."
+        );
+      });
   }
 
   const previewPageSize = 20;

@@ -3,11 +3,12 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { SearchableSelect } from "@/components/studio/taxonomy/SearchableSelect";
 import { STORY_TAXONOMY_LIMITS, TAXONOMY_TYPE_LABELS } from "@/lib/taxonomy/constants";
+import { sortTaxonomyTermsForPicker } from "@/lib/taxonomy/sort-terms-for-picker";
 import { presentationModeDescription } from "@/lib/taxonomy/presentation-labels";
 import type { TaxonomyTerm, TaxonomyType } from "@/types/taxonomy";
 
-function termOptions(terms: TaxonomyTerm[], useSlug = false) {
-  return terms.map((term) => ({
+function termOptions(terms: TaxonomyTerm[], type: TaxonomyType, useSlug = false) {
+  return sortTaxonomyTermsForPicker(terms, type).map((term) => ({
     value: useSlug ? term.slug : term.id,
     label: term.display_label ?? term.name,
     description: term.description,
@@ -45,7 +46,7 @@ export function TaxonomySinglePicker({
         </>
       }
       onChange={(next) => onChange?.(next)}
-      options={termOptions(terms, isPresentation)}
+      options={termOptions(terms, type, isPresentation)}
       placeholder={`Tìm hoặc chọn ${TAXONOMY_TYPE_LABELS[type].toLowerCase()}…`}
       required={required}
       value={value}
@@ -70,12 +71,21 @@ export function TaxonomyMultiPicker({
 }) {
   const [query, setQuery] = useState("");
   const limit = max ?? STORY_TAXONOMY_LIMITS[type]?.max;
-  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const termIdSet = useMemo(() => new Set(terms.map((term) => term.id)), [terms]);
+  const visibleSelectedIds = useMemo(
+    () => selectedIds.filter((id) => termIdSet.has(id)),
+    [selectedIds, termIdSet]
+  );
+  const selectedSet = useMemo(
+    () => new Set(visibleSelectedIds),
+    [visibleSelectedIds]
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return terms;
-    return terms.filter((t) =>
+    const sorted = sortTaxonomyTermsForPicker(terms, type);
+    if (!q) return sorted;
+    return sorted.filter((t) =>
       `${t.name} ${t.slug} ${t.display_label ?? ""}`.toLowerCase().includes(q)
     );
   }, [query, terms]);
@@ -94,7 +104,7 @@ export function TaxonomyMultiPicker({
   }
 
   function remove(termId: string) {
-    onChange?.(selectedIds.filter((id) => id !== termId));
+    onChange?.(visibleSelectedIds.filter((id) => id !== termId));
   }
 
   return (
@@ -132,7 +142,7 @@ export function TaxonomyMultiPicker({
         </div>
       ) : null}
 
-      {selectedIds.map((id) => (
+      {visibleSelectedIds.map((id) => (
         <input key={id} name="taxonomy_terms" type="hidden" value={id} />
       ))}
 

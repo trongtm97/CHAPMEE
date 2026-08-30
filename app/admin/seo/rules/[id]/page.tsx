@@ -38,7 +38,7 @@ export default async function AdminSeoRuleEditRoute({ params }: PageProps) {
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <Link className="text-sm text-zinc-400 hover:text-zinc-200" href="/admin/seo?tab=rules">
+        <Link className="text-sm text-zinc-400 hover:text-zinc-200" href="/admin/seo/control?tab=rules">
           ← Quay lại quy tắc SEO
         </Link>
         <h1 className="text-2xl font-semibold text-white">Sửa SEO rule</h1>

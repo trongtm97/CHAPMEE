@@ -1,0 +1,161 @@
+# Build ChapMee web image on GitHub Actions (8 GB runner RAM).
+# Push to GHCR. VPS pulls — never builds on 4 GB VPS.
+#
+# Setup: docs/DEPLOY_GITHUB_ACTIONS.md
+
+name: Docker publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy to VPS after push
+        type: boolean
+        default: false
+
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: chapmee-web
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    name: Build and push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      sha_tag: ${{ steps.image.outputs.sha_tag }}
+      image_repo: ${{ steps.image.outputs.image_repo }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve image repository (GHCR requires lowercase)
+        id: image
+        run: |
+          REPO="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}"
+          REPO_LC=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
+          echo "image_repo=${REPO_LC}" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=${REPO_LC}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "Image repository: ${REPO_LC}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.image_repo }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=long
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_MAX_OLD_SPACE_SIZE=8192
+            NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL || 'https://chapmee.com' }}
+            NEXT_PUBLIC_SITE_URL=${{ vars.NEXT_PUBLIC_SITE_URL || 'https://chapmee.com' }}
+            NEXT_PUBLIC_S3_MEDIA_PUBLIC_BASE_URL=${{ vars.NEXT_PUBLIC_S3_MEDIA_PUBLIC_BASE_URL || 'https://media.chapmee.com' }}
+
+      - name: Build summary
+        run: |
+          echo "### Published images" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`${{ steps.image.outputs.image_repo }}:latest\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`${{ steps.image.outputs.sha_tag }}\` (rollback tag)" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: Deploy to VPS
+    needs: build
+    runs-on: ubuntu-latest
+    if: |
+      needs.build.result == 'success' && (
+        (github.event_name == 'workflow_dispatch' && inputs.deploy == true) ||
+        vars.AUTO_DEPLOY_VPS == 'true'
+      )
+    steps:
+      - name: Check VPS secrets
+        run: |
+          test -n "${{ secrets.VPS_HOST }}" || { echo "Missing secret VPS_HOST"; exit 1; }
+          test -n "${{ secrets.VPS_USER }}" || { echo "Missing secret VPS_USER"; exit 1; }
+          test -n "${{ secrets.VPS_SSH_PRIVATE_KEY }}" || { echo "Missing secret VPS_SSH_PRIVATE_KEY"; exit 1; }
+
+      - name: Configure SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+
+      - name: Add VPS host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.VPS_SSH_PORT || 22 }}" "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Pull and restart on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_SSH_PORT || 22 }}
+          VPS_PATH: ${{ vars.VPS_APP_PATH || '/opt/chapmee/app' }}
+          IMAGE_SHA: ${{ needs.build.outputs.sha_tag }}
+          GHCR_USER: ${{ github.repository_owner }}
+          GHCR_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+        run: |
+          ssh -p "$VPS_PORT" "${VPS_USER}@${VPS_HOST}" \
+            "VPS_PATH='$VPS_PATH' IMAGE_SHA='$IMAGE_SHA' GHCR_USER='$GHCR_USER' GHCR_TOKEN='$GHCR_TOKEN' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$VPS_PATH"
+          test -f docker-compose.prod.yml
+          test -f .env.production
+
+          if [[ -n "${GHCR_TOKEN:-}" ]]; then
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          fi
+
+          if docker inspect chapmee-web >/dev/null 2>&1; then
+            CURRENT_IMAGE=$(docker inspect -f '{{.Config.Image}}' chapmee-web)
+            echo "$CURRENT_IMAGE" > .deploy-rollback-image
+            echo "Rollback saved: $CURRENT_IMAGE"
+          fi
+
+          if grep -q '^CHAPMEE_WEB_IMAGE=' .env.production; then
+            sed -i "s|^CHAPMEE_WEB_IMAGE=.*|CHAPMEE_WEB_IMAGE=${IMAGE_SHA}|" .env.production
+          else
+            echo "CHAPMEE_WEB_IMAGE=${IMAGE_SHA}" >> .env.production
+          fi
+
+          docker compose -f docker-compose.prod.yml --env-file .env.production pull web
+          docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+          sleep 10
+          curl -sf http://127.0.0.1:3000/api/health
+
+          if [[ -x scripts/deploy/vps-prune-images.sh ]]; then
+            IMAGE_REPO="${IMAGE_SHA%:*}" KEEP_IMAGE_TAGS=5 scripts/deploy/vps-prune-images.sh
+          else
+            docker image prune -f
+          fi
+
+          echo "Deploy OK: ${IMAGE_SHA}"
+          REMOTE

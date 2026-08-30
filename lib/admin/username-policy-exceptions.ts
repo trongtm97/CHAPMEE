@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminAuditLog } from "@/lib/admin/create-audit-log";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { updateUsernamePolicyRuleAction } from "@/lib/admin/update-username-policy-rule";
 import type {
   UsernamePolicyExceptionRow,
@@ -22,10 +22,10 @@ async function assertStaff() {
 
 export async function getUsernamePolicyExceptions(limit = 200) {
   await assertStaff();
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date().toISOString();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("username_policy_exceptions")
     .select("*")
     .is("revoked_at", null)
@@ -53,7 +53,7 @@ export async function getUsernamePolicyExceptions(limit = 200) {
   const userMap = new Map<string, { username: string | null; display_name: string | null }>();
 
   if (ruleIds.length) {
-    const { data: rules } = await supabase
+    const { data: rules } = await db
       .from("username_policy_rules")
       .select("id, value, rule_type")
       .in("id", ruleIds);
@@ -67,7 +67,7 @@ export async function getUsernamePolicyExceptions(limit = 200) {
   }
 
   if (userIds.length) {
-    const { data: users } = await supabase
+    const { data: users } = await db
       .from("profiles")
       .select("id, username, display_name")
       .in("id", userIds);
@@ -107,13 +107,13 @@ export async function createUsernamePolicyExceptionAction(input: {
 }) {
   try {
     const actor = await assertStaff();
-    const supabase = await createClient();
+    const db = await createClient();
 
     const expiresAt = input.expiresAt
       ? new Date(`${input.expiresAt}T23:59:59.999Z`).toISOString()
       : null;
 
-    const { data: existing } = await supabase
+    const { data: existing } = await db
       .from("username_policy_exceptions")
       .select("id")
       .eq("rule_id", input.ruleId)
@@ -132,19 +132,19 @@ export async function createUsernamePolicyExceptionAction(input: {
     };
 
     const { data, error } = existing?.id
-      ? await supabase
+      ? await db
           .from("username_policy_exceptions")
           .update(payload)
           .eq("id", existing.id)
           .select("*")
           .single()
-      : await supabase.from("username_policy_exceptions").insert(payload).select("*").single();
+      : await db.from("username_policy_exceptions").insert(payload).select("*").single();
 
     if (error) {
       return { ok: false, error: error.message };
     }
 
-    const { data: rule } = await supabase
+    const { data: rule } = await db
       .from("username_policy_rules")
       .select("allowed_user_ids")
       .eq("id", input.ruleId)
@@ -186,9 +186,9 @@ export async function revokeUsernamePolicyExceptionAction(input: {
 }) {
   try {
     await assertStaff();
-    const supabase = await createClient();
+    const db = await createClient();
 
-    const { data: before } = await supabase
+    const { data: before } = await db
       .from("username_policy_exceptions")
       .select("*")
       .eq("id", input.exceptionId)
@@ -198,7 +198,7 @@ export async function revokeUsernamePolicyExceptionAction(input: {
       return { ok: false, error: "Không tìm thấy ngoại lệ." };
     }
 
-    const { error } = await supabase
+    const { error } = await db
       .from("username_policy_exceptions")
       .update({ revoked_at: new Date().toISOString() })
       .eq("id", input.exceptionId);
@@ -207,7 +207,7 @@ export async function revokeUsernamePolicyExceptionAction(input: {
       return { ok: false, error: error.message };
     }
 
-    const { data: rule } = await supabase
+    const { data: rule } = await db
       .from("username_policy_rules")
       .select("allowed_user_ids")
       .eq("id", before.rule_id)
@@ -248,14 +248,14 @@ export async function setUsernameChangeLockAction(input: {
       return { ok: false, error: "Vui lòng nhập lý do." };
     }
 
-    const supabase = await createClient();
-    const { data: before } = await supabase
+    const db = await createClient();
+    const { data: before } = await db
       .from("profiles")
       .select("username_change_locked, username")
       .eq("id", input.userId)
       .maybeSingle();
 
-    const { error } = await supabase
+    const { error } = await db
       .from("profiles")
       .update({ username_change_locked: input.locked })
       .eq("id", input.userId);

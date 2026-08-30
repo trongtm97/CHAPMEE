@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assertStaffAnyPermission } from "@/lib/auth/staff-guards";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export async function setCommunityTrustedAction(input: {
   userId: string;
@@ -15,9 +15,9 @@ export async function setCommunityTrustedAction(input: {
       "community.post.moderate",
       "admin.settings.update"
     ]);
-    const supabase = await createClient();
+    const db = await createClient();
 
-    const { error } = await supabase
+    const { error } = await db
       .from("profiles")
       .update({
         community_trusted: input.trusted,

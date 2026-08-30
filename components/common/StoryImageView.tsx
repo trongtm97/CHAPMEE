@@ -5,6 +5,7 @@ import {
   getStoryImage,
   getStoryImageForUsage
 } from "@/lib/images/get-story-image";
+import { CHAPMEE_COVER_ASPECT_CLASS } from "@/lib/images/cover-sizes";
 import {
   STORY_IMAGE_ASPECT_CLASS,
   type StoryImageUsageKey
@@ -39,7 +40,7 @@ export function StoryImageView({
     : getStoryImage(story, variant ?? "thumb");
 
   const aspect =
-    aspectClass ?? (usage ? STORY_IMAGE_ASPECT_CLASS[usage] : "aspect-[2/3] w-full");
+    aspectClass ?? (usage ? STORY_IMAGE_ASPECT_CLASS[usage] : `${CHAPMEE_COVER_ASPECT_CLASS} w-full`);
 
   return (
     <StoryImageMedia
@@ -56,7 +57,7 @@ export function StoryImageView({
 export function StoryImageThumb({
   story,
   usage = "searchResult",
-  className = "relative h-10 w-7 shrink-0 overflow-hidden rounded-md border border-white/8 bg-white/5"
+  className = "relative h-14 w-[2.625rem] shrink-0 overflow-hidden rounded-md border border-white/8 bg-white/5"
 }: {
   story: StoryWithImages;
   usage?: StoryImageUsageKey;

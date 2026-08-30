@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { checkStaffPermission } from "@/lib/auth/staff-guards";
 
 export type LedgerBackfillResult = {
@@ -21,8 +21,8 @@ export async function runCreatorWalletLedgerBackfill(): Promise<{
     return { ok: false, error: auth.error };
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc(
+  const db = await createClient();
+  const { data, error } = await db.rpc(
     "backfill_creator_wallet_ledger_from_transactions"
   );
 

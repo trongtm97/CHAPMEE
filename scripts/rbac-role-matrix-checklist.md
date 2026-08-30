@@ -5,10 +5,10 @@ Tài liệu checklist thủ công + tự động cho RBAC/RLS. Không dùng trê
 ## Chuẩn bị
 
 ```bash
-# 1. Migrations
-supabase db push
+# 1. Database (local)
+npm run db:migrate && npm run db:legacy
 
-# 2. Test users (cần SUPABASE_SERVICE_ROLE_KEY trong .env.local)
+# 2. Test users (cần DATABASE_URL + BETTER_AUTH_SECRET + POSTGREST_JWT_SECRET)
 npm run test:rbac:setup
 
 # 3. Automated RPC/RLS

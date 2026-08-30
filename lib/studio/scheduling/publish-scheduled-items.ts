@@ -1,6 +1,6 @@
-﻿import { publishTargetByType } from "@/lib/studio/scheduling/publish-target";
+import { publishTargetByType } from "@/lib/studio/scheduling/publish-target";
 import { studioPath } from "@/lib/studio/constants";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 const MAX_ATTEMPTS = 3;
 
@@ -14,10 +14,10 @@ type ScheduleRow = {
 };
 
 async function resolveCreatorProfileId(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   profileId: string
 ) {
-  const { data } = await supabase
+  const { data } = await db
     .from("creator_profiles")
     .select("id")
     .eq("user_id", profileId)
@@ -27,13 +27,13 @@ async function resolveCreatorProfileId(
 }
 
 async function notifyScheduleResult(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   profileId: string,
   success: boolean,
   label: string,
   actionUrl: string
 ) {
-  await supabase.from("notifications").insert({
+  await db.from("notifications").insert({
     action_url: actionUrl,
     body: success
       ? `${label} đã được đăng thành công.`
@@ -44,10 +44,10 @@ async function notifyScheduleResult(
   });
 }
 
-export async function publishScheduledItems(supabase: SupabaseClient) {
+export async function publishScheduledItems(db: DatabaseClient) {
   const now = new Date().toISOString();
 
-  const { data: dueRows, error } = await supabase
+  const { data: dueRows, error } = await db
     .from("scheduled_publications")
     .select("id, creator_id, target_type, target_id, story_id, publish_attempts")
     .eq("status", "scheduled")
@@ -63,10 +63,10 @@ export async function publishScheduledItems(supabase: SupabaseClient) {
   let failed = 0;
 
   for (const row of (dueRows ?? []) as ScheduleRow[]) {
-    const creatorProfileId = await resolveCreatorProfileId(supabase, row.creator_id);
+    const creatorProfileId = await resolveCreatorProfileId(db, row.creator_id);
 
     if (!creatorProfileId) {
-      await supabase
+      await db
         .from("scheduled_publications")
         .update({
           last_error: "Không tìm thấy hồ sơ tác giả.",
@@ -79,17 +79,18 @@ export async function publishScheduledItems(supabase: SupabaseClient) {
     }
 
     const result = await publishTargetByType(
-      supabase,
+      db,
       row.target_type,
       row.target_id,
       row.story_id,
-      creatorProfileId
+      creatorProfileId,
+      row.creator_id
     );
 
     if (result.ok) {
       const publishedAt = new Date().toISOString();
 
-      await supabase
+      await db
         .from("scheduled_publications")
         .update({
           last_error: null,
@@ -104,7 +105,7 @@ export async function publishScheduledItems(supabase: SupabaseClient) {
       let notifyHref = studioPath("/calendar");
       if (row.story_id) {
         if (row.target_type === "story") {
-          const { data: storyRow } = await supabase
+          const { data: storyRow } = await db
             .from("stories")
             .select("structure_type")
             .eq("id", row.story_id)
@@ -119,7 +120,7 @@ export async function publishScheduledItems(supabase: SupabaseClient) {
       }
 
       await notifyScheduleResult(
-        supabase,
+        db,
         row.creator_id,
         true,
         row.target_type === "chapter" ? "Chương" : "Truyện",
@@ -129,7 +130,7 @@ export async function publishScheduledItems(supabase: SupabaseClient) {
       const attempts = row.publish_attempts + 1;
       const nextStatus = attempts >= MAX_ATTEMPTS ? "failed" : "scheduled";
 
-      await supabase
+      await db
         .from("scheduled_publications")
         .update({
           last_error: result.error ?? "Publish failed",
@@ -142,7 +143,7 @@ export async function publishScheduledItems(supabase: SupabaseClient) {
 
       if (nextStatus === "failed") {
         await notifyScheduleResult(
-          supabase,
+          db,
           row.creator_id,
           false,
           row.target_type === "chapter" ? "Chương" : "Truyện",

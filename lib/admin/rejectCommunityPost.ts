@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createModerationCase } from "@/lib/admin/createModerationCase";
 import { assertStaffAnyPermission } from "@/lib/auth/staff-guards";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export async function rejectCommunityPostAction(formData: FormData) {
   const { userId } = await assertStaffAnyPermission([
@@ -13,8 +13,8 @@ export async function rejectCommunityPostAction(formData: FormData) {
 
   const postId = String(formData.get("community_post_id") ?? "");
   const note = String(formData.get("moderation_note") ?? "").trim();
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("community_posts")
     .update({ status: "rejected" })
     .eq("id", postId)

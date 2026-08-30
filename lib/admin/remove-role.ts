@@ -7,7 +7,7 @@ import { canActorRemoveRole } from "@/lib/admin/rbac-policy";
 import { isSensitiveRole } from "@/lib/admin/roles";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
 import { assertPermission } from "@/lib/auth/require-permission";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { RoleCode } from "@/types/permissions";
 
 async function getActorContext() {
@@ -33,17 +33,17 @@ export async function removeUserRole(input: {
     return { ok: false, error: policy.error };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
   if (input.roleCode === "owner") {
-    const { data: ownerRole } = await supabase
+    const { data: ownerRole } = await db
       .from("roles")
       .select("id")
       .eq("code", "owner")
       .maybeSingle();
 
     if (ownerRole) {
-      const { data: hasOwner } = await supabase
+      const { data: hasOwner } = await db
         .from("user_roles")
         .select("user_id")
         .eq("user_id", input.userId)
@@ -60,7 +60,7 @@ export async function removeUserRole(input: {
     }
   }
 
-  const { data: roleRow } = await supabase
+  const { data: roleRow } = await db
     .from("roles")
     .select("id")
     .eq("code", input.roleCode)
@@ -70,7 +70,7 @@ export async function removeUserRole(input: {
     return { ok: false, error: "Không tìm thấy vai trò." };
   }
 
-  const { data: permMappings } = await supabase
+  const { data: permMappings } = await db
     .from("role_permissions")
     .select("permissions(code)")
     .eq("role_id", roleRow.id);
@@ -84,7 +84,7 @@ export async function removeUserRole(input: {
 
   const sensitive = isSensitiveRole(input.roleCode, permissions);
 
-  const { error } = await supabase
+  const { error } = await db
     .from("user_roles")
     .delete()
     .eq("user_id", input.userId)
@@ -108,7 +108,7 @@ export async function removeUserRole(input: {
   });
 
   if (!auditResult.ok && auditResult.error) {
-    await supabase.from("user_roles").upsert({
+    await db.from("user_roles").upsert({
       user_id: input.userId,
       role_id: roleRow.id,
       assigned_by: actor.userId

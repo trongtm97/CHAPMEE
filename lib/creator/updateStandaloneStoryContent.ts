@@ -3,14 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { assertCreatorOwnsStory } from "@/lib/creator/assertCreatorOwnsStory";
-import { getCurrentCreatorProfile } from "@/lib/creator/getCreatorProfile";
+import { requireCreatorProfile } from "@/lib/creator/require-creator-profile";
 import {
   assertStoryIsStandalone,
   parseStandaloneContentFromForm,
   resolveStandaloneStoryContentPersist
 } from "@/lib/creator/persist-standalone-story-content";
 import { resolveReturnBasePath } from "@/lib/creator/resolveReturnBasePath";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { studioPath } from "@/lib/studio/constants";
 
 export type StandaloneContentActionState = {
@@ -24,17 +24,11 @@ export async function updateStandaloneStoryContentAction(
 ): Promise<StandaloneContentActionState> {
   const storyId = String(formData.get("story_id") ?? "").trim();
   const returnBasePath = resolveReturnBasePath(formData.get("return_base_path"));
-  const { creatorProfile, user } = await getCurrentCreatorProfile();
+  const { creatorProfile } = await requireCreatorProfile(
+    `${returnBasePath}/stories/${storyId}/content`
+  );
 
-  if (!user) {
-    redirect(`/login?next=${returnBasePath}/stories/${storyId}/content`);
-  }
-
-  if (!creatorProfile) {
-    redirect("/studio/setup");
-  }
-
-  const supabase = await createClient();
+  const db = await createClient();
   const existingStory = await assertCreatorOwnsStory(creatorProfile, storyId);
 
   assertStoryIsStandalone(
@@ -42,7 +36,7 @@ export async function updateStandaloneStoryContentAction(
   );
 
   const standaloneInput = parseStandaloneContentFromForm(formData);
-  const standalonePersist = await resolveStandaloneStoryContentPersist(supabase, {
+  const standalonePersist = await resolveStandaloneStoryContentPersist(db, {
     storyId,
     ...standaloneInput,
     storyContentWarningsConfirmed: Boolean(
@@ -52,7 +46,7 @@ export async function updateStandaloneStoryContentAction(
     strictPublish: false
   });
 
-  const { error } = await supabase
+  const { error } = await db
     .from("stories")
     .update(standalonePersist)
     .eq("id", storyId)

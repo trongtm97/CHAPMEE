@@ -7,6 +7,7 @@ export const SITEMAP_SEGMENT_IDS = [
   "chapters",
   "taxonomy",
   "authors",
+  "media",
   "posts",
   "policies",
   "reels"
@@ -19,7 +20,38 @@ export function isSitemapSegmentId(value: string): value is SitemapSegmentId {
 }
 
 export function classifySitemapPathname(pathname: string): string {
-  if (pathname === "/" || ["/discover", "/reels", "/truyen", "/bai-viet", "/chinh-sach", "/thong-bao", "/community", "/bang-xep-hang", "/kham-pha", "/the-loai"].includes(pathname)) {
+  if (
+    pathname === "/" ||
+    [
+      "/discover",
+      "/media",
+      "/reels",
+      "/truyen",
+      "/truyen-sang-tac",
+      "/truyen-dich",
+      "/bai-viet",
+      "/chinh-sach",
+      "/thong-bao",
+      "/community",
+      "/bang-xep-hang",
+      "/kham-pha",
+      "/tien-ich",
+      "/tien-ich/icon",
+      "/tien-ich/xoa-dau-tieng-viet",
+      "/tien-ich/chuyen-so-tien-thanh-chu",
+      "/tien-ich/dem-tu-ky-tu",
+      "/tien-ich/chuyen-chu-hoa-thuong",
+      "/tien-ich/tao-ma-qr-code",
+      "/tien-ich/tinh-bmi",
+      "/tien-ich/tinh-tdee",
+      "/tien-ich/tinh-lai-suat",
+      "/tien-ich/tinh-thue-vat",
+      "/tien-ich/tinh-phan-tram",
+      "/tien-ich/tinh-ngay-quan-he-an-toan",
+      "/tien-ich/pomodoro",
+      "/the-loai"
+    ].includes(pathname)
+  ) {
     return "static";
   }
   if (pathname.includes("/chuong/")) return "chapters";
@@ -44,8 +76,11 @@ export function classifySitemapPathname(pathname: string): string {
   ) {
     return "taxonomy";
   }
-  if (pathname.startsWith("/@") || pathname.startsWith("/tac-gia/") || pathname.startsWith("/author/") || pathname.startsWith("/u/")) {
+  if (pathname.startsWith("/@")) {
     return "authors";
+  }
+  if (pathname === "/media" || pathname.startsWith("/truyen-sang-tac") || pathname.startsWith("/truyen-dich")) {
+    return "media";
   }
   return "other";
 }

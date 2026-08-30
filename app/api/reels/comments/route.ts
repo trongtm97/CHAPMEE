@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCommentThread } from "@/lib/comments/getCommentThread";
 import { createCommentRecord } from "@/lib/comments/createComment";
 import { REELS_PUBLIC_PATH } from "@/lib/routes/reels-paths";
+import { SYNC_SURFACES } from "@/lib/community-sync/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -26,13 +27,30 @@ export async function POST(request: Request) {
     episodeId?: string | null;
     parentId?: string | null;
     storyId?: string;
+    reelItemId?: string;
+    reelSlug?: string | null;
+    reelPublicCode?: string | null;
+    reelHref?: string | null;
+    contentSource?: "chapter" | "story";
   };
 
   const result = await createCommentRecord({
     content: body.content ?? "",
     episodeId: body.episodeId ?? null,
     parentId: body.parentId ?? null,
-    storyId: body.storyId ?? ""
+    storyId: body.storyId ?? "",
+    syncSurface: SYNC_SURFACES.reels,
+    reelsSync: body.reelItemId
+      ? {
+          storyId: body.storyId ?? "",
+          reelItemId: body.reelItemId,
+          chapterId: body.episodeId ?? null,
+          reelSlug: body.reelSlug ?? null,
+          reelPublicCode: body.reelPublicCode ?? null,
+          reelHref: body.reelHref ?? null,
+          contentSource: body.contentSource
+        }
+      : undefined
   });
 
   if (result.loginRequired) {

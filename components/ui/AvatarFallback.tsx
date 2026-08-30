@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type AvatarSize = "sm" | "md" | "lg" | "xl";
 
@@ -18,12 +18,6 @@ const sizeClasses: Record<AvatarSize, string> = {
   xl: "size-[4.75rem]"
 };
 
-const initialsSizeClasses: Record<AvatarSize, string> = {
-  sm: "text-xs",
-  md: "text-sm",
-  lg: "text-sm",
-  xl: "text-base"
-};
 const avatarPalettes = [
   "from-cyan-400/35 via-sky-500/25 to-indigo-600/55",
   "from-fuchsia-500/35 via-violet-500/25 to-indigo-600/55",
@@ -42,26 +36,16 @@ function hashString(value: string) {
   return hash;
 }
 
-function getInitials(name: string) {
-  const tokens = name.split(/\s+/).filter(Boolean);
-
-  if (tokens.length === 0) {
-    return "C";
-  }
-
-  if (tokens.length === 1) {
-    return tokens[0][0]?.toUpperCase() ?? "C";
-  }
-
-  return `${tokens[0][0] ?? ""}${tokens[1][0] ?? ""}`.toUpperCase();
-}
-
 type AvatarFallbackFrameProps = {
   name: string;
   src?: string | null;
   size: AvatarSize;
   className: string;
 };
+
+function markImageLoaded(image: HTMLImageElement | null) {
+  return Boolean(image && image.complete && image.naturalWidth > 0);
+}
 
 function AvatarFallbackFrame({
   className,
@@ -71,23 +55,39 @@ function AvatarFallbackFrame({
 }: AvatarFallbackFrameProps) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   const palette = useMemo(
     () => avatarPalettes[hashString(name) % avatarPalettes.length],
     [name]
   );
 
-  const initials = getInitials(name);
+  useEffect(() => {
+    setFailed(false);
+    setLoaded(false);
+  }, [src]);
+
+  useEffect(() => {
+    if (markImageLoaded(imgRef.current)) {
+      setLoaded(true);
+    }
+  }, [src]);
+
+  const showImage = Boolean(src && !failed);
 
   return (
     <div
       className={`relative overflow-hidden rounded-full border border-white/10 ${sizeClasses[size]} ${className}`}
     >
-      <div className={`absolute inset-0 bg-gradient-to-br ${palette}`} />
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_28%)]"
-      />
+      {!showImage ? (
+        <>
+          <div className={`absolute inset-0 bg-gradient-to-br ${palette}`} />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_28%)]"
+          />
+        </>
+      ) : null}
 
       {src && !failed ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -96,20 +96,21 @@ function AvatarFallbackFrame({
           className={`absolute inset-0 h-full w-full object-cover transition duration-300 ${
             loaded ? "opacity-100" : "opacity-0"
           }`}
+          decoding="async"
           loading="lazy"
           onError={() => setFailed(true)}
           onLoad={() => setLoaded(true)}
+          ref={imgRef}
           src={src}
         />
       ) : null}
 
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span
-          className={`font-black uppercase tracking-[0.14em] text-white drop-shadow-[0_1px_8px_rgba(0,0,0,0.2)] ${initialsSizeClasses[size]}`}
-        >
-          {initials}
-        </span>
-      </div>
+      {showImage && !loaded ? (
+        <div
+          aria-hidden="true"
+          className={`absolute inset-0 bg-gradient-to-br ${palette} animate-pulse`}
+        />
+      ) : null}
     </div>
   );
 }

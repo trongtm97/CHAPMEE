@@ -8,6 +8,8 @@ import { assertTaxonomyLandingVisible } from "@/lib/discovery/taxonomy-landing";
 import { resolveTaxonomyTypeFromUrlSegment } from "@/lib/taxonomy/public-url";
 import { TAXONOMY_TYPES } from "@/types/taxonomy";
 
+export const dynamic = "force-dynamic";
+
 type PageProps = {
   params: Promise<{ type: string; slug: string }>;
   searchParams: Promise<Record<string, string | undefined>>;

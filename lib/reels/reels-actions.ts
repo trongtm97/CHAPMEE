@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -16,7 +16,7 @@ import {
 } from "@/lib/reels/reels-item-mutations";
 import { schedulePublication } from "@/lib/studio/scheduling/schedule-publication";
 import { REELS_PUBLIC_PATH, studioReelsPath } from "@/lib/routes/reels-paths";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { parseVietnamScheduleInput } from "@/lib/studio/scheduling/timezone";
 import { STUDIO_DEFAULT_TIMEZONE } from "@/types/scheduling";
 import type { ReelsFormValues, ReelsSourceType } from "@/types/reels";
@@ -81,10 +81,10 @@ export async function createReelsItemAction(formData: FormData) {
     await assertStoryLinkForReels(actor.creatorProfile, values.storyId, values.chapterId);
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
   if (intent === "publish") {
-    const draftInsert = await insertReelsItem(supabase, actor.profileId, values, {
+    const draftInsert = await insertReelsItem(db, actor.profileId, values, {
       sourceType: source.sourceType,
       sourceTextEnd: source.sourceTextEnd,
       sourceTextStart: source.sourceTextStart,
@@ -92,11 +92,11 @@ export async function createReelsItemAction(formData: FormData) {
     });
 
     if (!draftInsert.id) {
-      return { error: draftInsert.error ?? "Không tạo được Reels.", ok: false as const };
+      return { error: draftInsert.error ?? "Không t?o du?c Reels.", ok: false as const };
     }
 
     const published = await publishReelsItem(
-      supabase,
+      db,
       draftInsert.id,
       actor.profileId,
       values
@@ -116,10 +116,10 @@ export async function createReelsItemAction(formData: FormData) {
     const scheduledAt = parseVietnamScheduleInput(scheduleDate, scheduleTime);
 
     if (!scheduledAt) {
-      return { error: "Ngày giờ lên lịch không hợp lệ.", ok: false as const };
+      return { error: "Ngày gi? lên l?ch không h?p l?.", ok: false as const };
     }
 
-    const created = await insertReelsItem(supabase, actor.profileId, values, {
+    const created = await insertReelsItem(db, actor.profileId, values, {
       sourceType: source.sourceType,
       sourceTextEnd: source.sourceTextEnd,
       sourceTextStart: source.sourceTextStart,
@@ -128,7 +128,7 @@ export async function createReelsItemAction(formData: FormData) {
     });
 
     if (!created.id) {
-      return { error: created.error ?? "Không tạo được Reels.", ok: false as const };
+      return { error: created.error ?? "Không t?o du?c Reels.", ok: false as const };
     }
 
     const scheduled = await schedulePublication({
@@ -136,21 +136,21 @@ export async function createReelsItemAction(formData: FormData) {
       profileId: actor.profileId,
       scheduledAt,
       storyId: values.storyId,
-      supabase,
+      db,
       targetId: created.id,
       targetType: "reels",
       timezone: STUDIO_DEFAULT_TIMEZONE
     });
 
     if (!scheduled.ok) {
-      return { error: scheduled.error ?? "Không thể lên lịch Reels.", ok: false as const };
+      return { error: scheduled.error ?? "Không th? lên l?ch Reels.", ok: false as const };
     }
 
     revalidateReelsPaths();
     redirect(studioReelsPath());
   }
 
-  const created = await insertReelsItem(supabase, actor.profileId, values, {
+  const created = await insertReelsItem(db, actor.profileId, values, {
     sourceType: source.sourceType,
     sourceTextEnd: source.sourceTextEnd,
     sourceTextStart: source.sourceTextStart,
@@ -158,7 +158,7 @@ export async function createReelsItemAction(formData: FormData) {
   });
 
   if (!created.id) {
-    return { error: created.error ?? "Không tạo được Reels.", ok: false as const };
+    return { error: created.error ?? "Không t?o du?c Reels.", ok: false as const };
   }
 
   revalidateReelsPaths();
@@ -181,17 +181,17 @@ export async function createReelsItemQuickAction(formData: FormData) {
   }
 
   if (!values.hook?.trim()) {
-    return { error: "Hook không được để trống.", id: null, ok: false as const };
+    return { error: "Hook không du?c d? tr?ng.", id: null, ok: false as const };
   }
 
   if (!values.body?.trim()) {
-    return { error: "Nội dung trích dẫn không được để trống.", id: null, ok: false as const };
+    return { error: "N?i dung trích d?n không du?c d? tr?ng.", id: null, ok: false as const };
   }
 
   await assertStoryLinkForReels(actor.creatorProfile, values.storyId, values.chapterId);
 
-  const supabase = await createClient();
-  const created = await insertReelsItem(supabase, actor.profileId, values, {
+  const db = await createClient();
+  const created = await insertReelsItem(db, actor.profileId, values, {
     sourceType: source.sourceType,
     sourceTextEnd: source.sourceTextEnd,
     sourceTextStart: source.sourceTextStart,
@@ -200,7 +200,7 @@ export async function createReelsItemQuickAction(formData: FormData) {
 
   if (!created.id) {
     return {
-      error: created.error ?? "Không tạo được Reels.",
+      error: created.error ?? "Không t?o du?c Reels.",
       id: null,
       ok: false as const
     };
@@ -219,7 +219,7 @@ export async function updateReelsItemAction(formData: FormData) {
 
   const reelId = String(formData.get("reel_id") ?? "");
   if (!reelId) {
-    return { error: "Thiếu mã Reels.", ok: false as const };
+    return { error: "Thi?u mã Reels.", ok: false as const };
   }
 
   await assertOwnsReelsItem(actor.profileId, reelId);
@@ -232,10 +232,10 @@ export async function updateReelsItemAction(formData: FormData) {
     await assertStoryLinkForReels(actor.creatorProfile, values.storyId, values.chapterId);
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
   if (intent === "publish") {
-    const published = await publishReelsItem(supabase, reelId, actor.profileId, values);
+    const published = await publishReelsItem(db, reelId, actor.profileId, values);
 
     if (!published.ok) {
       return { error: published.error, ok: false as const };
@@ -251,10 +251,10 @@ export async function updateReelsItemAction(formData: FormData) {
     const scheduledAt = parseVietnamScheduleInput(scheduleDate, scheduleTime);
 
     if (!scheduledAt) {
-      return { error: "Ngày giờ lên lịch không hợp lệ.", ok: false as const };
+      return { error: "Ngày gi? lên l?ch không h?p l?.", ok: false as const };
     }
 
-    const updated = await updateReelsItemRow(supabase, reelId, actor.profileId, values, {
+    const updated = await updateReelsItemRow(db, reelId, actor.profileId, values, {
       scheduledAt,
       sourceTextEnd: source.sourceTextEnd,
       sourceTextStart: source.sourceTextStart,
@@ -271,21 +271,21 @@ export async function updateReelsItemAction(formData: FormData) {
       profileId: actor.profileId,
       scheduledAt,
       storyId: values.storyId,
-      supabase,
+      db,
       targetId: reelId,
       targetType: "reels",
       timezone: STUDIO_DEFAULT_TIMEZONE
     });
 
     if (!scheduled.ok) {
-      return { error: scheduled.error ?? "Không thể lên lịch Reels.", ok: false as const };
+      return { error: scheduled.error ?? "Không th? lên l?ch Reels.", ok: false as const };
     }
 
     revalidateReelsPaths();
     return { ok: true as const };
   }
 
-  const updated = await updateReelsItemRow(supabase, reelId, actor.profileId, values, {
+  const updated = await updateReelsItemRow(db, reelId, actor.profileId, values, {
     sourceTextEnd: source.sourceTextEnd,
     sourceTextStart: source.sourceTextStart,
     sourceType: source.sourceType,
@@ -308,9 +308,9 @@ export async function unhideReelsItemAction(reelId: string) {
   }
 
   await assertOwnsReelsItem(actor.profileId, reelId);
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { error } = await supabase
+  const { error } = await db
     .from("reels_items")
     .update({ status: "published" })
     .eq("id", reelId)
@@ -333,9 +333,9 @@ export async function hideReelsItemAction(reelId: string) {
   }
 
   await assertOwnsReelsItem(actor.profileId, reelId);
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { error } = await supabase
+  const { error } = await db
     .from("reels_items")
     .update({ status: "hidden" })
     .eq("id", reelId)
@@ -359,11 +359,11 @@ export async function deleteReelsDraftAction(reelId: string) {
   const record = await assertOwnsReelsItem(actor.profileId, reelId);
 
   if (record.status !== "draft") {
-    return { error: "Chỉ xóa được bản nháp.", ok: false as const };
+    return { error: "Ch? xóa du?c b?n nháp.", ok: false as const };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase
+  const db = await createClient();
+  const { error } = await db
     .from("reels_items")
     .delete()
     .eq("id", reelId)
@@ -402,11 +402,11 @@ export async function duplicateReelsItemAction(reelId: string) {
   }
 
   await assertOwnsReelsItem(actor.profileId, reelId);
-  const supabase = await createClient();
-  const result = await duplicateReelsItem(supabase, actor.profileId, reelId);
+  const db = await createClient();
+  const result = await duplicateReelsItem(db, actor.profileId, reelId);
 
   if (!result.id) {
-    return { error: result.error ?? "Không nhân bản được.", ok: false as const };
+    return { error: result.error ?? "Không nhân b?n du?c.", ok: false as const };
   }
 
   revalidateReelsPaths();

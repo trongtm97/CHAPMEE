@@ -291,7 +291,9 @@ export const AD_PLACEMENT_PRESET_SUGGESTIONS = [
   { key: "reader_top_mobile", name: "Đầu trang đọc chương mobile" },
   { key: "reader_mid_content_mobile", name: "Giữa nội dung chương mobile" },
   { key: "reader_bottom_mobile", name: "Cuối chương mobile" },
-  { key: "desktop_reader_sidebar", name: "Sidebar đọc chương desktop" },
+  { key: "desktop_reader_sidebar", name: "Sidebar đọc chương desktop (cột bình luận)" },
+  { key: "desktop_reader_left_rail", name: "Rail trái đọc chương desktop" },
+  { key: "desktop_reader_right_rail", name: "Rail phải đọc chương desktop" },
   { key: "content_hub_article_bottom", name: "Cuối bài viết/blog" },
   { key: "discover_between_sections_mobile", name: "Giữa feed Khám phá mobile" }
 ] as const;

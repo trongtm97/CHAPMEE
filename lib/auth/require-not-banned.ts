@@ -1,5 +1,5 @@
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 const DEFAULT_BANNED_MESSAGE =
   "Tài khoản của bạn đang bị hạn chế. Không thể thực hiện thao tác này.";
@@ -12,8 +12,8 @@ export class BannedUserError extends Error {
 }
 
 export async function isUserWriteBlocked(userId: string): Promise<boolean> {
-  const supabase = await createClient();
-  const { data: profile } = await supabase
+  const db = await createClient();
+  const { data: profile } = await db
     .from("profiles")
     .select("status")
     .eq("id", userId)
@@ -23,7 +23,7 @@ export async function isUserWriteBlocked(userId: string): Promise<boolean> {
     return true;
   }
 
-  const { data: activeBan } = await supabase
+  const { data: activeBan } = await db
     .from("user_bans")
     .select("id")
     .eq("user_id", userId)

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
+import { Suspense } from "react";
 import { StoryOpenTracker } from "@/components/analytics/StoryOpenTracker";
 import { SponsoredStoryBadge } from "@/components/campaigns/SponsoredStoryBadge";
 import { Comments } from "@/components/comments/Comments";
@@ -7,7 +8,6 @@ import { DesktopStoryDetail } from "@/components/story/DesktopStoryDetail";
 import { StoryDetailPage } from "@/components/story/StoryDetailPage";
 import { SupportButton } from "@/components/monetization/SupportButton";
 import { ErrorState } from "@/components/ui";
-import { getComments } from "@/lib/comments/getComments";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { trackServerEvent } from "@/lib/analytics/trackServerEvent";
 import { isFanClubEnabled } from "@/lib/monetization/fan-club";
@@ -24,18 +24,41 @@ import { getStoryChapters, EMPTY_STORY_CHAPTERS } from "@/lib/stories/get-story-
 import { isStandaloneStory } from "@/lib/stories/story-structure";
 import { getStoryReadingProgress } from "@/lib/stories/get-story-reading-progress";
 import { getStoryBySlug } from "@/lib/stories/getStoryBySlug";
+import {
+  getMyStoryReview,
+  getStoryReviewStats,
+  getStoryReviews
+} from "@/lib/reviews/story-reviews";
+import { getComments } from "@/lib/comments/getComments";
+import { getStoryRecommendationContext } from "@/lib/recommendations/story-context";
 import { getStoryUserState } from "@/lib/stories/getStoryUserState";
 import { loadStorySponsorCampaign } from "@/lib/campaigns/load-public-campaigns";
-import { getStoryTopFans } from "@/lib/supabase/fan-scores";
-import { getFanClubMembership, listActiveFanClubPlansByCreator } from "@/lib/supabase/fan-club";
+import { getStoryTopFans } from "@/lib/data/fan-scores";
+import { getFanClubMembership, listActiveFanClubPlansByCreator } from "@/lib/data/fan-club";
 import { tryRedirectFromLookupTable } from "@/lib/urls/canonical";
 import { getStoryUrl } from "@/lib/seo/canonical";
 import { parsePublicSegment } from "@/lib/urls/parse";
 import { resolveStoryFromSegment } from "@/lib/urls/resolve-story";
+import { getAudioPolicySettings } from "@/lib/settings/audio-policy-settings";
+import { computeStoryAudioAdsAllowed, getPublicStoryAudioData } from "@/src/lib/audio/public-audio";
+import {
+  computeStoryFilmAdsAllowed,
+  getPublishedStoryFilmAdaptationsPublic
+} from "@/src/lib/film-adaptations/public-films";
 
 type StoryPageProps = {
   params: Promise<{ slug: string }>;
 };
+
+function StoryCommentsSkeleton() {
+  return (
+    <div className="space-y-3 rounded-2xl border border-white/10 bg-[var(--surface-soft)] p-4">
+      <div className="h-4 w-28 animate-pulse rounded bg-white/10" />
+      <div className="h-20 animate-pulse rounded-xl bg-white/10" />
+      <div className="h-16 animate-pulse rounded-xl bg-white/10" />
+    </div>
+  );
+}
 
 export async function generateMetadata({ params }: StoryPageProps): Promise<Metadata> {
   const { slug: segment } = await params;
@@ -51,7 +74,7 @@ export async function generateMetadata({ params }: StoryPageProps): Promise<Meta
     };
   }
 
-  return buildPublicStoryMetadata(story);
+  return await buildPublicStoryMetadata(story);
 }
 
 export default async function StoryPage({ params }: StoryPageProps) {
@@ -90,15 +113,24 @@ export default async function StoryPage({ params }: StoryPageProps) {
     Boolean(monetizationConfig.settings["originals_enabled"]);
 
   const returnTo = getStoryUrl({ slug: story.slug, public_code: story.publicCode });
-  const [{ user }, topFans, supporterRanking, commentsResult, fanClubEnabled, fanClubPlans, storySponsorCampaign] =
+  const [{ user }, topFans, supporterRanking, fanClubEnabled, fanClubPlans, storySponsorCampaign, reviewStats, myReview, initialReviewsPage, recommendationContext, audioData, publishedFilms] =
     await Promise.all([
       getCurrentUser(),
       getStoryTopFans(story.id, userState.userId, 5),
       getSupporterRankingForStory(story.id, 5),
-      getComments({ storyId: story.id }),
       isFanClubEnabled(),
       listActiveFanClubPlansByCreator(story.creatorUserId ?? "", story.id),
-      loadStorySponsorCampaign({ id: story.id, slug: story.slug })
+      loadStorySponsorCampaign({ id: story.id, slug: story.slug }),
+      getStoryReviewStats(story.id),
+      userState.userId ? getMyStoryReview(story.id, userState.userId) : Promise.resolve(null),
+      getStoryReviews(story.id, {
+        page: 1,
+        sort: "newest",
+        viewerProfileId: userState.userId
+      }),
+      getStoryRecommendationContext({ storyId: story.id, userId: userState.userId }),
+      getPublicStoryAudioData(story.id),
+      getPublishedStoryFilmAdaptationsPublic(story.id)
     ]);
 
   const fanMembership =
@@ -132,6 +164,33 @@ export default async function StoryPage({ params }: StoryPageProps) {
     chaptersRangeEnd = range.end;
   }
 
+  const [canShowStoryAudioAds, audioPolicy] = await Promise.all([
+    computeStoryAudioAdsAllowed(
+      {
+        id: story.id,
+        content_origin: story.contentOrigin,
+        rights_status: story.rightsStatus
+      },
+      audioData.items
+    ),
+    getAudioPolicySettings()
+  ]);
+  const continueAudioItemId = audioPolicy.show_continue_listening
+    ? audioData.continueAudioItemId
+    : null;
+
+  const canShowStoryFilmAds =
+    publishedFilms.length > 0
+      ? await computeStoryFilmAdsAllowed(
+          {
+            id: story.id,
+            content_origin: story.contentOrigin,
+            rights_status: story.rightsStatus
+          },
+          publishedFilms
+        )
+      : false;
+
   const chaptersData = isStandaloneStory(story)
     ? EMPTY_STORY_CHAPTERS
     : await getStoryChapters({
@@ -139,6 +198,11 @@ export default async function StoryPage({ params }: StoryPageProps) {
         rangeEnd: chaptersRangeEnd,
         rangeStart: chaptersRangeStart
       });
+
+  const storyComments = await getComments({
+    aggregateStoryComments: true,
+    storyId: story.id
+  });
 
   return (
     <div className="space-y-6">
@@ -152,24 +216,45 @@ export default async function StoryPage({ params }: StoryPageProps) {
       <DesktopStoryDetail
         mainContent={
           <StoryDetailPage
+            recommendationContext={recommendationContext}
             chaptersData={chaptersData}
-            comments={commentsResult.comments}
+            comments={storyComments.comments}
             fanClubEnabled={fanClubEnabled}
             fanClubMembership={fanMembership.data}
             fanClubPlans={fanClubPlans.data}
+            initialReviewsPage={initialReviewsPage}
+            myReview={myReview}
             readingProgress={readingProgress}
+            reviewStats={reviewStats}
             showOriginalsBadge={showOriginalsBadge}
             story={story}
             supporters={supporterRanking.data}
             topFans={topFans}
             userState={userState}
+            publishedAudioItems={audioData.items}
+            audioQueue={audioData.queue}
+            continueAudioItemId={continueAudioItemId}
+            completedAudioItemIds={audioData.completedAudioItemIds}
+            canShowStoryAudioAds={canShowStoryAudioAds}
+            canShowStoryFilmAds={canShowStoryFilmAds}
+            publishedFilms={publishedFilms}
           />
         }
         rightPanel={
           <>
-            <SupportButton storyId={story.id} toCreatorUserId={story.creatorUserId} />
+            {story.contentOrigin === "translation" && !story.canReceiveTips ? null : (
+              <SupportButton storyId={story.id} toCreatorUserId={story.creatorUserId} />
+            )}
             <div className="hidden lg:block">
-              <Comments returnTo={returnTo} target={{ storyId: story.id }} title="Bình luận truyện" />
+              <Suspense fallback={<StoryCommentsSkeleton />}>
+                <Comments
+                  aggregateStoryComments
+                  returnTo={returnTo}
+                  storySlug={story.slug}
+                  target={{ storyId: story.id }}
+                  title="Bình luận truyện"
+                />
+              </Suspense>
             </div>
           </>
         }

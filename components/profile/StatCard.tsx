@@ -1,4 +1,3 @@
-import { Card } from "@/components/ui";
 import { formatReelsCount } from "@/lib/reels/formatCount";
 
 type StatCardProps = {
@@ -12,14 +11,16 @@ export function StatCard({ hint, label, value }: StatCardProps) {
     typeof value === "number" ? formatReelsCount(value) : value;
 
   return (
-    <Card className="space-y-1.5 p-3">
-      <p className="text-[0.64rem] font-bold uppercase tracking-[0.2em] text-zinc-500">
-        {label}
-      </p>
-      <p className="text-lg font-black tracking-normal text-white">
+    <div className="min-w-0 px-1 py-2 text-center sm:px-2">
+      <p className="text-base font-black tabular-nums tracking-normal text-white sm:text-lg">
         {displayValue}
       </p>
-      {hint ? <p className="text-xs leading-5 text-zinc-400">{hint}</p> : null}
-    </Card>
+      <p className="mt-0.5 text-[0.68rem] font-medium leading-snug text-zinc-500">
+        {label}
+      </p>
+      {hint ? (
+        <p className="mt-0.5 text-[0.6rem] leading-tight text-zinc-600">{hint}</p>
+      ) : null}
+    </div>
   );
 }

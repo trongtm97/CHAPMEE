@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { safeRecordFanScoreAction } from "@/lib/supabase/fan-scores";
-import { createClient } from "@/lib/supabase/server";
+import { safeRecordFanScoreAction } from "@/lib/data/fan-scores";
+import { createClient } from "@/lib/data/server";
 
 type ToggleEpisodeLikeInput = {
   episodeId: string;
@@ -14,11 +14,11 @@ type ToggleEpisodeLikeInput = {
 };
 
 async function getUserId() {
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user },
     error
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (error || !user) {
     return null;
@@ -34,10 +34,10 @@ export async function toggleEpisodeLikeAction(input: ToggleEpisodeLikeInput) {
     redirect(`/login?next=${encodeURIComponent(input.returnTo)}`);
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
 
   if (input.liked) {
-    await supabase.from("reactions").upsert(
+    await db.from("reactions").upsert(
       {
         user_id: userId,
         target_id: input.episodeId,
@@ -59,7 +59,7 @@ export async function toggleEpisodeLikeAction(input: ToggleEpisodeLikeInput) {
       userId
     });
   } else {
-    await supabase
+    await db
       .from("reactions")
       .delete()
       .eq("user_id", userId)

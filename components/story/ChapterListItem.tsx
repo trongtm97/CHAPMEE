@@ -7,6 +7,7 @@ type ChapterListItemProps = {
   storySlug: string;
   storyPublicCode: string;
   status?: "reading" | "read" | "new" | null;
+  isTranslation?: boolean;
 };
 
 function formatDate(value: string | null) {
@@ -30,6 +31,7 @@ function isRecentlyPublished(value: string | null) {
 
 export function ChapterListItem({
   chapter,
+  isTranslation = false,
   status,
   storySlug,
   storyPublicCode
@@ -69,6 +71,11 @@ export function ChapterListItem({
             {isNew ? (
               <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[0.65rem] font-bold text-amber-100">
                 Mới
+              </span>
+            ) : null}
+            {isTranslation ? (
+              <span className="rounded-full bg-cyan-300/15 px-2 py-0.5 text-[0.65rem] font-bold text-cyan-100">
+                Miễn phí
               </span>
             ) : null}
           </div>

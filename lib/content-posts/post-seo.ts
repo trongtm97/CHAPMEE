@@ -11,7 +11,7 @@ function toSeoCheckInput(item: AdminContentPost) {
     excerpt: item.excerpt ?? "",
     content: item.content ?? "",
     postType: item.post_type,
-    coverImageUrl: item.cover_image_url ?? "",
+    coverImageUrl: item.cover_media_asset_id || item.cover_image_url || "",
     seoTitle: item.seo_title ?? "",
     seoDescription: item.seo_description ?? "",
     canonicalUrl: item.canonical_url ?? "",

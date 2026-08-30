@@ -14,7 +14,7 @@ import { getCurrentProfile } from "@/lib/auth/getCurrentProfile";
 import { getMonetizationConfig } from "@/lib/monetization/config";
 import { sumLockedFullStoryRevenueForCreator } from "@/lib/monetization/story-completion-escrow";
 import { addRiskEvent, shouldBlockPayout } from "@/lib/risk/risk-engine";
-import { createTransaction, getTransactionsForAdmin, updateTransactionStatus } from "@/lib/supabase/transactions";
+import { createTransaction, getTransactionsForAdmin, updateTransactionStatus } from "@/lib/data/transactions";
 import {
   createCreatorPayoutAccount,
   createPayoutRequestRecord,
@@ -25,7 +25,7 @@ import {
   maybeAutoApproveOwnPayoutRequest,
   shiftCreatorWalletBalances,
   updatePayoutRequestStatus
-} from "@/lib/supabase/payouts";
+} from "@/lib/data/payouts";
 import { getCreatorAccessStatus } from "@/lib/creator-access";
 import { getOrCreateCreatorWallet } from "@/lib/wallets/creator-wallet";
 import type { PayoutMethod, PayoutRequestStatus } from "@/types/payout";

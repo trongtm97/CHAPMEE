@@ -10,14 +10,17 @@ export const CANDIDATE_POOL_IDS = [
   "admin_boost",
   "growing",
   "completed_story",
-  "cold_start"
+  "cold_start",
+  "original_pool",
+  "translation_pool",
+  "mixed_pool"
 ] as const;
 
 export type CandidatePoolId = (typeof CANDIDATE_POOL_IDS)[number];
 
 export type FeedSurface = "reels" | "discover" | "search" | "ranking";
 
-export type FeedItemKind = "episode" | "manual";
+export type FeedItemKind = "episode" | "manual" | "story_description";
 
 export type FeedCandidate = {
   pool: CandidatePoolId;
@@ -37,6 +40,11 @@ export type FeedCandidate = {
   qualityScore: number;
   discoveryScore: number;
   freshnessScore: number;
+  scoreBase?: number;
+  boostScore?: number;
+  contentOrigin?: "original" | "translation";
+  rightsStatus?: string | null;
+  selectionReason?: string | null;
   isCompleted?: boolean;
 };
 
@@ -51,6 +59,7 @@ export type FeedMixerContext = {
   section?: DiscoverSectionId;
   excludeKeys?: Set<string>;
   recentlySeenKeys?: Set<string>;
+  shuffleSeed?: number;
 };
 
 export type DiscoverSectionId =
@@ -78,6 +87,7 @@ export type ReelsFeedCursorPayload = {
   requestId: string;
   offset: number;
   seenKeys: string[];
+  shuffleSeed?: number;
 };
 
 export type ReelsFeedResult = {

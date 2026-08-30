@@ -18,10 +18,11 @@ import { loadUserInterestProfile, personalFitForCandidate } from "@/lib/feed/int
 import { getCandidatesForSurface } from "@/lib/feed/pools";
 import { enforceFeedDiversity } from "@/lib/fairness/diversity";
 import { getRankingBoard } from "@/lib/ranking/get-board";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
 import { loadTaxonomyExposureShare } from "@/lib/fair-distribution/load-taxonomy-context";
 import { getFairDistributionConfig } from "@/lib/fair-distribution/settings";
-import { createClient } from "@/lib/supabase/server";
-import { createPublicClient } from "@/lib/supabase/public-client";
+import { createClient } from "@/lib/data/server";
+import { createPublicClient } from "@/lib/data/public-client";
 import {
   ANONYMOUS_RECOMMENDED_POOLS,
   DISCOVER_SECTION_CONFIG,
@@ -44,7 +45,7 @@ function rankingItemToDiscoverStory(item: RankingBoardItem): DiscoverStory | nul
     title: item.title,
     slug: item.slug,
     publicCode: item.publicCode ?? "",
-    coverUrl: item.coverUrl,
+    coverUrl: resolveStoryCoverUrl(item.coverUrl),
     hook: item.description,
     shortDescription: item.description,
     longDescription: null,
@@ -57,6 +58,8 @@ function rankingItemToDiscoverStory(item: RankingBoardItem): DiscoverStory | nul
     publishedAt: null,
     tagNames: [],
     score: item.score,
+    contentOrigin: "original",
+    rightsStatus: null,
     feed: {
       requestId: "ranking-snapshot",
       algorithmVersion: "ranking",
@@ -89,16 +92,16 @@ function buildCreatorsFromStories(stories: DiscoverStory[]): DiscoverCreatorSpot
 }
 
 async function loadGenres(): Promise<DiscoverGenre[]> {
-  const supabase = createPublicClient();
+  const db = createPublicClient();
   const { loadDiscoverGenresFromTaxonomy } = await import(
     "@/lib/taxonomy/discover-bridge"
   );
-  return loadDiscoverGenresFromTaxonomy(supabase);
+  return loadDiscoverGenresFromTaxonomy(db);
 }
 
 async function loadRankingStories(limit: number): Promise<DiscoverStory[]> {
-  const supabase = createPublicClient();
-  const board = await getRankingBoard(supabase, {
+  const db = createPublicClient();
+  const board = await getRankingBoard(db, {
     boardType: "top_stories",
     timeWindow: "day",
     pageSize: limit
@@ -113,14 +116,14 @@ async function loadDiscoverCandidatePool(
   userId: string | null,
   genreSlug: string | null
 ) {
-  const supabase = await createClient();
+  const db = userId ? await createClient() : createPublicClient();
   const { excludeKeys, recentlySeenKeys } = await loadUserFeedExclusions(
-    supabase,
+    db,
     userId
   );
 
   try {
-    const mixed = await getCandidatesForSurface(supabase, "discover", userId, {
+    const mixed = await getCandidatesForSurface(db, "discover", userId, {
       limit: 220,
       genreSlug: genreSlug ?? undefined,
       excludeKeys,
@@ -128,7 +131,7 @@ async function loadDiscoverCandidatePool(
     });
 
     return {
-      supabase,
+      db,
       candidates: mixed.candidates,
       requestId: mixed.requestId,
       algorithmVersion: mixed.algorithmVersion,
@@ -136,7 +139,7 @@ async function loadDiscoverCandidatePool(
       error: null as string | null
     };
   } catch (error) {
-    const catalog = await fetchStoryCatalogCandidates(supabase, 180);
+    const catalog = await fetchStoryCatalogCandidates(db, 180);
     const filtered = catalog.filter((candidate) => {
       if (genreSlug && candidate.genreSlug !== genreSlug) return false;
       const key = `${candidate.itemType}:${candidate.itemId}`;
@@ -150,7 +153,7 @@ async function loadDiscoverCandidatePool(
     });
 
     return {
-      supabase,
+      db,
       candidates: diversified.map((candidate) => ({
         ...candidate,
         pool: candidate.pool ?? ("fresh" as CandidatePoolId)
@@ -229,9 +232,9 @@ export async function getDiscoverSections(
       loadDiscoverCandidatePool(userId, genreSlug),
       getFairDistributionConfig()
     ]);
-    const taxonomyShare = await loadTaxonomyExposureShare(pool.supabase, "discover", 7);
+    const taxonomyShare = await loadTaxonomyExposureShare(pool.db, "discover", 7);
 
-    const profile = await loadUserInterestProfile(pool.supabase, userId);
+    const profile = await loadUserInterestProfile(pool.db, userId);
     const profileFitByStory = new Map<string, number>();
     for (const candidate of pool.candidates) {
       profileFitByStory.set(
@@ -287,7 +290,7 @@ export async function getDiscoverSections(
     const storyIds = [...uniqueCandidates.keys()];
     const tagsByStory = await getTagsByStory(storyIds);
     const enriched = await enrichDiscoverCandidates(
-      pool.supabase,
+      pool.db,
       [...uniqueCandidates.values()],
       {
         requestId: pool.requestId,
@@ -353,18 +356,48 @@ export async function getDiscoverSections(
         };
       }
 
-      return {
+      const baseSectionStories: DiscoverSectionView = {
         ...config,
         stories: sectionResults.find((section) => section.key === config.key)?.stories ?? [],
         creators: []
       };
+
+      if (config.key === "featured_originals" || config.key === "top_originals") {
+        return {
+          ...baseSectionStories,
+          stories: baseSectionStories.stories
+            .filter((story) => story.contentOrigin !== "translation")
+            .slice(0, config.limit)
+        };
+      }
+      if (config.key === "free_translations" || config.key === "top_translations") {
+        return {
+          ...baseSectionStories,
+          stories: baseSectionStories.stories
+            .filter((story) => story.contentOrigin === "translation")
+            .slice(0, config.limit)
+        };
+      }
+      if (config.key === "recommended_boosted") {
+        const boosted = baseSectionStories.stories
+          .filter((story) => story.feed?.candidatePool === "admin_boost")
+          .slice(0, Math.max(2, Math.floor(config.limit * 0.35)));
+        const organic = baseSectionStories.stories
+          .filter((story) => story.feed?.candidatePool !== "admin_boost")
+          .slice(0, config.limit - boosted.length);
+        return {
+          ...baseSectionStories,
+          stories: [...boosted, ...organic].slice(0, config.limit)
+        };
+      }
+      return baseSectionStories;
     }).filter(
       (section) =>
         section.stories.length > 0 || (section.variant === "creators" && section.creators.length > 0)
     );
 
     const allStories = sections.flatMap((section) => section.stories);
-    const searchResults =
+    const filteredSearchResults =
       query || genreSlug
         ? allStories.filter((story) => {
             if (genreSlug && story.genreSlug !== genreSlug) return false;
@@ -383,26 +416,39 @@ export async function getDiscoverSections(
           })
         : [];
 
+    const { enrichDiscoverStories } = await import("@/src/lib/audio/audio-summary");
+    const enrichedSections = await Promise.all(
+      sections.map(async (section) => ({
+        ...section,
+        stories: await enrichDiscoverStories(section.stories)
+      }))
+    );
+    const searchResults = await enrichDiscoverStories(filteredSearchResults);
+
     return {
       genres,
       searchResults,
-      sections,
+      sections: enrichedSections,
+      latestUpdates: [],
       taxonomy: null,
       requestId: pool.requestId,
       algorithmVersion: pool.algorithmVersion,
       poolCounts: pool.poolCounts,
-      error: pool.error
+      error: pool.error,
+      filmTab: null
     };
   } catch (error) {
     return {
       genres: [],
       searchResults: [],
       sections: [],
+      latestUpdates: [],
       taxonomy: null,
       requestId: null,
       algorithmVersion: null,
       poolCounts: {},
-      error: error instanceof Error ? error.message : "Could not load discover sections."
+      error: error instanceof Error ? error.message : "Could not load discover sections.",
+      filmTab: null
     };
   }
 }

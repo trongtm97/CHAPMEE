@@ -1,7 +1,7 @@
 import {
   applyUserCoinLedgerRecord,
   getOrCreateUserWalletRecord
-} from "@/lib/supabase/wallets";
+} from "@/lib/data/wallets";
 import { buildTransactionCode } from "@/lib/transactions/ledger";
 import type { TransactionSource, TransactionType } from "@/types/transaction";
 import type { CoinType, SpendRule, UserWallet } from "@/types/wallet";

@@ -4,7 +4,7 @@ import {
   parseContactSettingsDb,
   toContactSettings
 } from "@/lib/settings/contact-settings-mapper";
-import { fetchAppSettingByKey } from "@/lib/supabase/app-settings";
+import { fetchAppSettingByKey } from "@/lib/data/app-settings";
 import {
   CONTACT_SETTINGS_CACHE_TAG,
   CONTACT_SETTINGS_KEY

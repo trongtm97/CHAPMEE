@@ -9,7 +9,6 @@ import {
 } from "@/lib/actions/lifecycle";
 import { MobileBackHeader } from "@/components/me/MobileBackHeader";
 import { ProfileHero } from "@/components/me/ProfileHero";
-import { MeProfileCoinBalance } from "@/components/me/MeProfileCoinBalance";
 import { ProfileQuickActions } from "@/components/me/ProfileQuickActions";
 import { ProfileRefreshAlert } from "@/components/me/ProfileRefreshAlert";
 import { ProfileTabs } from "@/components/me/ProfileTabs";
@@ -104,9 +103,10 @@ export function MobileMePage({ data }: MobileMePageProps) {
 
   const showTabHeader = activeTab !== "overview";
   const activeSection = searchParams.get("section");
+  const hasCreatorStories = (data.creatorStats?.stories ?? 0) > 0;
 
   return (
-    <section className="space-y-3 overflow-x-hidden pb-2 lg:hidden">
+    <section className="mx-auto w-full max-w-lg space-y-2 overflow-x-hidden pb-2 lg:hidden">
       {showTabHeader ? (
         <MobileBackHeader
           backLabel="Tôi"
@@ -123,6 +123,8 @@ export function MobileMePage({ data }: MobileMePageProps) {
             editHref="/me/settings"
             handle={data.user.handle}
             isCreator={data.permissionFlags.canOpenStudio}
+            isVerified={data.user.isVerified}
+            publicProfilePath={data.publicProfilePath}
             roleBadges={data.profileBadges.filter(
               (badge) => badge.label !== "VIP" && !badge.label.includes("đã lưu")
             )}
@@ -142,7 +144,9 @@ export function MobileMePage({ data }: MobileMePageProps) {
             stats={data.stats}
           />
 
-          <ProfileRefreshAlert message={data.refreshError} severity="soft" />
+          {data.refreshError ? (
+            <ProfileRefreshAlert message={data.refreshError} severity="soft" />
+          ) : null}
 
           {data.accountNotice ? (
             <p className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
@@ -150,19 +154,14 @@ export function MobileMePage({ data }: MobileMePageProps) {
             </p>
           ) : null}
 
-          <MeProfileCoinBalance showCoinWallet={data.monetization.showCoinWallet}>
-            {(coinBalance) => (
-              <ProfileQuickActions
-                coinBalance={coinBalance}
-                collectionsCount={data.collections.length}
-                groupsCount={data.communityGroupsCount}
-                isCreator={data.permissionFlags.canOpenStudio}
-                readingCount={data.currentlyReading.length}
-                savedCount={data.readerProfile.metrics.savedStoriesCount}
-                showCoinWallet={data.monetization.showCoinWallet}
-              />
-            )}
-          </MeProfileCoinBalance>
+          <ProfileQuickActions
+            collectionsCount={data.collections.length}
+            hasStories={hasCreatorStories}
+            isCreator={data.permissionFlags.canOpenStudio}
+            readingCount={data.currentlyReading.length}
+            savedCount={data.readerProfile.metrics.savedStoriesCount}
+            unreadMessagesCount={data.unreadMessagesCount}
+          />
 
           <ProfileTabs activeTab={activeTab} onChange={handleTabChange} />
 

@@ -7,7 +7,7 @@ import { resolveMonetizationSettingsPermissions } from "@/lib/auth/monetization-
 import { getMonetizationConfig } from "@/lib/monetization/config";
 import { TOPUP_PACKAGE_AUDIT_ACTIONS } from "@/lib/topup-packages/constants";
 import { validateTopupPackageForm } from "@/lib/topup-packages/validation";
-import { insertCoinTopupPackageAuditLog } from "@/lib/supabase/coin-topup-package-audit";
+import { insertCoinTopupPackageAuditLog } from "@/lib/data/coin-topup-package-audit";
 import {
   deleteTopupPackage,
   duplicateTopupPackage,
@@ -16,7 +16,7 @@ import {
   saveTopupPackage,
   snapshotPackage,
   toggleTopupPackageActive
-} from "@/lib/supabase/coin-packs";
+} from "@/lib/data/coin-packs";
 import type { TopupPackageFormInput } from "@/types/topup-package";
 
 const REVALIDATE_PATHS = ["/admin/monetization-settings", "/wallet", "/coin/checkout"];
@@ -77,7 +77,7 @@ async function auditTopupChange(input: {
 async function getExchangeRateVnd() {
   const config = await getMonetizationConfig({ includePrivate: true, useCache: false });
   const rate = Number(config.settings["coin.exchange_rate_vnd"]);
-  return Number.isFinite(rate) && rate > 0 ? rate : 1000;
+  return Number.isFinite(rate) && rate > 0 ? rate : 1;
 }
 
 export async function saveTopupPackageAction(input: TopupPackageFormInput) {

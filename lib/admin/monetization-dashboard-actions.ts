@@ -7,7 +7,7 @@ import {
 } from "@/lib/monetization/config";
 import { checkStaffAnyPermission } from "@/lib/auth/staff-guards";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
-import { upsertMonetizationSettings } from "@/lib/supabase/monetization-settings";
+import { upsertMonetizationSettings } from "@/lib/data/monetization-settings";
 import {
   diffDashboardSettings,
   mergeDashboardSettings,

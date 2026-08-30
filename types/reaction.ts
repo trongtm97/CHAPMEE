@@ -1,53 +1,72 @@
-export type ChapterReactionKey =
-  | "cuon"
-  | "soc"
-  | "tuc"
-  | "buon"
-  | "hai"
-  | "muon_chap_tiep"
-  | "team_nam_phu"
-  | "can_tra_thu";
+import { DEFAULT_CHAPTER_REACTION_TYPES } from "@/lib/reactions/chapter-reaction-defaults";
+
+export type ChapterReactionTypeKey =
+  | "funny"
+  | "wow"
+  | "cry"
+  | "angry"
+  | "hooked"
+  | "next"
+  | "love";
+
+export type ChapterReactionTypeRow = {
+  key: string;
+  label: string;
+  emoji: string;
+  isEnabled: boolean;
+  sortOrder: number;
+};
+
+/** Fallback catalog when DB is unavailable — prefer listChapterReactionTypes(). */
+export const CHAPTER_REACTION_OPTIONS = DEFAULT_CHAPTER_REACTION_TYPES.map((item) => ({
+  key: item.key as ChapterReactionTypeKey,
+  label: item.label,
+  emoji: item.emoji
+}));
 
 export type ReactionOption = {
-  key: ChapterReactionKey;
+  key: string;
   label: string;
   emoji: string;
 };
 
-export type ChapterReactionRecord = {
-  id: string;
-  chapterId: string;
-  storyId: string;
-  userId: string;
-  reactionKey: ChapterReactionKey;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type ChapterReactionOptionView = ReactionOption & {
-  count: number;
-  percent: number;
+export type ChapterReactionTypeView = {
+  key: string;
+  label: string;
+  emoji: string;
+  realCount: number;
+  seedCount: number;
+  visibleCount: number;
   isSelected: boolean;
 };
 
-export type ChapterReactionView = {
+export type ChapterReactionsSnapshot = {
   chapterId: string;
-  storyId: string;
-  totalReactions: number;
-  userReactionKey: ChapterReactionKey | null;
-  hasReacted: boolean;
-  dominantReactionKey: ChapterReactionKey | null;
-  options: ChapterReactionOptionView[];
   canReact: boolean;
+  types: ChapterReactionTypeView[];
 };
 
-export const CHAPTER_REACTION_OPTIONS: ReactionOption[] = [
-  { key: "cuon", label: "Cuốn", emoji: "🔥" },
-  { key: "soc", label: "Sốc", emoji: "😱" },
-  { key: "tuc", label: "Tức", emoji: "😡" },
-  { key: "buon", label: "Buồn", emoji: "🥺" },
-  { key: "hai", label: "Hài", emoji: "😂" },
-  { key: "muon_chap_tiep", label: "Muốn chap tiếp", emoji: "👉" },
-  { key: "team_nam_phu", label: "Team nam phụ", emoji: "💔" },
-  { key: "can_tra_thu", label: "Cần trả thù", emoji: "⚔️" }
-];
+export type ToggleChapterReactionResult = {
+  ok: boolean;
+  error: string | null;
+  loginRequired: boolean;
+  snapshot: ChapterReactionsSnapshot | null;
+  toggledOff?: boolean;
+};
+
+/** @deprecated Legacy single-select reaction keys — use catalog keys from DB. */
+export type ChapterReactionKey = ChapterReactionTypeKey;
+
+/** @deprecated Use ChapterReactionsSnapshot from getChapterReactions. */
+export type ChapterReactionView = ChapterReactionsSnapshot & {
+  storyId?: string;
+  totalReactions?: number;
+  userReactionKey?: string | null;
+  hasReacted?: boolean;
+  dominantReactionKey?: string | null;
+  options?: Array<ChapterReactionTypeView & { percent?: number }>;
+};
+
+
+
+

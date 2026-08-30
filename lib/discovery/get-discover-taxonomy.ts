@@ -1,4 +1,6 @@
-import { createPublicClient } from "@/lib/supabase/public-client";
+import { loadCurrentStoryImagesByStoryIds } from "@/lib/images/get-current-story-image";
+import { createPublicClient } from "@/lib/data/public-client";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
 import { getStoryTaxonomyLabelsByStoryIds } from "@/lib/taxonomy/discover-bridge";
 import {
   getCachedDiscoverTaxonomyTerms
@@ -11,6 +13,8 @@ import type {
   DiscoverTaxonomyStorySection
 } from "@/lib/discovery/types";
 import { enrichCatalogStories } from "@/lib/discovery/enrich-catalog-stories";
+import { normalizeStoryStructureType } from "@/lib/stories/story-structure";
+import { normalizeDbContentOrigin } from "@/lib/stories/story-origin";
 import type { TaxonomyType } from "@/types/taxonomy";
 import type { StoryCatalogStory } from "@/types/story";
 
@@ -56,15 +60,15 @@ async function loadStoriesForTerm(
   limit: number,
   excludeIds: Set<string>
 ): Promise<StoryCatalogStory[]> {
-  const supabase = createPublicClient();
-  const storyIds = await getPublicStoryIdsForTaxonomyTerm(supabase, type, slug, 80);
+  const db = createPublicClient();
+  const storyIds = await getPublicStoryIdsForTaxonomyTerm(db, type, slug, 80);
   const filtered = storyIds.filter((id) => !excludeIds.has(id)).slice(0, limit);
   if (filtered.length === 0) return [];
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("stories")
     .select(
-      "id, title, slug, public_code, hook, short_description, cover_url, published_at, is_completed, creator_profiles(pen_name, profiles(display_name, username))"
+      "id, title, slug, public_code, hook, short_description, cover_url, published_at, is_completed, structure_type, standalone_reading_time_minutes, content_origin, rights_status, creator_profiles(pen_name, profiles(display_name, username))"
     )
     .in("id", filtered)
     .eq("visibility", "public")
@@ -73,7 +77,8 @@ async function loadStoriesForTerm(
 
   if (error || !data?.length) return [];
 
-  const labels = await getStoryTaxonomyLabelsByStoryIds(supabase, filtered);
+  const labels = await getStoryTaxonomyLabelsByStoryIds(db, filtered);
+  const imageByStoryId = await loadCurrentStoryImagesByStoryIds(db, filtered);
   const stories = enrichCatalogStories(
     (data ?? []).map((row) => {
       const creator = Array.isArray(row.creator_profiles)
@@ -90,7 +95,8 @@ async function loadStoriesForTerm(
         publicCode: String(row.public_code),
         hook: (row.hook as string | null) ?? null,
         shortDescription: (row.short_description as string | null) ?? null,
-        coverUrl: (row.cover_url as string | null) ?? null,
+        coverUrl: resolveStoryCoverUrl(row.cover_url as string | null),
+        currentImage: imageByStoryId.get(String(row.id)) ?? null,
         creatorName:
           (profile?.display_name as string | null) ??
           (creator?.pen_name as string | null) ??
@@ -100,6 +106,11 @@ async function loadStoriesForTerm(
         genreSlug: taxonomy?.mainGenreSlug ?? null,
         publishedAt: (row.published_at as string | null) ?? null,
         isCompleted: Boolean(row.is_completed),
+        structureType: normalizeStoryStructureType(row.structure_type as string | null),
+        standaloneReadingTimeMinutes:
+          (row.standalone_reading_time_minutes as number | null) ?? 0,
+        contentOrigin: normalizeDbContentOrigin(row.content_origin as string | null),
+        rightsStatus: (row.rights_status as string | null) ?? null,
         score: 0,
         tagPreview: taxonomy?.tagNames.slice(0, 3) ?? []
       };

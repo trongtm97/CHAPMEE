@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 /** Resolve public username from legacy creator_profiles.id (server-only). */
 export async function getUsernameByCreatorProfileId(
@@ -8,8 +8,8 @@ export async function getUsernameByCreatorProfileId(
     return null;
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("creator_profiles")
     .select("profiles!inner(username)")
     .eq("id", creatorProfileId)

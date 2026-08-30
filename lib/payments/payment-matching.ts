@@ -1,5 +1,5 @@
-import { getCheckoutSessionById } from "@/lib/supabase/checkout-sessions";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getCheckoutSessionById } from "@/lib/data/checkout-sessions";
+import { createAdminClient } from "@/lib/data/admin";
 import { extractNumericPaymentCodes } from "@/lib/payments/payment-code";
 
 function parseAmount(payload: Record<string, unknown>) {
@@ -62,8 +62,8 @@ export function parseSePayPayload(payload: Record<string, unknown>) {
 }
 
 export async function findCheckoutByCode(checkoutCode: string) {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const db = createAdminClient();
+  const { data, error } = await db
     .from("checkout_sessions")
     .select("*")
     .eq("checkout_code", checkoutCode)

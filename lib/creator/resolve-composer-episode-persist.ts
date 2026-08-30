@@ -1,4 +1,5 @@
 import { collectMediaIdsFromComposer } from "@/lib/composer/collect-media-ids";
+import { verifyChapterMediaIdsForPublish } from "@/lib/images/verify-chapter-media-for-publish";
 import { mergeComposerPlainWithImages } from "@/lib/composer/composer-document-to-rich-content";
 import { runEpisodeComposerValidation } from "@/lib/composer/publish-validation";
 import { resolveKnownComposerMediaIds } from "@/lib/composer/verify-composer-media";
@@ -7,8 +8,13 @@ import { isComposerStructuredDocument } from "@/lib/composer/serializer";
 import type { EpisodeComposerValidationPayload } from "@/lib/composer/publish-validation";
 import type { ComposerStructuredContent } from "@/lib/composer/types";
 import { getChapterImagesMap } from "@/lib/images/get-chapter-images-map";
+import {
+  assertStructuredContentSafeForPersist,
+  LOCAL_MEDIA_URL_ERROR,
+  validatePlainChapterContent
+} from "@/lib/media/content-media-validator";
 import type { ContentFormat, PresentationMode } from "@/types/presentation";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export type ComposerEpisodePersistFields = EpisodeComposerValidationPayload & {
   content: string;
@@ -16,7 +22,7 @@ export type ComposerEpisodePersistFields = EpisodeComposerValidationPayload & {
 };
 
 export async function resolveComposerEpisodePersistFields(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   input: {
     content: string;
     contentFormat: ContentFormat | null;
@@ -28,10 +34,34 @@ export async function resolveComposerEpisodePersistFields(
     previewViewed?: boolean;
   }
 ): Promise<ComposerEpisodePersistFields> {
+  const plainCheck = validatePlainChapterContent(input.content);
+  if (!plainCheck.ok) {
+    return {
+      content: input.content,
+      validation_status: "invalid",
+      validation_errors: [
+        { severity: "error", code: "LOCAL_MEDIA_URL", message: plainCheck.error }
+      ],
+      last_validated_at: new Date().toISOString()
+    };
+  }
+
+  try {
+    assertStructuredContentSafeForPersist(input.structuredContent);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : LOCAL_MEDIA_URL_ERROR;
+    return {
+      content: input.content,
+      validation_status: "invalid",
+      validation_errors: [{ severity: "error", code: "LOCAL_MEDIA_URL", message }],
+      last_validated_at: new Date().toISOString()
+    };
+  }
+
   const knownMediaIds =
     input.contentFormat === "structured_blocks"
       ? await resolveKnownComposerMediaIds(
-          supabase,
+          db,
           input.structuredContent,
           input.storyId
         )
@@ -60,8 +90,27 @@ export async function resolveComposerEpisodePersistFields(
   }
 
   const doc = input.structuredContent as ComposerStructuredContent;
+
+  if (input.strictPublish) {
+    const mediaIds = collectMediaIdsFromComposer(doc);
+    const mediaCheck = await verifyChapterMediaIdsForPublish(
+      db,
+      mediaIds,
+      input.storyId
+    );
+    if (!mediaCheck.ok) {
+      return {
+        content: input.content,
+        validation_status: "invalid",
+        validation_errors: [
+          { severity: "error", code: "IMAGE_MEDIA_INVALID", message: mediaCheck.message }
+        ],
+        last_validated_at: new Date().toISOString()
+      };
+    }
+  }
   const imageIds = collectMediaIdsFromComposer(doc);
-  const imageMap = await getChapterImagesMap(supabase, imageIds);
+  const imageMap = await getChapterImagesMap(db, imageIds);
   const content = mergeComposerPlainWithImages(doc, imageMap, input.content);
 
   return {

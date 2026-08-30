@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { mapTemplateRow } from "@/lib/studio/map-template-row";
 import { buildTemplatePreview } from "@/lib/studio/template-content";
 import type {
@@ -28,10 +28,10 @@ type GetTemplatesInput = {
 };
 
 export async function getStudioTemplatesPage(input: GetTemplatesInput) {
-  const supabase = await createClient();
+  const db = await createClient();
   const search = (input.search ?? "").trim();
 
-  let query = supabase
+  let query = db
     .from("creator_templates")
     .select(
       "id, owner_id, template_type, title, description, content, plain_text, is_system, status, created_at, updated_at"
@@ -82,9 +82,9 @@ export async function getStudioTemplatesPage(input: GetTemplatesInput) {
 }
 
 export async function getStudioTemplateById(templateId: string, ownerId: string) {
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("creator_templates")
     .select(
       "id, owner_id, template_type, title, description, content, plain_text, is_system, status, created_at, updated_at"

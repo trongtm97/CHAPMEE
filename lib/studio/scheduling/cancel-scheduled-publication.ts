@@ -1,12 +1,12 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 
 export async function cancelScheduledPublication(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   scheduleId: string,
   profileId: string,
   creatorProfileId: string
 ) {
-  const { data: row, error: fetchError } = await supabase
+  const { data: row, error: fetchError } = await db
     .from("scheduled_publications")
     .select("id, target_type, target_id, story_id, status")
     .eq("id", scheduleId)
@@ -27,7 +27,7 @@ export async function cancelScheduledPublication(
 
   const now = new Date().toISOString();
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await db
     .from("scheduled_publications")
     .update({
       canceled_at: now,
@@ -40,7 +40,7 @@ export async function cancelScheduledPublication(
   }
 
   if (row.target_type === "story") {
-    const { data: story } = await supabase
+    const { data: story } = await db
       .from("stories")
       .select("status")
       .eq("id", row.target_id)
@@ -48,7 +48,7 @@ export async function cancelScheduledPublication(
       .maybeSingle();
 
     if (story && story.status !== "published") {
-      await supabase
+      await db
         .from("stories")
         .update({ status: "draft" })
         .eq("id", row.target_id);
@@ -56,7 +56,7 @@ export async function cancelScheduledPublication(
   }
 
   if (row.target_type === "chapter" && row.story_id) {
-    const { data: episode } = await supabase
+    const { data: episode } = await db
       .from("episodes")
       .select("status")
       .eq("id", row.target_id)
@@ -64,7 +64,7 @@ export async function cancelScheduledPublication(
       .maybeSingle();
 
     if (episode && episode.status !== "published") {
-      await supabase
+      await db
         .from("episodes")
         .update({ status: "draft" })
         .eq("id", row.target_id);

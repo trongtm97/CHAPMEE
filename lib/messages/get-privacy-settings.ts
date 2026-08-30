@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { MessagePrivacySettings, MessagePrivacyLevel } from "@/types/messages";
 
 type PrivacyRow = {
@@ -39,8 +39,8 @@ export function defaultMessagePrivacyForUser(userId: string): MessagePrivacySett
 export async function getMessagePrivacySettings(
   userId: string
 ): Promise<MessagePrivacySettings> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("message_privacy_settings")
     .select("*")
     .eq("user_id", userId)
@@ -57,8 +57,8 @@ export async function ensureMessagePrivacySettings(
   userId: string
 ): Promise<MessagePrivacySettings> {
   const existing = await getMessagePrivacySettings(userId);
-  const supabase = await createClient();
-  const { data } = await supabase
+  const db = await createClient();
+  const { data } = await db
     .from("message_privacy_settings")
     .select("user_id")
     .eq("user_id", userId)
@@ -68,7 +68,7 @@ export async function ensureMessagePrivacySettings(
     return existing;
   }
 
-  const { data: inserted, error } = await supabase
+  const { data: inserted, error } = await db
     .from("message_privacy_settings")
     .insert({
       user_id: userId,

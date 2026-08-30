@@ -33,7 +33,7 @@ export function buildMeQuickActionHref(
     case "wallet":
       return options.showCoinWallet ? "/wallet?from=me" : "/me#cai-dat";
     case "studio":
-      return options.isCreator ? "/studio" : "/studio/setup";
+      return "/studio";
     default:
       return "/me";
   }

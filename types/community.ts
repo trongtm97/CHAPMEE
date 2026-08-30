@@ -64,6 +64,9 @@ export type CommunityFeedItem = {
   kind: CommunityFeedItemKind;
   authorName: string;
   authorUsername: string | null;
+  authorAvatarUrl: string;
+  /** `profiles.id` — dùng fallback `/@username` hoặc `/author/:id`. */
+  authorUserId: string | null;
   authorRole: CommunityRole;
   createdAt: string;
   title: string | null;
@@ -108,6 +111,8 @@ export type EnrichedCommunityPost = {
   contentPreview: string;
   authorName: string;
   authorUsername: string | null;
+  authorAvatarUrl: string;
+  authorUserId: string | null;
   creatorUsername: string | null;
   authorRole: CommunityRole;
   relatedStoryTitle: string | null;

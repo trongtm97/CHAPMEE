@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 import type { CreatorStoryStatus } from "@/lib/creator/getCreatorStories";
 
@@ -14,12 +14,13 @@ export async function getCreatorOwnedStory(
   storyId: string
 ): Promise<{ story: CreatorOwnedStory | null; error: string | null }> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("stories")
       .select("id, title, slug, status")
       .eq("id", storyId)
       .eq("creator_id", creatorProfile.id)
+      .is("deleted_at", null)
       .maybeSingle();
 
     return {

@@ -18,6 +18,8 @@ import {
   studioSetDefaultBankAccountAction,
   studioUpdateBankAccountAction
 } from "@/lib/studio/studio-finance-actions";
+import { EmailDeliveryNotice } from "@/components/ui";
+import { withEmailSentSuccessHint } from "@/lib/email/email-delivery-copy";
 import type { BankAccountView, FinanceIdentityStatus } from "@/types/finance";
 
 const ACCOUNT_STATUS: Record<
@@ -191,7 +193,9 @@ export function FinanceBankAccountsSection({
                         setVerifyAccountId(account.id);
                         run(
                           () => studioResendBankEmailCodeAction(),
-                          "Mã xác nhận đã được gửi đến email của bạn.",
+                          withEmailSentSuccessHint(
+                            "Mã xác nhận đã được gửi đến email của bạn."
+                          ),
                           { closeModal: false }
                         );
                       }}
@@ -210,6 +214,7 @@ export function FinanceBankAccountsSection({
       {verifyAccountId || accounts.some((a) => a.accountStatus === "pending_email") ? (
         <div className="mt-4 space-y-2 border-t border-white/10 pt-4">
           <p className="text-sm font-medium text-zinc-300">Xác thực email tài khoản</p>
+          <EmailDeliveryNotice compact />
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
               className={financeInputClass(pending)}
@@ -312,7 +317,9 @@ export function FinanceBankAccountsSection({
                       bankBranch: branch || undefined,
                       confirmOwnership
                     }),
-                  "Đã lưu tài khoản. Kiểm tra email nếu cần xác thực lại."
+                  withEmailSentSuccessHint(
+                    "Đã lưu tài khoản. Kiểm tra email nếu cần xác thực lại."
+                  )
                 );
               } else {
                 run(
@@ -325,7 +332,9 @@ export function FinanceBankAccountsSection({
                       confirmOwnership,
                       setAsDefault: accounts.length === 0
                     }),
-                  "Đã thêm tài khoản. Mã xác nhận đã được gửi đến email của bạn."
+                  withEmailSentSuccessHint(
+                    "Đã thêm tài khoản. Mã xác nhận đã được gửi đến email của bạn."
+                  )
                 );
               }
             }}

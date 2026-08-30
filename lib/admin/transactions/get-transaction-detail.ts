@@ -1,11 +1,11 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import {
   enrichAdminTransactions,
   fetchTransactionRiskContext
 } from "@/lib/admin/transactions/enrich-transactions";
-import { getTransactionById } from "@/lib/supabase/transactions";
+import { getTransactionById } from "@/lib/data/transactions";
 import { transactionTypeLabel } from "@/lib/admin/transactions/transaction-labels";
 import type {
   AdminTransactionDetail,
@@ -113,7 +113,7 @@ export async function getAdminTransactionDetail(transactionId: string): Promise<
     return { data: null, error: result.error ?? "Không tìm thấy giao dịch." };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const riskContext = await fetchTransactionRiskContext([transactionId]);
   const [enriched] = await enrichAdminTransactions([result.data], riskContext);
   if (!enriched) {
@@ -128,12 +128,12 @@ export async function getAdminTransactionDetail(transactionId: string): Promise<
       : null;
 
   const [{ data: refunds }, { data: chargebacks }] = await Promise.all([
-    supabase
+    db
       .from("refunds")
       .select("created_at, reason, processed_by, coin_amount, status")
       .eq("original_transaction_id", transactionId)
       .order("created_at", { ascending: false }),
-    supabase
+    db
       .from("chargebacks")
       .select("created_at, status")
       .eq("original_transaction_id", transactionId)
@@ -150,7 +150,7 @@ export async function getAdminTransactionDetail(transactionId: string): Promise<
   let processedByLabel: string | null = null;
   const processedBy = refundRows.find((row) => row.processed_by)?.processed_by;
   if (processedBy) {
-    const { data: actor } = await supabase
+    const { data: actor } = await db
       .from("profiles")
       .select("display_name, username")
       .eq("id", processedBy)

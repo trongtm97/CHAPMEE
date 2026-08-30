@@ -5,7 +5,7 @@ import { logAdminAction } from "@/lib/audit/log-admin-action";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { applyModerationAction } from "@/lib/moderation/apply-action";
 import { recordReportOutcome } from "@/lib/moderation/reporter-quality";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export async function markReportAbuseAction(formData: FormData) {
   const guard = await requirePermission("moderation.action.create", {
@@ -18,8 +18,8 @@ export async function markReportAbuseAction(formData: FormData) {
   const reportId = String(formData.get("report_id") ?? "");
   const note = String(formData.get("note") ?? "").trim() || null;
 
-  const supabase = await createClient();
-  const { data: report } = await supabase
+  const db = await createClient();
+  const { data: report } = await db
     .from("reports")
     .select("id, reporter_id, status")
     .eq("id", reportId)
@@ -31,7 +31,7 @@ export async function markReportAbuseAction(formData: FormData) {
 
   const alreadyAbuse = report.status === "rejected_abuse";
 
-  await supabase
+  await db
     .from("reports")
     .update({
       status: "rejected_abuse",
@@ -82,8 +82,8 @@ export async function enforceReporterAbuseAction(formData: FormData) {
       reportId
     });
   } else if (enforcement === "restrict_reports") {
-    const supabase = await createClient();
-    await supabase.from("account_restrictions").insert({
+    const db = await createClient();
+    await db.from("account_restrictions").insert({
       user_id: reporterId,
       restriction_type: "report_block",
       reason: note ?? "Lạm dụng báo cáo — hạn chế gửi báo cáo mới.",
@@ -110,8 +110,8 @@ export async function enforceReporterAbuseAction(formData: FormData) {
       note: note ?? "Cố tình lạm dụng báo cáo để hại người khác.",
       reportId
     });
-    const supabase = await createClient();
-    await supabase.from("account_restrictions").insert({
+    const db = await createClient();
+    await db.from("account_restrictions").insert({
       user_id: reporterId,
       restriction_type: "report_block",
       reason: note ?? "Lạm dụng báo cáo nghiêm trọng.",

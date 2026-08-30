@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { MonetizationSettingsPanel } from "@/components/admin/monetization/MonetizationSettingsPanel";
 import { ErrorState } from "@/components/ui";
 import {
@@ -6,16 +6,16 @@ import {
   MONETIZATION_SETTING_DEFINITIONS
 } from "@/lib/monetization/config";
 import { requireAdminSettingsAccess } from "@/lib/auth/require-permission";
-import { getCoinPacksForAdmin } from "@/lib/supabase/coin-packs";
-import { getPaymentProviderSettings } from "@/lib/supabase/payment-provider-settings";
-import { listCheckoutSessionsForAdmin } from "@/lib/supabase/checkout-sessions";
+import { getCoinPacksForAdmin } from "@/lib/data/coin-packs";
+import { getPaymentProviderSettings } from "@/lib/data/payment-provider-settings";
+import { listCheckoutSessionsForAdmin } from "@/lib/data/checkout-sessions";
 import { CoinPackManager } from "@/components/admin/monetization/CoinPackManager";
 import { PaymentProviderSettings } from "@/components/admin/monetization/PaymentProviderSettings";
 import { GiftCatalogManager } from "@/components/admin/monetization/GiftCatalogManager";
-import { getVirtualGiftsForAdmin } from "@/lib/supabase/virtual-gifts";
+import { getVirtualGiftsForAdmin } from "@/lib/data/virtual-gifts";
 import { VipPlanManager } from "@/components/admin/monetization/VipPlanManager";
-import { listVipPlansForAdmin } from "@/lib/supabase/vip";
-import { listPaymentProviderProducts } from "@/lib/supabase/payment-provider-products";
+import { listVipPlansForAdmin } from "@/lib/data/vip";
+import { listPaymentProviderProducts } from "@/lib/data/payment-provider-products";
 import { ProductMappingManager } from "@/components/admin/monetization/ProductMappingManager";
 import { GooglePlaySettings } from "@/components/admin/monetization/GooglePlaySettings";
 
@@ -86,7 +86,7 @@ export default async function AdminMonetizationPage() {
       <GooglePlaySettings settings={config.settings} />
       <ProductMappingManager coinPacks={coinPacks.data} mappings={productMappings.data} />
       <section className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-        <h2 className="text-lg font-black text-white">Phiên thanh toán gần đây</h2>
+        <h2 className="text-lg font-black text-white">Phiên thanh toán g?n dây</h2>
         {checkouts.error ? (
           <ErrorState message={checkouts.error} title="Không tải được phiên thanh toán" />
         ) : (
@@ -105,7 +105,7 @@ export default async function AdminMonetizationPage() {
               </div>
             ))}
             {checkouts.data.length === 0 ? (
-              <p className="text-sm text-zinc-400">Chưa có checkout session.</p>
+              <p className="text-sm text-zinc-400">Chua có checkout session.</p>
             ) : null}
           </div>
         )}

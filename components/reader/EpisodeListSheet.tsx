@@ -6,6 +6,9 @@ import { ReaderSheet } from "@/components/reader/ReaderSheet";
 import { AppSearchField } from "@/components/ui/AppSearchField";
 import { getStoryChapterHref } from "@/lib/stories/story-routes";
 import type { StoryEpisode } from "@/lib/stories/getStoryBySlug";
+import type { StoryReadingProgress } from "@/types/chapter";
+
+const MOBILE_LIST_PAGE_SIZE = 80;
 
 type EpisodeListSheetProps = {
   open: boolean;
@@ -15,6 +18,7 @@ type EpisodeListSheetProps = {
   storyPublicCode: string;
   episodes: StoryEpisode[];
   currentEpisodeNumber: number;
+  readingProgress?: StoryReadingProgress | null;
 };
 
 export function EpisodeListSheet({
@@ -22,11 +26,13 @@ export function EpisodeListSheet({
   episodes,
   onClose,
   open,
+  readingProgress = null,
   storyPublicCode,
   storySlug,
   storyTitle
 }: EpisodeListSheetProps) {
   const [query, setQuery] = useState("");
+  const [visibleCount, setVisibleCount] = useState(MOBILE_LIST_PAGE_SIZE);
   const showSearch = episodes.length > 12;
 
   const filteredEpisodes = useMemo(() => {
@@ -46,6 +52,11 @@ export function EpisodeListSheet({
     });
   }, [episodes, query]);
 
+  const visibleEpisodes = useMemo(
+    () => filteredEpisodes.slice(0, visibleCount),
+    [filteredEpisodes, visibleCount]
+  );
+
   return (
     <ReaderSheet onClose={onClose} open={open} title="Danh sách chương">
       <div className="space-y-4">
@@ -63,9 +74,11 @@ export function EpisodeListSheet({
           {filteredEpisodes.length === 0 ? (
             <li className="px-1 py-3 text-sm text-zinc-500">Không tìm thấy chương phù hợp.</li>
           ) : (
-            filteredEpisodes.map((episode) => {
+            visibleEpisodes.map((episode) => {
               const isCurrent =
                 currentEpisodeNumber > 0 && episode.episodeNumber === currentEpisodeNumber;
+              const isReading =
+                readingProgress?.episodeNumber === episode.episodeNumber;
               return (
                 <li key={episode.id}>
                   <Link
@@ -89,8 +102,13 @@ export function EpisodeListSheet({
                     </span>
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-bold">{episode.title}</span>
-                      {isCurrent ? (
-                        <span className="text-xs text-cyan-200/80">Đang đọc</span>
+                      {isCurrent || isReading ? (
+                        <span className="text-xs text-cyan-200/80">
+                          {isCurrent ? "Đang đọc" : "Tiếp tục đọc"}
+                          {isReading && readingProgress
+                            ? ` · ${Math.round(readingProgress.progressPercent)}%`
+                            : null}
+                        </span>
                       ) : null}
                     </span>
                   </Link>
@@ -99,6 +117,15 @@ export function EpisodeListSheet({
             })
           )}
         </ul>
+        {filteredEpisodes.length > visibleCount ? (
+          <button
+            className="mt-3 w-full rounded-full border border-white/[0.08] py-2.5 text-sm font-semibold text-zinc-400"
+            onClick={() => setVisibleCount((count) => count + MOBILE_LIST_PAGE_SIZE)}
+            type="button"
+          >
+            Xem thêm ({filteredEpisodes.length - visibleCount} chương)
+          </button>
+        ) : null}
       </div>
     </ReaderSheet>
   );

@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { sinceForRange } from "@/lib/admin/messaging-date-range";
 import type {
   MessageSafetyLogItem,
@@ -26,10 +26,10 @@ export async function getMessageSafetyLogs(input: {
   reason: MessagingSafetyReasonFilter;
   limit?: number;
 }): Promise<MessageSafetyLogItem[]> {
-  const supabase = await createClient();
+  const db = await createClient();
   const since = sinceForRange(input.range);
 
-  let query = supabase
+  let query = db
     .from("message_safety_logs")
     .select(
       `id, user_id, conversation_id, message_request_id, text_preview, status, reasons, created_at,

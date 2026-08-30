@@ -76,8 +76,8 @@ export async function buildStudioMonetizationConfigView(
     tipsEnabled: Boolean(settings["tips.enabled"]),
     payoutsEnabled: Boolean(settings["payout.enabled"]),
     coinEnabled: Boolean(settings["coin.enabled"]),
-    coinDisplayName: String(settings["coin.display_name"] ?? "Coin"),
-    coinExchangeRateVnd: numberSetting(settings, "coin.exchange_rate_vnd", 1000),
+    coinDisplayName: String(settings["coin.display_name"] ?? "Xu"),
+    coinExchangeRateVnd: numberSetting(settings, "coin.exchange_rate_vnd", 1),
     minWithdrawAmountVnd: numberSetting(settings, "payout.min_withdraw_amount_vnd", 0),
     payoutHoldDays: numberSetting(settings, "payout.hold_days", 0),
     payoutProcessingDaysMin: processingRange.min,
@@ -104,7 +104,9 @@ export async function buildStudioMonetizationConfigView(
     revenueShareCreatorPercent: defaultShare.creatorPercent,
     revenueSharePlatformPercent: defaultShare.platformPercent,
     revenueSharePaidChapterCreatorPercent: paidChapterShare.creatorPercent,
+    revenueSharePaidChapterPlatformPercent: paidChapterShare.platformPercent,
     revenueShareTipCreatorPercent: tipShare.creatorPercent,
+    revenueShareTipPlatformPercent: tipShare.platformPercent,
     policyText
   };
 }

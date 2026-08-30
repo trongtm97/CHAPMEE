@@ -2,11 +2,13 @@
 
 import { ReaderSheet } from "@/components/reader/ReaderSheet";
 import { useReaderPreferences } from "@/components/reader/ReaderPreferencesProvider";
-import type {
-  ReaderFontFamily,
-  ReaderFontSize,
-  ReaderLineHeight,
-  ReaderTheme
+import {
+  resetReadingPreferences,
+  type ReaderContentWidth,
+  type ReaderFontFamily,
+  type ReaderFontSize,
+  type ReaderLineHeight,
+  type ReaderTheme
 } from "@/lib/reader/reading-preferences";
 
 type ReaderSettingsSheetProps = {
@@ -57,8 +59,15 @@ const fontSizeOptions: { value: ReaderFontSize; label: string }[] = [
 
 const themeOptions: { value: ReaderTheme; label: string }[] = [
   { value: "dark", label: "Tối" },
+  { value: "black", label: "Đen" },
   { value: "light", label: "Sáng" },
   { value: "paper", label: "Giấy" }
+];
+
+const contentWidthOptions: { value: ReaderContentWidth; label: string }[] = [
+  { value: "narrow", label: "Hẹp" },
+  { value: "default", label: "Vừa" },
+  { value: "wide", label: "Rộng" }
 ];
 
 const fontFamilyOptions: { value: ReaderFontFamily; label: string }[] = [
@@ -103,6 +112,19 @@ export function ReaderSettingsSheet({ onClose, open }: ReaderSettingsSheetProps)
           options={lineHeightOptions}
           value={preferences.lineHeight}
         />
+        <OptionRow
+          label="Độ rộng"
+          onChange={(contentWidth) => setPreferences({ contentWidth })}
+          options={contentWidthOptions}
+          value={preferences.contentWidth}
+        />
+        <button
+          className="tap-highlight min-h-10 w-full rounded-full border border-white/[0.08] text-sm font-semibold text-zinc-400 hover:bg-white/[0.04]"
+          onClick={() => setPreferences(resetReadingPreferences())}
+          type="button"
+        >
+          Đặt lại mặc định
+        </button>
       </div>
     </ReaderSheet>
   );

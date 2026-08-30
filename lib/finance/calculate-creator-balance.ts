@@ -1,5 +1,5 @@
 import { getOrCreateCreatorWallet } from "@/lib/wallets/creator-wallet";
-import { listCreatorWalletLedger } from "@/lib/supabase/creator-finance";
+import { listCreatorWalletLedger } from "@/lib/data/creator-finance";
 import { getCreatorEarningAggregates } from "@/lib/finance/get-creator-earning-aggregates";
 import type { CreatorFinanceBalance } from "@/types/finance";
 

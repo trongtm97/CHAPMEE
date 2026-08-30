@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { CommunityFeedCard } from "@/components/community/CommunityFeedCard";
-import { buildUnifiedFeed } from "@/lib/community/build-unified-feed";
+import { buildFeedItemsFromPosts } from "@/lib/community/build-unified-feed";
 import type { CommunityPost } from "@/lib/community/getCommunityFeed";
 import type { StoryCommunityGroup } from "@/types/community";
 import { EmptyState } from "@/components/ui";
@@ -24,7 +24,9 @@ export function StoryGroupFeed({ posts, storyGroup }: StoryGroupFeedProps) {
   const [tab, setTab] = useState<(typeof tabs)[number]["id"]>("feed");
 
   const items = useMemo(() => {
-    const built = buildUnifiedFeed(posts, [storyGroup], []);
+    const built = buildFeedItemsFromPosts(posts, [storyGroup], [], {
+      includeFallbackHighlight: false
+    });
 
     if (tab === "review") {
       return built.filter((item) => item.kind === "review");

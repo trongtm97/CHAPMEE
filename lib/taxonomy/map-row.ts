@@ -48,6 +48,7 @@ export function mapTaxonomyTermRow(
         : null,
     sitemap_changefreq: (row.sitemap_changefreq as string | null) ?? null,
     og_image_url: (row.og_image_url as string | null) ?? null,
+    og_image_asset_id: (row.og_image_asset_id as string | null) ?? null,
     use_for_pinterest_feed: Boolean(row.use_for_pinterest_feed ?? false),
     min_stories_override:
       row.min_stories_override != null && row.min_stories_override !== ""

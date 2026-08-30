@@ -28,7 +28,8 @@ export const DEFAULT_NOINDEX_ROUTE_PATTERNS: SeoDefaultRule[] = [
   { pattern: "/payment", pageType: "payment", indexable: false, followLinks: false },
   { pattern: "/draft", pageType: "draft", indexable: false, followLinks: false },
   { pattern: "/preview", pageType: "preview", indexable: false, followLinks: false },
-  { pattern: "/onboarding", pageType: "onboarding", indexable: false, followLinks: false }
+  { pattern: "/onboarding", pageType: "onboarding", indexable: false, followLinks: false },
+  { pattern: "/creator", pageType: "creator_workspace", indexable: false, followLinks: false }
 ];
 
 export const DEFAULT_INDEX_ROUTE_PATTERNS: Array<{
@@ -37,13 +38,12 @@ export const DEFAULT_INDEX_ROUTE_PATTERNS: Array<{
 }> = [
   { pattern: "/", pageType: "home" },
   { pattern: "/discover", pageType: "discover" },
+  { pattern: "/media", pageType: "media" },
   { pattern: "/reels", pageType: "reels" },
   { pattern: "/truyen", pageType: "story_catalog" },
-  { pattern: "/creators", pageType: "legacy_profile" },
-  { pattern: "/creator", pageType: "legacy_profile" },
-  { pattern: "/tac-gia", pageType: "legacy_profile" },
-  { pattern: "/author", pageType: "legacy_profile" },
-  { pattern: "/u", pageType: "legacy_profile" },
+  { pattern: "/truyen-sang-tac", pageType: "story_catalog" },
+  { pattern: "/truyen-dich", pageType: "story_catalog" },
+  { pattern: "/media", pageType: "media" },
   { pattern: "/bai-viet", pageType: "content_post" },
   { pattern: "/chinh-sach", pageType: "policy_catalog" },
   { pattern: "/thong-bao", pageType: "announcement_catalog" },
@@ -158,6 +158,7 @@ export type ShouldNoIndexInput = {
   search?: string | URLSearchParams | null;
   contentStatus?: string | null;
   indexableOverride?: boolean | null;
+  robotsIndexOverride?: boolean | null;
   ruleIndexable?: boolean | null;
 };
 
@@ -169,11 +170,11 @@ export function shouldNoIndexPath(input: ShouldNoIndexInput | string): boolean {
     return true;
   }
 
-  if (resolved.indexableOverride === false) {
+  if (resolved.indexableOverride === false || resolved.robotsIndexOverride === false) {
     return true;
   }
 
-  if (resolved.indexableOverride === true) {
+  if (resolved.indexableOverride === true || resolved.robotsIndexOverride === true) {
     return false;
   }
 

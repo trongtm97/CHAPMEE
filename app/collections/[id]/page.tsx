@@ -5,7 +5,7 @@ import { AvatarFallback, Badge, Card, EmptyState } from "@/components/ui";
 import { MobileBackHeader } from "@/components/me/MobileBackHeader";
 import { ShareButton } from "@/components/share/ShareButton";
 import { buildCanonicalUrl } from "@/lib/seo/metadata";
-import { getCollectionById } from "@/lib/supabase/collections";
+import { getCollectionById } from "@/lib/data/collections";
 import { getShareUrl } from "@/lib/share/getShareUrl";
 import { getStoryDetailHref } from "@/lib/stories/story-routes";
 

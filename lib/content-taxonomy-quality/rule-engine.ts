@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import type {
   TaxonomyQualityDetectedBy,
   TaxonomyQualityFlagType,
@@ -416,9 +416,9 @@ export function detectTaxonomyQualityFlags(
 }
 
 export async function loadTaxonomyQualityRules(
-  supabase: SupabaseClient
+  db: DatabaseClient
 ): Promise<RuleConfigMap> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("taxonomy_quality_rules")
     .select("*")
     .order("rule_key");
@@ -444,12 +444,12 @@ export async function loadTaxonomyQualityRules(
 }
 
 export async function upsertDetectedFlags(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   detected: DetectedTaxonomyFlag[]
 ) {
   for (const flag of detected) {
-    const { data: existing } = await supabase
+    const { data: existing } = await db
       .from("content_taxonomy_quality_flags")
       .select("id")
       .eq("story_id", storyId)
@@ -458,7 +458,7 @@ export async function upsertDetectedFlags(
       .maybeSingle();
 
     if (existing?.id) {
-      await supabase
+      await db
         .from("content_taxonomy_quality_flags")
         .update({
           severity: flag.severity,
@@ -469,7 +469,7 @@ export async function upsertDetectedFlags(
         })
         .eq("id", existing.id);
     } else {
-      await supabase.from("content_taxonomy_quality_flags").insert({
+      await db.from("content_taxonomy_quality_flags").insert({
         story_id: storyId,
         flag_type: flag.flagType,
         severity: flag.severity,
@@ -484,12 +484,12 @@ export async function upsertDetectedFlags(
 
 /** Auto-resolve open system flags when re-check no longer detects the issue. */
 export async function resolveStaleSystemFlags(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   detected: DetectedTaxonomyFlag[]
 ) {
   const activeTypes = new Set<string>(detected.map((f) => f.flagType));
-  const { data: openFlags } = await supabase
+  const { data: openFlags } = await db
     .from("content_taxonomy_quality_flags")
     .select("id, flag_type")
     .eq("story_id", storyId)
@@ -500,7 +500,7 @@ export async function resolveStaleSystemFlags(
   const now = new Date().toISOString();
   for (const flag of openFlags ?? []) {
     if (!activeTypes.has(String(flag.flag_type))) {
-      await supabase
+      await db
         .from("content_taxonomy_quality_flags")
         .update({
           status: "resolved",
@@ -513,11 +513,11 @@ export async function resolveStaleSystemFlags(
 }
 
 export async function runTaxonomyQualityCheckForStory(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyId: string,
   rules: RuleConfigMap
 ) {
-  const { data: story } = await supabase
+  const { data: story } = await db
     .from("stories")
     .select("id, content_warnings_confirmed")
     .eq("id", storyId)
@@ -525,7 +525,7 @@ export async function runTaxonomyQualityCheckForStory(
 
   if (!story) return { ok: false, error: "Story not found" };
 
-  const { data: links } = await supabase
+  const { data: links } = await db
     .from("story_taxonomy_terms")
     .select("term_id")
     .eq("story_id", storyId);
@@ -533,7 +533,7 @@ export async function runTaxonomyQualityCheckForStory(
   const termIds = (links ?? []).map((l) => String(l.term_id));
   let terms: TaxonomyTerm[] = [];
   if (termIds.length > 0) {
-    const { data: termRows } = await supabase
+    const { data: termRows } = await db
       .from("taxonomy_terms")
       .select("*")
       .in("id", termIds);
@@ -548,7 +548,7 @@ export async function runTaxonomyQualityCheckForStory(
     "wrong_age_rating"
   ] as const;
 
-  const { count: wrongTagCount } = await supabase
+  const { count: wrongTagCount } = await db
     .from("reports")
     .select("id", { count: "exact", head: true })
     .eq("target_type", "story")
@@ -556,7 +556,7 @@ export async function runTaxonomyQualityCheckForStory(
     .in("reason_code", [...taxonomyReportReasons.filter((r) => r !== "missing_content_warning")])
     .in("status", ["pending", "reviewing", "escalated"]);
 
-  const { count: missingWarningCount } = await supabase
+  const { count: missingWarningCount } = await db
     .from("reports")
     .select("id", { count: "exact", head: true })
     .eq("target_type", "story")
@@ -564,13 +564,13 @@ export async function runTaxonomyQualityCheckForStory(
     .eq("reason_code", "missing_content_warning")
     .in("status", ["pending", "reviewing", "escalated"]);
 
-  const { count: scheduledCount } = await supabase
+  const { count: scheduledCount } = await db
     .from("episodes")
     .select("id", { count: "exact", head: true })
     .eq("story_id", storyId)
     .eq("status", "scheduled");
 
-  const { data: scoreRow } = await supabase
+  const { data: scoreRow } = await db
     .from("content_score_snapshots")
     .select("discovery_score")
     .eq("item_type", "story")
@@ -581,7 +581,7 @@ export async function runTaxonomyQualityCheckForStory(
 
   const metricsSince = new Date();
   metricsSince.setUTCDate(metricsSince.getUTCDate() - 14);
-  const { data: storyMetrics } = await supabase
+  const { data: storyMetrics } = await db
     .from("taxonomy_story_metrics")
     .select("impressions, starts, completes")
     .eq("story_id", storyId)
@@ -620,20 +620,20 @@ export async function runTaxonomyQualityCheckForStory(
     rules
   );
 
-  await upsertDetectedFlags(supabase, storyId, detected);
-  await resolveStaleSystemFlags(supabase, storyId, detected);
+  await upsertDetectedFlags(db, storyId, detected);
+  await resolveStaleSystemFlags(db, storyId, detected);
   return { ok: true, flagsCreated: detected.length };
 }
 
 export async function runTaxonomyQualityBatchCheck(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   options?: { limit?: number; offset?: number }
 ) {
   const limit = options?.limit ?? 200;
   const offset = options?.offset ?? 0;
-  const rules = await loadTaxonomyQualityRules(supabase);
+  const rules = await loadTaxonomyQualityRules(db);
 
-  const { data: stories, error } = await supabase
+  const { data: stories, error } = await db
     .from("stories")
     .select("id")
     .in("status", ["published", "approved"])
@@ -644,14 +644,14 @@ export async function runTaxonomyQualityBatchCheck(
     return { ok: false, error: error.message, processed: 0, nextOffset: offset };
   }
 
-  const { count: totalStories } = await supabase
+  const { count: totalStories } = await db
     .from("stories")
     .select("id", { count: "exact", head: true })
     .in("status", ["published", "approved"]);
 
   let processed = 0;
   for (const story of stories ?? []) {
-    await runTaxonomyQualityCheckForStory(supabase, String(story.id), rules);
+    await runTaxonomyQualityCheckForStory(db, String(story.id), rules);
     processed += 1;
   }
 

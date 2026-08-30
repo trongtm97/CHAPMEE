@@ -3,27 +3,32 @@
 import type { MouseEvent } from "react";
 import Link from "next/link";
 import { VerifiedName } from "@/components/profile/VerifiedBadge";
-import { getProfileUrl } from "@/lib/profile/profile-url";
+import { getCreatorPublicHref } from "@/lib/profile/profile-url";
 import type { PublicVerificationBadge } from "@/types/verification";
 
 type AuthorNameLinkProps = {
   username?: string | null;
+  userId?: string | null;
   name: string;
   badge?: PublicVerificationBadge | null;
   className?: string;
   nameClassName?: string;
   onClick?: (event: MouseEvent) => void;
+  /** Set false when rendered inside another link (e.g. story card). */
+  linkToProfile?: boolean;
 };
 
 export function AuthorNameLink({
   username,
+  userId,
   name,
   badge,
   className,
   nameClassName,
-  onClick
+  onClick,
+  linkToProfile = true
 }: AuthorNameLinkProps) {
-  const href = getProfileUrl(username);
+  const href = getCreatorPublicHref({ username, userId });
   const label = (
     <VerifiedName
       badge={badge}
@@ -33,7 +38,7 @@ export function AuthorNameLink({
     />
   );
 
-  if (!href) {
+  if (!href || !linkToProfile) {
     return label;
   }
 

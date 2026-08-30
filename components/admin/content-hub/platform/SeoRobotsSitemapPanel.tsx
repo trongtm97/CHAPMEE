@@ -104,7 +104,7 @@ Sitemap: ${siteUrl}/sitemap.xml`;
         </dl>
         <Link
           className="mt-4 inline-block text-sm font-semibold text-cyan-300 hover:text-cyan-200"
-          href="/admin/seo?tab=taxonomy"
+          href="/admin/seo/control?tab=taxonomy"
         >
           Quản trị Taxonomy SEO →
         </Link>

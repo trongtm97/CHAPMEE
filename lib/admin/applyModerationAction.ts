@@ -5,7 +5,7 @@ import { createModerationCase } from "@/lib/admin/createModerationCase";
 import { assertPermission } from "@/lib/auth/require-permission";
 import { requireAdminOrModerator } from "@/lib/auth/requireAdminOrModerator";
 import { logAdminAction } from "@/lib/audit/log-admin-action";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 type ModerationAction =
   | "hide_comment"
@@ -26,8 +26,8 @@ async function requireAdminAction() {
 }
 
 async function getReport(reportId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("reports")
     .select("id, target_type, target_id")
     .eq("id", reportId)
@@ -41,30 +41,30 @@ async function getReport(reportId: string) {
 }
 
 async function updateTargetStatus(action: ModerationAction, targetId: string) {
-  const supabase = await createClient();
+  const db = await createClient();
 
   if (action === "hide_comment") {
-    return supabase
+    return db
       .from("comments")
       .update({ status: "hidden" })
       .eq("id", targetId);
   }
 
   if (action === "hide_community_post") {
-    return supabase
+    return db
       .from("community_posts")
       .update({ status: "hidden" })
       .eq("id", targetId);
   }
 
   if (action === "archive_story" || action === "reject_story") {
-    return supabase
+    return db
       .from("stories")
       .update({ status: action === "archive_story" ? "archived" : "rejected" })
       .eq("id", targetId);
   }
 
-  return supabase
+  return db
     .from("episodes")
     .update({ status: action === "archive_episode" ? "archived" : "rejected" })
     .eq("id", targetId);
@@ -108,8 +108,8 @@ export async function applyModerationAction(formData: FormData) {
     throw new Error(error.message);
   }
 
-  const supabase = await createClient();
-  const { error: reportError } = await supabase
+  const db = await createClient();
+  const { error: reportError } = await db
     .from("reports")
     .update({ status: "resolved" })
     .eq("id", report.id);

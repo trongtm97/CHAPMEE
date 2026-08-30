@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import type { FairDistributionConfig } from "@/types/fair-distribution";
 import type { FeedCandidate } from "@/types/feed-mixer";
 
@@ -15,13 +15,13 @@ export type StoryQualityFlag = {
 };
 
 export async function loadStoryQualityFlags(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyIds: string[]
 ): Promise<Map<string, StoryQualityFlag[]>> {
   const map = new Map<string, StoryQualityFlag[]>();
   if (storyIds.length === 0) return map;
 
-  const { data } = await supabase
+  const { data } = await db
     .from("content_taxonomy_quality_flags")
     .select("story_id, severity, status")
     .in("story_id", [...new Set(storyIds)])
@@ -41,13 +41,13 @@ export async function loadStoryQualityFlags(
 }
 
 export async function loadStoryQualityStatuses(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   storyIds: string[]
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   if (storyIds.length === 0) return map;
 
-  const { data } = await supabase
+  const { data } = await db
     .from("stories")
     .select("id, quality_status")
     .in("id", [...new Set(storyIds)]);
@@ -114,13 +114,13 @@ export function applyQualityPenalties(
 }
 
 export async function loadQualityContextForCandidates(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   candidates: FeedCandidate[]
 ) {
   const storyIds = [...new Set(candidates.map((c) => c.storyId))];
   const [flags, qualityStatuses] = await Promise.all([
-    loadStoryQualityFlags(supabase, storyIds),
-    loadStoryQualityStatuses(supabase, storyIds)
+    loadStoryQualityFlags(db, storyIds),
+    loadStoryQualityStatuses(db, storyIds)
   ]);
   return { flags, qualityStatuses };
 }

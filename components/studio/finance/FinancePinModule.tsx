@@ -9,6 +9,8 @@ import {
   FinanceSection,
   financeInputClass
 } from "@/components/studio/finance/finance-ui";
+import { EmailDeliveryNotice } from "@/components/ui";
+import { withEmailSentSuccessHint } from "@/lib/email/email-delivery-copy";
 import {
   studioChangeWithdrawalPinAction,
   studioRequestFinanceEmailCodeAction,
@@ -127,12 +129,14 @@ export function FinancePinModule({
             <p className="text-sm text-zinc-400">
               Bước 1: Gửi mã xác nhận đến email đăng ký của bạn.
             </p>
+            <EmailDeliveryNotice compact />
             <FinanceButton
               disabled={pending}
               onClick={() =>
                 run(() => studioRequestFinanceEmailCodeAction(emailPurpose), {
                   closeModal: false,
-                  onSuccess: () => setStep(2)
+                  onSuccess: () => setStep(2),
+                  success: withEmailSentSuccessHint("Mã xác nhận đã được gửi đến email của bạn.")
                 })
               }
               tone="amber"

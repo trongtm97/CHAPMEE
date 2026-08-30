@@ -1,6 +1,6 @@
 import { slugify } from "@/lib/slugify";
 import { createNotification } from "@/lib/notifications/create-notification";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { defaultFlagsForType } from "@/lib/taxonomy/admin-validation";
 import { TAXONOMY_TYPE_LABELS } from "@/lib/taxonomy/constants";
 import { taxonomyTermPublicUrl } from "@/lib/taxonomy/public-url";
@@ -24,8 +24,8 @@ export async function createTaxonomyRequest(
     return { data: null, error: "Vui lòng nhập tên nhãn đề xuất." };
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("taxonomy_requests")
     .insert({
       requested_by: userId,
@@ -50,12 +50,12 @@ export async function createTaxonomyRequest(
 }
 
 async function resolveUniqueTaxonomySlug(type: TaxonomyType, baseSlug: string) {
-  const supabase = await createClient();
+  const db = await createClient();
   let slug = baseSlug;
   let suffix = 2;
 
   while (true) {
-    const { data } = await supabase
+    const { data } = await db
       .from("taxonomy_terms")
       .select("id")
       .eq("type", type)
@@ -125,8 +125,8 @@ async function finalizeTaxonomyRequest(
     relatedExistingTermId?: string | null;
   }
 ) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("taxonomy_requests")
     .update({
       status: patch.status,
@@ -158,8 +158,8 @@ export async function approveTaxonomyRequest(
   adminId: string,
   options?: { adminNote?: string | null }
 ): Promise<{ data: TaxonomyRequestRow | null; error: string | null }> {
-  const supabase = await createClient();
-  const { data: request, error: loadError } = await supabase
+  const db = await createClient();
+  const { data: request, error: loadError } = await db
     .from("taxonomy_requests")
     .select("*")
     .eq("id", requestId)
@@ -177,7 +177,7 @@ export async function approveTaxonomyRequest(
   const baseSlug = slugify(String(request.name));
   const slug = await resolveUniqueTaxonomySlug(type, baseSlug);
   const flags = defaultFlagsForType(type);
-  const { error: insertError } = await supabase.from("taxonomy_terms").insert({
+  const { error: insertError } = await db.from("taxonomy_terms").insert({
     type: request.type,
     slug,
     name: request.name,
@@ -226,8 +226,8 @@ export async function rejectTaxonomyRequest(
     return { data: null, error: "Cần ghi chú khi từ chối yêu cầu." };
   }
 
-  const supabase = await createClient();
-  const { data: request } = await supabase
+  const db = await createClient();
+  const { data: request } = await db
     .from("taxonomy_requests")
     .select("requested_by, name, type")
     .eq("id", requestId)
@@ -257,16 +257,16 @@ export async function mergeTaxonomyRequest(
   adminId: string,
   options?: { adminNote?: string | null; aliasFromRequestName?: boolean }
 ): Promise<{ data: TaxonomyRequestRow | null; error: string | null }> {
-  const supabase = await createClient();
+  const db = await createClient();
 
   const [{ data: request }, { data: existing }] = await Promise.all([
-    supabase
+    db
       .from("taxonomy_requests")
       .select("*")
       .eq("id", requestId)
       .eq("status", "pending")
       .maybeSingle(),
-    supabase
+    db
       .from("taxonomy_terms")
       .select("id, aliases, type")
       .eq("id", existingTermId)
@@ -286,7 +286,7 @@ export async function mergeTaxonomyRequest(
       : [];
     const nextAlias = String(request.name).trim();
     if (nextAlias && !aliases.includes(nextAlias)) {
-      await supabase
+      await db
         .from("taxonomy_terms")
         .update({
           aliases: [...aliases, nextAlias],
@@ -319,7 +319,7 @@ export async function updateTaxonomyUsageCounts(): Promise<{
   ok: boolean;
   error: string | null;
 }> {
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("refresh_taxonomy_usage_counts");
+  const db = await createClient();
+  const { error } = await db.rpc("refresh_taxonomy_usage_counts");
   return { ok: !error, error: error?.message ?? null };
 }

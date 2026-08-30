@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { FeedbackKpiSummary } from "@/types/admin-feedback";
 
 export async function getFeedbackKpiSummary(): Promise<FeedbackKpiSummary> {
@@ -17,7 +17,7 @@ export async function getFeedbackKpiSummary(): Promise<FeedbackKpiSummary> {
   const auth = await checkStaffPermission("feedback.view.all");
   if (!auth.ok) return empty;
 
-  const supabase = await createClient();
+  const db = await createClient();
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
@@ -30,33 +30,33 @@ export async function getFeedbackKpiSummary(): Promise<FeedbackKpiSummary> {
     { count: withScreenshot },
     { count: withAttachments }
   ] = await Promise.all([
-    supabase
+    db
       .from("feedback_messages")
       .select("id", { count: "exact", head: true })
       .eq("status", "new"),
-    supabase
+    db
       .from("feedback_messages")
       .select("id", { count: "exact", head: true })
       .eq("status", "reviewing"),
-    supabase
+    db
       .from("feedback_messages")
       .select("id", { count: "exact", head: true })
       .in("status", ["new", "reviewing", "need_more_info"]),
-    supabase
+    db
       .from("feedback_messages")
       .select("id", { count: "exact", head: true })
       .eq("status", "resolved")
       .gte("resolved_at", todayStart.toISOString()),
-    supabase
+    db
       .from("feedback_messages")
       .select("id", { count: "exact", head: true })
       .eq("priority", "urgent")
       .in("status", ["new", "reviewing", "need_more_info", "replied"]),
-    supabase
+    db
       .from("feedback_messages")
       .select("id", { count: "exact", head: true })
       .not("screenshot_url", "is", null),
-    supabase
+    db
       .from("feedback_attachments")
       .select("feedback_id", { count: "exact", head: true })
   ]);

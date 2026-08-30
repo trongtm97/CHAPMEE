@@ -17,6 +17,17 @@ export type AdminGuardResult =
       error: string;
     };
 
+function buildFallbackAdminProfile(userId: string): CurrentProfile {
+  return {
+    id: userId,
+    username: null,
+    display_name: null,
+    avatar_url: null,
+    bio: null,
+    role: "founder"
+  };
+}
+
 export async function requireAdminOrModerator(
   returnTo = "/admin"
 ): Promise<AdminGuardResult> {
@@ -30,14 +41,35 @@ export async function requireAdminOrModerator(
     return { ok: false, profile: null, error };
   }
 
+  if (
+    profile &&
+    (profile.role === "admin" ||
+      profile.role === "moderator" ||
+      profile.role === "founder")
+  ) {
+    return { ok: true, profile, error: null };
+  }
+
   const rbacGuard = await requireAdminOrModeratorAccess(returnTo);
-  if (!rbacGuard.ok || !profile) {
+  if (!rbacGuard.ok) {
     return {
       ok: false,
       profile: null,
-      error: rbacGuard.error ?? "Bạn không có quyền truy cập khu vực admin."
+      error: rbacGuard.error ?? "Báº¡n khÃ´ng cÃ³ quyá»n truy cáº­p khu vá»±c admin."
     };
   }
 
-  return { ok: true, profile, error: null };
+  if (!user) {
+    return {
+      ok: false,
+      profile: null,
+      error: "Báº¡n cáº§n Ä‘Äƒng nháº­p."
+    };
+  }
+
+  return {
+    ok: true,
+    profile: profile ?? buildFallbackAdminProfile(user.id),
+    error: null
+  };
 }

@@ -1,0 +1,2 @@
+# Deprecated — use Caddyfile.production at repo root.
+# This file is kept for reference only; compose mounts Caddyfile.production.

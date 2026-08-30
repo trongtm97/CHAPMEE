@@ -1,20 +1,22 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { assertCreatorOwnsEpisode } from "@/lib/creator/assertCreatorOwnsEpisode";
-import { getCurrentCreatorProfile } from "@/lib/creator/getCreatorProfile";
+import { requireCreatorProfile } from "@/lib/creator/require-creator-profile";
 import { parseEpisodeFormData } from "@/lib/creator/episodeFormValidation";
-import { saveEpisodePoll } from "@/lib/supabase/polls";
-import { upsertChapterMonetizationSetting } from "@/lib/supabase/chapter-monetization";
+import { saveEpisodePoll } from "@/lib/data/polls";
+import { upsertChapterMonetizationSetting } from "@/lib/data/chapter-monetization";
 import { ActionAccessError, assertActionAccess } from "@/lib/auth/assert-action-access";
 import { assertAnyPermission } from "@/lib/auth/require-permission";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { resolveComposerEpisodePersistFields } from "@/lib/creator/resolve-composer-episode-persist";
 import type { EpisodeFormActionState } from "@/lib/creator/createEpisode";
 import { getMonetizationConfig } from "@/lib/monetization/config";
 import { isCreatorMonetizationAllowed } from "@/lib/creator-access";
-import { upsertChapterEarlyAccessSetting } from "@/lib/supabase/early-access";
+import { upsertChapterEarlyAccessSetting } from "@/lib/data/early-access";
 import { resolveReturnBasePath } from "@/lib/creator/resolveReturnBasePath";
+import { persistEpisodeContentToObjectStorage } from "@/lib/chapters/persist-chapter-content";
+import { applyChapterReelsPromoFromForm } from "@/lib/creator/apply-chapter-reels-promo-from-form";
 
 export async function updateEpisodeAction(
   _previousState: EpisodeFormActionState,
@@ -23,17 +25,9 @@ export async function updateEpisodeAction(
   const storyId = String(formData.get("story_id") ?? "");
   const episodeId = String(formData.get("episode_id") ?? "");
   const returnBasePath = resolveReturnBasePath(formData.get("return_base_path"));
-  const { creatorProfile, user } = await getCurrentCreatorProfile();
-
-  if (!user) {
-    redirect(
-      `/login?next=${returnBasePath}/stories/${storyId}/chapters/${episodeId}/edit`
-    );
-  }
-
-  if (!creatorProfile) {
-    redirect("/studio/setup");
-  }
+  const { creatorProfile, user } = await requireCreatorProfile(
+    `${returnBasePath}/stories/${storyId}/chapters/${episodeId}/edit`
+  );
 
   try {
     await assertActionAccess("chapter.update.own");
@@ -50,21 +44,40 @@ export async function updateEpisodeAction(
     return { error: parsed.error };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   await assertCreatorOwnsEpisode(creatorProfile, storyId, episodeId);
   const [config, creatorCanEarn] = await Promise.all([
     getMonetizationConfig({ includePrivate: true }),
     isCreatorMonetizationAllowed(creatorProfile.user_id)
   ]);
 
-  const { data: storyMeta } = await supabase
+  const { data: currentEpisode } = await db
+    .from("episodes")
+    .select("status, published_at")
+    .eq("id", episodeId)
+    .maybeSingle();
+
+  const wasPublished = currentEpisode?.status === "published" || currentEpisode?.status === "approved";
+  const isDraftIntent = formData.get("intent") === "draft";
+
+  // Preserve published status when saving draft on an already-published chapter
+  const resolvedStatus = isDraftIntent && wasPublished
+    ? "published"
+    : parsed.values.status;
+  const resolvedPublishedAt = isDraftIntent && wasPublished && currentEpisode?.published_at
+    ? currentEpisode.published_at
+    : parsed.values.status === "published"
+      ? new Date().toISOString()
+      : null;
+
+  const { data: storyMeta } = await db
     .from("stories")
     .select("content_warnings_confirmed")
     .eq("id", storyId)
     .maybeSingle();
 
-  const strictPublish = parsed.values.status === "pending";
-  const composerPersist = await resolveComposerEpisodePersistFields(supabase, {
+  const strictPublish = resolvedStatus === "published";
+  const composerPersist = await resolveComposerEpisodePersistFields(db, {
     content: parsed.values.content,
     contentFormat: parsed.values.contentFormat,
     presentationMode: parsed.values.presentationMode,
@@ -87,35 +100,46 @@ export async function updateEpisodeAction(
     };
   }
 
-  if (
-    strictPublish &&
-    parsed.values.contentFormat === "structured_blocks" &&
-    composerPersist.validation_status === "warnings" &&
-    formData.get("composer_warnings_ack") !== "on"
-  ) {
-    return {
-      error: "Vui lòng xác nhận đã xem các cảnh báo Composer trước khi gửi duyệt."
-    };
+  const { data: existingStorage } = await db
+    .from("episodes")
+    .select("content_object_key")
+    .eq("id", episodeId)
+    .eq("story_id", storyId)
+    .maybeSingle();
+
+  const objectStorage = await persistEpisodeContentToObjectStorage({
+    storyId,
+    chapterId: episodeId,
+    content: composerPersist.content,
+    structuredContent: parsed.values.structuredContent,
+    contentFormat: parsed.values.contentFormat,
+    excerpt: parsed.values.excerpt,
+    previousObjectKey:
+      (existingStorage as { content_object_key?: string | null } | null)
+        ?.content_object_key ?? null
+  });
+
+  if (!objectStorage.ok) {
+    return { error: objectStorage.error };
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("episodes")
     .update({
       episode_number: parsed.values.episodeNumber,
       title: parsed.values.title,
-      content: composerPersist.content,
-      excerpt: parsed.values.excerpt,
-      word_count: parsed.values.wordCount,
       seo_description: parsed.values.seoDescription,
       seo_keywords: parsed.values.seoKeywords,
       seo_title: parsed.values.seoTitle,
-      status: parsed.values.status,
+      status: resolvedStatus,
+      published_at: resolvedPublishedAt,
       presentation_mode: parsed.values.chapterPresentationMode,
-      structured_content: parsed.values.structuredContent,
       content_format: parsed.values.contentFormat,
       validation_status: composerPersist.validation_status,
       validation_errors: composerPersist.validation_errors,
       last_validated_at: composerPersist.last_validated_at,
+      ...objectStorage.dbPatch,
+      excerpt: parsed.values.excerpt?.trim() || objectStorage.dbPatch.excerpt,
       ...(composerPersist.composer_version
         ? { composer_version: composerPersist.composer_version }
         : {})
@@ -179,7 +203,7 @@ export async function updateEpisodeAction(
     freePreviewChars: parsed.values.monetization.freePreviewChars
   });
   if (monetizationWrite.error) {
-    return { error: monetizationWrite.error };
+    console.error("[updateEpisode] monetization upsert failed:", monetizationWrite.error);
   }
 
   const earlyAccessEnabled =
@@ -222,7 +246,7 @@ export async function updateEpisodeAction(
       : null
   });
   if (earlyWrite.error) {
-    return { error: earlyWrite.error };
+    console.error("[updateEpisode] early access upsert failed:", earlyWrite.error);
   }
 
   if (parsed.values.poll) {
@@ -240,5 +264,21 @@ export async function updateEpisodeAction(
     }
   }
 
-  redirect(`${returnBasePath}/stories/${storyId}/chapters/${episodeId}/edit`);
+  try {
+    await applyChapterReelsPromoFromForm(db, {
+      chapterId: episodeId,
+      chapterStatus: resolvedStatus,
+      chapterTitle: parsed.values.title,
+      formData,
+      ownerProfileId: user.id,
+      storyId
+    });
+  } catch {
+    // Reels promo is optional — never block chapter save.
+  }
+
+  const editPath = `${returnBasePath}/stories/${storyId}/chapters/${episodeId}/edit`;
+  revalidatePath(editPath);
+  revalidatePath(`${returnBasePath}/stories/${storyId}/chapters`);
+  return { error: null };
 }

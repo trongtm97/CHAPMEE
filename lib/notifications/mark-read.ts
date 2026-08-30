@@ -1,4 +1,4 @@
 export {
   markAllNotificationsAsRead,
   markNotificationAsRead
-} from "@/lib/supabase/notifications";
+} from "@/lib/data/notifications";

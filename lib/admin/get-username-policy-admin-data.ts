@@ -4,7 +4,7 @@ import { assertPermission } from "@/lib/auth/require-permission";
 import { computeUsernamePolicySummary } from "@/lib/admin/username-policy-helpers";
 import { buildUsernamePolicyCapabilities } from "@/lib/admin/username-policy-capabilities";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { getUsernamePolicyExceptions } from "@/lib/admin/username-policy-exceptions";
 import { getAllUsernamePolicyRules } from "@/lib/username/get-policy-rules";
 import { loadActivePolicyExceptions } from "@/lib/username/load-policy-context";
@@ -77,8 +77,8 @@ export async function getUsernamePolicyAdminData() {
 }
 
 export async function getUsernameChangeHistory(limit = 50) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("username_change_history")
     .select("id, user_id, old_username, new_username, changed_by, change_reason, created_at")
     .order("created_at", { ascending: false })
@@ -97,7 +97,7 @@ export async function getUsernameChangeHistory(limit = 50) {
 
   const profileMap = new Map<string, { username: string | null; display_name: string | null }>();
   if (profileIds.length) {
-    const { data: profiles } = await supabase
+    const { data: profiles } = await db
       .from("profiles")
       .select("id, username, display_name")
       .in("id", profileIds);
@@ -120,8 +120,8 @@ export async function getUsernameChangeHistory(limit = 50) {
 }
 
 export async function getUsernamePolicyAuditLogs(limit = 50) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("admin_audit_logs")
     .select("id, action, target_type, target_id, metadata, created_at, actor_id")
     .order("created_at", { ascending: false })
@@ -138,7 +138,7 @@ export async function getUsernamePolicyAuditLogs(limit = 50) {
   const actorIds = [...new Set(filtered.map((r) => r.actor_id).filter(Boolean))] as string[];
   const actorMap = new Map<string, { username: string | null; display_name: string | null }>();
   if (actorIds.length) {
-    const { data: actors } = await supabase
+    const { data: actors } = await db
       .from("profiles")
       .select("id, username, display_name")
       .in("id", actorIds);
@@ -174,8 +174,8 @@ export async function scanExistingUsernameConflicts(): Promise<UsernamePolicyCon
     return [];
   }
 
-  const supabase = await createClient();
-  const { data: profiles } = await supabase
+  const db = await createClient();
+  const { data: profiles } = await db
     .from("profiles")
     .select("id, username, display_name")
     .limit(2000);

@@ -17,7 +17,7 @@ import {
   recordReportSubmitted,
   REPORT_DAILY_LIMIT
 } from "@/lib/moderation/reporter-quality";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { ReportReasonCode, ReportTargetType } from "@/types/moderation";
 
 export type { ReportReasonCode, ReportTargetType };
@@ -46,6 +46,9 @@ const allowedTargetTypes = new Set<ReportTargetType>([
   "story",
   "chapter",
   "comment",
+  "story_review",
+  "inline_comment",
+  "inline_comment_thread",
   "community_post",
   "community_group",
   "user",
@@ -87,11 +90,11 @@ export async function createReportAction(
     };
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user },
     error: userError
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (userError && !isMissingAuthSession(userError.message)) {
     return { error: userError.message, success: null };
@@ -150,7 +153,7 @@ export async function createReportAction(
     metadata.reporter_spam_suspected = "true";
   }
 
-  const { data: report, error } = await supabase
+  const { data: report, error } = await db
     .from("reports")
     .insert({
       reporter_id: user.id,
@@ -167,8 +170,22 @@ export async function createReportAction(
     .select("id")
     .single();
 
-  if (error) {
-    return { error: error.message, success: null };
+  if (error || !report) {
+    return { error: error?.message ?? "Không gửi được báo cáo.", success: null };
+  }
+
+  if (targetType === "story_review") {
+    const { incrementStoryReviewReportCount } = await import(
+      "@/lib/reviews/story-reviews"
+    );
+    await incrementStoryReviewReportCount(targetId);
+  }
+
+  if (targetType === "inline_comment") {
+    const { incrementInlineCommentReportCount } = await import(
+      "@/lib/inline-comments/inline-comments"
+    );
+    await incrementInlineCommentReportCount(targetId);
   }
 
   await recordReportSubmitted(user.id);
@@ -201,7 +218,7 @@ export async function createReportAction(
       "@/lib/content-taxonomy-quality/sync-report-flags"
     );
     await syncTaxonomyReportToQualityFlag(
-      supabase,
+      db,
       targetType,
       targetId,
       reasonCode,

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { computeCreatorPoolVnd, getAdRevenueEstimateSettings } from "@/lib/ads/ad-revenue-settings";
 import type { AdMonthlyAuthorStatRow, CreatorAdRevenueEstimate } from "@/types/ad-revenue";
 
@@ -12,8 +12,8 @@ export async function getCreatorAdRevenueEstimate(
   }
 
   try {
-    const supabase = await createClient();
-    const { data: rows, error } = await supabase
+    const db = await createClient();
+    const { data: rows, error } = await db
       .from("ad_monthly_author_stats")
       .select("*")
       .eq("author_id", authorUserId)

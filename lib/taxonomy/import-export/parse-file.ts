@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { parseCsvLine } from "@/lib/taxonomy/parse-csv-line";
+import { parseCsv } from "@/lib/studio/csv";
 import { slugify } from "@/lib/slugify";
 import type { TaxonomyImportParsedRow } from "@/types/taxonomy-import-export";
 import type { TaxonomyType } from "@/types/taxonomy";
@@ -94,26 +94,18 @@ function mapRawRow(
 }
 
 function recordsFromCsv(text: string): Record<string, unknown>[] {
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (lines.length < 2) return [];
-
-  const header = parseCsvLine(lines[0]).map(normalizeHeader);
-  const records: Record<string, unknown>[] = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const cells = parseCsvLine(lines[i]);
-    const raw: Record<string, unknown> = {};
-    for (let c = 0; c < header.length; c++) {
-      raw[header[c]] = cells[c] ?? "";
-    }
-    records.push(raw);
+  const { headers, rows } = parseCsv(text);
+  if (headers.length === 0) {
+    return [];
   }
 
-  return records;
+  return rows.map((cells) => {
+    const raw: Record<string, unknown> = {};
+    for (let column = 0; column < headers.length; column += 1) {
+      raw[headers[column]] = cells[column] ?? "";
+    }
+    return raw;
+  });
 }
 
 function recordsFromXlsx(buffer: Buffer): Record<string, unknown>[] {
@@ -122,7 +114,8 @@ function recordsFromXlsx(buffer: Buffer): Record<string, unknown>[] {
   if (!sheetName) return [];
   const sheet = workbook.Sheets[sheetName];
   const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-    defval: ""
+    defval: "",
+    raw: false
   });
   return json.map((row) => {
     const normalized: Record<string, unknown> = {};
@@ -195,5 +188,5 @@ export function buildCsvFromRows(
   for (const row of rows) {
     lines.push(headers.map((h) => row[h] ?? "").join(","));
   }
-  return lines.join("\n");
+  return `\uFEFF${lines.join("\n")}`;
 }

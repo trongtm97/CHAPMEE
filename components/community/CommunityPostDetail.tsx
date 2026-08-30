@@ -13,6 +13,7 @@ import { createCommunityPostCommentAction } from "@/lib/comments/community-post-
 import type { CommentView } from "@/lib/comments/getComments";
 import { enrichCommunityPosts } from "@/lib/community/build-unified-feed";
 import type { CommunityPost } from "@/lib/community/getCommunityFeed";
+import { getCreatorPublicHref } from "@/lib/profile/profile-url";
 import { formatRelativeTime } from "@/lib/notifications/format-relative-time";
 
 type CommunityPostDetailProps = {
@@ -28,6 +29,10 @@ export function CommunityPostDetail({
 }: CommunityPostDetailProps) {
   const router = useRouter();
   const enriched = enrichCommunityPosts([post])[0];
+  const authorProfileHref = getCreatorPublicHref({
+    username: enriched.authorUsername,
+    userId: enriched.authorUserId
+  });
   const [reply, setReply] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -54,11 +59,18 @@ export function CommunityPostDetail({
 
       <article className="chap-card space-y-4 p-4">
         <header className="flex items-start gap-3">
-          <AvatarFallback name={enriched.authorName} size="sm" />
+          {authorProfileHref ? (
+            <Link className="shrink-0" href={authorProfileHref}>
+              <AvatarFallback name={enriched.authorName} size="sm" src={enriched.authorAvatarUrl} />
+            </Link>
+          ) : (
+            <AvatarFallback name={enriched.authorName} size="sm" src={enriched.authorAvatarUrl} />
+          )}
           <div className="min-w-0 flex-1">
             <p className="font-bold text-white">
               <AuthorNameLink
                 name={enriched.authorName}
+                userId={enriched.authorUserId}
                 username={enriched.authorUsername}
               />
             </p>
@@ -175,12 +187,13 @@ function CommentRow({ comment }: { comment: CommentView }) {
     <div className="chap-card space-y-2 p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
-          <AvatarFallback name={comment.displayName ?? "Độc giả"} size="sm" />
+          <AvatarFallback name={comment.displayName ?? "Độc giả"} size="sm" src={comment.avatarUrl} />
           <div>
             <p className="text-sm font-bold text-white">
               <AuthorNameLink
                 badge={comment.verification}
                 name={comment.displayName ?? "Độc giả"}
+                userId={comment.userId}
                 username={comment.username}
               />
             </p>

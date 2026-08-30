@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AuthorThankYouCard } from "@/components/thankyou";
-import { getThankYouById } from "@/lib/supabase/thank-yous";
+import { getThankYouById } from "@/lib/data/thank-yous";
 
 export const dynamic = "force-dynamic";
 

@@ -1,6 +1,6 @@
 import { getMonetizationConfig } from "@/lib/monetization/config";
 
-import { getCreatorEligibilityStats } from "@/lib/supabase/creator-stats";
+import { getCreatorEligibilityStats } from "@/lib/data/creator-stats";
 
 import type { CreatorEligibilityResult } from "@/types/creator-monetization";
 

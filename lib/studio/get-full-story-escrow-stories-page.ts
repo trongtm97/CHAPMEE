@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import { sumLockedFullStoryRevenueForStory } from "@/lib/monetization/story-completion-escrow";
 import type {
   StoryAdminCompletionStatus,
@@ -50,9 +50,9 @@ export async function getFullStoryEscrowStoriesPage(
   const search = query.search?.trim().toLowerCase() ?? "";
   const sort = query.sort ?? "updated_desc";
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  const { data: settingsRows, error: settingsError } = await supabase
+  const { data: settingsRows, error: settingsError } = await db
     .from("story_monetization_settings")
     .select("story_id, full_access_enabled")
     .eq("creator_user_id", creatorUserId)
@@ -81,7 +81,7 @@ export async function getFullStoryEscrowStoriesPage(
     };
   }
 
-  const { data: storyRows, error: storyError } = await supabase
+  const { data: storyRows, error: storyError } = await db
     .from("stories")
     .select(
       "id, title, slug, public_code, status, is_completed, updated_at, admin_completion_status, admin_completion_note, author_completion_request_note"
@@ -115,11 +115,11 @@ export async function getFullStoryEscrowStoriesPage(
       const storyId = String(row.id);
       const [{ count: chapterCount }, { data: lastEpisode }, lockedRevenue] =
         await Promise.all([
-          supabase
+          db
             .from("episodes")
             .select("id", { count: "exact", head: true })
             .eq("story_id", storyId),
-          supabase
+          db
             .from("episodes")
             .select("updated_at")
             .eq("story_id", storyId)
@@ -181,8 +181,8 @@ export async function countFullStoryEscrowStories(
   creatorProfileId: string,
   creatorUserId: string
 ) {
-  const supabase = await createClient();
-  const { data: settingsRows } = await supabase
+  const db = await createClient();
+  const { data: settingsRows } = await db
     .from("story_monetization_settings")
     .select("story_id")
     .eq("creator_user_id", creatorUserId)
@@ -191,7 +191,7 @@ export async function countFullStoryEscrowStories(
   const storyIds = (settingsRows ?? []).map((row) => String(row.story_id));
   if (storyIds.length === 0) return 0;
 
-  const { count } = await supabase
+  const { count } = await db
     .from("stories")
     .select("id", { count: "exact", head: true })
     .eq("creator_id", creatorProfileId)

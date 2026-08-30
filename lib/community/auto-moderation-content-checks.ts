@@ -123,7 +123,7 @@ export function checkExternalLinks(
 }
 
 export async function checkDuplicateContent(
-  supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>,
+  db: Awaited<ReturnType<typeof import("@/lib/data/server").createClient>>,
   userId: string,
   title: string,
   content: string
@@ -131,7 +131,7 @@ export async function checkDuplicateContent(
   const since = new Date(Date.now() - 86_400_000).toISOString();
   const normalized = normalizeText(`${title} ${content}`);
 
-  const { data } = await supabase
+  const { data } = await db
     .from("community_posts")
     .select("title, content")
     .eq("user_id", userId)

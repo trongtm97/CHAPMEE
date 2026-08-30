@@ -1,0 +1,54 @@
+---
+description: Deploy ChapMee lên VPS — luôn build Docker trên máy local, không build trên VPS
+alwaysApply: true
+---
+
+# Deploy VPS (Vietnix 4GB)
+
+**VPS không đủ RAM để `docker build` Next.js.** Mọi lần deploy phải build image trên máy dev (Windows + Docker Desktop), rồi đẩy image lên VPS qua `docker save` / `scp` / `docker load`.
+
+## Lệnh chuẩn (Windows)
+
+```powershell
+$env:VPS_USER = "deploy"
+$env:VPS_HOST = "14.225.211.205"
+$env:VPS_PATH = "/opt/chapmee/app"
+$env:NEXT_PUBLIC_APP_URL = "https://chapmee.com"
+$env:NEXT_PUBLIC_SITE_URL = "https://chapmee.com"
+$env:NEXT_PUBLIC_S3_MEDIA_PUBLIC_BASE_URL = "https://media.chapmee.com"
+npm run deploy:vps
+```
+
+Rollback: `npm run deploy:vps:rollback`
+
+Runbook đầy đủ: `docs/VPS_BUILD_RUNBOOK.md`, `docs/DEPLOY_IMAGE_SAVE_LOAD.md`
+
+## Cấm trên VPS (và cấm agent chạy qua SSH)
+
+- `docker build`
+- `docker compose build`
+- `docker compose up --build`
+- `docker compose -f docker-compose.production.yml build web`
+- Upload tarball source rồi build trên VPS (`vps-sync-deploy-remote.sh`, `vps-upload.mjs` + build) — **chỉ dùng khi không có Docker local**
+
+## Compose file đúng
+
+| Mục đích | File |
+|----------|------|
+| Deploy image đã build sẵn | `docker-compose.prod.yml` + `CHAPMEE_WEB_IMAGE=chapmee-web:latest` |
+| ~~Build trên VPS~~ | `docker-compose.production.yml` — **tránh** |
+
+## Script đúng
+
+- `scripts/deploy/deploy-local-to-vps.ps1` (Windows)
+- `scripts/deploy/deploy-local-to-vps.sh` (Bash/WSL)
+
+**Không** dùng `deploy-vps.ps1` (S3 migration cũ, build trên VPS), `vps-build-bg.mjs`, `vps-sync-deploy-remote.sh` trừ khi user nói rõ không có Docker local.
+
+## Sau deploy
+
+```powershell
+ssh deploy@14.225.211.205 "curl -sf http://127.0.0.1:3000/api/health"
+```
+
+Không upload `.env.production` từ máy dev — env chỉ sửa trên VPS.

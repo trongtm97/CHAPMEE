@@ -1,4 +1,4 @@
-﻿import { CampaignCenter } from "@/components/admin/campaigns/CampaignCenter";
+import { CampaignCenter } from "@/components/admin/campaigns/CampaignCenter";
 import { ErrorState } from "@/components/ui";
 import { buildCampaignStaffPermissions } from "@/lib/auth/campaign-permissions";
 import { getCurrentAuthContext } from "@/lib/auth/permissions";
@@ -9,8 +9,8 @@ import {
   getCampaignMetricsSummary,
   getCampaignsForAdmin,
   getSponsorsWithStats
-} from "@/lib/supabase/campaigns";
-import { getChallenges } from "@/lib/supabase/challenges";
+} from "@/lib/data/campaigns";
+import { getChallenges } from "@/lib/data/challenges";
 import { DEFAULT_CAMPAIGN_CENTER_SETTINGS } from "@/types/campaign";
 
 export const dynamic = "force-dynamic";
@@ -64,7 +64,7 @@ export default async function AdminCampaignsPage() {
   if (loadError) {
     return (
       <section className="space-y-6">
-        <ErrorState message={loadError} title="Lỗi dữ liệu chiến dịch" />
+        <ErrorState message={loadError} title="L?i d? li?u chi?n d?ch" />
       </section>
     );
   }

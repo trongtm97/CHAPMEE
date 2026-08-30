@@ -14,7 +14,10 @@ const BLOCKED_PREFIXES = [
   "/register",
   "/notifications",
   "/onboarding",
-  "/vip"
+  "/vip",
+  "/legal",
+  "/about",
+  "/contact"
 ] as const;
 
 const BLOCKED_EXACT = new Set([
@@ -25,7 +28,10 @@ const BLOCKED_EXACT = new Set([
   "/login",
   "/register",
   "/notifications",
-  "/coin/checkout"
+  "/coin/checkout",
+  "/about",
+  "/contact",
+  "/legal"
 ]);
 
 /** Profile routes that may show ads when public (not under /me). */

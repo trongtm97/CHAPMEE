@@ -17,7 +17,7 @@ import {
   STORY_IMAGE_MAX_BYTES,
   validateStoryImageFileMeta
 } from "@/lib/images/validate-image-upload";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export const runtime = "nodejs";
 
@@ -58,10 +58,10 @@ export async function POST(request: Request) {
     await assertStoryImageUploadAccess(storyId);
 
     const inputBuffer = Buffer.from(await fileValue.arrayBuffer());
-    const supabase = await createClient();
+    const db = await createClient();
 
     const { image, coverUrl } = await completeStoryImageUpload({
-      supabase,
+      db,
       storyId,
       imageId,
       fileBuffer: inputBuffer,
@@ -78,8 +78,8 @@ export async function POST(request: Request) {
   } catch (error) {
     if (storyIdForCleanup) {
       try {
-        const supabase = await createClient();
-        await removeStoryImageStorageFolder(supabase, storyIdForCleanup, imageId);
+        const db = await createClient();
+        await removeStoryImageStorageFolder(db, storyIdForCleanup, imageId);
       } catch {
         // Best-effort cleanup
       }

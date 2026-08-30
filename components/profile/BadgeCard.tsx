@@ -6,6 +6,8 @@ import type { ProfileAchievement } from "@/types/profile";
 
 type BadgeCardProps = {
   badge: ProfileAchievement;
+  /** Chỉ chủ hồ sơ mới được chia sẻ thành tích. */
+  allowShare?: boolean;
 };
 
 const statusLabel: Record<ProfileAchievement["status"], string> = {
@@ -20,7 +22,7 @@ const statusVariant: Record<ProfileAchievement["status"], "default" | "success" 
   unavailable: "default"
 };
 
-export function BadgeCard({ badge }: BadgeCardProps) {
+export function BadgeCard({ allowShare = false, badge }: BadgeCardProps) {
   const isMuted = badge.status !== "unlocked";
 
   return (
@@ -45,17 +47,19 @@ export function BadgeCard({ badge }: BadgeCardProps) {
           {badge.value}
         </div>
       ) : null}
-      <div className="flex justify-end">
-        <ShareButton
-          label="Share badge"
-          payload={buildAchievementSharePayload({
-            ctaLabel: "Xem badge trên ChapMee",
-            text: badge.description,
-            title: badge.title,
-            url: getShareUrl("/me#badges")
-          })}
-        />
-      </div>
+      {allowShare && badge.status === "unlocked" ? (
+        <div className="flex justify-end">
+          <ShareButton
+            label="Share badge"
+            payload={buildAchievementSharePayload({
+              ctaLabel: "Xem badge trên ChapMee",
+              text: badge.description,
+              title: badge.title,
+              url: getShareUrl("/me#badges")
+            })}
+          />
+        </div>
+      ) : null}
     </Card>
   );
 }

@@ -7,7 +7,7 @@ import {
 import { StoryImageVariantGenerationError } from "@/lib/images/generate-story-image-variants";
 import { parseFocalPointFromFormData } from "@/lib/images/parse-focal-point";
 import { regenerateStoryImageVariants } from "@/lib/images/update-story-image-focal-point";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -25,9 +25,9 @@ export async function POST(request: Request) {
 
     await assertStoryImageUploadAccess(storyId);
 
-    const supabase = await createClient();
+    const db = await createClient();
     const { image, coverUrl } = await regenerateStoryImageVariants({
-      supabase,
+      db,
       storyId,
       imageId,
       focal

@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
-import { buildRobotsConfig } from "@/lib/seo/robots";
+import { buildRobotsConfigFromSettings } from "@/lib/seo/robots-service";
 
-export default function robots(): MetadataRoute.Robots {
-  return buildRobotsConfig();
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  return buildRobotsConfigFromSettings();
 }

@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 
-export type StoryTabId = "chapters" | "about" | "comments" | "fan";
+export type StoryTabId = "chapters" | "audio" | "films" | "about" | "comments" | "reviews" | "fan";
 
 type StoryTab = {
   id: StoryTabId;

@@ -13,6 +13,7 @@ type TrackedNextChapterLinkProps = {
   href: string;
   nextEpisodeNumber: number;
   children: ReactNode;
+  onPrefetchIntent?: () => void;
 };
 
 export function TrackedNextChapterLink({
@@ -20,12 +21,15 @@ export function TrackedNextChapterLink({
   className,
   context,
   href,
-  nextEpisodeNumber
+  nextEpisodeNumber,
+  onPrefetchIntent
 }: TrackedNextChapterLinkProps) {
   return (
     <Link
       className={className}
       href={href}
+      onFocus={onPrefetchIntent}
+      onMouseEnter={onPrefetchIntent}
       onClick={() => trackNextChapterClick(context, nextEpisodeNumber)}
     >
       {children}

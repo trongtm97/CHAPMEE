@@ -17,7 +17,7 @@ export function ReelsPerformanceTable({ reels }: ReelsPerformanceTableProps) {
   return (
     <section className="space-y-3">
       <SectionHeader
-        subtitle="Lượt xem và CTA từ nội dung Reels và sự kiện feed khi có."
+        subtitle="Lượt xem, tương tác và CTA từ Reels — gồm tim, bình luận, lưu, chia sẻ."
         title="Hiệu quả Reels"
       />
       <div className="space-y-3">
@@ -37,8 +37,12 @@ export function ReelsPerformanceTable({ reels }: ReelsPerformanceTableProps) {
                 Sửa
               </Link>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               <Metric label="Lượt xem" value={formatNumber(reel.views)} />
+              <Metric label="Tim" value={formatNumber(reel.likeCount)} />
+              <Metric label="Bình luận" value={formatNumber(reel.commentCount)} />
+              <Metric label="Lưu truyện" value={formatNumber(reel.saveCount)} />
+              <Metric label="Chia sẻ" value={formatNumber(reel.shareCount)} />
               <Metric label="Lượt bấm CTA" value={formatNumber(reel.ctaClicks)} />
               <Metric
                 label="Tỷ lệ bấm CTA"

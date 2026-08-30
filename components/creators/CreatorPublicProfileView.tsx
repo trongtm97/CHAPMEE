@@ -15,7 +15,7 @@ import { buildAuthorDescription, buildCanonicalUrl } from "@/lib/seo/metadata";
 import { getShareUrl } from "@/lib/share/getShareUrl";
 import { getSupporterRankingForAuthor } from "@/lib/monetization/supporter-ranking";
 import { getMonetizationConfig } from "@/lib/monetization/config";
-import { listStoryOriginalStatusesForCreator } from "@/lib/supabase/originals";
+import { listStoryOriginalStatusesForCreator } from "@/lib/data/originals";
 import { OriginalsBadge } from "@/components/story/OriginalsBadge";
 import { buildPersonJsonLd } from "@/lib/seo/structured-data";
 

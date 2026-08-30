@@ -19,7 +19,7 @@ export default async function StudioMonetizationRoute() {
         <h1 className="text-2xl font-bold text-white">Kiếm tiền</h1>
         <ErrorState message={error} title="Không tải được quyền truy cập Studio" />
         <p className="text-sm text-zinc-500">
-          <Link className="text-cyan-300 hover:underline" href="/studio/setup">
+          <Link className="text-cyan-300 hover:underline" href="/studio">
             Đăng ký tác giả
           </Link>{" "}
           để bật kiếm tiền và xem doanh thu.

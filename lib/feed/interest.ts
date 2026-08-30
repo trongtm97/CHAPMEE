@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@/lib/db/types";
 import type { FeedCandidate } from "@/types/feed-mixer";
 
 type InterestProfile = {
@@ -16,11 +16,11 @@ function mapScore(map: Record<string, number>, key: string | null | undefined) {
 }
 
 export async function loadUserInterestProfile(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   userId: string | null | undefined
 ) {
   if (!userId) return null;
-  const { data } = await supabase
+  const { data } = await db
     .from("user_interest_profiles")
     .select(
       "preferred_genres, preferred_tags, preferred_authors, negative_genres, negative_tags, hidden_authors"
@@ -46,13 +46,13 @@ export function personalFitForCandidate(
 }
 
 export async function loadFollowedCreatorIds(
-  supabase: SupabaseClient,
+  db: DatabaseClient,
   userId: string | null | undefined
 ) {
   const set = new Set<string>();
   if (!userId) return set;
 
-  const { data } = await supabase
+  const { data } = await db
     .from("follows")
     .select("creator_id")
     .eq("follower_id", userId)

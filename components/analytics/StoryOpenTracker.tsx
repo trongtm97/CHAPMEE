@@ -36,6 +36,16 @@ export function StoryOpenTracker({
       targetId: storyId,
       targetType: "story"
     });
+    void trackEvent({
+      eventName: analyticsEvents.storyViewed,
+      metadata: {
+        slug,
+        story_id: storyId,
+        structure_type: isStandalone ? "standalone" : "chaptered"
+      },
+      targetId: storyId,
+      targetType: "story"
+    });
   }, [authorUserId, isStandalone, slug, storyId]);
 
   return null;

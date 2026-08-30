@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { trackSearchClick } from "@/lib/search/track-search";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type { SearchResultType } from "@/types/search";
 
 export const dynamic = "force-dynamic";
@@ -20,10 +20,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false }, { status: 400 });
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   await trackSearchClick(
     body.query ?? "",

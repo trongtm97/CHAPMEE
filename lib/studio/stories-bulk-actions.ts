@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
+import { publishCreatorStory } from "@/lib/creator/publish-creator-story";
 import { getStudioAccess } from "@/lib/creator/getStudioAccess";
 import { studioPath } from "@/lib/studio/constants";
 import { persistStoryTaxonomyFromForm } from "@/lib/creator/persist-story-taxonomy";
@@ -72,12 +73,13 @@ async function getOwnedStoryIds(creatorId: string, storyIds: string[]) {
     return [];
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("stories")
     .select("id")
     .eq("creator_id", creatorId)
-    .in("id", storyIds);
+    .in("id", storyIds)
+    .is("deleted_at", null);
 
   if (error) {
     throw new Error(error.message);
@@ -95,10 +97,10 @@ export async function bulkHideStoriesAction(storyIds: string[]): Promise<BulkAct
 
   try {
     const ownedIds = await getOwnedStoryIds(access.creatorProfile.id, storyIds);
-    const supabase = await createClient();
+    const db = await createClient();
 
     return runBatched(ownedIds, async (storyId) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("stories")
         .update({ status: "archived", visibility: "private" })
         .eq("id", storyId);
@@ -125,10 +127,10 @@ export async function bulkUnhideStoriesAction(storyIds: string[]): Promise<BulkA
 
   try {
     const ownedIds = await getOwnedStoryIds(access.creatorProfile.id, storyIds);
-    const supabase = await createClient();
+    const db = await createClient();
 
     return runBatched(ownedIds, async (storyId) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("stories")
         .update({ status: "draft", visibility: "private" })
         .eq("id", storyId);
@@ -155,10 +157,10 @@ export async function bulkMarkCompletedAction(storyIds: string[]): Promise<BulkA
 
   try {
     const ownedIds = await getOwnedStoryIds(access.creatorProfile.id, storyIds);
-    const supabase = await createClient();
+    const db = await createClient();
 
     return runBatched(ownedIds, async (storyId) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("stories")
         .update({ is_completed: true })
         .eq("id", storyId);
@@ -185,10 +187,10 @@ export async function bulkMoveToDraftAction(storyIds: string[]): Promise<BulkAct
 
   try {
     const ownedIds = await getOwnedStoryIds(access.creatorProfile.id, storyIds);
-    const supabase = await createClient();
+    const db = await createClient();
 
     return runBatched(ownedIds, async (storyId) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("stories")
         .update({ status: "draft", visibility: "private" })
         .eq("id", storyId);
@@ -199,6 +201,40 @@ export async function bulkMoveToDraftAction(storyIds: string[]): Promise<BulkAct
     return {
       errors: [],
       error: caught instanceof Error ? caught.message : "Không thể chuyển về nháp.",
+      failedCount: storyIds.length,
+      ok: false,
+      successCount: 0
+    };
+  }
+}
+
+export async function bulkSubmitForReviewStoriesAction(
+  storyIds: string[]
+): Promise<BulkActionResult> {
+  const access = await assertStudioAccess();
+
+  if (access.error || !access.creatorProfile) {
+    return { errors: [], failedCount: storyIds.length, ok: false, successCount: 0, error: access.error };
+  }
+
+  try {
+    const db = await createClient();
+    const ownedIds = await getOwnedStoryIds(access.creatorProfile.id, storyIds);
+
+    return runBatched(ownedIds, async (storyId) => {
+      const result = await publishCreatorStory(db, {
+        authorDisplayName: access.creatorProfile?.display_name ?? null,
+        creatorId: access.creatorProfile!.id,
+        notify: false,
+        storyId
+      });
+
+      return result.ok ? { ok: true } : { ok: false, error: result.error };
+    });
+  } catch (caught) {
+    return {
+      errors: [],
+      error: caught instanceof Error ? caught.message : "Không thể đăng hàng loạt.",
       failedCount: storyIds.length,
       ok: false,
       successCount: 0
@@ -229,16 +265,16 @@ export async function bulkApplyTaxonomyTermsAction(
 
   try {
     const ownedIds = await getOwnedStoryIds(access.creatorProfile.id, storyIds);
-    const supabase = await createClient();
+    const db = await createClient();
 
     return runBatched(ownedIds, async (storyId) => {
-      const ctx = await loadStoryTaxonomyBulkPersistInput(supabase, storyId);
+      const ctx = await loadStoryTaxonomyBulkPersistInput(db, storyId);
       let ids = [...termIds];
 
       if (mode === "add") {
         ids = [...new Set([...ctx.taxonomyTermIds, ...termIds])];
       } else {
-        const { data: incomingTerms } = await supabase
+        const { data: incomingTerms } = await db
           .from("taxonomy_terms")
           .select("id, type")
           .in("id", termIds);
@@ -248,7 +284,7 @@ export async function bulkApplyTaxonomyTermsAction(
         );
 
         if (replaceTypes.size > 0 && ctx.taxonomyTermIds.length > 0) {
-          const { data: existingTerms } = await supabase
+          const { data: existingTerms } = await db
             .from("taxonomy_terms")
             .select("id, type")
             .in("id", ctx.taxonomyTermIds);
@@ -261,7 +297,7 @@ export async function bulkApplyTaxonomyTermsAction(
         }
       }
 
-      const result = await persistStoryTaxonomyFromForm(supabase, storyId, {
+      const result = await persistStoryTaxonomyFromForm(db, storyId, {
         ...ctx,
         taxonomyTermIds: ids
       });
@@ -307,13 +343,13 @@ export async function bulkRemoveTaxonomyTermsAction(
 
   try {
     const ownedIds = await getOwnedStoryIds(access.creatorProfile.id, storyIds);
-    const supabase = await createClient();
+    const db = await createClient();
 
     return runBatched(ownedIds, async (storyId) => {
-      const ctx = await loadStoryTaxonomyBulkPersistInput(supabase, storyId);
+      const ctx = await loadStoryTaxonomyBulkPersistInput(db, storyId);
       const remaining = ctx.taxonomyTermIds.filter((id) => !removeSet.has(id));
 
-      const result = await persistStoryTaxonomyFromForm(supabase, storyId, {
+      const result = await persistStoryTaxonomyFromForm(db, storyId, {
         ...ctx,
         taxonomyTermIds: remaining
       });
@@ -357,16 +393,16 @@ export async function bulkAddGenreAction(
 
   try {
     const ownedIds = await getOwnedStoryIds(access.creatorProfile.id, storyIds);
-    const supabase = await createClient();
-    const isTaxonomyTerm = await isTaxonomyMainGenreTermId(supabase, genreId);
+    const db = await createClient();
+    const isTaxonomyTerm = await isTaxonomyMainGenreTermId(db, genreId);
 
     return runBatched(ownedIds, async (storyId) => {
       if (isTaxonomyTerm) {
-        const ctx = await loadStoryTaxonomyBulkPersistInput(supabase, storyId);
+        const ctx = await loadStoryTaxonomyBulkPersistInput(db, storyId);
         let kept: string[] = [];
 
         if (ctx.taxonomyTermIds.length > 0) {
-          const { data: existingTerms } = await supabase
+          const { data: existingTerms } = await db
             .from("taxonomy_terms")
             .select("id, type")
             .in("id", ctx.taxonomyTermIds);
@@ -376,7 +412,7 @@ export async function bulkAddGenreAction(
             .map((row) => String(row.id));
         }
 
-        const result = await persistStoryTaxonomyFromForm(supabase, storyId, {
+        const result = await persistStoryTaxonomyFromForm(db, storyId, {
           ...ctx,
           taxonomyTermIds: [...kept, genreId]
         });
@@ -403,15 +439,15 @@ export async function bulkAddGenreAction(
 }
 
 async function storyHasEngagement(storyId: string) {
-  const supabase = await createClient();
+  const db = await createClient();
 
   const [reads, comments] = await Promise.all([
-    supabase
+    db
       .from("analytics_events")
       .select("id", { count: "exact", head: true })
       .eq("target_id", storyId)
       .eq("event_name", "open_story"),
-    supabase
+    db
       .from("comments")
       .select("id", { count: "exact", head: true })
       .eq("story_id", storyId)
@@ -452,8 +488,8 @@ export async function exportStoriesCsvAction(
   }
 
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const db = await createClient();
+    const { data, error } = await db
       .from("stories")
       .select("id, title, status, slug, updated_at, is_completed")
       .eq("creator_id", access.creatorProfile.id)
@@ -502,34 +538,15 @@ export async function bulkDeleteStoriesAction(storyIds: string[]): Promise<BulkA
   }
 
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("stories")
-      .select("id, status")
-      .eq("creator_id", access.creatorProfile.id)
-      .in("id", storyIds);
+    const { softDeleteStudioStoryAction } = await import(
+      "@/lib/studio/soft-delete-actions"
+    );
 
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    const owned = (data ?? []) as Array<{ id: string; status: string }>;
-
-    return runBatched(owned, async (story) => {
-      if (story.status !== "draft") {
-        return { ok: false, error: "Chỉ xóa được truyện nháp." };
-      }
-
-      if (await storyHasEngagement(story.id)) {
-        return { ok: false, error: "Truyện đã có tương tác — hãy ẩn thay vì xóa." };
-      }
-
-      const { error: deleteError } = await supabase
-        .from("stories")
-        .delete()
-        .eq("id", story.id);
-
-      return deleteError ? { ok: false, error: deleteError.message } : { ok: true };
+    return runBatched(storyIds, async (storyId) => {
+      const result = await softDeleteStudioStoryAction(storyId);
+      return result.ok
+        ? { ok: true }
+        : { ok: false, error: result.error ?? "Không thể xóa truyện." };
     });
   } catch (caught) {
     return {

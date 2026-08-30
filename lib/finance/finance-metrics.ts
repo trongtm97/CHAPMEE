@@ -16,9 +16,9 @@ import {
   resolveFinanceDateRange,
   resolvePreviousFinanceDateRange,
   type FinanceDateRange
-} from "@/lib/supabase/admin-finance";
+} from "@/lib/data/admin-finance";
 import { getSePayConfig } from "@/lib/payments/sepay-config";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 import type {
   FinanceCreatorRow,
   FinanceDashboardData,
@@ -672,11 +672,11 @@ async function buildTopEarningAuthors(
   const top = [...map.entries()].sort((a, b) => b[1].net - a[1].net).slice(0, 10);
   if (top.length === 0) return [];
 
-  const supabase = await createClient();
+  const db = await createClient();
   const ids = top.map(([id]) => id);
   const [{ data: profiles }, { data: creators }] = await Promise.all([
-    supabase.from("profiles").select("id, display_name, username").in("id", ids),
-    supabase.from("creator_profiles").select("user_id, pen_name").in("user_id", ids)
+    db.from("profiles").select("id, display_name, username").in("id", ids),
+    db.from("creator_profiles").select("user_id, pen_name").in("user_id", ids)
   ]);
   const nameMap = new Map(
     (profiles ?? []).map((row) => [
@@ -709,9 +709,9 @@ async function buildTopRefundedStories(
   }>
 ): Promise<FinanceRefundedStoryRow[]> {
   if (rows.length === 0) return [];
-  const supabase = await createClient();
+  const db = await createClient();
   const storyIds = rows.map((r) => r.storyId);
-  const { data: stories } = await supabase
+  const { data: stories } = await db
     .from("stories")
     .select("id, title, creator_id, creator_profiles(pen_name)")
     .in("id", storyIds);
@@ -758,9 +758,9 @@ async function buildTopSupporters(
   const top = [...map.entries()].sort((a, b) => b[1].totalCoin - a[1].totalCoin).slice(0, 10);
   if (top.length === 0) return [];
 
-  const supabase = await createClient();
+  const db = await createClient();
   const ids = top.map(([id]) => id);
-  const { data } = await supabase
+  const { data } = await db
     .from("profiles")
     .select("id, display_name, username")
     .in("id", ids);
@@ -817,7 +817,7 @@ async function buildTopPaidContent(
     });
   }
 
-  const supabase = await createClient();
+  const db = await createClient();
   const storyIds = [
     ...new Set([...storyMap.keys(), ...[...chapterMap.values()].map((c) => c.storyId)])
   ];
@@ -825,13 +825,13 @@ async function buildTopPaidContent(
 
   const [{ data: stories }, { data: chapters }] = await Promise.all([
     storyIds.length
-      ? supabase
+      ? db
           .from("stories")
           .select("id, title, creator_profiles(pen_name)")
           .in("id", storyIds)
       : Promise.resolve({ data: [] }),
     chapterIds.length
-      ? supabase.from("chapters").select("id, title, chapter_number").in("id", chapterIds)
+      ? db.from("chapters").select("id, title, chapter_number").in("id", chapterIds)
       : Promise.resolve({ data: [] })
   ]);
 

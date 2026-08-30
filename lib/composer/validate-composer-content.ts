@@ -8,6 +8,8 @@ import {
 import { getAllowedBlocksForMode, isBlockAllowedForMode } from "@/lib/composer/modes";
 import { parseComposerDocument, isComposerStructuredDocument } from "@/lib/composer/serializer";
 import { sanitizePlainContent } from "@/lib/editor/sanitize-content";
+import { containsForbiddenLocalMediaUrl } from "@/lib/media/media-url";
+import { LOCAL_MEDIA_URL_ERROR } from "@/lib/media/content-media-validator";
 import type {
   ComposerBlockUnion,
   ComposerMode,
@@ -18,6 +20,10 @@ import type {
 } from "@/lib/composer/types";
 
 const FORBIDDEN_URL_PATTERN = /https?:\/\//i;
+
+function hasForbiddenLocalMedia(value: string) {
+  return containsForbiddenLocalMediaUrl(value);
+}
 const DANGEROUS_HTML_PATTERN =
   /<script\b|<iframe\b|javascript:|on\w+\s*=|<style\b/i;
 const DATE_LIKE = /^\d{4}-\d{2}-\d{2}$/;
@@ -61,6 +67,9 @@ function textHasUnsafeContent(text: string): boolean {
   if (DANGEROUS_HTML_PATTERN.test(trimmed)) {
     return true;
   }
+  if (hasForbiddenLocalMedia(trimmed)) {
+    return true;
+  }
   if (FORBIDDEN_URL_PATTERN.test(trimmed) && !trimmed.includes("media_id")) {
     return true;
   }
@@ -73,6 +82,10 @@ function scanTextFields(
   warnings: ComposerValidationIssue[]
 ) {
   const raw = JSON.stringify(block.data);
+  if (hasForbiddenLocalMedia(raw)) {
+    push(errors, issue("error", "LOCAL_MEDIA_URL", LOCAL_MEDIA_URL_ERROR, block.id));
+    return;
+  }
   if (textHasUnsafeContent(raw)) {
     push(
       errors,
@@ -103,6 +116,9 @@ function scanTextFields(
 
 function blockHasExternalUrl(block: ComposerBlockUnion): boolean {
   const raw = JSON.stringify(block.data);
+  if (hasForbiddenLocalMedia(raw)) {
+    return true;
+  }
   return FORBIDDEN_URL_PATTERN.test(raw) && !raw.includes("media_id");
 }
 
@@ -119,7 +135,11 @@ function isBlockStructurallyEmpty(block: ComposerBlockUnion): boolean {
     "title",
     "label",
     "objective",
-    "name"
+    "name",
+    "character_name",
+    "time",
+    "status",
+    "difficulty"
   ];
   for (const key of textFields) {
     if (typeof data[key] === "string" && data[key].trim()) {
@@ -380,7 +400,7 @@ function validateBlockContent(
         );
       }
       const tone = (block.data as { tone?: string }).tone;
-      if (tone && !["info", "success", "warning", "danger"].includes(tone)) {
+      if (tone && !["neutral", "info", "success", "warning", "danger"].includes(tone)) {
         push(
           warnings,
           issue("warning", "SYSTEM_NOTICE_TONE", "tone không hợp lệ.", block.id, "data.tone")

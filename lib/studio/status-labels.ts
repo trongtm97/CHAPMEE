@@ -1,3 +1,4 @@
+import { canViewPublicEpisode } from "@/lib/visibility/contentVisibility";
 import type { StudioDisplayStatus } from "@/types/studio";
 import type { StudioDbContentStatus } from "@/types/studio";
 
@@ -26,6 +27,8 @@ export function getChapterStatusLabel(status: StudioDisplayStatus): string {
       return "Cần sửa";
     case "draft":
       return "Nháp";
+    case "paused":
+      return "Chờ truyện hiện";
     default:
       return getStoryStatusLabel(status);
   }
@@ -94,10 +97,14 @@ export function resolveStoryDisplayStatus({
 
 type ChapterStatusInput = {
   status: StudioDbContentStatus;
+  storyStatus?: string | null;
+  storyVisibility?: string | null;
 };
 
 export function resolveChapterDisplayStatus({
-  status
+  status,
+  storyStatus,
+  storyVisibility
 }: ChapterStatusInput): StudioDisplayStatus {
   if (status === "archived") {
     return "hidden";
@@ -115,13 +122,22 @@ export function resolveChapterDisplayStatus({
     return "under_review";
   }
 
+  let display: StudioDisplayStatus = "draft";
+
   if (status === "approved") {
-    return "scheduled";
+    display = "scheduled";
+  } else if (status === "published") {
+    display = "published";
   }
 
-  if (status === "published") {
-    return "published";
+  if (
+    (status === "published" || status === "approved") &&
+    storyStatus != null &&
+    storyVisibility != null &&
+    !canViewPublicEpisode(status, storyStatus, storyVisibility)
+  ) {
+    return "paused";
   }
 
-  return "draft";
+  return display;
 }

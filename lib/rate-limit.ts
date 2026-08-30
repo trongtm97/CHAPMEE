@@ -1,10 +1,14 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 type RateLimitKey =
   | "comment"
   | "reply_comment"
   | "story"
   | "chapter"
+  | "chapter_reaction"
+  | "story_review"
+  | "inline_comment"
+  | "story_boost"
   | "follow"
   | "save"
   | "report"
@@ -16,6 +20,10 @@ const defaultLimits: Record<RateLimitKey, { count: number; windowMs: number }> =
   reply_comment: { count: 8, windowMs: 60 * 1000 },
   story: { count: 3, windowMs: 60 * 60 * 1000 },
   chapter: { count: 8, windowMs: 60 * 60 * 1000 },
+  chapter_reaction: { count: 30, windowMs: 60 * 1000 },
+  story_review: { count: 5, windowMs: 60 * 60 * 1000 },
+  inline_comment: { count: 10, windowMs: 60 * 1000 },
+  story_boost: { count: 20, windowMs: 60 * 1000 },
   follow: { count: 20, windowMs: 60 * 1000 },
   save: { count: 20, windowMs: 60 * 1000 },
   report: { count: 10, windowMs: 24 * 60 * 60 * 1000 },
@@ -35,11 +43,11 @@ export async function enforceRateLimit(
   limitOverride?: { count: number; windowMs: number }
 ): Promise<RateLimitResult> {
   const limit = limitOverride ?? defaultLimits[key];
-  const supabase = await createClient();
+  const db = await createClient();
   const now = new Date();
   const windowStart = new Date(now.getTime() - limit.windowMs).toISOString();
 
-  const { count, error } = await supabase
+  const { count, error } = await db
     .from("rate_limit_events")
     .select("id", { count: "exact", head: true })
     .eq("limit_key", key)
@@ -55,7 +63,7 @@ export async function enforceRateLimit(
   const resetAt = new Date(now.getTime() + limit.windowMs).toISOString();
 
   if (allowed) {
-    const { error: insertError } = await supabase.from("rate_limit_events").insert({
+    const { error: insertError } = await db.from("rate_limit_events").insert({
       limit_key: key,
       user_id: userId
     });

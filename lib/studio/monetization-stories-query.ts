@@ -1,6 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
+import { resolveStoryCoverUrl } from "@/lib/stories/resolve-story-cover-url";
 import { normalizeStoryStructureType } from "@/lib/stories/story-structure";
 import type { CreatorProfile } from "@/lib/creator/getCreatorProfile";
 import { buildStudioMonetizationConfigView } from "@/lib/studio/monetization-config";
@@ -21,6 +22,8 @@ import type {
   StudioMonetizationStoryFilter,
   StudioMonetizationStorySort
 } from "@/types/studio-monetization-stories";
+import { getStoryMonetizationCapabilities } from "@/lib/content-origin/content-origin-policy";
+import { getContentOriginPolicySettings } from "@/lib/settings/content-origin-policy-settings";
 
 type StoryMetaRow = {
   id: string;
@@ -34,6 +37,9 @@ type StoryMetaRow = {
   cover_url: string | null;
   admin_completion_status?: string | null;
   structure_type?: string | null;
+  content_origin?: string | null;
+  rights_status?: string | null;
+  monetization_policy?: string | null;
 };
 
 function parseAdminCompletionStatus(value: unknown): StoryAdminCompletionStatus {
@@ -164,7 +170,7 @@ function sortRows(
 }
 
 async function loadAggregateMaps(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  db: Awaited<ReturnType<typeof createClient>>,
   storyIds: string[],
   creatorUserId: string,
   adminFreeFloor: number,
@@ -211,33 +217,33 @@ async function loadAggregateMaps(
     { data: storySettingsRows },
     { data: lockedEarningRows }
   ] = await Promise.all([
-      supabase
+      db
         .from("chapter_monetization_settings")
         .select("story_id, chapter_id, is_paid, coin_price")
         .in("story_id", storyIds),
-      supabase
+      db
         .from("transactions")
         .select("story_id, type, source, net_amount_vnd, creator_gross_vnd, status")
         .eq("creator_user_id", creatorUserId)
         .eq("status", "completed")
         .in("story_id", storyIds),
-      supabase
+      db
         .from("analytics_events")
         .select("target_id")
         .in("target_id", storyIds)
         .in("event_name", ["open_story", "read_chapter", "story_read"]),
-      supabase
+      db
         .from("episodes")
         .select("id, story_id, episode_number")
         .in("story_id", storyIds)
         .neq("status", "archived"),
-      supabase
+      db
         .from("story_monetization_settings")
         .select(
           "story_id, full_access_enabled, full_access_price_coin, auto_pricing_enabled, free_first_chapters_count, auto_price_coin"
         )
         .in("story_id", storyIds),
-      supabase
+      db
         .from("creator_earning_transactions")
         .select("story_id, creator_net_amount_vnd")
         .eq("creator_user_id", creatorUserId)
@@ -339,10 +345,23 @@ function mapStoryRow(
   story: StoryMetaRow,
   maps: Awaited<ReturnType<typeof loadAggregateMaps>>,
   config: Awaited<ReturnType<typeof buildStudioMonetizationConfigView>>,
-  genreDisplay?: { genreName: string | null }
+  genreDisplay?: { genreName: string | null },
+  policySettings?: Awaited<ReturnType<typeof getContentOriginPolicySettings>>
 ): StudioStoryMonetizationRow {
   const paidChapterCount = maps.paidCountByStory.get(story.id) ?? 0;
   const storySettings = maps.storySettingsByStory.get(story.id);
+  const policy = getStoryMonetizationCapabilities(
+    {
+      content_origin: story.content_origin ?? "original",
+      rights_status: story.rights_status ?? "unverified",
+      monetization_policy: story.monetization_policy ?? "full"
+    },
+    policySettings
+  );
+  const originPolicyNote =
+    policy.contentOrigin === "translation"
+      ? "Truyện Dịch bắt buộc miễn phí đọc 100%. Ads/tips chỉ có thể bật sau khi quyền dịch/quyền khai thác được admin xác minh."
+      : null;
 
   return {
     storyId: story.id,
@@ -354,7 +373,7 @@ function mapStoryRow(
     visibility: String(story.visibility ?? "private"),
     isCompleted: Boolean(story.is_completed),
     updatedAt: String(story.updated_at ?? new Date().toISOString()),
-    coverUrl: story.cover_url ?? null,
+    coverUrl: resolveStoryCoverUrl(story.cover_url),
     genreName: genreDisplay?.genreName ?? null,
     readCount: maps.readCountByStory.get(story.id) ?? 0,
     monetizationEnabled: paidChapterCount > 0 || Boolean(storySettings?.autoPricingEnabled),
@@ -380,15 +399,23 @@ function mapStoryRow(
     adminCompletionStatus: parseAdminCompletionStatus(story.admin_completion_status),
     lockedFullStoryRevenueVnd: formatVnd(
       maps.lockedFullStoryRevenueByStory.get(story.id) ?? 0
-    )
+    ),
+    contentOrigin: policy.contentOrigin,
+    rightsStatus: story.rights_status ?? "unverified",
+    canSellChapters: policy.canSellChapters && policy.canUseCoinUnlock,
+    canSellStoryBundle: policy.canSellStoryBundle && policy.canUseCoinUnlock,
+    canUseCoinUnlock: policy.canUseCoinUnlock,
+    canReceiveTips: policy.canReceiveTips,
+    canShareAdsRevenue: policy.canShareAdsRevenue,
+    originPolicyNote
   };
 }
 
 export async function getMonetizationGenreOptions(
   creatorProfileId: string
 ): Promise<StudioMonetizationGenreOption[]> {
-  const supabase = await createClient();
-  return loadCreatorMainGenreFilterOptions(supabase, creatorProfileId);
+  const db = await createClient();
+  return loadCreatorMainGenreFilterOptions(db, creatorProfileId);
 }
 
 export async function getMonetizationStoriesPage(
@@ -401,19 +428,19 @@ export async function getMonetizationStoriesPage(
   const page = Math.max(1, query.page);
   const search = query.search.trim().toLowerCase();
 
-  const supabase = await createClient();
+  const db = await createClient();
 
-  let storiesQuery = supabase
+  let storiesQuery = db
     .from("stories")
     .select(
-      "id, title, slug, public_code, status, visibility, is_completed, cover_url, updated_at, admin_completion_status, structure_type"
+      "id, title, slug, public_code, status, visibility, is_completed, cover_url, updated_at, admin_completion_status, structure_type, content_origin, rights_status, monetization_policy"
     )
     .eq("creator_id", creatorProfile.id);
 
   const genreFilter = query.genreId?.trim() ?? "";
   const useTaxonomyGenreFilter =
     genreFilter.length > 0 &&
-    (await isTaxonomyMainGenreTermId(supabase, genreFilter));
+    (await isTaxonomyMainGenreTermId(db, genreFilter));
 
   if (genreFilter && !useTaxonomyGenreFilter) {
     return {
@@ -443,7 +470,7 @@ export async function getMonetizationStoriesPage(
 
   if (useTaxonomyGenreFilter) {
     const allowed = await loadStoryIdsMatchingTaxonomyFilters(
-      supabase,
+      db,
       metaRows.map((story) => story.id),
       { mainGenreTermId: genreFilter }
     );
@@ -451,7 +478,7 @@ export async function getMonetizationStoriesPage(
   }
 
   const taxonomyByStory = await loadMainGenreLabelsByStoryIds(
-    supabase,
+    db,
     metaRows.map((story) => story.id)
   );
   const filteredMeta = search
@@ -460,17 +487,18 @@ export async function getMonetizationStoriesPage(
 
   const storyIds = filteredMeta.map((story) => story.id);
   const maps = await loadAggregateMaps(
-    supabase,
+    db,
     storyIds,
     creatorUserId,
     config.paidChapterFreeChaptersRequired,
     config.paidChapterDefaultCoinPrice
   );
+  const policySettings = await getContentOriginPolicySettings();
 
   let enriched = filteredMeta
     .map((story) => {
       const picked = pickMainGenreFromLabels(taxonomyByStory.get(story.id));
-      return mapStoryRow(story, maps, config, { genreName: picked.genreName });
+      return mapStoryRow(story, maps, config, { genreName: picked.genreName }, policySettings);
     })
     .filter((story, index) => {
       const settings = maps.storySettingsByStory.get(filteredMeta[index].id);
@@ -509,8 +537,8 @@ export async function resolveMonetizationBulkStoryIds(
   scope: import("@/types/studio-monetization-stories").StudioMonetizationBulkScope,
   selectedIds: string[]
 ): Promise<string[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("stories")
     .select("id, status, visibility, is_completed")
     .eq("creator_id", creatorProfile.id);
@@ -538,8 +566,8 @@ export async function resolveMonetizationBulkStoryIds(
 }
 
 export async function countCreatorStories(creatorProfileId: string) {
-  const supabase = await createClient();
-  const { count, error } = await supabase
+  const db = await createClient();
+  const { count, error } = await db
     .from("stories")
     .select("id", { count: "exact", head: true })
     .eq("creator_id", creatorProfileId);
@@ -552,8 +580,8 @@ export async function countCreatorStories(creatorProfileId: string) {
 }
 
 export async function countPaidStories(creatorProfileId: string) {
-  const supabase = await createClient();
-  const { data: stories, error: storiesError } = await supabase
+  const db = await createClient();
+  const { data: stories, error: storiesError } = await db
     .from("stories")
     .select("id")
     .eq("creator_id", creatorProfileId);
@@ -563,7 +591,7 @@ export async function countPaidStories(creatorProfileId: string) {
   }
 
   const storyIds = stories.map((row) => row.id);
-  const { data: paidRows, error } = await supabase
+  const { data: paidRows, error } = await db
     .from("chapter_monetization_settings")
     .select("story_id")
     .in("story_id", storyIds)

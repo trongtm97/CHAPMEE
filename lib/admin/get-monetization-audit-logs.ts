@@ -1,7 +1,7 @@
 "use server";
 
 import { assertAnyPermission } from "@/lib/auth/require-permission";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/data/server";
 
 export type MonetizationAuditLogEntry = {
   id: string;
@@ -25,8 +25,8 @@ export async function getMonetizationAuditLogs(limit = 10) {
     "admin.settings.view"
   ]);
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const db = await createClient();
+  const { data, error } = await db
     .from("admin_audit_logs")
     .select(
       "id, action, target_type, target_id, metadata, created_at, actor_id, ip_address, user_agent"
@@ -50,7 +50,7 @@ export async function getMonetizationAuditLogs(limit = 10) {
 
   const actorMap = new Map<string, string>();
   if (actorIds.length) {
-    const { data: actors } = await supabase
+    const { data: actors } = await db
       .from("profiles")
       .select("id, username, display_name")
       .in("id", actorIds);

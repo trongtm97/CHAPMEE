@@ -25,6 +25,7 @@ type UseCommunityInfiniteFeedParams = {
   tab: CommunityFeedTab;
   searchQuery?: string;
   limit?: number;
+  refreshToken?: number;
 };
 
 function dedupeItems(items: CommunityFeedItem[]) {
@@ -42,6 +43,7 @@ function dedupeItems(items: CommunityFeedItem[]) {
 
 export function useCommunityInfiniteFeed({
   limit = 10,
+  refreshToken = 0,
   searchQuery = "",
   tab
 }: UseCommunityInfiniteFeedParams) {
@@ -181,13 +183,14 @@ export function useCommunityInfiniteFeed({
 
   useEffect(() => {
     autoFillPassesRef.current = 0;
+    feedCache.delete(feedCacheKey(tab, searchQuery));
     void fetchPage(null, "reset");
 
     return () => {
       fetchIdRef.current += 1;
       abortRef.current?.abort();
     };
-  }, [fetchPage]);
+  }, [fetchPage, refreshToken, searchQuery, tab]);
 
   const loadMore = useCallback(() => {
     if (isInitialLoading || isFetchingNextPage || !hasMore || !nextCursor) {

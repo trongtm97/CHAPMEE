@@ -2,33 +2,59 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ResponsivePageContainer } from "@/components/layout/ResponsivePageContainer";
-import { ContentPostCard } from "@/components/content-posts/ContentPostCard";
-import { ContentPostTypeBadge } from "@/components/admin/content-posts/ContentPostStatusBadge";
 import { ContentPostArticleWithAds } from "@/components/ads/ContentPostArticleWithAds";
+import {
+  ContentPostDetailCta,
+  ContentPostDetailMeta,
+  ContentPostRelatedSection
+} from "@/components/content-posts/ContentPostDetailExtras";
 import { ShareButton } from "@/components/share/ShareButton";
+import { ContentPostViewTracker } from "@/components/content-posts/ContentPostViewTracker";
 import { buildPublicContentPostMetadata } from "@/lib/seo/build-metadata";
+import {
+  getDevFallbackPostByPublicCode,
+  getDevFallbackPostBySlug
+} from "@/lib/content-posts/dev-fallback-posts";
+import { estimateReadingMinutes } from "@/lib/content-posts/public-catalog";
 import { getContentPostByPublicCode, getContentPostBySlug } from "@/lib/platform-content";
 import {
   isContentPostPubliclyVisible,
   listContentPosts
 } from "@/lib/platform-content/content-posts";
-import { estimateReadingMinutes } from "@/lib/content-posts/public-catalog";
+import { listCategoriesForPost } from "@/lib/platform-content/content-post-categories";
 import { buildCanonicalUrl } from "@/lib/seo/metadata";
-import { getContentPostUrl } from "@/lib/seo/canonical";
+import {
+  buildBreadcrumbJsonLd,
+  buildContentPostArticleJsonLd
+} from "@/lib/seo/structured-data";
+import { getContentPostUrl } from "@/lib/urls/paths";
 import { createExcerpt } from "@/lib/text/createExcerpt";
 import { redirectToCanonicalIfNeeded, tryRedirectFromLookupTable } from "@/lib/urls/canonical";
 import { parsePublicSegment } from "@/lib/urls/parse";
+import type { AdminContentPost } from "@/types/platform-content";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
-async function resolveContentPost(segment: string) {
+async function resolveContentPost(segment: string): Promise<{
+  item: AdminContentPost;
+  canonicalPath: string;
+  isDevFallback: boolean;
+} | null> {
   const parsed = parsePublicSegment(segment, "content_post");
   if (parsed) {
     const { item } = await getContentPostByPublicCode(parsed.publicCode, {
       publicOnly: true
     });
+    const devItem = !item ? getDevFallbackPostByPublicCode(parsed.publicCode) : null;
+    if (devItem) {
+      return {
+        item: devItem,
+        canonicalPath: `/bai-viet/${devItem.slug}`,
+        isDevFallback: true
+      };
+    }
     if (!item?.public_code) {
       return null;
     }
@@ -37,21 +63,35 @@ async function resolveContentPost(segment: string) {
       canonicalPath: getContentPostUrl({
         slug: item.slug,
         public_code: item.public_code
-      })
+      }),
+      isDevFallback: false
     };
   }
 
   const { item } = await getContentPostBySlug(segment, { publicOnly: true });
-  if (!item?.public_code) {
+  const devItem = !item ? getDevFallbackPostBySlug(segment) : null;
+  const resolved = item ?? devItem;
+  if (!resolved) {
+    return null;
+  }
+  if (devItem) {
+    return {
+      item: devItem,
+      canonicalPath: `/bai-viet/${devItem.slug}`,
+      isDevFallback: true
+    };
+  }
+  if (!resolved.public_code) {
     return null;
   }
 
   return {
-    item,
+    item: resolved,
     canonicalPath: getContentPostUrl({
-      slug: item.slug,
-      public_code: item.public_code
-    })
+      slug: resolved.slug,
+      public_code: resolved.public_code
+    }),
+    isDevFallback: false
   };
 }
 
@@ -69,10 +109,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const { item } = resolved;
-  return buildPublicContentPostMetadata({
+  return await buildPublicContentPostMetadata({
     title: item.title,
     slug: item.slug,
     public_code: String(item.public_code),
+    id: item.id,
     seo_title: item.seo_title,
     seo_description: item.seo_description,
     excerpt: item.excerpt,
@@ -81,7 +122,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     indexable: item.indexable,
     follow: !item.robots.includes("nofollow"),
     og_image_url: item.og_image_url,
+    og_image_media_asset_id: item.og_image_media_asset_id,
     cover_image_url: item.cover_image_url,
+    cover_media_asset_id: item.cover_media_asset_id,
     robots: item.robots
   });
 }
@@ -93,7 +136,11 @@ export default async function ContentPostPage({ params }: PageProps) {
   await tryRedirectFromLookupTable(currentPath);
 
   const resolved = await resolveContentPost(segment);
-  if (!resolved || !isContentPostPubliclyVisible(resolved.item)) {
+  if (!resolved) {
+    notFound();
+  }
+
+  if (!resolved.isDevFallback && !isContentPostPubliclyVisible(resolved.item)) {
     notFound();
   }
 
@@ -106,93 +153,114 @@ export default async function ContentPostPage({ params }: PageProps) {
   const readingMinutes = estimateReadingMinutes(item.content ?? "");
   const canonicalAbsolute = buildCanonicalUrl(canonicalPath) ?? canonicalPath;
 
-  const { items: relatedItems } = await listContentPosts({
-    publicOnly: true,
-    postType: item.post_type,
-    limit: 4
+  const [{ items: relatedItems }, categoryResult] = await Promise.all([
+    listContentPosts({
+      publicOnly: true,
+      postType: item.post_type,
+      limit: 4
+    }),
+    resolved.isDevFallback ? Promise.resolve({ items: [], error: null as string | null }) : listCategoriesForPost(item.id, { publicOnly: true })
+  ]);
+  let related = relatedItems.filter((row) => row.id !== item.id).slice(0, 3);
+  const assignedCategories = categoryResult.items;
+
+  if (related.length === 0 && resolved.isDevFallback) {
+    const { DEV_FALLBACK_CONTENT_POSTS } = await import("@/lib/content-posts/dev-fallback-posts");
+    related = DEV_FALLBACK_CONTENT_POSTS.filter(
+      (row) => row.id !== item.id && row.post_type === item.post_type
+    ).slice(0, 3);
+  }
+
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: "Trang chủ", url: buildCanonicalUrl("/") ?? "/" },
+    { name: "Bài viết", url: buildCanonicalUrl("/bai-viet") ?? "/bai-viet" },
+    { name: item.title, url: canonicalAbsolute }
+  ]);
+  const articleJsonLd = buildContentPostArticleJsonLd({
+    title: item.title,
+    description: item.excerpt ?? item.seo_description,
+    url: canonicalAbsolute,
+    datePublished: item.published_at,
+    dateModified: item.updated_at,
+    image: item.coverDisplayUrl ?? item.cover_image_url
   });
-  const related = relatedItems.filter((row) => row.id !== item.id).slice(0, 3);
 
   return (
-    <ResponsivePageContainer className="max-w-3xl space-y-8 py-8">
-      <nav className="text-sm text-muted-foreground">
-        <Link className="hover:text-foreground md:hidden" href="/discover">
-          Khám phá
-        </Link>
-        <span className="mx-2 md:hidden">/</span>
-        <Link className="hover:text-foreground" href="/bai-viet">
-          Bài viết
-        </Link>
-        <span className="mx-2">/</span>
-        <span className="text-foreground">{item.title}</span>
-      </nav>
+    <ResponsivePageContainer className="py-6 md:py-8">
+      <script
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        type="application/ld+json"
+      />
+      <script
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+        type="application/ld+json"
+      />
+      {resolved.isDevFallback ? null : <ContentPostViewTracker postId={item.id} />}
+      <div className="mx-auto max-w-3xl space-y-8">
+        <nav aria-label="Breadcrumb" className="text-sm text-zinc-500">
+          <Link className="hover:text-zinc-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400" href="/">
+            Trang chủ
+          </Link>
+          <span className="mx-2">/</span>
+          <Link
+            className="hover:text-zinc-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400"
+            href="/bai-viet"
+          >
+            Bài viết
+          </Link>
+          <span className="mx-2">/</span>
+          <span className="text-zinc-300">{item.title}</span>
+        </nav>
 
-      <article className="space-y-6">
-        <header className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <ContentPostTypeBadge type={item.post_type} />
-            {item.category ? (
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                {item.category}
-              </span>
+        <article className="space-y-6">
+          <header className="space-y-4">
+            <h1 className="text-3xl font-bold tracking-tight text-zinc-50 md:text-4xl">{item.title}</h1>
+            {item.excerpt ? (
+              <p className="text-lg leading-8 text-zinc-400">{item.excerpt}</p>
             ) : null}
-          </div>
-          <h1 className="text-3xl font-bold tracking-normal text-foreground md:text-4xl">
-            {item.title}
-          </h1>
-          {item.excerpt ? (
-            <p className="text-lg leading-8 text-muted-foreground">{item.excerpt}</p>
+            {assignedCategories.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {assignedCategories.map((cat) => (
+                  <Link
+                    className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-semibold text-zinc-300 hover:border-white/20 hover:text-white"
+                    href={`/bai-viet/danh-muc/${cat.slug}`}
+                    key={cat.id}
+                  >
+                    {cat.name}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+            <ContentPostDetailMeta item={item} readingMinutes={readingMinutes} />
+            <ShareButton
+              label="Chia sẻ"
+              payload={{
+                kind: "generic",
+                title: item.title,
+                text: item.excerpt ?? createExcerpt(item.content ?? "", 20, 30),
+                url: canonicalAbsolute
+              }}
+              variant="ghost"
+            />
+          </header>
+
+          {item.coverDisplayUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              alt=""
+              className="w-full rounded-2xl border border-white/10"
+              src={item.coverDisplayUrl}
+            />
           ) : null}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-            <span>ChapMee</span>
-            {item.published_at ? (
-              <time dateTime={item.published_at}>
-                Đăng {new Date(item.published_at).toLocaleDateString("vi-VN")}
-              </time>
-            ) : null}
-            {item.updated_at && item.updated_at !== item.published_at ? (
-              <time dateTime={item.updated_at}>
-                Cập nhật {new Date(item.updated_at).toLocaleDateString("vi-VN")}
-              </time>
-            ) : null}
-            <span>{readingMinutes} phút đọc</span>
+
+          <div className="prose prose-invert max-w-none prose-headings:font-bold prose-h2:text-xl prose-h3:text-lg prose-p:text-zinc-300">
+            <ContentPostArticleWithAds content={item.content ?? ""} />
           </div>
-          <ShareButton
-            label="Chia sẻ"
-            payload={{
-              kind: "generic",
-              title: item.title,
-              text: item.excerpt ?? createExcerpt(item.content ?? "", 20, 30),
-              url: canonicalAbsolute
-            }}
-            variant="ghost"
-          />
-        </header>
+        </article>
 
-        {item.cover_image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            alt=""
-            className="w-full rounded-2xl border border-border"
-            src={item.cover_image_url}
-          />
-        ) : null}
-
-        <ContentPostArticleWithAds content={item.content ?? ""} />
-      </article>
-
-      {related.length > 0 ? (
-        <section className="space-y-4 border-t border-border pt-8">
-          <h2 className="text-lg font-bold text-foreground">Bài liên quan</h2>
-          <ul className="space-y-3">
-            {related.map((row) => (
-              <li key={row.id}>
-                <ContentPostCard compact item={row} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+        <ContentPostDetailCta />
+        <ContentPostRelatedSection related={related} />
+      </div>
     </ResponsivePageContainer>
   );
 }
